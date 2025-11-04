@@ -109,8 +109,8 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       if (hiddenKeysSet.has(key)) return 0;
     }
 
-    const isSelected = styleConfig.selectedProteinIds.includes(point.id);
-    const isHighlighted = styleConfig.highlightedProteinIds.includes(point.id);
+    const isSelected = selectedIdsSet.has(point.id);
+    const isHighlighted = highlightedIdsSet.has(point.id);
     const hasSelection = styleConfig.selectedProteinIds.length > 0;
 
     if (isSelected || isHighlighted) {

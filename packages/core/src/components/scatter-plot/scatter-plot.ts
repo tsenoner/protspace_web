@@ -66,11 +66,51 @@ export class ProtspaceScatterplot extends LitElement {
   private _styleGettersCache: ReturnType<typeof createStyleGetters> | null = null;
   private _quadtreeRebuildRafId: number | null = null;
   private _selectionRerenderTimeout: number | null = null;
+  private _cachedScales: ReturnType<typeof DataProcessor.createScales> = null;
+  private _scalesCacheDeps: {
+    plotDataLength: number;
+    width: number;
+    height: number;
+    margin: { top: number; right: number; bottom: number; left: number };
+  } | null = null;
 
-  // Computed properties
+  // Computed properties with caching
   private get _scales() {
     const config = this._mergedConfig;
-    return DataProcessor.createScales(this._plotData, config.width, config.height, config.margin);
+
+    // Check if cache is valid
+    const needsRecompute =
+      !this._cachedScales ||
+      !this._scalesCacheDeps ||
+      this._scalesCacheDeps.plotDataLength !== this._plotData.length ||
+      this._scalesCacheDeps.width !== config.width ||
+      this._scalesCacheDeps.height !== config.height ||
+      this._scalesCacheDeps.margin.top !== config.margin.top ||
+      this._scalesCacheDeps.margin.right !== config.margin.right ||
+      this._scalesCacheDeps.margin.bottom !== config.margin.bottom ||
+      this._scalesCacheDeps.margin.left !== config.margin.left;
+
+    if (needsRecompute) {
+      this._cachedScales = DataProcessor.createScales(
+        this._plotData,
+        config.width,
+        config.height,
+        config.margin
+      );
+      this._scalesCacheDeps = {
+        plotDataLength: this._plotData.length,
+        width: config.width,
+        height: config.height,
+        margin: { ...config.margin },
+      };
+    }
+
+    return this._cachedScales;
+  }
+
+  private _invalidateScalesCache() {
+    this._cachedScales = null;
+    this._scalesCacheDeps = null;
   }
 
   constructor() {
@@ -203,12 +243,6 @@ export class ProtspaceScatterplot extends LitElement {
       // Fast path: draw selection overlay immediately without full rerender
       this._updateSelectionOverlays();
       this._scheduleDeferredSelectionRerender();
-    }
-    // Ensure selection/highlight changes immediately reflect in canvas styles
-    if (
-      changedProperties.has('selectedProteinIds') ||
-      changedProperties.has('highlightedProteinIds')
-    ) {
       this._canvasRenderer?.invalidateStyleCache();
     }
     if (changedProperties.has('selectionMode')) {
@@ -290,6 +324,8 @@ export class ProtspaceScatterplot extends LitElement {
       this._splitHistory,
       this.projectionPlane
     );
+    // Invalidate scales cache when plot data changes
+    this._invalidateScalesCache();
   }
 
   private _buildQuadtree() {
