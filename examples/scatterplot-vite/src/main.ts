@@ -621,11 +621,28 @@ Promise.all([
       }
     };
 
-    // Update control bar state - simplified since auto-sync handles most updates
-    const updateControlBarState = () => {
-      // Control bar now auto-syncs with scatterplot, so we only need to update local state
-      controlBar.selectedProteinsCount = selectedProteins.length;
+    // Link structure viewer to scatterplot and control bar selections
+    const handleSelectionChange = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { proteinIds } = customEvent.detail;
+
+      selectedProteins = Array.isArray(proteinIds) ? [...proteinIds] : [];
+
+      if (selectedProteins.length > 0) {
+        // Load the most recently selected protein into the viewer
+        const lastSelected = selectedProteins[selectedProteins.length - 1];
+        if (structureViewer.style.display === 'none') {
+          structureViewer.style.display = 'block';
+        }
+        structureViewer.loadProtein(lastSelected);
+        updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
+      } else {
+        updateSelectedProteinDisplay(null);
+      }
     };
+
+    // The control bar is now the single source of truth for selection events.
+    controlBar.addEventListener('protein-selection-change', handleSelectionChange);
 
     // Initialize legend
     updateLegend();
@@ -640,86 +657,6 @@ Promise.all([
       controlBar.requestUpdate();
 
       console.log(`Split state changed: ${isolationMode ? 'ON' : 'OFF'}`);
-    });
-
-    // Listen for data changes from scatterplot
-    plotElement.addEventListener('data-change', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { isFiltered } = customEvent.detail;
-
-      updateLegend();
-      console.log(`Data changed: ${isFiltered ? 'Filtered' : 'Full'} data`);
-    });
-
-    // Handle brush selections from scatterplot
-    plotElement.addEventListener('brush-selection', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { proteinIds } = customEvent.detail;
-
-      // For brush selections, just sync the local state without interfering
-      selectedProteins = [...proteinIds];
-      updateControlBarState();
-
-      if (selectedProteins.length > 0) {
-        updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
-      } else {
-        updateSelectedProteinDisplay(null);
-      }
-    });
-
-    // Handle individual protein clicks from scatterplot
-    plotElement.addEventListener('protein-click', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { proteinId, modifierKeys } = customEvent.detail;
-
-      // Handle selection based on mode and modifier keys
-      if (selectionMode || modifierKeys.ctrl || modifierKeys.shift) {
-        // Multi-selection mode - add to selection without clearing others
-        if (selectedProteins.includes(proteinId)) {
-          // Remove from selection if already selected (deselect)
-          selectedProteins = selectedProteins.filter((id) => id !== proteinId);
-        } else {
-          // Add to selection
-          selectedProteins.push(proteinId);
-        }
-
-        // Update the scatterplot's selectedProteinIds to show visual selection
-        plotElement.selectedProteinIds = [...selectedProteins];
-
-        // Force the web component to update its visual state
-        plotElement.requestUpdate();
-
-        updateControlBarState();
-
-        if (selectedProteins.length > 0) {
-          updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
-        } else {
-          updateSelectedProteinDisplay(null);
-        }
-      } else {
-        // Single selection mode - handle single click behavior
-        if (selectedProteins.length === 1 && selectedProteins[0] === proteinId) {
-          // Clicking the same protein again - deselect it
-          selectedProteins = [];
-          plotElement.selectedProteinIds = [];
-
-          // Force the web component to update its visual state
-          plotElement.requestUpdate();
-
-          updateControlBarState();
-          updateSelectedProteinDisplay(null);
-        } else {
-          // Select new protein or first selection
-          selectedProteins = [proteinId];
-          plotElement.selectedProteinIds = [...selectedProteins];
-
-          // Force the web component to update its visual state
-          plotElement.requestUpdate();
-
-          updateControlBarState();
-          updateSelectedProteinDisplay(proteinId);
-        }
-      }
     });
 
     // Handle split events from scatterplot
@@ -805,10 +742,12 @@ Promise.all([
       selectionMode = plotElement.selectionMode; // Sync with scatterplot state
     });
 
-    // Handle clear selections for local state
-    controlBar.addEventListener('clear-selections', () => {
-      selectedProteins = [];
-      updateSelectedProteinDisplay(null);
+    // Handle data-change from scatterplot to sync selections
+    plotElement.addEventListener('data-change', (event: Event) => {
+      // When data changes (e.g. after a split), the selection is often cleared.
+      // Sync local selection state with the component state.
+      selectedProteins = plotElement.selectedProteinIds || [];
+      updateLegend();
     });
 
     // Handle notification events from control bar

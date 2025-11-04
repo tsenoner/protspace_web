@@ -713,6 +713,7 @@ export class ProtspaceScatterplot extends LitElement {
           point,
           modifierKeys: {
             ctrl: event.ctrlKey,
+            meta: event.metaKey,
             shift: event.shiftKey,
             alt: event.altKey,
           },

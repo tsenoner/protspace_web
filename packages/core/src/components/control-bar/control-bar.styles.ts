@@ -23,16 +23,8 @@ export const controlBarStyles = css`
     background: var(--up-surface);
     border-bottom: 1px solid var(--up-border);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-    flex-wrap: wrap;
-    row-gap: 0.5rem;
+    flex-wrap: nowrap;
     border-radius: 5px;
-  }
-
-  @media (max-width: 1050px) {
-    .control-bar {
-      row-gap: 0.9rem;
-      flex-direction: column-reverse;
-    }
   }
 
   .left-controls {
@@ -59,6 +51,20 @@ export const controlBarStyles = css`
     justify-content: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  /* Center search should expand to take remaining horizontal space */
+  .search-group {
+    flex: 1 1 12rem;
+    min-width: 0;
+    margin: 0 0.5rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-group > protspace-protein-search {
+    width: 100%;
     min-width: 0;
   }
 
@@ -109,23 +115,10 @@ export const controlBarStyles = css`
 
   button.active {
     background: var(--up-primary);
-    color: #ffffff !important;
+    color: #ffffff;
     border-color: var(--up-primary);
-    box-shadow: inset 1px 1px 3px 0px #d8d8d8 !important;
+    box-shadow: inset 1px 1px 3px 0px #d8d8d8;
     fill: #fff;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    column-gap: 5px;
-    padding: 0.3rem 0.45rem 0.3rem 0.5rem;
-    border: 1px solid var(--up-border);
-    border-radius: 5px;
-    outline-style: unset;
-    outline-width: unset;
-    outline-color: rgba(57, 57, 57, 0);
-    box-shadow: rgb(216, 216, 216) -1px -1px 3px 0px inset;
-    transition: 0.3s;
   }
 
   /* Make Filter button text more visible even when not active */
@@ -133,15 +126,11 @@ export const controlBarStyles = css`
     color: #0b0f19; /* very dark text for light mode */
     font-weight: 400;
   }
-  @media (prefers-color-scheme: dark) {
-  }
 
   /* High-contrast labels inside filter panel */
   .export-menu .filter-label {
     color: #0b0f19;
     font-weight: 400;
-  }
-  @media (prefers-color-scheme: dark) {
   }
 
   button.active:hover {
@@ -182,7 +171,7 @@ export const controlBarStyles = css`
     outline: unset;
     outline-color: #39393900;
     box-shadow: inset -1px -1px 3px 0px #d8d8d8;
-    transition: 0.3s;
+    transition: all 0.15s ease;
   }
   .export-container {
     position: relative;
@@ -279,7 +268,7 @@ export const controlBarStyles = css`
     padding: 0.25rem 0.7rem;
     border-radius: 4px;
     box-shadow: inset -1px -1px 3px 0px #7d918e78;
-    transition: 0.3s;
+    transition: all 0.15s ease;
   }
 
   .filter-menu-list-item-options-selection > button:last-child {
@@ -318,7 +307,7 @@ export const controlBarStyles = css`
     box-shadow: 0px 1px 2px 0px #3323c41a;
     padding: 0.3rem 0.3rem 0.3rem 0.5rem;
     box-sizing: border-box;
-    transition: 0.3s;
+    transition: all 0.15s ease;
   }
 
   .filter-menu-list-item-options-inputs > label:hover {
@@ -340,7 +329,7 @@ export const controlBarStyles = css`
     align-items: center;
     justify-content: center;
     font-weight: 900;
-    transition: 0.3s;
+    transition: all 0.15s ease;
   }
 
   .filter-menu-list-item-options-done > button:hover {
@@ -366,7 +355,7 @@ export const controlBarStyles = css`
     align-items: center;
     justify-content: center;
     border-radius: 4px;
-    transition: 0.3s;
+    transition: all 0.15s ease;
   }
   .filter-menu-buttons > button.active:hover {
     background-color: #3ff2ff !important;
@@ -459,44 +448,39 @@ export const controlBarStyles = css`
   }
 
   /* Responsive layout: stack controls on small screens */
-  @media (max-width: 680px) {
+  @media (max-width: 1024px) {
     .control-bar {
-      flex-direction: column-reverse;
-    }
-    .right-controls-select {
-      order: 6;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: 0.5rem 0;
     }
 
-    .right-controls-clear {
-      order: 5;
+    /* Ensure three distinct rows in order: left, search, right */
+    .left-controls,
+    .search-group,
+    .right-controls {
+      width: 100%;
+      justify-content: flex-start;
+      flex-basis: 100%;
     }
-    .right-controls-split {
-      order: 4;
+
+    .left-controls {
+      order: 1;
     }
-    .right-controls-filter {
+    .search-group {
+      order: 2;
+    }
+    .right-controls {
       order: 3;
     }
 
-    .right-controls-export {
-      order: 2;
-    }
-
-    .right-controls-data {
-      order: 1;
-      display: flex;
-    }
-
-    .left-controls,
-    .right-controls {
-      width: 100%;
-      justify-content: center;
-    }
-
     .control-group {
+      width: 100%;
     }
-  }
 
-  /* Dark mode support */
-  @media (prefers-color-scheme: dark) {
+    /* Make selects expand to available width inside a row */
+    .control-group select {
+      width: 100%;
+    }
   }
 `;
