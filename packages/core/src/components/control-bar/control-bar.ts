@@ -710,14 +710,18 @@ export class ProtspaceControlBar extends LitElement {
     const currentSelection = new Set(this.selectedIdsChips);
     const isCurrentlySelected = currentSelection.has(proteinId);
     let newSelection: string[];
-    if (modifierKeys.ctrl || modifierKeys.meta) {
+
+    // Toggle mode: When selectionMode is active OR modifier keys are pressed
+    if (this.selectionMode || modifierKeys.ctrl || modifierKeys.meta) {
       if (isCurrentlySelected) {
         currentSelection.delete(proteinId);
       } else {
         currentSelection.add(proteinId);
       }
       newSelection = Array.from(currentSelection);
-    } else {
+    }
+    // Replace mode: No modifier keys and selectionMode inactive
+    else {
       if (isCurrentlySelected && currentSelection.size === 1) {
         newSelection = [];
       } else {
@@ -981,13 +985,35 @@ export class ProtspaceControlBar extends LitElement {
   private _handleBrushSelection(event: Event) {
     const customEvent = event as CustomEvent<{ proteinIds: string[]; isMultiple: boolean }>;
     const ids = Array.isArray(customEvent.detail?.proteinIds) ? customEvent.detail.proteinIds : [];
-    this.selectedIdsChips = ids.slice();
-    this.selectedProteinsCount = ids.length;
+
+    let newSelection: string[];
+    // When selectionMode is active, append brushed selections to existing selection
+    if (this.selectionMode) {
+      const currentSelection = new Set(this.selectedIdsChips);
+      ids.forEach(id => currentSelection.add(id));
+      newSelection = Array.from(currentSelection);
+    }
+    // When selectionMode is inactive, replace the selection
+    else {
+      newSelection = ids.slice();
+    }
+
+    this.selectedIdsChips = newSelection;
+    this.selectedProteinsCount = newSelection.length;
+
+    // Sync with scatterplot if auto-sync is enabled
+    if (
+      this.autoSync &&
+      this._scatterplotElement &&
+      'selectedProteinIds' in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
+    }
 
     // Dispatch a single, consistent event for all selection changes
     this.dispatchEvent(
       new CustomEvent('protein-selection-change', {
-        detail: { proteinIds: ids.slice() },
+        detail: { proteinIds: newSelection.slice() },
         bubbles: true,
         composed: true,
       })
