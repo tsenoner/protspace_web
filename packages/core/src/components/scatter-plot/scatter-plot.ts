@@ -865,10 +865,12 @@ export class ProtspaceScatterplot extends LitElement {
                 60}px; z-index: 10;"
               >
                 <div class="tooltip-protein-id">${this._tooltipData.protein.id}</div>
-                <div class="tooltip-feature">
-                  ${this.selectedFeature}:
-                  ${this._tooltipData.protein.featureValues[this.selectedFeature] || 'N\\A'}
-                </div>
+
+                <div class="tooltip-feature-header">${this.selectedFeature}:</div>
+
+                ${this._tooltipData.protein.featureValues[this.selectedFeature].map(
+                  (value) => html`<div class="tooltip-feature">${value}</div>`
+                )}
               </div>
             `
           : ''}
