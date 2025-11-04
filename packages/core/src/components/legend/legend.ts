@@ -258,16 +258,24 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateFeatureDataFromData() {
     // Update featureData from data property when available
-    if (this.data && this.data.features && this.selectedFeature) {
-      const featureInfo = this.data.features[this.selectedFeature];
-      if (featureInfo) {
-        this.featureData = {
-          name: this.selectedFeature,
-          values: featureInfo.values,
-          colors: featureInfo.colors,
-          shapes: featureInfo.shapes,
-        };
-      }
+    const featureInfo =
+      this.data?.features?.[this.selectedFeature] ?? null;
+
+    if (featureInfo) {
+      this.featureData = {
+        name: this.selectedFeature,
+        values: featureInfo.values,
+        colors: featureInfo.colors,
+        shapes: featureInfo.shapes,
+      };
+    } else {
+      // Clear featureData if data has no features or selectedFeature doesn't exist
+      this.featureData = {
+        name: '',
+        values: [],
+        colors: [],
+        shapes: [],
+      };
     }
   }
 
@@ -321,7 +329,13 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private updateLegendItems() {
-    if (!this.featureData || !this.featureValues || this.featureValues.length === 0) {
+    if (
+      !this.featureData ||
+      !this.featureData.values ||
+      this.featureData.values.length === 0 ||
+      !this.featureValues ||
+      this.featureValues.length === 0
+    ) {
       this.legendItems = [];
       return;
     }
