@@ -59,7 +59,8 @@ export default meta;
 type Story = StoryObj;
 
 /**
- * Interactive scatterplot with all features - hover, click, zoom, and pan
+ * Interactive scatterplot demonstrating hover tooltips, click selection, zoom, pan, and reset functionality.
+ * Events are logged to the browser console.
  */
 export const Interactive: Story = {
   args: {
@@ -70,41 +71,57 @@ export const Interactive: Story = {
     selectionMode: false,
   },
   render: (args) => {
-    const container = document.createElement('div');
-    container.style.cssText = 'display: flex; flex-direction: column; gap: 1rem;';
+    let selectedProteins: string[] = [];
 
-    const plotContainer = document.createElement('div');
-    plotContainer.style.cssText = 'width: 800px; height: 600px; border: 1px solid #ccc;';
+    const handleProteinClick = (e: CustomEvent) => {
+      const { proteinId, modifierKeys } = e.detail;
+      console.log("Protein click:", e.detail);
 
-    const plot = document.createElement('protspace-scatterplot');
-    plot.data = args.data;
-    plot.selectedProjectionIndex = args.selectedProjectionIndex;
-    plot.selectedFeature = args.selectedFeature;
-    plot.useCanvas = args.useCanvas;
-    plot.selectionMode = args.selectionMode;
+      // Get the scatterplot element
+      const plot = e.target as any;
 
-    // Attach event listeners to capture events in Actions panel
-    plot.addEventListener('protein-hover', (e) => {console.log(e)});
-    plot.addEventListener('protein-click', (e) => {console.log(e)});
+      // Handle selection based on modifier keys
+      if (modifierKeys.ctrl || modifierKeys.shift) {
+        // Multi-selection mode
+        if (selectedProteins.includes(proteinId)) {
+          selectedProteins = selectedProteins.filter((id) => id !== proteinId);
+        } else {
+          selectedProteins.push(proteinId);
+        }
+      } else {
+        // Single selection mode
+        if (selectedProteins.length === 1 && selectedProteins[0] === proteinId) {
+          // Clicking the same protein again - deselect it
+          selectedProteins = [];
+        } else {
+          // Select new protein
+          selectedProteins = [proteinId];
+        }
+      }
 
-    plotContainer.appendChild(plot);
- 
-    const info = document.createElement('div');
-    info.style.cssText = 'padding: 1rem; background: #f0f0f0; border-radius: 4px;';
-    info.innerHTML = `
-      <strong>🖱️ Interactions:</strong> Hover for tooltips, click to select, scroll to zoom, drag to pan, double-click to reset<br />
-      <strong>💡 Events:</strong> Check Actions panel below for event logs
+      // Update the scatterplot's selectedProteinIds
+      plot.selectedProteinIds = [...selectedProteins];
+      plot.requestUpdate();
+    };
+
+    return html`
+      <div style="width: 800px; height: 600px; border: 1px solid #ccc;">
+        <protspace-scatterplot
+          .data=${args.data}
+          .selectedProjectionIndex=${args.selectedProjectionIndex}
+          .selectedFeature=${args.selectedFeature}
+          .useCanvas=${args.useCanvas}
+          .selectionMode=${args.selectionMode}
+          @protein-hover=${(e: CustomEvent) => console.log("Protein hover:", e.detail)}
+          @protein-click=${handleProteinClick}
+        ></protspace-scatterplot>
+      </div>
     `;
-
-    container.appendChild(plotContainer);
-    container.appendChild(info);
-
-    return container;
   },
 };
 
 /**
- * Large dataset (1000 proteins) demonstrating performance optimization
+ * Large dataset with 100,000 proteins demonstrating canvas rendering for optimal performance.
  */
 export const LargeDataset: Story = {
   args: {
@@ -122,56 +139,12 @@ export const LargeDataset: Story = {
         .useCanvas=${args.useCanvas}
       ></protspace-scatterplot>
     </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;"
-    >
-      <strong>⚡ Performance mode:</strong> Automatically uses canvas rendering
-      for optimal performance with ${args.data.protein_ids.length} proteins
-    </div>
   `,
 };
 
-/**
- * Multiple projections - compare UMAP, t-SNE, and PCA
- */
-export const MultipleProjections: Story = {
-  args: {
-    data: generateLargeData(),
-    selectedProjectionIndex: 0,
-    selectedFeature: "family",
-    useCanvas: true,
-  },
-  render: (args) => html`
-    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
-      ${args.data.projections.map(
-        (proj: any, idx: number) => html`
-            <div style="width: 100%; height: 100%; border: 1px solid #ccc; position: relative;">
-              <h3 style="text-align: center; position: relative; z-index: 1;">
-                ${proj.name}
-              </h3>
-              <protspace-scatterplot
-                .data=${args.data}
-                .selectedProjectionIndex=${idx}
-                .selectedFeature=${args.selectedFeature}
-                .useCanvas=${true}
-              ></protspace-scatterplot>
-            </div>
-
-        `,
-      )}
-    </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #e7f3ff; border-radius: 4px;"
-    >
-      <strong>💡 Tip:</strong> Different projection methods reveal different
-      aspects of the data structure. UMAP preserves local structure, t-SNE
-      emphasizes clusters, and PCA shows global variance.
-    </div>
-  `,
-};
 
 /**
- * Feature comparison - different coloring schemes
+ * Displays the same dataset colored by different features to compare how various metadata affects visualization.
  */
 export const FeatureComparison: Story = {
   args: {
@@ -202,7 +175,7 @@ export const FeatureComparison: Story = {
 };
 
 /**
- * With shapes enabled - uses different symbols for feature values
+ * Uses different shape symbols (circle, square, triangle, diamond, star) in addition to colors for enhanced visual differentiation.
  */
 export const WithShapes: Story = {
   args: {
@@ -222,17 +195,11 @@ export const WithShapes: Story = {
         .useCanvas=${args.useCanvas}
       ></protspace-scatterplot>
     </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
-    >
-      <strong>Shapes enabled:</strong> Each feature value uses a different shape
-      (circle, square, triangle, diamond, star) in addition to color
-    </div>
   `,
 };
 
 /**
- * Brush selection mode - drag to select multiple points
+ * Brush selection mode allowing click-and-drag to select multiple points. Events are logged to the console.
  */
 export const BrushSelection: Story = {
   args: {
@@ -242,38 +209,22 @@ export const BrushSelection: Story = {
     selectionMode: true,
     useCanvas: true,
   },
-  render: (args) => {
-    const container = document.createElement('div');
-    container.style.cssText = 'display: flex; flex-direction: column; gap: 1rem;';
-
-    const plotContainer = document.createElement('div');
-    plotContainer.style.cssText = 'width: 800px; height: 600px; border: 1px solid #ccc;';
-
-    const plot = document.createElement('protspace-scatterplot');
-    plot.data = args.data;
-    plot.selectedProjectionIndex = args.selectedProjectionIndex;
-    plot.selectedFeature = args.selectedFeature;
-    plot.selectionMode = args.selectionMode;
-    plot.useCanvas = args.useCanvas;
-
-    // Attach event listener to capture events in Actions panel
-    plot.addEventListener('brush-selection', (e) => {console.log(e)});
-
-    plotContainer.appendChild(plot);
-
-    const info = document.createElement('div');
-    info.style.cssText = 'padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;';
-    info.innerHTML = '<strong>Selection mode:</strong> Click and drag to select multiple points. Selected protein IDs will appear in the Actions panel below.';
-
-    container.appendChild(plotContainer);
-    container.appendChild(info);
-
-    return container;
-  },
+  render: (args) => html`
+    <div style="width: 800px; height: 600px; border: 1px solid #ccc;">
+      <protspace-scatterplot
+        .data=${args.data}
+        .selectedProjectionIndex=${args.selectedProjectionIndex}
+        .selectedFeature=${args.selectedFeature}
+        .selectionMode=${args.selectionMode}
+        .useCanvas=${args.useCanvas}
+        @brush-selection=${(e: CustomEvent) => console.log("Brush selection:", e.detail)}
+      ></protspace-scatterplot>
+    </div>
+  `,
 };
 
 /**
- * With null values - demonstrates N/A handling
+ * Demonstrates handling of null and missing values, shown in neutral gray with unknown labels in tooltips.
  */
 export const WithNullValues: Story = {
   args: {
@@ -291,115 +242,6 @@ export const WithNullValues: Story = {
         .useCanvas=${args.useCanvas}
       ></protspace-scatterplot>
     </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
-    >
-      <strong>Null handling:</strong> Points with null/missing values are shown
-      in a neutral gray color and labeled as "N/A" in tooltips
-    </div>
   `,
 };
 
-/**
- * Canvas vs SVG rendering comparison
- */
-export const RenderingComparison: Story = {
-  args: {
-    data: generateMediumData(),
-    selectedProjectionIndex: 0,
-    selectedFeature: "family",
-  },
-  render: (args) => html`
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-      <div>
-        <h3 style="margin: 0 0 0.5rem 0; text-align: center;">
-          Canvas Rendering
-        </h3>
-        <div style="width: 100%; height: 400px; border: 1px solid #ccc;">
-          <protspace-scatterplot
-            .data=${args.data}
-            .selectedProjectionIndex=${args.selectedProjectionIndex}
-            .selectedFeature=${args.selectedFeature}
-            .useCanvas=${true}
-          ></protspace-scatterplot>
-        </div>
-        <div
-          style="margin-top: 0.5rem; padding: 0.5rem; background: #d4edda; border-radius: 4px; font-size: 0.875rem;"
-        >
-          ✓ Recommended for &gt;100 points<br />
-          ✓ Better performance<br />
-          ✓ Smooth zooming
-        </div>
-      </div>
-      <div>
-        <h3 style="margin: 0 0 0.5rem 0; text-align: center;">SVG Rendering</h3>
-        <div style="width: 100%; height: 400px; border: 1px solid #ccc;">
-          <protspace-scatterplot
-            .data=${args.data}
-            .selectedProjectionIndex=${args.selectedProjectionIndex}
-            .selectedFeature=${args.selectedFeature}
-            .useCanvas=${false}
-          ></protspace-scatterplot>
-        </div>
-        <div
-          style="margin-top: 0.5rem; padding: 0.5rem; background: #fff3cd; border-radius: 4px; font-size: 0.875rem;"
-        >
-          ⚠ Only for small datasets<br />
-          ⚠ May lag with many points<br />
-          ✓ Vector graphics quality
-        </div>
-      </div>
-    </div>
-  `,
-};
-
-/**
- * Custom configuration - point sizes and opacity
- */
-export const CustomConfiguration: Story = {
-  args: {
-    data: generateMediumData(),
-    selectedProjectionIndex: 0,
-    selectedFeature: "family",
-    useCanvas: true,
-    config: {
-      pointSize: 120,
-      highlightedPointSize: 180,
-      selectedPointSize: 240,
-      baseOpacity: 0.6,
-      selectedOpacity: 1.0,
-      fadedOpacity: 0.1,
-    },
-  },
-  render: (args) => html`
-    <div style="width: 800px; height: 600px; border: 1px solid #ccc;">
-      <protspace-scatterplot
-        .data=${args.data}
-        .selectedProjectionIndex=${args.selectedProjectionIndex}
-        .selectedFeature=${args.selectedFeature}
-        .useCanvas=${args.useCanvas}
-        .config=${args.config}
-      ></protspace-scatterplot>
-    </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
-    >
-      <strong>Custom configuration:</strong> Larger points (120px base) with
-      adjusted opacity for better visibility
-    </div>
-  `,
-};
-
-/**
- * Empty state
- */
-export const EmptyState: Story = {
-  args: {
-    data: null,
-  },
-  render: (args) => html`
-    <div style="width: 800px; height: 600px; border: 1px solid #ccc;">
-      <protspace-scatterplot .data=${args.data}></protspace-scatterplot>
-    </div>
-  `,
-};

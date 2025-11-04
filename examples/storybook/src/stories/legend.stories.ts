@@ -58,7 +58,7 @@ export default meta;
 type Story = StoryObj;
 
 /**
- * Basic legend with minimal data
+ * Basic legend with minimal data demonstrating the default appearance and functionality.
  */
 export const Basic: Story = {
   args: {
@@ -91,7 +91,7 @@ export const Basic: Story = {
 };
 
 /**
- * Full legend with medium dataset
+ * Legend with a medium-sized dataset (100 proteins across 5 families) showing count display for each category.
  */
 export const MediumDataset: Story = {
   args: {
@@ -123,17 +123,12 @@ export const MediumDataset: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;"
-    >
-      <strong>Dataset:</strong> 100 proteins across 5 families<br />
-      <strong>Counts:</strong> Each legend item shows the number of proteins
-    </div>
   `,
 };
 
 /**
- * Interactive features - click to toggle, drag to reorder
+ * Demonstrates interactive features: click to toggle visibility, double-click to isolate, and drag to reorder items.
+ * Events are logged to the browser console.
  */
 export const InteractiveFeatures: Story = {
   args: {
@@ -171,22 +166,12 @@ export const InteractiveFeatures: Story = {
         }}
       ></protspace-legend>
     </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;"
-    >
-      <strong>💡 Interactions:</strong>
-      <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-        <li>Click to hide/show items</li>
-        <li>Double-click to isolate</li>
-        <li>Drag to reorder (controls z-order in plot)</li>
-      </ul>
-      Events logged to console.
-    </div>
   `,
 };
 
 /**
- * "Other" category management - grouping and extraction
+ * Shows automatic grouping of less common values into an "Other" category. Values can be extracted individually by clicking "(view)".
+ * Configure the threshold using the maxVisibleValues property.
  */
 export const OtherCategoryManagement: Story = {
   args: {
@@ -227,16 +212,11 @@ export const OtherCategoryManagement: Story = {
         }}
       ></protspace-legend>
     </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; max-width: 300px; border-left: 4px solid #ffc107;"
-    >
-      <strong>📦 "Other" category:</strong> Values below the top ${args.maxVisibleValues} (configurable via <code>maxVisibleValues</code>) are grouped. Click "(view)" to extract individual items.
-    </div>
   `,
 };
 
 /**
- * Shape options - toggle shapes on/off
+ * Displays shape symbols (circle, square, triangle, diamond, star) in addition to colors for better differentiation.
  */
 export const ShapeOptions: Story = {
   args: {
@@ -270,16 +250,11 @@ export const ShapeOptions: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;"
-    >
-      <strong>Shape mode:</strong> Toggle <code>includeShapes</code> to show shapes (circle, square, triangle, diamond, star) or color only
-    </div>
   `,
 };
 
 /**
- * Settings dialog customization
+ * Demonstrates the settings dialog accessed via the gear icon, allowing customization of max items, shape size, sorting, and more.
  */
 export const SettingsDialog: Story = {
   args: {
@@ -317,24 +292,11 @@ export const SettingsDialog: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; max-width: 300px; border-left: 4px solid #0c5460;"
-    >
-      <strong>⚙️ Settings:</strong><br />
-      Click the gear icon to customize:
-      <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-        <li>Max legend items</li>
-        <li>Shape size</li>
-        <li>Include "Other" category</li>
-        <li>Include shapes</li>
-        <li>Sort order (by size or alphabetically)</li>
-      </ul>
-    </div>
   `,
 };
 
 /**
- * With null/missing values
+ * Shows handling of null and missing values, which are displayed as "N/A" with a neutral gray color.
  */
 export const WithNullValues: Story = {
   args: {
@@ -367,135 +329,6 @@ export const WithNullValues: Story = {
         .autoHide=${args.autoHide}
       ></protspace-legend>
     </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 300px;"
-    >
-      <strong>Null handling:</strong> Missing/null values are displayed as "N/A"
-      in the legend with a neutral gray color
-    </div>
   `,
 };
 
-/**
- * Multiple features comparison
- */
-export const MultipleFeatures: Story = {
-  args: {
-    data: (() => {
-      const data = generateMediumData();
-      return { features: data.features };
-    })(),
-  },
-  render: (args) => {
-    const data = generateMediumData();
-    return html`
-      <div
-        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;"
-      >
-        ${Object.keys(args.data.features).map((feature) => {
-          const featureValues = data.protein_ids.map(
-            (_, i) =>
-              data.features[feature].values[data.feature_data[feature][i]],
-          );
-          return html`
-            <div>
-              <h3
-                style="margin: 0 0 0.5rem 0; text-align: center; font-size: 1rem;"
-              >
-                ${feature}
-              </h3>
-              <div
-                style="border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
-              >
-                <protspace-legend
-                  .data=${args.data}
-                  .selectedFeature=${feature}
-                  .featureValues=${featureValues}
-                  .proteinIds=${data.protein_ids}
-                  .autoSync=${false}
-                  .autoHide=${false}
-                ></protspace-legend>
-              </div>
-            </div>
-          `;
-        })}
-      </div>
-    `;
-  },
-};
-
-/**
- * Compact legend with limited space
- */
-export const Compact: Story = {
-  args: {
-    data: (() => {
-      const data = generateMediumData();
-      return { features: data.features };
-    })(),
-    selectedFeature: "family",
-    featureValues: (() => {
-      const data = generateMediumData();
-      return data.protein_ids.map(
-        (_, i) => data.features.family.values[data.feature_data.family[i]],
-      );
-    })(),
-    proteinIds: generateMediumData().protein_ids,
-    maxVisibleValues: 5,
-    includeOthers: true,
-    shapeSize: 12,
-    autoSync: false,
-    autoHide: false,
-  },
-  render: (args) => html`
-    <div
-      style="width: 200px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
-    >
-      <protspace-legend
-        .data=${args.data}
-        .selectedFeature=${args.selectedFeature}
-        .featureValues=${args.featureValues}
-        .proteinIds=${args.proteinIds}
-        .maxVisibleValues=${args.maxVisibleValues}
-        .includeOthers=${args.includeOthers}
-        .shapeSize=${args.shapeSize}
-        .autoSync=${args.autoSync}
-        .autoHide=${args.autoHide}
-      ></protspace-legend>
-    </div>
-    <div
-      style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px; max-width: 200px;"
-    >
-      <strong>Compact mode:</strong> Smaller width (200px) with reduced max
-      items and smaller shape size
-    </div>
-  `,
-};
-
-/**
- * Empty state
- */
-export const EmptyState: Story = {
-  args: {
-    data: null,
-    selectedFeature: "",
-    featureValues: [],
-    proteinIds: [],
-    autoSync: false,
-    autoHide: false,
-  },
-  render: (args) => html`
-    <div
-      style="width: 300px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;"
-    >
-      <protspace-legend
-        .data=${args.data}
-        .selectedFeature=${args.selectedFeature}
-        .featureValues=${args.featureValues}
-        .proteinIds=${args.proteinIds}
-        .autoSync=${args.autoSync}
-        .autoHide=${args.autoHide}
-      ></protspace-legend>
-    </div>
-  `,
-};

@@ -31,8 +31,9 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
+
 /**
- * Basic integration with auto-sync enabled
+ * Demonstrates interactive click-to-hide/show with single-click toggling and double-click isolation of categories.
  */
 export const BasicIntegration: Story = {
   render: () => {
@@ -41,57 +42,32 @@ export const BasicIntegration: Story = {
       (_, i) => data.features.family.values[data.feature_data.family[i]],
     );
 
-    return html`
-      <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <div
-          style="display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start;"
-        >
-          <div
-            style="border: 1px solid #ccc; border-radius: 8px; overflow: hidden; background: white;"
-          >
-            <protspace-scatterplot
-              id="basic-plot"
-              .data=${data}
-              .selectedProjectionIndex=${0}
-              .selectedFeature=${"family"}
-              .useCanvas=${true}
-              style="display: block; height: 600px;"
-            ></protspace-scatterplot>
-          </div>
-          <div
-            style="border: 1px solid #ccc; border-radius: 8px; overflow: hidden; background: white;"
-          >
-            <protspace-legend
-              .data=${{ features: data.features }}
-              .selectedFeature=${"family"}
-              .featureValues=${featureValues}
-              .proteinIds=${data.protein_ids}
-              .autoSync=${true}
-              .autoHide=${true}
-              scatterplot-selector="#basic-plot"
-            ></protspace-legend>
-          </div>
-        </div>
-        <div
-          style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;"
-        >
-          <strong>💡 Auto-sync enabled:</strong> The legend automatically syncs
-          with the scatterplot. Try clicking legend items to hide/show points!
-        </div>
-      </div>
-    `;
-  },
-};
+    let selectedProteins: string[] = [];
 
-/**
- * Click legend items to hide/show points
- */
-export const ClickToHide: Story = {
-  render: () => {
-    const data = generateMediumData();
-    const featureValues = data.protein_ids.map(
-      (_, i) => data.features.family.values[data.feature_data.family[i]],
-    );
+    const handleProteinClick = (e: CustomEvent) => {
+      const { proteinId, modifierKeys } = e.detail;
+      const plot = e.target as any;
+
+      // Handle selection based on modifier keys
+      if (modifierKeys.ctrl || modifierKeys.shift) {
+        // Multi-selection mode
+        if (selectedProteins.includes(proteinId)) {
+          selectedProteins = selectedProteins.filter((id) => id !== proteinId);
+        } else {
+          selectedProteins.push(proteinId);
+        }
+      } else {
+        // Single selection mode
+        if (selectedProteins.length === 1 && selectedProteins[0] === proteinId) {
+          selectedProteins = [];
+        } else {
+          selectedProteins = [proteinId];
+        }
+      }
+
+      plot.selectedProteinIds = [...selectedProteins];
+      plot.requestUpdate();
+    };
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
@@ -108,6 +84,7 @@ export const ClickToHide: Story = {
               .selectedFeature=${"family"}
               .useCanvas=${true}
               style="display: block; height: 600px;"
+              @protein-click=${handleProteinClick}
             ></protspace-scatterplot>
           </div>
           <div
@@ -124,30 +101,13 @@ export const ClickToHide: Story = {
             ></protspace-legend>
           </div>
         </div>
-        <div
-          style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;"
-        >
-          <strong>🎨 Try this:</strong>
-          <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-            <li>
-              <strong>Single click:</strong> Toggle visibility of a category
-            </li>
-            <li>
-              <strong>Double click:</strong> Isolate a single category (or show
-              all if already isolated)
-            </li>
-            <li>
-              <strong>Watch:</strong> Points fade in/out in the scatterplot
-            </li>
-          </ul>
-        </div>
       </div>
     `;
   },
 };
 
 /**
- * Drag to reorder legend items and change z-order
+ * Shows z-order control via drag-and-drop reordering. Uses perfectly overlapping points to demonstrate how legend order affects visibility.
  */
 export const DragToReorder: Story = {
   render: () => {
@@ -155,6 +115,30 @@ export const DragToReorder: Story = {
     const featureValues = data.protein_ids.map(
       (_, i) => data.features.family.values[data.feature_data.family[i]],
     );
+
+    let selectedProteins: string[] = [];
+
+    const handleProteinClick = (e: CustomEvent) => {
+      const { proteinId, modifierKeys } = e.detail;
+      const plot = e.target as any;
+
+      if (modifierKeys.ctrl || modifierKeys.shift) {
+        if (selectedProteins.includes(proteinId)) {
+          selectedProteins = selectedProteins.filter((id) => id !== proteinId);
+        } else {
+          selectedProteins.push(proteinId);
+        }
+      } else {
+        if (selectedProteins.length === 1 && selectedProteins[0] === proteinId) {
+          selectedProteins = [];
+        } else {
+          selectedProteins = [proteinId];
+        }
+      }
+
+      plot.selectedProteinIds = [...selectedProteins];
+      plot.requestUpdate();
+    };
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
@@ -172,6 +156,7 @@ export const DragToReorder: Story = {
               .useCanvas=${true}
               .config=${{ pointSize: 150 }}
               style="display: block; height: 600px;"
+              @protein-click=${handleProteinClick}
             ></protspace-scatterplot>
           </div>
           <div
@@ -188,36 +173,13 @@ export const DragToReorder: Story = {
             ></protspace-legend>
           </div>
         </div>
-        <div
-          style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;"
-        >
-          <strong>🎨 Z-order demonstration:</strong>
-          <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-            <li>
-              <strong>Perfect overlap:</strong> The same 50 points are plotted
-              THREE times (Kinase, Protease, Receptor)
-            </li>
-            <li>
-              <strong>All points stack exactly on top of each other</strong> -
-              only the top layer is visible
-            </li>
-            <li>
-              <strong>Drag legend items</strong> to change z-order - watch the
-              entire plot change color!
-            </li>
-            <li>
-              <strong>Rule:</strong> Top of legend = bottom layer (drawn first),
-              Bottom of legend = top layer (drawn last, visible)
-            </li>
-          </ul>
-        </div>
       </div>
     `;
   },
 };
 
 /**
- * Handle "Other" category with many features
+ * Integration with "Other" category grouping. Shows how less common values are automatically grouped and can be extracted on demand.
  */
 export const OtherCategoryIntegration: Story = {
   render: () => {
@@ -225,6 +187,30 @@ export const OtherCategoryIntegration: Story = {
     const featureValues = data.protein_ids.map(
       (_, i) => data.features.family.values[data.feature_data.family[i]],
     );
+
+    let selectedProteins: string[] = [];
+
+    const handleProteinClick = (e: CustomEvent) => {
+      const { proteinId, modifierKeys } = e.detail;
+      const plot = e.target as any;
+
+      if (modifierKeys.ctrl || modifierKeys.shift) {
+        if (selectedProteins.includes(proteinId)) {
+          selectedProteins = selectedProteins.filter((id) => id !== proteinId);
+        } else {
+          selectedProteins.push(proteinId);
+        }
+      } else {
+        if (selectedProteins.length === 1 && selectedProteins[0] === proteinId) {
+          selectedProteins = [];
+        } else {
+          selectedProteins = [proteinId];
+        }
+      }
+
+      plot.selectedProteinIds = [...selectedProteins];
+      plot.requestUpdate();
+    };
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
@@ -241,6 +227,7 @@ export const OtherCategoryIntegration: Story = {
               .selectedFeature=${"family"}
               .useCanvas=${true}
               style="display: block; height: 600px;"
+              @protein-click=${handleProteinClick}
             ></protspace-scatterplot>
           </div>
           <div
@@ -259,24 +246,13 @@ export const OtherCategoryIntegration: Story = {
             ></protspace-legend>
           </div>
         </div>
-        <div
-          style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;"
-        >
-          <strong>📦 "Other" category:</strong>
-          <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-            <li>Less common families are grouped into "Other"</li>
-            <li>Click "(view)" to see all grouped items</li>
-            <li>Extract items to show them individually</li>
-            <li>Scatterplot colors match the grouped categories</li>
-          </ul>
-        </div>
       </div>
     `;
   },
 };
 
 /**
- * With shapes enabled for better differentiation
+ * Both components using shape symbols in addition to colors for improved accessibility and visual differentiation.
  */
 export const WithShapes: Story = {
   render: () => {
@@ -284,6 +260,30 @@ export const WithShapes: Story = {
     const featureValues = data.protein_ids.map(
       (_, i) => data.features.family.values[data.feature_data.family[i]],
     );
+
+    let selectedProteins: string[] = [];
+
+    const handleProteinClick = (e: CustomEvent) => {
+      const { proteinId, modifierKeys } = e.detail;
+      const plot = e.target as any;
+
+      if (modifierKeys.ctrl || modifierKeys.shift) {
+        if (selectedProteins.includes(proteinId)) {
+          selectedProteins = selectedProteins.filter((id) => id !== proteinId);
+        } else {
+          selectedProteins.push(proteinId);
+        }
+      } else {
+        if (selectedProteins.length === 1 && selectedProteins[0] === proteinId) {
+          selectedProteins = [];
+        } else {
+          selectedProteins = [proteinId];
+        }
+      }
+
+      plot.selectedProteinIds = [...selectedProteins];
+      plot.requestUpdate();
+    };
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
@@ -301,6 +301,7 @@ export const WithShapes: Story = {
               .useShapes=${true}
               .useCanvas=${true}
               style="display: block; height: 600px;"
+              @protein-click=${handleProteinClick}
             ></protspace-scatterplot>
           </div>
           <div
@@ -318,20 +319,13 @@ export const WithShapes: Story = {
             ></protspace-legend>
           </div>
         </div>
-        <div
-          style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
-        >
-          <strong>🔷 Shapes enabled:</strong> Both the scatterplot and legend
-          use different shapes (circle, square, triangle, diamond, star) in
-          addition to colors for better accessibility and differentiation.
-        </div>
       </div>
     `;
   },
 };
 
 /**
- * Multiple features with synchronized switching
+ * Demonstrates synchronized feature switching between scatterplot and legend using a dropdown selector.
  */
 export const FeatureSwitching: Story = {
   render: () => {
@@ -414,20 +408,13 @@ export const FeatureSwitching: Story = {
             ></protspace-legend>
           </div>
         </div>
-        <div
-          style="margin-top: 1rem; padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;"
-        >
-          <strong>🔄 Feature synchronization:</strong> Change the selected
-          feature above and watch both the scatterplot colors and legend update
-          automatically.
-        </div>
       </div>
     `;
   },
 };
 
 /**
- * Null values with synchronized handling
+ * Demonstrates synchronized handling of null and missing values across both scatterplot and legend, displayed as "N/A" in neutral gray.
  */
 export const WithNullValues: Story = {
   render: () => {
@@ -436,6 +423,30 @@ export const WithNullValues: Story = {
       const idx = data.feature_data.status[i];
       return data.features.status.values[idx];
     });
+
+    let selectedProteins: string[] = [];
+
+    const handleProteinClick = (e: CustomEvent) => {
+      const { proteinId, modifierKeys } = e.detail;
+      const plot = e.target as any;
+
+      if (modifierKeys.ctrl || modifierKeys.shift) {
+        if (selectedProteins.includes(proteinId)) {
+          selectedProteins = selectedProteins.filter((id) => id !== proteinId);
+        } else {
+          selectedProteins.push(proteinId);
+        }
+      } else {
+        if (selectedProteins.length === 1 && selectedProteins[0] === proteinId) {
+          selectedProteins = [];
+        } else {
+          selectedProteins = [proteinId];
+        }
+      }
+
+      plot.selectedProteinIds = [...selectedProteins];
+      plot.requestUpdate();
+    };
 
     return html`
       <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
@@ -452,6 +463,7 @@ export const WithNullValues: Story = {
               .selectedFeature=${"status"}
               .useCanvas=${true}
               style="display: block; height: 600px;"
+              @protein-click=${handleProteinClick}
             ></protspace-scatterplot>
           </div>
           <div
@@ -468,162 +480,8 @@ export const WithNullValues: Story = {
             ></protspace-legend>
           </div>
         </div>
-        <div
-          style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
-        >
-          <strong>Null handling:</strong> Both components display null/missing
-          values as "N/A" with a neutral gray color. You can hide/show N/A
-          values just like any other category.
-        </div>
       </div>
     `;
   },
 };
 
-/**
- * Large dataset with performance optimization
- */
-export const LargeDatasetIntegration: Story = {
-  render: () => {
-    const data = generateLargeData();
-    const featureValues = data.protein_ids.map(
-      (_, i) => data.features.family.values[data.feature_data.family[i]],
-    );
-
-    return html`
-      <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <div
-          style="display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start;"
-        >
-          <div
-            style="border: 1px solid #ccc; border-radius: 8px; overflow: hidden; background: white;"
-          >
-            <protspace-scatterplot
-              id="large-plot"
-              .data=${data}
-              .selectedProjectionIndex=${0}
-              .selectedFeature=${"family"}
-              .useCanvas=${true}
-              style="display: block; height: 600px;"
-            ></protspace-scatterplot>
-          </div>
-          <div
-            style="border: 1px solid #ccc; border-radius: 8px; overflow: hidden; background: white;"
-          >
-            <protspace-legend
-              .data=${{ features: data.features }}
-              .selectedFeature=${"family"}
-              .featureValues=${featureValues}
-              .proteinIds=${data.protein_ids}
-              .autoSync=${true}
-              .autoHide=${true}
-              scatterplot-selector="#large-plot"
-            ></protspace-legend>
-          </div>
-        </div>
-        <div
-          style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;"
-        >
-          <strong>⚡ Performance:</strong> With 100k proteins, the scatterplot
-          automatically uses canvas rendering for optimal performance. Try
-          zooming, panning, and hiding categories - everything stays smooth!
-        </div>
-      </div>
-    `;
-  },
-};
-
-/**
- * Complete workflow with all features
- */
-export const CompleteWorkflow: Story = {
-  render: () => {
-    const data = generateMediumData();
-    const featureValues = data.protein_ids.map(
-      (_, i) => data.features.family.values[data.feature_data.family[i]],
-    );
-
-    return html`
-      <div style="padding: 2rem; background: #f5f5f5; min-height: 100vh;">
-        <p style="margin: 0 0 1rem 0; color: #666;">
-          Full-featured example showing all interactions between scatterplot and
-          legend
-        </p>
-
-        <div
-          style="display: grid; grid-template-columns: 1fr 320px; gap: 1rem; align-items: start;"
-        >
-          <div
-            style="border: 1px solid #ccc; border-radius: 8px; overflow: hidden; background: white;"
-          >
-            <protspace-scatterplot
-              id="complete-plot"
-              .data=${data}
-              .selectedProjectionIndex=${0}
-              .selectedFeature=${"family"}
-              .useShapes=${true}
-              .useCanvas=${true}
-              style="display: block; height: 600px;"
-            ></protspace-scatterplot>
-          </div>
-          <div
-            style="border: 1px solid #ccc; border-radius: 8px; overflow: hidden; background: white;"
-          >
-            <protspace-legend
-              .data=${{ features: data.features }}
-              .selectedFeature=${"family"}
-              .featureValues=${featureValues}
-              .proteinIds=${data.protein_ids}
-              .includeShapes=${true}
-              .includeOthers=${true}
-              .autoSync=${true}
-              .autoHide=${true}
-              scatterplot-selector="#complete-plot"
-            ></protspace-legend>
-          </div>
-        </div>
-
-        <div
-          style="margin-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;"
-        >
-          <div
-            style="padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;"
-          >
-            <strong>🖱️ Scatterplot interactions:</strong>
-            <ul
-              style="margin: 0.5rem 0; padding-left: 1.5rem; font-size: 0.875rem;"
-            >
-              <li>Hover over points for tooltips</li>
-              <li>Click points to select them</li>
-              <li>Scroll to zoom in/out</li>
-              <li>Drag to pan around</li>
-              <li>Double-click to reset zoom</li>
-            </ul>
-          </div>
-
-          <div
-            style="padding: 1rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #0c5460;"
-          >
-            <strong>🎨 Legend interactions:</strong>
-            <ul
-              style="margin: 0.5rem 0; padding-left: 1.5rem; font-size: 0.875rem;"
-            >
-              <li>Click items to hide/show categories</li>
-              <li>Double-click to isolate one category</li>
-              <li>Drag items to change z-order</li>
-              <li>Click gear icon for settings</li>
-              <li>Use "(view)" to manage "Other"</li>
-            </ul>
-          </div>
-        </div>
-
-        <div
-          style="margin-top: 1rem; padding: 1rem; background: #f0f0f0; border-radius: 4px;"
-        >
-          <strong>✨ Features enabled:</strong> Shapes, auto-sync, auto-hide,
-          "Other" category
-        </div>
-      </div>
-    `;
-  },
-};
