@@ -181,7 +181,7 @@ export class CanvasRenderer {
         const area = Math.pow(size * 3, 2);
         const pathString = isCircle ? null : d3.symbol().type(shape).size(area)()!;
         const shapeKey = isCircle ? 'circle' : `path:${pathString}`;
-        const isMultiLabel = point.featureValues[this.selectedFeature].length > 1;
+        const isMultiLabel = colors.length > 1;
 
         const key = `${colors}_${size}_${strokeColor}_${strokeWidth}_${opacity}_${shapeKey}${isMultiLabel ? '_multilabel' : ''}`;
 

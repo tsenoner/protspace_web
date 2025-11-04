@@ -108,7 +108,20 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       else return [NEUTRAL_VALUE_COLOR];
     }
 
-    return featureValueArray.map((v) => valueToColor.get(normalizeToKey(v)) ?? NEUTRAL_VALUE_COLOR);
+    if (featureValueArray.every((v) => otherValuesSet.has(v))) {
+      return [NEUTRAL_VALUE_COLOR];
+    }
+
+    const colors = featureValueArray
+      .map((v) => {
+        if (hiddenKeysSet.has(normalizeToKey(v))) return undefined;
+        if (otherValuesSet.has(v)) return NEUTRAL_VALUE_COLOR;
+        return valueToColor.get(normalizeToKey(v)) ?? NEUTRAL_VALUE_COLOR;
+      })
+      .filter((v) => v !== undefined);
+
+    // Remove multiple neutral colors from multiple other features
+    return [...new Set(colors)];
   };
 
   const getOpacity = (point: PlotDataPoint): number => {
