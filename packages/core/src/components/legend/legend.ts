@@ -258,26 +258,18 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateFeatureDataFromData() {
     // Update featureData from data property when available
-    if (this.data && this.data.features && this.selectedFeature) {
-      const featureInfo = this.data.features[this.selectedFeature];
-      if (featureInfo) {
-        this.featureData = {
-          name: this.selectedFeature,
-          values: featureInfo.values,
-          colors: featureInfo.colors,
-          shapes: featureInfo.shapes,
-        };
-      } else {
-        // Clear featureData if selectedFeature doesn't exist in current data
-        this.featureData = {
-          name: '',
-          values: [],
-          colors: [],
-          shapes: [],
-        };
-      }
+    const featureInfo =
+      this.data?.features?.[this.selectedFeature] ?? null;
+
+    if (featureInfo) {
+      this.featureData = {
+        name: this.selectedFeature,
+        values: featureInfo.values,
+        colors: featureInfo.colors,
+        shapes: featureInfo.shapes,
+      };
     } else {
-      // Clear featureData if data has no features or no feature is selected
+      // Clear featureData if data has no features or selectedFeature doesn't exist
       this.featureData = {
         name: '',
         values: [],
