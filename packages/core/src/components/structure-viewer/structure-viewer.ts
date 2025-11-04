@@ -95,7 +95,7 @@ export class ProtspaceStructureViewer extends LitElement {
     if (!modifierKeys.ctrl && !modifierKeys.shift && this.autoShow) {
       // Show structure viewer and load protein
       this.proteinId = proteinId;
-      this.style.display = 'block';
+      this.style.display = 'flex';
     }
   }
 
@@ -227,6 +227,15 @@ export class ProtspaceStructureViewer extends LitElement {
       this._viewerContainer.innerHTML = '';
     }
 
+    // Clean up blob URL to prevent memory leaks
+    if (this._structureData?.url && this._structureData.url.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(this._structureData.url);
+      } catch (error) {
+        console.warn('[StructureViewer] Error revoking blob URL:', error);
+      }
+    }
+
     this._structureData = null;
   }
 
@@ -279,12 +288,34 @@ export class ProtspaceStructureViewer extends LitElement {
         ? html`
             <div class="header">
               <div>
-                <span class="title">${this.title}</span>
-                <span class="protein-id">${this.proteinId}</span>
+                <a
+                  class="title"
+                  href=${`https://alphafold.ebi.ac.uk/entry/${encodeURIComponent(
+                    this.proteinId.split('.')[0]
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open in AlphaFold DB"
+                >
+                  ${this.title}
+                </a>
+                <a
+                  class="protein-id"
+                  href=${`https://www.uniprot.org/uniprotkb/${encodeURIComponent(
+                    this.proteinId.split('.')[0]
+                  )}/entry`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open in UniProt"
+                >
+                  ${this.proteinId}
+                </a>
               </div>
-              ${this.showCloseButton
-                ? html` <button class="close-button" @click=${this._handleClose}>✕</button> `
-                : ''}
+              <div class="header-actions">
+                ${this.showCloseButton
+                  ? html` <button class="close-button" @click=${this._handleClose}>✕</button> `
+                  : ''}
+              </div>
             </div>
           `
         : ''}

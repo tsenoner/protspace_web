@@ -45,22 +45,11 @@ export class DataLoader extends LitElement {
     projectionName?: string;
   } = {};
 
-  @state()
-  private loading = false;
-
-  @state()
-  private progress = 0;
-
   private totalSteps = 0;
   private completedSteps = 0;
 
   @state()
   private error: string | null = null;
-
-  @state()
-  private fileInfo: { name: string; size: number } | null = null;
-
-  private fileInput!: HTMLInputElement;
 
   connectedCallback() {
     super.connectedCallback();
@@ -75,119 +64,16 @@ export class DataLoader extends LitElement {
     }
   }
 
-  firstUpdated() {
-    this.fileInput = this.shadowRoot!.querySelector('.hidden-input') as HTMLInputElement;
-  }
-
   render() {
     return html`
-      <div
-        class="drop-zone"
-        @click=${this.handleClick}
-        @dragover=${this.handleDragOver}
-        @drop=${this.handleDrop}
-        @dragenter=${this.handleDragEnter}
-        @dragleave=${this.handleDragLeave}
-      >
-        <div class="icon">${this.loading ? this.renderLoadingIcon() : this.renderDataIcon()}</div>
-
-        <div class="message">
-          ${this.loading
-            ? 'Loading Parquet data...'
-            : this.error
-              ? 'Error loading data'
-              : this.allowDrop
-                ? 'Drop a ParquetBundle file here or click to browse'
-                : 'Click to load a ParquetBundle file'}
-        </div>
-
-        ${this.fileInfo
-          ? html`
-              <div class="file-info">
-                ${this.fileInfo.name} (${this.formatFileSize(this.fileInfo.size)})
-              </div>
-            `
-          : ''}
-        ${this.loading
-          ? html`
-              <div class="progress">
-                <div class="progress-bar" style="width: ${this.progress}%"></div>
-              </div>
-            `
-          : ''}
-        ${this.error ? html` <div class="error-message">${this.error}</div> ` : ''}
-      </div>
-
       <input
         type="file"
         class="hidden-input"
         accept=".parquet,.parquetbundle"
         @change=${this.handleFileSelect}
+        style="display:none"
       />
     `;
-  }
-
-  private renderDataIcon() {
-    return html`
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path
-          d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"
-        />
-      </svg>
-    `;
-  }
-
-  private renderLoadingIcon() {
-    return html`
-      <svg viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite">
-        <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z" />
-      </svg>
-      <style>
-        @keyframes spin {
-          0% {
-            transform: rotate(0deg);
-          }
-          100% {
-            transform: rotate(360deg);
-          }
-        }
-      </style>
-    `;
-  }
-
-  private handleClick() {
-    if (!this.loading) {
-      this.fileInput.click();
-    }
-  }
-
-  private handleDragOver(e: DragEvent) {
-    if (!this.allowDrop) return;
-    e.preventDefault();
-    e.dataTransfer!.dropEffect = 'copy';
-  }
-
-  private handleDragEnter(e: DragEvent) {
-    if (!this.allowDrop) return;
-    e.preventDefault();
-    this.setAttribute('dragging', '');
-  }
-
-  private handleDragLeave(e: DragEvent) {
-    if (!this.allowDrop) return;
-    e.preventDefault();
-    this.removeAttribute('dragging');
-  }
-
-  private handleDrop(e: DragEvent) {
-    if (!this.allowDrop) return;
-    e.preventDefault();
-    this.removeAttribute('dragging');
-
-    const files = e.dataTransfer?.files;
-    if (files && files.length > 0) {
-      this.loadFromFile(files[0]);
-    }
   }
 
   private handleFileSelect(e: Event) {
@@ -243,7 +129,6 @@ export class DataLoader extends LitElement {
   async loadFromFile(file: File) {
     this.setLoading(true);
     this.error = null;
-    this.fileInfo = { name: file.name, size: file.size };
 
     // Performance optimization: disable inspection files for large files
     const disableInspection = file.size > 50 * 1024 * 1024; // 50MB threshold
@@ -295,35 +180,24 @@ export class DataLoader extends LitElement {
   }
 
   private setLoading(loading: boolean) {
-    this.loading = loading;
     if (loading) {
       this.setAttribute('loading', '');
-      this.progress = 0;
     } else {
       this.removeAttribute('loading');
-      this.progress = 0;
     }
   }
 
   private beginProgress(totalSteps: number) {
     this.totalSteps = totalSteps;
     this.completedSteps = 0;
-    this.updateProgress();
   }
 
   private addSteps(additionalSteps: number) {
     this.totalSteps += additionalSteps;
-    this.updateProgress();
   }
 
   private completeStep() {
     this.completedSteps += 1;
-    this.updateProgress();
-  }
-
-  private updateProgress() {
-    const ratio = this.totalSteps > 0 ? this.completedSteps / this.totalSteps : 0;
-    this.progress = Math.round(ratio * 100);
   }
 
   private dispatchDataLoaded(data: VisualizationData) {
@@ -344,14 +218,6 @@ export class DataLoader extends LitElement {
         composed: true,
       })
     );
-  }
-
-  private formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 }
 

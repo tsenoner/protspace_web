@@ -29,9 +29,6 @@
     },
     {
       "path": "./packages/react-bridge"
-    },
-    {
-      "path": "./app"
     }
   ]
 }

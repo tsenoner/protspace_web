@@ -23,9 +23,16 @@ export const controlBarStyles = css`
     background: var(--up-surface);
     border-bottom: 1px solid var(--up-border);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-    /* Allow items to wrap to avoid overflow on narrow widths */
     flex-wrap: wrap;
     row-gap: 0.5rem;
+    border-radius: 5px;
+  }
+
+  @media (max-width: 1050px) {
+    .control-bar {
+      row-gap: 0.9rem;
+      flex-direction: column-reverse;
+    }
   }
 
   .left-controls {
@@ -49,6 +56,7 @@ export const controlBarStyles = css`
   .control-group {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
     flex-wrap: wrap;
     min-width: 0;
@@ -80,7 +88,7 @@ export const controlBarStyles = css`
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.25rem 0.75rem;
+    padding: 0.3rem 0.75rem;
     border: 1px solid var(--up-border);
     border-radius: 0.25rem;
     background: var(--up-surface);
@@ -444,28 +452,47 @@ export const controlBarStyles = css`
     background-color: #fff;
   }
 
+  .right-controls-data > button {
+    color: #0b0f19;
+    font-weight: 400;
+    padding-right: 0.9rem;
+  }
+
   /* Responsive layout: stack controls on small screens */
-  @media (max-width: 640px) {
+  @media (max-width: 680px) {
     .control-bar {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0.5rem;
+      flex-direction: column-reverse;
+    }
+    .right-controls-select {
+      order: 6;
+    }
+
+    .right-controls-clear {
+      order: 5;
+    }
+    .right-controls-split {
+      order: 4;
+    }
+    .right-controls-filter {
+      order: 3;
+    }
+
+    .right-controls-export {
+      order: 2;
+    }
+
+    .right-controls-data {
+      order: 1;
+      display: flex;
     }
 
     .left-controls,
     .right-controls {
       width: 100%;
-      justify-content: flex-start;
-      gap: 0.5rem;
+      justify-content: center;
     }
 
     .control-group {
-      width: 100%;
-    }
-
-    /* Make selects expand to available width inside a row */
-    .control-group select {
-      width: 100%;
     }
   }
 

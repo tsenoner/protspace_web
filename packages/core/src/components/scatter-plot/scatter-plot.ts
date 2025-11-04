@@ -84,6 +84,10 @@ export class ProtspaceScatterplot extends LitElement {
 
     // Listen for legend z-order changes
     this.addEventListener('legend-zorder-change', this._handleLegendZOrderChange.bind(this));
+    this.addEventListener('dragover', this.handleDragOver);
+    this.addEventListener('dragenter', this.handleDragEnter);
+    this.addEventListener('dragleave', this.handleDragLeave);
+    this.addEventListener('drop', this.handleDrop);
   }
 
   disconnectedCallback() {
@@ -92,8 +96,44 @@ export class ProtspaceScatterplot extends LitElement {
       cancelAnimationFrame(this._quadtreeRebuildRafId);
       this._quadtreeRebuildRafId = null;
     }
+
     super.disconnectedCallback();
+    this.removeEventListener('dragover', this.handleDragOver);
+    this.removeEventListener('dragenter', this.handleDragEnter);
+    this.removeEventListener('dragleave', this.handleDragLeave);
+    this.removeEventListener('drop', this.handleDrop);
   }
+
+  private handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'copy';
+    this.setAttribute('dragging', '');
+  };
+
+  private handleDragEnter = (e: DragEvent) => {
+    e.preventDefault();
+    this.setAttribute('dragging', '');
+  };
+
+  private handleDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    this.removeAttribute('dragging');
+  };
+
+  private handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    this.removeAttribute('dragging');
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      this.dispatchEvent(
+        new CustomEvent('file-dropped', {
+          detail: { file: files[0] },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
+  };
 
   private _handleLegendZOrderChange(event: Event) {
     const customEvent = event as CustomEvent;
@@ -117,6 +157,9 @@ export class ProtspaceScatterplot extends LitElement {
       this._scheduleQuadtreeRebuild();
       this._canvasRenderer?.invalidatePositionCache();
       this._canvasRenderer?.invalidateStyleCache();
+      if (changedProperties.has('data')) {
+        this.resetZoom();
+      }
 
       // Dispatch data-change event for auto-sync with control bar and other components
       if (changedProperties.has('data') && this.data) {

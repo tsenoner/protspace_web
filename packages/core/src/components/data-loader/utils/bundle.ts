@@ -160,7 +160,7 @@ function createInspectionFiles(
     const downloadContainer = document.createElement('div');
     downloadContainer.style.cssText = `
       position: fixed; top: 20px; right: 20px; z-index: 10000;
-      background: white; border: 2px solid #333; border-radius: 8px;
+      background: white; border: 1px solid #333; border-radius: 8px;
       padding: 15px; font-family: Arial, sans-serif; font-size: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 300px;
     `;

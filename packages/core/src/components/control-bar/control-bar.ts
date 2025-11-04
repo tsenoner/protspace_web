@@ -204,6 +204,11 @@ export class ProtspaceControlBar extends LitElement {
     this.showExportMenu = !this.showExportMenu;
   }
 
+  private openFileDialog() {
+    const loader = document.querySelector('protspace-data-loader') as any;
+    loader?.shadowRoot?.querySelector('input[type="file"]')?.click();
+  }
+
   render() {
     return html`
       <div class="control-bar">
@@ -260,8 +265,11 @@ export class ProtspaceControlBar extends LitElement {
         <!-- Right side controls -->
         <div class="right-controls">
           <!-- Selection mode toggle -->
+
           <button
-            class=${this.selectionMode ? 'right-controls-button active' : 'right-controls-button'}
+            class=${this.selectionMode
+              ? 'right-controls-button right-controls-select active'
+              : 'right-controls-select right-controls-button'}
             ?disabled=${this._selectionDisabled}
             @click=${this.handleToggleSelectionMode}
             title=${this._selectionDisabled
@@ -290,7 +298,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Clear selections button -->
           <button
-            class="right-controls-button"
+            class="right-controls-button right-controls-clear"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleClearSelections}
             title="Clear all selected proteins"
@@ -303,7 +311,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Split data button -->
           <button
-            class="right-controls-button"
+            class="right-controls-button right-controls-split"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleSplitData}
             title="Split data to show only selected proteins"
@@ -339,7 +347,7 @@ export class ProtspaceControlBar extends LitElement {
             : ''}
 
           <!-- Filter dropdown -->
-          <div class="filter-container">
+          <div class="filter-container right-controls-filter">
             <button
               class=${this.showFilterMenu ? 'active' : ''}
               @click=${this.toggleFilterMenu}
@@ -465,7 +473,7 @@ export class ProtspaceControlBar extends LitElement {
           </div>
 
           <!-- Export dropdown -->
-          <div class="export-container">
+          <div class="export-container right-controls-export">
             <button
               @click=${this.toggleExportMenu}
               class=${this.showExportMenu ? 'active' : ''}
@@ -524,6 +532,18 @@ export class ProtspaceControlBar extends LitElement {
                   </div>
                 `
               : ''}
+          </div>
+          <div class="export-container right-controls-data">
+            <button @click=${this.openFileDialog} title="Import Data">
+              <svg class="icon" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L9 8m3-4v12"
+                />
+              </svg>
+              Import
+            </button>
           </div>
         </div>
       </div>
