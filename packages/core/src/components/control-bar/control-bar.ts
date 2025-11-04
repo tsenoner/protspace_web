@@ -703,14 +703,14 @@ export class ProtspaceControlBar extends LitElement {
   private _handleProteinSelection(event: Event) {
     const customEvent = event as CustomEvent<{
       proteinId: string;
-      modifierKeys: { ctrl: boolean; shift: boolean };
+      modifierKeys: { ctrl: boolean; meta: boolean; shift: boolean };
     }>;
     const { proteinId, modifierKeys } = customEvent.detail;
     if (!proteinId) return;
     const currentSelection = new Set(this.selectedIdsChips);
     const isCurrentlySelected = currentSelection.has(proteinId);
     let newSelection: string[];
-    if (modifierKeys.ctrl || modifierKeys.shift) {
+    if (modifierKeys.ctrl || modifierKeys.meta) {
       if (isCurrentlySelected) {
         currentSelection.delete(proteinId);
       } else {
