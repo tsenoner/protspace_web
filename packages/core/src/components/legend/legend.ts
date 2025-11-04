@@ -267,7 +267,23 @@ export class ProtspaceLegend extends LitElement {
           colors: featureInfo.colors,
           shapes: featureInfo.shapes,
         };
+      } else {
+        // Clear featureData if selectedFeature doesn't exist in current data
+        this.featureData = {
+          name: '',
+          values: [],
+          colors: [],
+          shapes: [],
+        };
       }
+    } else {
+      // Clear featureData if data has no features or no feature is selected
+      this.featureData = {
+        name: '',
+        values: [],
+        colors: [],
+        shapes: [],
+      };
     }
   }
 
@@ -321,7 +337,13 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private updateLegendItems() {
-    if (!this.featureData || !this.featureValues || this.featureValues.length === 0) {
+    if (
+      !this.featureData ||
+      !this.featureData.values ||
+      this.featureData.values.length === 0 ||
+      !this.featureValues ||
+      this.featureValues.length === 0
+    ) {
       this.legendItems = [];
       return;
     }
