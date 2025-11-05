@@ -15,7 +15,7 @@ export interface VisualizationData {
   protein_ids: string[];
   projections: Projection[];
   features: Record<string, Feature>;
-  feature_data: Record<string, number[]>;
+  feature_data: Record<string, number[][]>;
 }
 
 export interface PlotDataPoint {
@@ -23,7 +23,7 @@ export interface PlotDataPoint {
   x: number;
   y: number;
   z?: number;
-  featureValues: Record<string, string | null>;
+  featureValues: Record<string, string[]>;
   originalIndex: number;
 }
 

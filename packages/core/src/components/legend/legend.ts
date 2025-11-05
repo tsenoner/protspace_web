@@ -198,16 +198,11 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateFeatureValues(currentData: any, selectedFeature: string): void {
     // Extract feature values for current data
-    const featureValues = currentData.protein_ids.map((_: string, index: number) => {
-      const featureIdx = currentData.feature_data[selectedFeature][index];
-      // Handle out-of-bounds indices the same way as DataProcessor
-      return featureIdx !== undefined &&
-        featureIdx !== null &&
-        Array.isArray(currentData.features[selectedFeature].values) &&
-        featureIdx >= 0 &&
-        featureIdx < currentData.features[selectedFeature].values.length
-        ? currentData.features[selectedFeature].values[featureIdx] || null
-        : null;
+    const featureValues = currentData.protein_ids.flatMap((_: string, index: number) => {
+      const featureIdxArray = currentData.feature_data[selectedFeature][index];
+      return featureIdxArray.map((featureIdx: number) => {
+        return currentData.features[selectedFeature].values[featureIdx];
+      });
     });
 
     this.featureValues = featureValues;
@@ -258,16 +253,24 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateFeatureDataFromData() {
     // Update featureData from data property when available
-    if (this.data && this.data.features && this.selectedFeature) {
-      const featureInfo = this.data.features[this.selectedFeature];
-      if (featureInfo) {
-        this.featureData = {
-          name: this.selectedFeature,
-          values: featureInfo.values,
-          colors: featureInfo.colors,
-          shapes: featureInfo.shapes,
-        };
-      }
+    const featureInfo =
+      this.data?.features?.[this.selectedFeature] ?? null;
+
+    if (featureInfo) {
+      this.featureData = {
+        name: this.selectedFeature,
+        values: featureInfo.values,
+        colors: featureInfo.colors,
+        shapes: featureInfo.shapes,
+      };
+    } else {
+      // Clear featureData if data has no features or selectedFeature doesn't exist
+      this.featureData = {
+        name: '',
+        values: [],
+        colors: [],
+        shapes: [],
+      };
     }
   }
 
@@ -321,7 +324,13 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private updateLegendItems() {
-    if (!this.featureData || !this.featureValues || this.featureValues.length === 0) {
+    if (
+      !this.featureData ||
+      !this.featureData.values ||
+      this.featureData.values.length === 0 ||
+      !this.featureValues ||
+      this.featureValues.length === 0
+    ) {
       this.legendItems = [];
       return;
     }

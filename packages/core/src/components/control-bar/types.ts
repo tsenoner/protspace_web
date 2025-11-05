@@ -14,6 +14,7 @@ export interface ControlBarState {
 export interface ProtspaceData {
   projections?: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>;
   features?: Record<string, unknown>;
+  protein_ids?: string[];
 }
 
 export interface DataChangeDetail {

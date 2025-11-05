@@ -17,17 +17,13 @@ export class DataProcessor {
         | [number, number, number];
 
       // Map feature values for this protein
-      const featureValues: Record<string, string | null> = {};
+      const featureValues: Record<string, string[]> = {};
       Object.keys(data.features).forEach((featureKey) => {
-        const featureIndex = data.feature_data[featureKey][index];
-        featureValues[featureKey] =
-          featureIndex !== undefined &&
-          featureIndex !== null &&
-          Array.isArray(data.features[featureKey].values) &&
-          featureIndex >= 0 &&
-          featureIndex < data.features[featureKey].values.length
-            ? data.features[featureKey].values[featureIndex] || null
-            : null;
+        const featureIndices = data.feature_data[featureKey][index];
+
+        featureValues[featureKey] = Array.isArray(data.features[featureKey].values)
+          ? featureIndices.map((i) => data.features[featureKey].values[i]).filter((v) => v !== null)
+          : [];
       });
 
       // Determine 2D mapping depending on plane for 3D coordinates

@@ -87,9 +87,12 @@ export class LegendUtils {
    * Extract feature values for current data
    */
   static updateFeatureValues(currentData: any, selectedFeature: string): (string | null)[] {
-    return currentData.protein_ids.map((_: string, index: number) => {
-      const featureIdx = currentData.feature_data[selectedFeature][index];
-      return currentData.features[selectedFeature].values[featureIdx];
+    return currentData.protein_ids.flatMap((_: string, index: number) => {
+      const featureIdxArray = currentData.feature_data[selectedFeature][index];
+
+      return featureIdxArray.map((featureIdx: number) => {
+        return currentData.features[selectedFeature].values[featureIdx];
+      });
     });
   }
 
