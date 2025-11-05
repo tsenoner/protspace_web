@@ -100,19 +100,25 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
   const featureColumns = columnNames.filter((col) => !allIdColumns.has(col));
 
   const features: Record<string, Feature> = {};
-  const feature_data: Record<string, number[]> = {};
+  const feature_data: Record<string, number[][]> = {};
 
   const baseProjectionData = projectionGroups.values().next().value || rows;
+
   for (const featureCol of featureColumns) {
-    const featureMap = new Map<string, string | null>();
+    const featureMap = new Map<string, string[]>();
     for (const row of baseProjectionData) {
       const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
       const value = row[featureCol];
-      featureMap.set(proteinId, value == null ? null : String(value));
+
+      if (value == null) {
+        featureMap.set(proteinId, []);
+      } else {
+        featureMap.set(proteinId, String(value).split(';'));
+      }
     }
 
     const allValues = Array.from(featureMap.values());
-    const uniqueValues = Array.from(new Set(allValues));
+    const uniqueValues = Array.from(new Set(allValues.flat()));
     const valueToIndex = new Map<string | null, number>();
     uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
 
@@ -120,8 +126,8 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
     const shapes = generateShapes(uniqueValues.length);
 
     const featureDataArray = uniqueProteinIds.map((proteinId) => {
-      const value = featureMap.get(proteinId) ?? null;
-      return valueToIndex.get(value) ?? 0;
+      const value = featureMap.get(proteinId);
+      return (value ?? []).map((v) => valueToIndex.get(v) ?? -1);
     });
 
     features[featureCol] = { values: uniqueValues, colors, shapes };
@@ -247,20 +253,22 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
   const featureColumns = columnNames.filter((col) => !usedColumns.has(col));
 
   const features: Record<string, Feature> = {};
-  const feature_data: Record<string, number[]> = {};
+  const feature_data: Record<string, number[][]> = {};
 
   for (const featureCol of featureColumns) {
-    const rawValues: (string | null)[] = rows.map((row) => {
+    const rawValues: string[][] = rows.map((row) => {
       const v = row[featureCol];
-      return v == null ? null : String(v);
+      return v == null ? [] : String(v).split(';');
     });
-    const uniqueValues = Array.from(new Set(rawValues));
-    const valueToIndex = new Map<string | null, number>();
+    const uniqueValues = Array.from(new Set(rawValues.flat()));
+    const valueToIndex = new Map<string, number>();
     uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
 
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
-    const featureDataArray = rawValues.map((v) => valueToIndex.get(v) ?? 0);
+    const featureDataArray = rawValues.map((valueArray) =>
+      valueArray.map((v) => valueToIndex.get(v) ?? -1)
+    );
 
     features[featureCol] = { values: uniqueValues, colors, shapes };
     feature_data[featureCol] = featureDataArray;
@@ -421,7 +429,7 @@ export async function extractFeaturesOptimized(
   uniqueProteinIds: string[]
 ): Promise<{
   features: Record<string, Feature>;
-  feature_data: Record<string, number[]>;
+  feature_data: Record<string, number[][]>;
 }> {
   const allIdColumns = new Set([
     'projection_name',
@@ -438,20 +446,30 @@ export async function extractFeaturesOptimized(
   const featureColumns = columnNames.filter((c) => !allIdColumns.has(c));
 
   const features: Record<string, Feature> = {};
-  const feature_data: Record<string, number[]> = {};
+  const feature_data: Record<string, number[][]> = {};
 
   const chunkSize = 10000;
   for (const featureCol of featureColumns) {
-    const featureMap = new Map<string, string | null>();
+    const featureMap = new Map<string, string[]>();
     const valueCountMap = new Map<string | null, number>();
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, Math.min(i + chunkSize, rows.length));
       for (const row of chunk) {
         const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-        const v = row[featureCol];
-        const s = v == null ? null : String(v);
-        featureMap.set(proteinId, s);
-        valueCountMap.set(s, (valueCountMap.get(s) || 0) + 1);
+        const value = row[featureCol];
+
+        if (value == null) {
+          featureMap.set(proteinId, []);
+          continue;
+        }
+
+        const valueArray = String(value).split(';');
+
+        featureMap.set(proteinId, valueArray);
+
+        for (const v of valueArray) {
+          valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
+        }
       }
       // yield
 
@@ -465,10 +483,11 @@ export async function extractFeaturesOptimized(
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
 
-    const featureDataArray = new Array<number>(uniqueProteinIds.length);
+    const featureDataArray = new Array<number[]>(uniqueProteinIds.length);
+
     for (let i = 0; i < uniqueProteinIds.length; i++) {
-      const value = featureMap.get(uniqueProteinIds[i]) ?? null;
-      featureDataArray[i] = valueToIndex.get(value) ?? 0;
+      const valueArray = featureMap.get(uniqueProteinIds[i]) ?? null;
+      featureDataArray[i] = (valueArray ?? []).map((v) => valueToIndex.get(v) ?? -1);
     }
 
     features[featureCol] = { values: uniqueValues, colors, shapes };

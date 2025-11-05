@@ -198,16 +198,11 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateFeatureValues(currentData: any, selectedFeature: string): void {
     // Extract feature values for current data
-    const featureValues = currentData.protein_ids.map((_: string, index: number) => {
-      const featureIdx = currentData.feature_data[selectedFeature][index];
-      // Handle out-of-bounds indices the same way as DataProcessor
-      return featureIdx !== undefined &&
-        featureIdx !== null &&
-        Array.isArray(currentData.features[selectedFeature].values) &&
-        featureIdx >= 0 &&
-        featureIdx < currentData.features[selectedFeature].values.length
-        ? currentData.features[selectedFeature].values[featureIdx] || null
-        : null;
+    const featureValues = currentData.protein_ids.flatMap((_: string, index: number) => {
+      const featureIdxArray = currentData.feature_data[selectedFeature][index];
+      return featureIdxArray.map((featureIdx: number) => {
+        return currentData.features[selectedFeature].values[featureIdx];
+      });
     });
 
     this.featureValues = featureValues;

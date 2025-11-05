@@ -74,16 +74,12 @@ if (dataLoader) {
 
             const firstFeature = Object.keys(newData.features)[0];
             if (firstFeature) {
-              const featureValues = newData.protein_ids.map((_, index) => {
-                const featureIdx = newData.feature_data[firstFeature][index];
-                // Handle out-of-bounds indices the same way as DataProcessor
-                return featureIdx !== undefined &&
-                  featureIdx !== null &&
-                  Array.isArray(newData.features[firstFeature].values) &&
-                  featureIdx >= 0 &&
-                  featureIdx < newData.features[firstFeature].values.length
-                  ? newData.features[firstFeature].values[featureIdx] || null
-                  : null;
+              const featureValues = newData.protein_ids.flatMap((_, index) => {
+                const featureIdxArray = newData.feature_data[firstFeature][index];
+
+                return featureIdxArray.map((featureIdx) => {
+                  return newData.features[firstFeature].values[featureIdx] || null;
+                });
               });
               legendElement.featureValues = featureValues;
               legendElement.proteinIds = newData.protein_ids;
@@ -382,9 +378,6 @@ Promise.all([
                   const chunkSize = 2000; // Larger chunks for better performance
                   const featureValues: (string | null)[] = [];
 
-                  // Pre-allocate array for better memory performance
-                  featureValues.length = newData.protein_ids.length;
-
                   for (let i = 0; i < newData.protein_ids.length; i += chunkSize) {
                     const endIndex = Math.min(i + chunkSize, newData.protein_ids.length);
 
@@ -393,7 +386,10 @@ Promise.all([
                     const featureValuesArray = newData.features[firstFeature].values;
 
                     for (let j = i; j < endIndex; j++) {
-                      featureValues[j] = featureValuesArray[featureDataArray[j]];
+                      // featureValues = featureValuesArray[featureDataArray[j]];
+                      for (let k = 0; k < featureDataArray[j].length; k++) {
+                        featureValues.push(featureValuesArray[featureDataArray[j][k]]);
+                      }
                     }
 
                     // Yield to browser every few chunks and update progress
@@ -416,8 +412,13 @@ Promise.all([
                     const endIndex = Math.min(i + chunkSize, newData.protein_ids.length);
 
                     for (let j = i; j < endIndex; j++) {
-                      const featureIdx = newData.feature_data[firstFeature][j];
-                      featureValues.push(newData.features[firstFeature].values[featureIdx]);
+                      const featureIdxArray = newData.feature_data[firstFeature][j];
+
+                      for (let k = 0; k < featureIdxArray.length; k++) {
+                        featureValues.push(
+                          newData.features[firstFeature].values[featureIdxArray[k]]
+                        );
+                      }
                     }
 
                     if (i + chunkSize < newData.protein_ids.length) {
@@ -428,9 +429,10 @@ Promise.all([
                   legendElement.featureValues = featureValues;
                 } else {
                   // Small datasets: Process normally with high quality
-                  const featureValues = newData.protein_ids.map((_, index) => {
+                  const featureValues = newData.protein_ids.flatMap((_, index) => {
                     const featureIdx = newData.feature_data[firstFeature][index];
-                    return newData.features[firstFeature].values[featureIdx];
+
+                    return featureIdx.map((idx) => newData.features[firstFeature].values[idx]);
                   });
                   legendElement.featureValues = featureValues;
                 }
@@ -589,16 +591,12 @@ Promise.all([
           legendElement.selectedFeature = currentFeature;
 
           // Extract feature values for current data
-          const featureValues = currentData.protein_ids.map((_, index) => {
-            const featureIdx = currentData.feature_data[currentFeature][index];
-            // Handle out-of-bounds indices the same way as DataProcessor
-            return featureIdx !== undefined &&
-              featureIdx !== null &&
-              Array.isArray(currentData.features[currentFeature].values) &&
-              featureIdx >= 0 &&
-              featureIdx < currentData.features[currentFeature].values.length
-              ? currentData.features[currentFeature].values[featureIdx] || null
-              : null;
+          const featureValues = currentData.protein_ids.flatMap((_, index) => {
+            const featureIdxArray = currentData.feature_data[currentFeature][index];
+
+            return featureIdxArray.map((featureIdx) => {
+              return currentData.features[currentFeature].values[featureIdx];
+            });
           });
 
           legendElement.featureValues = featureValues;

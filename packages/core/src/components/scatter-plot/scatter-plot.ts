@@ -264,7 +264,7 @@ export class ProtspaceScatterplot extends LitElement {
         () => this._scales,
         () => this._transform,
         {
-          getColor: (p: PlotDataPoint) => this._getColor(p),
+          getColors: (p: PlotDataPoint) => this._getColors(p),
           getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
           getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
           getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
@@ -371,7 +371,7 @@ export class ProtspaceScatterplot extends LitElement {
           () => this._scales,
           () => this._transform,
           {
-            getColor: (p: PlotDataPoint) => this._getColor(p),
+            getColors: (p: PlotDataPoint) => this._getColors(p),
             getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
             getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
             getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
@@ -549,7 +549,7 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     enterPoints
-      .attr('fill', (d) => this._getColor(d))
+      .attr('fill', (d) => this._getColors(d))
       .attr('stroke', (d) => this._getStrokeColor(d))
       .attr('stroke-opacity', 0.5)
       .attr('stroke-width', (d) => this._getStrokeWidth(d))
@@ -623,9 +623,9 @@ export class ProtspaceScatterplot extends LitElement {
     return getters.getPointShape(point);
   }
 
-  private _getColor(point: PlotDataPoint): string {
+  private _getColors(point: PlotDataPoint): string[] {
     const getters = this._getStyleGetters();
-    return getters.getColor(point);
+    return getters.getColors(point);
   }
 
   private _getPointSize(point: PlotDataPoint): number {
@@ -866,10 +866,12 @@ export class ProtspaceScatterplot extends LitElement {
                 60}px; z-index: 10;"
               >
                 <div class="tooltip-protein-id">${this._tooltipData.protein.id}</div>
-                <div class="tooltip-feature">
-                  ${this.selectedFeature}:
-                  ${this._tooltipData.protein.featureValues[this.selectedFeature] || 'N\\A'}
-                </div>
+
+                <div class="tooltip-feature-header">${this.selectedFeature}:</div>
+
+                ${this._tooltipData.protein.featureValues[this.selectedFeature].map(
+                  (value) => html`<div class="tooltip-feature">${value}</div>`
+                )}
               </div>
             `
           : ''}
@@ -1061,7 +1063,7 @@ export class ProtspaceScatterplot extends LitElement {
       const currentProteinIdsSet = new Set(currentProteinIds);
 
       // Filter feature data to match current protein IDs
-      const filteredFeatureData: { [key: string]: number[] } = {};
+      const filteredFeatureData: { [key: string]: number[][] } = {};
 
       for (const [featureName, featureValues] of Object.entries(this.data.feature_data)) {
         filteredFeatureData[featureName] = [];
