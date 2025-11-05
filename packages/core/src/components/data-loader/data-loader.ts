@@ -130,9 +130,6 @@ export class DataLoader extends LitElement {
     this.setLoading(true);
     this.error = null;
 
-    // Performance optimization: disable inspection files for large files
-    const disableInspection = file.size > 50 * 1024 * 1024; // 50MB threshold
-
     try {
       // Plan initial steps common to both branches: validate size, read ArrayBuffer
       this.beginProgress(2);
@@ -149,9 +146,7 @@ export class DataLoader extends LitElement {
       if (file.name.endsWith('.parquetbundle') || isParquetBundle(arrayBuffer)) {
         // For bundles: extract -> validate -> convert
         this.addSteps(3);
-        const extractedData = await extractRowsFromParquetBundle(arrayBuffer, {
-          disableInspection,
-        });
+        const extractedData = await extractRowsFromParquetBundle(arrayBuffer);
         this.completeStep();
         validateRowsBasic(extractedData);
         this.completeStep();
