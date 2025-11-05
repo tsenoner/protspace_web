@@ -6,7 +6,7 @@ export class DataProcessor {
     data: VisualizationData,
     projectionIndex: number,
     isolationMode: boolean = false,
-    splitHistory?: string[][],
+    isolationHistory?: string[][],
     projectionPlane: 'xy' | 'xz' | 'yz' = 'xy'
   ): PlotDataPoint[] {
     if (!data.projections[projectionIndex]) return [];
@@ -51,11 +51,11 @@ export class DataProcessor {
     });
 
     // Apply isolation filtering if needed
-    if (isolationMode && splitHistory && splitHistory.length > 0) {
-      let filteredData = processedData.filter((p) => splitHistory[0].includes(p.id));
+    if (isolationMode && isolationHistory && isolationHistory.length > 0) {
+      let filteredData = processedData.filter((p) => isolationHistory[0].includes(p.id));
 
-      for (let i = 1; i < splitHistory.length; i++) {
-        const splitIds = splitHistory[i];
+      for (let i = 1; i < isolationHistory.length; i++) {
+        const splitIds = isolationHistory[i];
         filteredData = filteredData.filter((p) => splitIds.includes(p.id));
       }
 

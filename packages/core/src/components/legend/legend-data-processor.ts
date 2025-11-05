@@ -6,24 +6,24 @@ import { DEFAULT_STYLES } from './config';
  */
 export class LegendDataProcessor {
   /**
-   * Get filtered indices based on split history for isolation mode
+   * Get filtered indices based on isolation history for isolation mode
    */
   static getFilteredIndices(
     isolationMode: boolean,
-    splitHistory: string[][],
+    isolationHistory: string[][],
     proteinIds: string[]
   ): Set<number> {
     const filteredIndices = new Set<number>();
 
-    if (isolationMode && splitHistory && splitHistory.length > 0 && proteinIds) {
+    if (isolationMode && isolationHistory && isolationHistory.length > 0 && proteinIds) {
       proteinIds.forEach((id, index) => {
-        // For the first split, check if the protein is in the first selection
-        let isIncluded = splitHistory[0].includes(id);
+        // For the first isolation, check if the protein is in the first selection
+        let isIncluded = isolationHistory[0].includes(id);
 
-        // For each subsequent split, check if the protein is also in that selection
-        if (isIncluded && splitHistory.length > 1) {
-          for (let i = 1; i < splitHistory.length; i++) {
-            if (!splitHistory[i].includes(id)) {
+        // For each subsequent isolation, check if the protein is also in that selection
+        if (isIncluded && isolationHistory.length > 1) {
+          for (let i = 1; i < isolationHistory.length; i++) {
+            if (!isolationHistory[i].includes(id)) {
               isIncluded = false;
               break;
             }
@@ -45,13 +45,13 @@ export class LegendDataProcessor {
   static countFeatureFrequencies(
     featureValues: (string | null)[],
     isolationMode: boolean,
-    splitHistory: string[][],
+    isolationHistory: string[][],
     filteredIndices: Set<number>
   ): Map<string | null, number> {
     const frequencyMap = new Map<string | null, number>();
 
-    if (isolationMode && splitHistory && splitHistory.length > 0) {
-      // Only count values from proteins that pass the split filter
+    if (isolationMode && isolationHistory && isolationHistory.length > 0) {
+      // Only count values from proteins that pass the isolation filter
       featureValues.forEach((value, index) => {
         if (filteredIndices.has(index)) {
           frequencyMap.set(value, (frequencyMap.get(value) || 0) + 1);
@@ -367,7 +367,7 @@ export class LegendDataProcessor {
     proteinIds: string[],
     maxVisibleValues: number,
     isolationMode: boolean,
-    splitHistory: string[][],
+    isolationHistory: string[][],
     existingLegendItems: LegendItem[],
     includeOthers: boolean,
     manuallyOtherValues: string[] = [],
@@ -377,14 +377,14 @@ export class LegendDataProcessor {
     otherItems: OtherItem[];
   } {
     const manualOtherSet = new Set<string>(manuallyOtherValues);
-    // Get filtered indices based on split history
-    const filteredIndices = this.getFilteredIndices(isolationMode, splitHistory, proteinIds);
+    // Get filtered indices based on isolation history
+    const filteredIndices = this.getFilteredIndices(isolationMode, isolationHistory, proteinIds);
 
     // Count frequencies with filtering
     const frequencyMap = this.countFeatureFrequencies(
       featureValues,
       isolationMode,
-      splitHistory,
+      isolationHistory,
       filteredIndices
     );
 

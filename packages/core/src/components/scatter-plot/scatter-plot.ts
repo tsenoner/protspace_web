@@ -43,8 +43,8 @@ export class ProtspaceScatterplot extends LitElement {
   } | null = null;
   @state() private _mergedConfig = DEFAULT_CONFIG;
   @state() private _transform = d3.zoomIdentity;
-  @state() private _splitHistory: string[][] = [];
-  @state() private _splitMode = false;
+  @state() private _isolationHistory: string[][] = [];
+  @state() private _isolationMode = false;
 
   // Queries
   @query('canvas') private _canvas?: HTMLCanvasElement;
@@ -314,8 +314,8 @@ export class ProtspaceScatterplot extends LitElement {
     this._plotData = DataProcessor.processVisualizationData(
       dataToUse,
       this.selectedProjectionIndex,
-      this._splitMode,
-      this._splitHistory,
+      this._isolationMode,
+      this._isolationHistory,
       this.projectionPlane
     );
     // Invalidate scales cache when plot data changes
@@ -874,10 +874,10 @@ export class ProtspaceScatterplot extends LitElement {
               </div>
             `
           : ''}
-        ${this._splitMode
+        ${this._isolationMode
           ? html`
               <div
-                class="split-indicator"
+                class="isolation-indicator"
                 style="z-index: 10; bottom: 10px; right: 10px; position: absolute; background: rgba(59, 130, 246, 0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;"
               >
                 ${this._plotData.length} points
@@ -898,7 +898,7 @@ export class ProtspaceScatterplot extends LitElement {
     this._styleSig = parts.join('|');
   }
 
-  splitDataBySelection() {
+  isolateSelection() {
     if (!this.data || this.selectedProteinIds.length === 0) {
       return;
     }
@@ -911,9 +911,9 @@ export class ProtspaceScatterplot extends LitElement {
       return;
     }
 
-    // Add valid selection to split history
-    this._splitHistory.push(validSelectedIds);
-    this._splitMode = true;
+    // Add valid selection to isolation history
+    this._isolationHistory.push(validSelectedIds);
+    this._isolationMode = true;
     this.selectedProteinIds = [];
 
     // Process data and update rendering
@@ -937,10 +937,10 @@ export class ProtspaceScatterplot extends LitElement {
     });
 
     this.dispatchEvent(
-      new CustomEvent('data-split', {
+      new CustomEvent('data-isolation', {
         detail: {
-          splitHistory: this._splitHistory,
-          splitMode: this._splitMode,
+          isolationHistory: this._isolationHistory,
+          isolationMode: this._isolationMode,
           dataSize: this._plotData.length,
         },
         bubbles: true,
@@ -954,7 +954,7 @@ export class ProtspaceScatterplot extends LitElement {
         detail: {
           data: this.getCurrentData(),
           isSplitData: true,
-          splitMode: true,
+          isolationMode: true,
         },
         bubbles: true,
         composed: true,
@@ -977,9 +977,9 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
-  resetSplit() {
-    this._splitHistory = [];
-    this._splitMode = false;
+  resetIsolation() {
+    this._isolationHistory = [];
+    this._isolationMode = false;
     this.selectedProteinIds = [];
 
     // Process data and update rendering
@@ -1003,10 +1003,10 @@ export class ProtspaceScatterplot extends LitElement {
     });
 
     this.dispatchEvent(
-      new CustomEvent('data-split-reset', {
+      new CustomEvent('data-isolation-reset', {
         detail: {
-          splitHistory: this._splitHistory,
-          splitMode: this._splitMode,
+          isolationHistory: this._isolationHistory,
+          isolationMode: this._isolationMode,
           dataSize: this._plotData.length,
         },
         bubbles: true,
@@ -1020,7 +1020,7 @@ export class ProtspaceScatterplot extends LitElement {
         detail: {
           data: this.getCurrentData(),
           isFiltered: false,
-          splitMode: false,
+          isolationMode: false,
         },
         bubbles: true,
         composed: true,
@@ -1028,19 +1028,19 @@ export class ProtspaceScatterplot extends LitElement {
     );
   }
 
-  getSplitHistory(): string[][] {
-    return [...this._splitHistory];
+  getIsolationHistory(): string[][] {
+    return [...this._isolationHistory];
   }
 
-  isSplitMode(): boolean {
-    return this._splitMode;
+  isIsolationMode(): boolean {
+    return this._isolationMode;
   }
 
   getCurrentData(): VisualizationData | null {
     if (!this.data) return null;
 
-    // If we're in split mode, return filtered data based on current plot data
-    if (this._splitMode && this._plotData.length > 0) {
+    // If we're in isolation mode, return filtered data based on current plot data
+    if (this._isolationMode && this._plotData.length > 0) {
       const currentProteinIds = this._plotData.map((point) => point.id);
       const currentProteinIdsSet = new Set(currentProteinIds);
 
