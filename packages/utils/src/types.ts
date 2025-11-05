@@ -37,8 +37,6 @@ export interface ScatterplotConfig {
   height?: number;
   margin?: { top: number; right: number; bottom: number; left: number };
   pointSize?: number;
-  highlightedPointSize?: number;
-  selectedPointSize?: number;
   zoomExtent?: [number, number];
   baseOpacity?: number;
   selectedOpacity?: number;

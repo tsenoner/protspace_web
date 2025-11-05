@@ -1021,16 +1021,12 @@ export class ProtspaceLegend extends LitElement {
           10,
           Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier)
         );
-        const highlightedSize = Math.round(baseSize * 1.5);
-        const selectedSize = Math.round(baseSize * 1.875);
         // @ts-ignore config is a public prop on the scatterplot element
         const currentConfig = (this._scatterplotElement as any).config || {};
         // @ts-ignore assign merged config to trigger update
         (this._scatterplotElement as any).config = {
           ...currentConfig,
           pointSize: baseSize,
-          highlightedPointSize: highlightedSize,
-          selectedPointSize: selectedSize,
         };
       }
     };

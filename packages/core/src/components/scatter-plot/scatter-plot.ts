@@ -65,7 +65,6 @@ export class ProtspaceScatterplot extends LitElement {
   private _zOrderMapping: Record<string, number> = {};
   private _styleGettersCache: ReturnType<typeof createStyleGetters> | null = null;
   private _quadtreeRebuildRafId: number | null = null;
-  private _selectionRerenderTimeout: number | null = null;
   private _cachedScales: ReturnType<typeof DataProcessor.createScales> = null;
   private _scalesCacheDeps: {
     plotDataLength: number;
@@ -218,7 +217,6 @@ export class ProtspaceScatterplot extends LitElement {
       this._updateStyleSignature();
       this._canvasRenderer?.invalidateStyleCache();
       this._canvasRenderer?.setStyleSignature(this._styleSig);
-      // Rebuild spatial index when config changes may affect scales (e.g., width/height/margins)
       this._scheduleQuadtreeRebuild();
     }
     if (
@@ -234,16 +232,6 @@ export class ProtspaceScatterplot extends LitElement {
         this._canvasRenderer?.setSelectedFeature(this.selectedFeature);
         this._canvasRenderer?.setZOrderMapping(this._zOrderMapping);
       }
-    }
-    // Ensure selection/highlight changes immediately reflect in canvas styles
-    if (
-      changedProperties.has('selectedProteinIds') ||
-      changedProperties.has('highlightedProteinIds')
-    ) {
-      // Fast path: draw selection overlay immediately without full rerender
-      this._updateSelectionOverlays();
-      this._scheduleDeferredSelectionRerender();
-      this._canvasRenderer?.invalidateStyleCache();
     }
     if (changedProperties.has('selectionMode')) {
       this._updateSelectionMode();
@@ -268,8 +256,6 @@ export class ProtspaceScatterplot extends LitElement {
         useShapes: this.useShapes,
         sizes: {
           base: this._mergedConfig.pointSize,
-          highlighted: this._mergedConfig.highlightedPointSize,
-          selected: this._mergedConfig.selectedPointSize,
         },
         opacities: {
           base: this._mergedConfig.baseOpacity,
@@ -278,7 +264,15 @@ export class ProtspaceScatterplot extends LitElement {
         },
       });
     }
-    // Avoid full rerender if only selection/highlight changed; overlay handles immediate feedback
+    if (
+      changedProperties.has('selectedProteinIds') ||
+      changedProperties.has('highlightedProteinIds')
+    ) {
+      this._updateSelectionOverlays();
+      this._canvasRenderer?.invalidateStyleCache();
+      this._renderPlot();
+    }
+    // Render for other changes
     const selectionKeys = ['selectedProteinIds', 'highlightedProteinIds'];
     const changedKeys = Array.from(changedProperties.keys());
     const onlySelectionChanged =
@@ -599,53 +593,9 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
-  /**
-   * Draw selection overlays on the SVG layer to avoid full canvas rerenders on selection changes.
-   */
   private _updateSelectionOverlays() {
-    if (!this._overlayGroup || !this._scales) return;
-
-    const selectedSet = new Set(this.selectedProteinIds || []);
-    const selectedPoints = this._plotData.filter((p) => selectedSet.has(p.id));
-
-    const k = this._transform.k || 1;
-    const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
-    const baseRadius = Math.sqrt(this._mergedConfig.selectedPointSize) / 3;
-    const r = Math.max(1, baseRadius / Math.pow(k, exp));
-    const strokeW = 2 / k;
-
-    const sel = this._overlayGroup
-      .selectAll<SVGCircleElement, any>('.selected-overlay')
-      .data(selectedPoints, (d: any) => d.id);
-
-    sel
-      .enter()
-      .append('circle')
-      .attr('class', 'selected-overlay')
-      .attr('fill', 'none')
-      .attr('pointer-events', 'none')
-      .merge(sel as any)
-      .attr('cx', (d: any) => this._scales!.x(d.x))
-      .attr('cy', (d: any) => this._scales!.y(d.y))
-      .attr('r', r)
-      .attr('stroke', '#000')
-      .attr('stroke-width', strokeW)
-      .attr('opacity', 0.95);
-
-    sel.exit().remove();
-  }
-
-  private _scheduleDeferredSelectionRerender() {
-    if (this._selectionRerenderTimeout !== null) {
-      clearTimeout(this._selectionRerenderTimeout);
-    }
-    // Debounce a full style recompute + rerender to keep styles consistent after bursty selection
-    this._selectionRerenderTimeout = window.setTimeout(() => {
-      this._selectionRerenderTimeout = null;
-      this._canvasRenderer?.invalidateStyleCache();
-      this._renderPlot();
-      this._updateSelectionOverlays();
-    }, 200);
+    if (!this._overlayGroup) return;
+    this._overlayGroup.selectAll('.selected-overlay').remove();
   }
 
   private _getPointPath(point: PlotDataPoint): string {
@@ -695,8 +645,6 @@ export class ProtspaceScatterplot extends LitElement {
         useShapes: this.useShapes,
         sizes: {
           base: this._mergedConfig.pointSize,
-          highlighted: this._mergedConfig.highlightedPointSize,
-          selected: this._mergedConfig.selectedPointSize,
         },
         opacities: {
           base: this._mergedConfig.baseOpacity,
@@ -941,8 +889,6 @@ export class ProtspaceScatterplot extends LitElement {
     const cfg = this._mergedConfig;
     const parts = [
       `ps:${cfg.pointSize}`,
-      `ph:${cfg.highlightedPointSize}`,
-      `psel:${cfg.selectedPointSize}`,
       `feat:${this.selectedFeature}`,
       `sh:${this.useShapes ? 1 : 0}`,
     ];

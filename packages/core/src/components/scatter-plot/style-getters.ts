@@ -12,8 +12,6 @@ export interface StyleConfig {
   useShapes?: boolean;
   sizes: {
     base: number;
-    highlighted: number;
-    selected: number;
   };
   opacities: {
     base: number;
@@ -77,9 +75,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
 
   const allHidden = computeAllHidden();
 
-  const getPointSize = (point: PlotDataPoint): number => {
-    if (selectedIdsSet.has(point.id)) return styleConfig.sizes.selected;
-    if (highlightedIdsSet.has(point.id)) return styleConfig.sizes.highlighted;
+  const getPointSize = (_point: PlotDataPoint): number => {
     return styleConfig.sizes.base;
   };
 
@@ -122,15 +118,11 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     return styleConfig.opacities.base;
   };
 
-  const getStrokeColor = (point: PlotDataPoint): string => {
-    if (selectedIdsSet.has(point.id)) return 'var(--protspace-selection-color, #FF5500)';
-    if (highlightedIdsSet.has(point.id)) return 'var(--protspace-highlight-color, #00A3E0)';
+  const getStrokeColor = (_point: PlotDataPoint): string => {
     return 'var(--protspace-default-stroke, #333333)';
   };
 
-  const getStrokeWidth = (point: PlotDataPoint): number => {
-    if (selectedIdsSet.has(point.id)) return 3;
-    if (highlightedIdsSet.has(point.id)) return 2;
+  const getStrokeWidth = (_point: PlotDataPoint): number => {
     return 1;
   };
 
