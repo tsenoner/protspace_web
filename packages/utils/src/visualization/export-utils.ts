@@ -15,7 +15,7 @@ export interface ExportableData {
       shapes: string[];
     }
   >;
-  feature_data: Record<string, number[]>;
+  feature_data: Record<string, number[][]>;
   projections?: Array<{ name: string }>;
 }
 
@@ -110,13 +110,19 @@ export class ProtSpaceExporter {
     if (featureIndices && featureInfo && Array.isArray(featureInfo.values)) {
       const hiddenSet = new Set(hiddenValues);
       visibleIds = data.protein_ids.filter((_id, i) => {
-        const vi = featureIndices[i];
-        const value: string | null =
-          typeof vi === 'number' && vi >= 0 && vi < featureInfo.values.length
-            ? (featureInfo.values[vi] ?? null)
-            : null;
-        const key = value === null ? 'null' : String(value);
-        return !hiddenSet.has(key);
+        const viArray = featureIndices[i];
+        // A protein is visible if at least one of its feature values is not hidden
+        if (!Array.isArray(viArray) || viArray.length === 0) {
+          return !hiddenSet.has('null');
+        }
+        return viArray.some((vi) => {
+          const value: string | null =
+            typeof vi === 'number' && vi >= 0 && vi < featureInfo.values.length
+              ? (featureInfo.values[vi] ?? null)
+              : null;
+          const key = value === null ? 'null' : String(value);
+          return !hiddenSet.has(key);
+        });
       });
     } else {
       // Fallback: if we cannot determine feature visibility, export all ids
@@ -275,9 +281,13 @@ export class ProtSpaceExporter {
     const counts = new Array(featureInfo.values.length).fill(0) as number[];
     for (let i = 0; i < indices.length; i += 1) {
       if (allowedIndexSet && !allowedIndexSet.has(i)) continue;
-      const vi = indices[i];
-      if (typeof vi === 'number' && vi >= 0 && vi < counts.length) {
-        counts[vi] += 1;
+      const viArray = indices[i];
+      if (Array.isArray(viArray)) {
+        for (const vi of viArray) {
+          if (typeof vi === 'number' && vi >= 0 && vi < counts.length) {
+            counts[vi] += 1;
+          }
+        }
       }
     }
 
