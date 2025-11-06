@@ -22,10 +22,10 @@ export class ProtspaceControlBar extends LitElement {
   selectionMode: boolean = false;
   @property({ type: Number, attribute: 'selected-proteins-count' })
   selectedProteinsCount: number = 0;
-  @property({ type: Boolean, attribute: 'split-mode' })
-  splitMode: boolean = false;
-  @property({ type: Array, attribute: 'split-history' })
-  splitHistory: string[][] = [];
+  @property({ type: Boolean, attribute: 'isolation-mode' })
+  isolationMode: boolean = false;
+  @property({ type: Array, attribute: 'isolation-history' })
+  isolationHistory: string[][] = [];
 
   @state() private _selectionDisabled: boolean = false;
 
@@ -55,8 +55,8 @@ export class ProtspaceControlBar extends LitElement {
   private _onDocumentClick = (event: Event) => this.handleDocumentClick(event);
   private _onDataChange = (event: Event) => this._handleDataChange(event);
   private _onProteinClick = (event: Event) => this._handleProteinSelection(event);
-  private _onDataSplit = (event: Event) => this._handleDataSplit(event);
-  private _onDataSplitReset = (event: Event) => this._handleDataSplitReset(event);
+  private _onDataIsolation = (event: Event) => this._handleDataIsolation(event);
+  private _onDataIsolationReset = (event: Event) => this._handleDataIsolationReset(event);
   private _onAutoDisableSelection = (event: Event) => this._handleAutoDisableSelection(event);
   private _onBrushSelection = (event: Event) => this._handleBrushSelection(event);
 
@@ -179,7 +179,7 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private handleSplitData() {
-    const customEvent = new CustomEvent('split-data', {
+    const customEvent = new CustomEvent('isolate-data', {
       detail: {},
       bubbles: true,
       composed: true,
@@ -188,12 +188,12 @@ export class ProtspaceControlBar extends LitElement {
 
     if (this.autoSync && this._scatterplotElement) {
       const scatterplot = this._scatterplotElement as ScatterplotElementLike;
-      scatterplot.splitDataBySelection?.();
+      scatterplot.isolateSelection?.();
     }
   }
 
   private handleResetSplit() {
-    const customEvent = new CustomEvent('reset-split', {
+    const customEvent = new CustomEvent('reset-isolation', {
       detail: {},
       bubbles: true,
       composed: true,
@@ -202,9 +202,9 @@ export class ProtspaceControlBar extends LitElement {
 
     if (this.autoSync && this._scatterplotElement) {
       const scatterplot = this._scatterplotElement as ScatterplotElementLike;
-      scatterplot.resetSplit?.();
-      this.splitMode = false;
-      this.splitHistory = [];
+      scatterplot.resetIsolation?.();
+      this.isolationMode = false;
+      this.isolationHistory = [];
     }
   }
 
@@ -338,25 +338,28 @@ export class ProtspaceControlBar extends LitElement {
             Clear
           </button>
 
-          <!-- Split data button -->
+          <!-- Isolate data button -->
           <button
             class="right-controls-button right-controls-split"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleSplitData}
-            title="Split data to show only selected proteins"
+            title="Isolate selected proteins to focus on them"
           >
             <svg class="icon" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="2" fill="currentColor" />
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                stroke-width="1.5"
+                d="M12 1v5m0 12v5M3.93 3.93l3.54 3.54m9.06 9.06l3.54 3.54M1 12h5m12 0h5M3.93 20.07l3.54-3.54m9.06-9.06l3.54-3.54"
+                opacity="0.6"
               />
             </svg>
-            Split
+            Isolate
           </button>
 
           <!-- Reset split button -->
-          ${this.splitMode
+          ${this.isolationMode
             ? html`
                 <button
                   @click=${this.handleResetSplit}
@@ -597,8 +600,11 @@ export class ProtspaceControlBar extends LitElement {
       this._scatterplotElement.removeEventListener('data-change', this._onDataChange);
       this._scatterplotElement.removeEventListener('protein-click', this._onProteinClick);
       this._scatterplotElement.removeEventListener('brush-selection', this._onBrushSelection);
-      this._scatterplotElement.removeEventListener('data-split', this._onDataSplit);
-      this._scatterplotElement.removeEventListener('data-split-reset', this._onDataSplitReset);
+      this._scatterplotElement.removeEventListener('data-isolation', this._onDataIsolation);
+      this._scatterplotElement.removeEventListener(
+        'data-isolation-reset',
+        this._onDataIsolationReset
+      );
       this._scatterplotElement.removeEventListener(
         'auto-disable-selection',
         this._onAutoDisableSelection
@@ -631,10 +637,13 @@ export class ProtspaceControlBar extends LitElement {
         // Listen for brush selection events
         this._scatterplotElement.addEventListener('brush-selection', this._onBrushSelection);
 
-        // Listen for data split events
-        this._scatterplotElement.addEventListener('data-split', this._onDataSplit);
+        // Listen for data isolation events
+        this._scatterplotElement.addEventListener('data-isolation', this._onDataIsolation);
 
-        this._scatterplotElement.addEventListener('data-split-reset', this._onDataSplitReset);
+        this._scatterplotElement.addEventListener(
+          'data-isolation-reset',
+          this._onDataIsolationReset
+        );
 
         this._scatterplotElement.addEventListener(
           'auto-disable-selection',
@@ -747,25 +756,25 @@ export class ProtspaceControlBar extends LitElement {
     this.requestUpdate();
   }
 
-  private _handleDataSplit(event: Event) {
+  private _handleDataIsolation(event: Event) {
     const customEvent = event as CustomEvent;
-    const { splitHistory, splitMode } = customEvent.detail;
-    this.splitHistory = splitHistory;
-    this.splitMode = splitMode;
+    const { isolationHistory, isolationMode } = customEvent.detail;
+    this.isolationHistory = isolationHistory;
+    this.isolationMode = isolationMode;
     this.selectedProteinsCount = 0;
     this.selectedIdsChips = [];
     this.requestUpdate();
   }
 
-  private _handleDataSplitReset(event: Event) {
+  private _handleDataIsolationReset(event: Event) {
     const customEvent = event as CustomEvent;
-    const { splitHistory, splitMode } = customEvent.detail;
-    this.splitHistory = splitHistory;
-    this.splitMode = splitMode;
+    const { isolationHistory, isolationMode } = customEvent.detail;
+    this.isolationHistory = isolationHistory;
+    this.isolationMode = isolationMode;
     this.selectedProteinsCount = 0;
     this.selectedIdsChips = [];
 
-    // Re-enable selection when split is reset (back to full data)
+    // Re-enable selection when isolation is reset (back to full data)
     this._selectionDisabled = false;
 
     this.requestUpdate();
@@ -882,8 +891,8 @@ export class ProtspaceControlBar extends LitElement {
             : [];
         }
 
-        this.splitMode = scatterplot.isSplitMode?.() ?? false;
-        this.splitHistory = scatterplot.getSplitHistory?.() ?? [];
+        this.isolationMode = scatterplot.isIsolationMode?.() ?? false;
+        this.isolationHistory = scatterplot.getIsolationHistory?.() ?? [];
 
         // Set defaults if not already set
         if (!this.selectedProjection && this.projections.length > 0) {
@@ -990,7 +999,7 @@ export class ProtspaceControlBar extends LitElement {
     // When selectionMode is active, append brushed selections to existing selection
     if (this.selectionMode) {
       const currentSelection = new Set(this.selectedIdsChips);
-      ids.forEach(id => currentSelection.add(id));
+      ids.forEach((id) => currentSelection.add(id));
       newSelection = Array.from(currentSelection);
     }
     // When selectionMode is inactive, replace the selection

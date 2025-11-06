@@ -35,7 +35,7 @@ export class ProtspaceLegend extends LitElement {
   @property({ type: Number }) maxVisibleValues: number = LEGEND_DEFAULTS.maxVisibleValues;
   @property({ type: Array }) selectedItems: string[] = [];
   @property({ type: Boolean }) isolationMode = false;
-  @property({ type: Array }) splitHistory: string[][] = [];
+  @property({ type: Array }) isolationHistory: string[][] = [];
 
   // Additional properties for wrapper compatibility
   @property({ type: Object }) data: LegendDataInput | null = null;
@@ -253,8 +253,7 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateFeatureDataFromData() {
     // Update featureData from data property when available
-    const featureInfo =
-      this.data?.features?.[this.selectedFeature] ?? null;
+    const featureInfo = this.data?.features?.[this.selectedFeature] ?? null;
 
     if (featureInfo) {
       this.featureData = {
@@ -306,12 +305,12 @@ export class ProtspaceLegend extends LitElement {
     this._updateFeatureValues(currentData, selectedFeature);
     this.proteinIds = currentData.protein_ids;
 
-    // Sync split state from scatterplot
-    if ('isSplitMode' in this._scatterplotElement) {
-      this.isolationMode = (this._scatterplotElement as any).isSplitMode();
+    // Sync isolation state from scatterplot
+    if ('isIsolationMode' in this._scatterplotElement) {
+      this.isolationMode = (this._scatterplotElement as any).isIsolationMode();
     }
-    if ('getSplitHistory' in this._scatterplotElement) {
-      this.splitHistory = (this._scatterplotElement as any).getSplitHistory();
+    if ('getIsolationHistory' in this._scatterplotElement) {
+      this.isolationHistory = (this._scatterplotElement as any).getIsolationHistory();
     }
   }
 
@@ -346,7 +345,7 @@ export class ProtspaceLegend extends LitElement {
       this.proteinIds,
       this.maxVisibleValues,
       this.isolationMode,
-      this.splitHistory,
+      this.isolationHistory,
       this.legendItems,
       this.includeOthers,
       this.manualOtherValues,

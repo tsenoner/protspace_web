@@ -645,25 +645,13 @@ Promise.all([
     // Initialize legend
     updateLegend();
 
-    // Listen for split state changes from scatterplot
-    plotElement.addEventListener('split-state-change', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { isolationMode: newIsolationMode, selectedProteinsCount } = customEvent.detail;
-
-      isolationMode = newIsolationMode;
-      controlBar.selectedProteinsCount = selectedProteinsCount;
-      controlBar.requestUpdate();
-
-      console.log(`Split state changed: ${isolationMode ? 'ON' : 'OFF'}`);
-    });
-
-    // Handle split events from scatterplot
-    plotElement.addEventListener('data-split', (event: Event) => {
-      // Update legend with new filtered data
+    // Handle isolation events from scatterplot
+    plotElement.addEventListener('data-isolation', (event: Event) => {
+      // Update legend with filtered data
       updateLegend();
     });
 
-    plotElement.addEventListener('data-split-reset', (event: Event) => {
+    plotElement.addEventListener('data-isolation-reset', (event: Event) => {
       // Update legend with full data
       updateLegend();
     });
