@@ -55,8 +55,8 @@ export class ProtspaceControlBar extends LitElement {
   private _onDocumentClick = (event: Event) => this.handleDocumentClick(event);
   private _onDataChange = (event: Event) => this._handleDataChange(event);
   private _onProteinClick = (event: Event) => this._handleProteinSelection(event);
-  private _onDataSplit = (event: Event) => this._handleDataSplit(event);
-  private _onDataSplitReset = (event: Event) => this._handleDataSplitReset(event);
+  private _onDataIsolation = (event: Event) => this._handleDataIsolation(event);
+  private _onDataIsolationReset = (event: Event) => this._handleDataIsolationReset(event);
   private _onAutoDisableSelection = (event: Event) => this._handleAutoDisableSelection(event);
   private _onBrushSelection = (event: Event) => this._handleBrushSelection(event);
 
@@ -600,8 +600,11 @@ export class ProtspaceControlBar extends LitElement {
       this._scatterplotElement.removeEventListener('data-change', this._onDataChange);
       this._scatterplotElement.removeEventListener('protein-click', this._onProteinClick);
       this._scatterplotElement.removeEventListener('brush-selection', this._onBrushSelection);
-      this._scatterplotElement.removeEventListener('data-isolation', this._onDataSplit);
-      this._scatterplotElement.removeEventListener('data-isolation-reset', this._onDataSplitReset);
+      this._scatterplotElement.removeEventListener('data-isolation', this._onDataIsolation);
+      this._scatterplotElement.removeEventListener(
+        'data-isolation-reset',
+        this._onDataIsolationReset
+      );
       this._scatterplotElement.removeEventListener(
         'auto-disable-selection',
         this._onAutoDisableSelection
@@ -635,9 +638,12 @@ export class ProtspaceControlBar extends LitElement {
         this._scatterplotElement.addEventListener('brush-selection', this._onBrushSelection);
 
         // Listen for data isolation events
-        this._scatterplotElement.addEventListener('data-isolation', this._onDataSplit);
+        this._scatterplotElement.addEventListener('data-isolation', this._onDataIsolation);
 
-        this._scatterplotElement.addEventListener('data-isolation-reset', this._onDataSplitReset);
+        this._scatterplotElement.addEventListener(
+          'data-isolation-reset',
+          this._onDataIsolationReset
+        );
 
         this._scatterplotElement.addEventListener(
           'auto-disable-selection',
@@ -750,7 +756,7 @@ export class ProtspaceControlBar extends LitElement {
     this.requestUpdate();
   }
 
-  private _handleDataSplit(event: Event) {
+  private _handleDataIsolation(event: Event) {
     const customEvent = event as CustomEvent;
     const { isolationHistory, isolationMode } = customEvent.detail;
     this.isolationHistory = isolationHistory;
@@ -760,7 +766,7 @@ export class ProtspaceControlBar extends LitElement {
     this.requestUpdate();
   }
 
-  private _handleDataSplitReset(event: Event) {
+  private _handleDataIsolationReset(event: Event) {
     const customEvent = event as CustomEvent;
     const { isolationHistory, isolationMode } = customEvent.detail;
     this.isolationHistory = isolationHistory;
