@@ -55,7 +55,7 @@ export async function extractRowsFromParquetBundle(arrayBuffer: ArrayBuffer): Pr
   assertValidParquetMagic(part2);
   assertValidParquetMagic(part3);
 
-  const [selectedFeaturesData, projectionsMetadataData, projectionsData] = await Promise.all([
+  const [selectedFeaturesData, _projectionsMetadataData, projectionsData] = await Promise.all([
     parquetReadObjects({ file: part1 }),
     parquetReadObjects({ file: part2 }),
     parquetReadObjects({ file: part3 }),
