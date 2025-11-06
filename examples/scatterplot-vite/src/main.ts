@@ -645,18 +645,6 @@ Promise.all([
     // Initialize legend
     updateLegend();
 
-    // Listen for isolation state changes from scatterplot
-    plotElement.addEventListener('isolation-state-change', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { isolationMode: newIsolationMode, selectedProteinsCount } = customEvent.detail;
-
-      isolationMode = newIsolationMode;
-      controlBar.selectedProteinsCount = selectedProteinsCount;
-      controlBar.requestUpdate();
-
-      console.log(`Isolation mode: ${isolationMode ? 'ON' : 'OFF'}`);
-    });
-
     // Handle isolation events from scatterplot
     plotElement.addEventListener('data-isolation', (event: Event) => {
       // Update legend with filtered data
