@@ -993,7 +993,7 @@ export class ProtspaceControlBar extends LitElement {
     // When selectionMode is active, append brushed selections to existing selection
     if (this.selectionMode) {
       const currentSelection = new Set(this.selectedIdsChips);
-      ids.forEach(id => currentSelection.add(id));
+      ids.forEach((id) => currentSelection.add(id));
       newSelection = Array.from(currentSelection);
     }
     // When selectionMode is inactive, replace the selection

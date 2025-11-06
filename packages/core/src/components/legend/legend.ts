@@ -253,8 +253,7 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateFeatureDataFromData() {
     // Update featureData from data property when available
-    const featureInfo =
-      this.data?.features?.[this.selectedFeature] ?? null;
+    const featureInfo = this.data?.features?.[this.selectedFeature] ?? null;
 
     if (featureInfo) {
       this.featureData = {

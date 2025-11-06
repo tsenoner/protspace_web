@@ -36,9 +36,7 @@ export function findBundleDelimiterPositions(uint8Array: Uint8Array): number[] {
   return positions;
 }
 
-export async function extractRowsFromParquetBundle(
-  arrayBuffer: ArrayBuffer
-): Promise<Rows> {
+export async function extractRowsFromParquetBundle(arrayBuffer: ArrayBuffer): Promise<Rows> {
   const uint8Array = new Uint8Array(arrayBuffer);
   const delimiterPositions = findBundleDelimiterPositions(uint8Array);
 
