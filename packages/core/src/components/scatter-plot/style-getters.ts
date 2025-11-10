@@ -123,7 +123,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   const getOpacity = (point: PlotDataPoint): number => {
     const featureValue = point.featureValues[styleConfig.selectedFeature];
 
-    if (!allHidden) {
+    if (!allHidden && featureValue) {
       if (featureValue.every((f) => hiddenKeysSet.has(normalizeToKey(f)))) return 0;
     }
 
