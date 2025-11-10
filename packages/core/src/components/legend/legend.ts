@@ -1,16 +1,11 @@
-import * as d3 from 'd3';
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
 // Import types and configuration
-import {
-  LEGEND_DEFAULTS,
-  LEGEND_STYLES,
-  SHAPE_MAPPING,
-  FIRST_NUMBER_SORT_FEATURES,
-} from './config';
+import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_FEATURES } from './config';
 import { legendStyles } from './legend.styles';
 import { LegendDataProcessor } from './legend-data-processor';
+import { LegendRenderer } from './legend-renderer';
 import type {
   LegendDataInput,
   LegendFeatureData,
@@ -370,57 +365,6 @@ export class ProtspaceLegend extends LitElement {
     if (this._scatterplotElement && 'useShapes' in this._scatterplotElement) {
       (this._scatterplotElement as any).useShapes = this.includeShapes;
     }
-  }
-
-  // Symbol rendering function using D3 symbols for consistency with scatterplot
-  private renderSymbol(
-    shape: string | null,
-    color: string,
-    size: number = LEGEND_DEFAULTS.symbolSize,
-    isSelected: boolean = false
-  ) {
-    const halfSize = size / 2;
-
-    // Safely handle null or undefined shape
-    const shapeKey = (shape || 'circle').toLowerCase() as keyof typeof SHAPE_MAPPING;
-
-    // Get the D3 symbol type (default to circle if not found)
-    const symbolType = SHAPE_MAPPING[shapeKey] || d3.symbolCircle;
-
-    // Generate the SVG path using D3
-    const path = d3
-      .symbol()
-      .type(symbolType)
-      .size(size * LEGEND_DEFAULTS.symbolSizeMultiplier)(); // Size multiplier to make it fit well in the legend
-
-    // Some symbol types should be rendered as outlines only
-    const isOutlineOnly = LEGEND_STYLES.outlineShapes.has(shapeKey);
-
-    // Determine stroke width based on selection state
-    const strokeWidth = isSelected
-      ? LEGEND_STYLES.strokeWidth.selected
-      : LEGEND_STYLES.strokeWidth.default;
-
-    // Determine stroke color based on selection state
-    const strokeColor = isSelected
-      ? LEGEND_STYLES.colors.selectedStroke
-      : LEGEND_STYLES.colors.defaultStroke;
-
-    // Ensure we have a valid color
-    const validColor = color || LEGEND_STYLES.colors.fallback;
-
-    return html`
-      <svg width="${size}" height="${size}" class="legend-symbol">
-        <g transform="translate(${halfSize}, ${halfSize})">
-          <path
-            d="${path}"
-            fill="${isOutlineOnly ? 'none' : validColor}"
-            stroke="${isOutlineOnly ? validColor : strokeColor}"
-            stroke-width="${isOutlineOnly ? LEGEND_STYLES.strokeWidth.outline : strokeWidth}"
-          />
-        </g>
-      </svg>
-    `;
   }
 
   private handleItemClick(value: string | null) {
@@ -831,48 +775,16 @@ export class ProtspaceLegend extends LitElement {
 
   render() {
     const sortedLegendItems = [...this.legendItems].sort((a, b) => a.zOrder - b.zOrder);
+    const title = this.featureData.name || this.featureName || 'Legend';
 
     return html`
       <div class="legend-container">
-        ${this._renderHeader()} ${this._renderLegendContent(sortedLegendItems)}
+        ${LegendRenderer.renderHeader(title, () => this.handleCustomize())}
+        ${LegendRenderer.renderLegendContent(sortedLegendItems, (item) =>
+          this._renderLegendItem(item)
+        )}
       </div>
       ${this.renderOtherDialog()} ${this.renderSettingsDialog()}
-    `;
-  }
-
-  private _renderHeader() {
-    return html`
-      <div class="legend-header">
-        <h3 class="legend-title">${this.featureData.name || this.featureName || 'Legend'}</h3>
-        <button class="customize-button" @click=${this.handleCustomize}>
-          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-            />
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-          </svg>
-        </button>
-      </div>
-    `;
-  }
-
-  private _renderLegendContent(sortedLegendItems: LegendItem[]) {
-    if (sortedLegendItems.length === 0) {
-      return html`<div class="legend-empty">No data available</div>`;
-    }
-
-    return html`
-      <div class="legend-items">
-        ${sortedLegendItems.map((item) => this._renderLegendItem(item))}
-      </div>
     `;
   }
 
@@ -880,24 +792,25 @@ export class ProtspaceLegend extends LitElement {
     const isItemSelected = this._isItemSelected(item);
     const itemClasses = this._getItemClasses(item, isItemSelected);
 
-    return html`
-      <div
-        class="${itemClasses}"
-        @click=${() => this.handleItemClick(item.value)}
-        @dblclick=${() => this.handleItemDoubleClick(item.value)}
-        draggable="true"
-        @dragstart=${() => this.handleDragStart(item)}
-        @dragover=${(e: DragEvent) => this.handleDragOver(e, item)}
-        @drop=${(e: DragEvent) => this.handleDrop(e, item)}
-        @dragend=${() => this.handleDragEnd()}
-      >
-        <div class="legend-item-content">
-          ${this._renderDragHandle()} ${this._renderItemSymbol(item, isItemSelected)}
-          ${this._renderItemText(item)} ${this._renderItemActions(item)}
-        </div>
-        <span class="legend-count">${item.count}</span>
-      </div>
-    `;
+    return LegendRenderer.renderLegendItem(
+      item,
+      itemClasses,
+      isItemSelected,
+      {
+        onClick: () => this.handleItemClick(item.value),
+        onDoubleClick: () => this.handleItemDoubleClick(item.value),
+        onDragStart: () => this.handleDragStart(item),
+        onDragOver: (e: Event) => this.handleDragOver(e as DragEvent, item),
+        onDrop: (e: Event) => this.handleDrop(e as DragEvent, item),
+        onDragEnd: () => this.handleDragEnd(),
+        onViewOther: (e: Event) => {
+          e.stopPropagation();
+          this.showOtherDialog = true;
+        },
+      },
+      this.includeShapes,
+      16
+    );
   }
 
   private _isItemSelected(item: LegendItem): boolean {
@@ -918,69 +831,6 @@ export class ProtspaceLegend extends LitElement {
     if (item.extractedFromOther) classes.push('extracted');
 
     return classes.join(' ');
-  }
-
-  private _renderDragHandle() {
-    return html`
-      <div class="drag-handle">
-        <svg
-          width="16"
-          height="16"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          @mousedown=${(e: Event) => e.stopPropagation()}
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 8h16M4 16h16"
-          />
-        </svg>
-      </div>
-    `;
-  }
-
-  private _renderItemSymbol(item: LegendItem, isItemSelected: boolean) {
-    return html`
-      <div class="mr-2">
-        ${item.value === 'Other'
-          ? this.renderSymbol('circle', '#888')
-          : this.renderSymbol(
-              this.includeShapes ? item.shape : 'circle',
-              item.color,
-              16,
-              isItemSelected
-            )}
-      </div>
-    `;
-  }
-
-  private _renderItemText(item: LegendItem) {
-    const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
-    const displayText = item.value === null || isEmptyString ? 'N\\A' : item.value;
-
-    return html` <span class="legend-text">${displayText}</span> `;
-  }
-
-  private _renderItemActions(item: LegendItem) {
-    if (item.value !== 'Other') {
-      return html``;
-    }
-
-    return html`
-      <button
-        class="view-button"
-        @click=${(e: Event) => {
-          e.stopPropagation();
-          this.showOtherDialog = true;
-        }}
-        title="Extract items from Other"
-      >
-        (view)
-      </button>
-    `;
   }
 
   private renderSettingsDialog() {
