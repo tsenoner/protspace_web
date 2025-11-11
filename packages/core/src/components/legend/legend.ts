@@ -86,6 +86,20 @@ export class ProtspaceLegend extends LitElement {
   }
 
   /**
+   * Check if the current feature is multilabel (any protein has multiple values)
+   * Uses the same check as canvas-renderer: colors.length > 1 means multilabel
+   */
+  private _isMultilabelFeature(): boolean {
+    const currentData = (this._scatterplotElement as ScatterplotElement)?.getCurrentData?.();
+    const featureData = currentData?.feature_data?.[this.selectedFeature];
+
+    return (
+      Array.isArray(featureData) &&
+      featureData.some((data) => Array.isArray(data) && data.length > 1)
+    );
+  }
+
+  /**
    * Public accessor for export consumers (PNG/PDF) to read the exact legend
    * state as currently rendered, including the synthetic "Other" bucket.
    * Returned items are sorted by z-order and include visibility flags.
@@ -104,9 +118,10 @@ export class ProtspaceLegend extends LitElement {
     }>;
   } {
     const sorted = [...this.legendItems].sort((a, b) => a.zOrder - b.zOrder);
+    const isMultilabel = this._isMultilabelFeature();
     return {
       feature: this.featureData.name || this.featureName || 'Legend',
-      includeShapes: this.includeShapes,
+      includeShapes: isMultilabel ? false : this.includeShapes,
       items: sorted.map((i) => ({ ...i })),
     };
   }
@@ -796,6 +811,10 @@ export class ProtspaceLegend extends LitElement {
     const isItemSelected = this._isItemSelected(item);
     const itemClasses = this._getItemClasses(item, isItemSelected);
 
+    // For multilabel features, always use circles (pie charts with shapes would be too complex)
+    const isMultilabel = this._isMultilabelFeature();
+    const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
+
     return LegendRenderer.renderLegendItem(
       item,
       itemClasses,
@@ -812,7 +831,7 @@ export class ProtspaceLegend extends LitElement {
           this.showOtherDialog = true;
         },
       },
-      this.includeShapes,
+      effectiveIncludeShapes,
       LEGEND_STYLES.legendDisplaySize
     );
   }
@@ -971,11 +990,15 @@ export class ProtspaceLegend extends LitElement {
               />
               Show "Other" category
             </label>
-            <label class="other-items-list-label">
+            <label
+              class="other-items-list-label"
+              style="${this._isMultilabelFeature() ? 'color: #888;' : ''}"
+            >
               <input
                 class="other-items-list-label-input"
                 type="checkbox"
                 .checked=${this.settingsIncludeShapes}
+                .disabled=${this._isMultilabelFeature()}
                 @change=${(e: Event) => {
                   const t = e.target as HTMLInputElement;
                   this.settingsIncludeShapes = t.checked;
@@ -983,6 +1006,13 @@ export class ProtspaceLegend extends LitElement {
               />
               Include shapes
             </label>
+            ${this._isMultilabelFeature()
+              ? html`<div
+                  style="color: #888; font-size: 0.85em; margin-left: 24px; margin-top: -4px;"
+                >
+                  Disabled for multilabel features
+                </div>`
+              : ''}
             <div class="other-items-list-item-sorting">
               <div class="other-items-list-item-sorting-title">Sorting</div>
               <div class="other-items-list-item-sorting-container">
