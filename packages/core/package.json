@@ -2,13 +2,14 @@
   "name": "@protspace/core",
   "version": "0.1.0",
   "description": "Core ProtSpace web components",
-  "main": "dist/index.js",
-  "module": "dist/index.esm.js",
+  "main": "dist/core.js",
+  "module": "dist/core.mjs",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.esm.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/core.mjs",
+      "require": "./dist/core.js"
     }
   },
   "files": [

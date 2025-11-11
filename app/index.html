@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ProtSpace Web - Visualize Protein Embedding Spaces</title>
+    <meta name="description" content="Explore, analyze, and understand large-scale protein embeddings through interactive visualizations, clustering, and metadata integration." />
+    <meta name="author" content="ProtSpace contributors" />
+
+    <meta property="og:title" content="ProtSpace Web - Visualize Protein Embedding Spaces" />
+    <meta property="og:description" content="Open-source tool for exploring protein embedding spaces with WebGPU rendering, dimensionality reduction, and real-time search." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://tsenoner.github.io/protspace_web/" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ProtSpace Web" />
+    <meta name="twitter:description" content="Open-source tool for exploring protein embedding spaces" />
+
+    <!-- Start Single Page Apps for GitHub Pages -->
+    <script>
+      // Single Page Apps for GitHub Pages
+      // https://github.com/rafgraph/spa-github-pages
+      // This script checks to see if a redirect is present in the query string,
+      // converts it back into the correct url and adds it to the
+      // browser's history using window.history.replaceState(...),
+      // which won't cause the browser to attempt to load the new url.
+      // When the single page app is loaded further down in this file,
+      // the correct url will be waiting in the browser's history for
+      // the single page app to route accordingly.
+      (function(l) {
+        if (l.search[1] === '/' ) {
+          var decoded = l.search.slice(1).split('&').map(function(s) {
+            return s.replace(/~and~/g, '&')
+          }).join('?');
+          window.history.replaceState(null, null,
+              l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location))
+    </script>
+    <!-- End Single Page Apps for GitHub Pages -->
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
