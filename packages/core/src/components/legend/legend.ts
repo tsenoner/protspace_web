@@ -2,7 +2,7 @@ import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
 // Import types and configuration
-import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_FEATURES } from './config';
+import { LEGEND_DEFAULTS, LEGEND_STYLES, FIRST_NUMBER_SORT_FEATURES } from './config';
 import { legendStyles } from './legend.styles';
 import { LegendDataProcessor } from './legend-data-processor';
 import { LegendRenderer } from './legend-renderer';
@@ -804,8 +804,8 @@ export class ProtspaceLegend extends LitElement {
         onClick: () => this.handleItemClick(item.value),
         onDoubleClick: () => this.handleItemDoubleClick(item.value),
         onDragStart: () => this.handleDragStart(item),
-        onDragOver: (e: Event) => this.handleDragOver(e as DragEvent, item),
-        onDrop: (e: Event) => this.handleDrop(e as DragEvent, item),
+        onDragOver: (e: DragEvent) => this.handleDragOver(e, item),
+        onDrop: (e: DragEvent) => this.handleDrop(e, item),
         onDragEnd: () => this.handleDragEnd(),
         onViewOther: (e: Event) => {
           e.stopPropagation();
@@ -813,7 +813,7 @@ export class ProtspaceLegend extends LitElement {
         },
       },
       this.includeShapes,
-      16
+      LEGEND_STYLES.legendDisplaySize
     );
   }
 

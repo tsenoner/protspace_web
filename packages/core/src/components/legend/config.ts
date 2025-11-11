@@ -62,6 +62,7 @@ export const LEGEND_STYLES = {
     fallback: NEUTRAL_VALUE_COLOR,
   },
   outlineShapes: new Set(['plus', 'asterisk', 'cross', 'times']),
+  legendDisplaySize: 16, // legend symbols size (independent of canvas point size)
 } as const;
 
 /**

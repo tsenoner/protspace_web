@@ -190,8 +190,8 @@ export class LegendRenderer {
       onClick: () => void;
       onDoubleClick: () => void;
       onDragStart: () => void;
-      onDragOver: (e: Event) => void;
-      onDrop: (e: Event) => void;
+      onDragOver: (e: DragEvent) => void;
+      onDrop: (e: DragEvent) => void;
       onDragEnd: () => void;
       onViewOther: (e: Event) => void;
     },
