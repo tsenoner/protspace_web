@@ -31,20 +31,9 @@ protspace-local -i embeddings.h5 -o output_dir
 
 See the [Python ProtSpace repository](https://github.com/tsenoner/protspace) for details.
 
-## 💻 Explore Components
+## 💻 Embed in Your Project
 
-### Interactive playground
-
-Run Storybook locally to see interactive examples and learn how to use each component:
-
-```bash
-git clone https://github.com/tsenoner/protspace_web.git
-cd protspace_web
-pnpm install
-pnpm storybook
-```
-
-### Incldue in website
+Use the web components in any HTML page or JavaScript framework:
 
 ```html
 <!DOCTYPE html>
