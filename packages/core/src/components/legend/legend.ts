@@ -380,9 +380,11 @@ export class ProtspaceLegend extends LitElement {
         : [];
     }
 
-    // Update scatterplot to toggle shapes usage
+    // Update scatterplot to toggle shapes(except for multilabel features)
     if (this._scatterplotElement && 'useShapes' in this._scatterplotElement) {
-      (this._scatterplotElement as any).useShapes = this.includeShapes;
+      const isMultilabel = this._isMultilabelFeature();
+      const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
+      (this._scatterplotElement as any).useShapes = effectiveIncludeShapes;
     }
   }
 
