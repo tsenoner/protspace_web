@@ -33,7 +33,7 @@ export class ScaleManager {
     values: (string | null)[],
     colors?: string[]
   ): d3.ScaleOrdinal<string, string> {
-    const uniqueValues = Array.from(new Set(values.filter((v) => v !== null))) as string[];
+    const uniqueValues = Array.from(new Set(values.filter((v) => v != null))) as string[];
 
     return d3
       .scaleOrdinal<string, string>()

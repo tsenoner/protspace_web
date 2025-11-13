@@ -460,7 +460,7 @@ export class ProtspaceControlBar extends LitElement {
                                       />
                                       <span>N/A</span>
                                     </label>
-                                    ${Array.from(new Set(values.filter((v) => v !== null))).map(
+                                    ${Array.from(new Set(values.filter((v) => v != null))).map(
                                       (v) => html`
                                         <label>
                                           <input

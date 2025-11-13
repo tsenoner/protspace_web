@@ -88,11 +88,15 @@ export class LegendUtils {
    */
   static updateFeatureValues(currentData: any, selectedFeature: string): (string | null)[] {
     return currentData.protein_ids.flatMap((_: string, index: number) => {
-      const featureIdxArray = currentData.feature_data[selectedFeature][index];
+      const featureIdxData = currentData.feature_data[selectedFeature][index];
+      // Handle both array and single value cases
+      const featureIdxArray = Array.isArray(featureIdxData) ? featureIdxData : [featureIdxData];
 
-      return featureIdxArray.map((featureIdx: number) => {
-        return currentData.features[selectedFeature].values[featureIdx];
-      });
+      return featureIdxArray
+        .map((featureIdx: number) => {
+          return currentData.features[selectedFeature].values[featureIdx];
+        })
+        .filter((v) => v != null);
     });
   }
 
