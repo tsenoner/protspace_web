@@ -2,12 +2,12 @@
   "name": "@protspace/core",
   "version": "0.1.0",
   "description": "Core ProtSpace web components",
-  "main": "dist/index.js",
-  "module": "dist/index.esm.js",
+  "main": "dist/core.js",
+  "module": "dist/core.mjs",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.esm.js",
+      "import": "./dist/core.mjs",
       "types": "./dist/index.d.ts"
     }
   },
@@ -18,8 +18,6 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
     "test": "vitest",
     "lint": "eslint src --ext .ts --fix",
     "type-check": "tsc --noEmit",
@@ -41,12 +39,7 @@
     "lit": "^3.3.0"
   },
   "devDependencies": {
-    "@storybook/addon-essentials": "^8.6.14",
-    "@storybook/web-components": "^8.6.14",
-    "@storybook/web-components-vite": "^8.6.14",
     "@types/d3": "^7.4.3",
-    "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "@typescript-eslint/parser": "^7.18.0",
     "eslint": "^9.27.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",

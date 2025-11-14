@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Setup PNPM
         uses: pnpm/action-setup@v4
@@ -53,9 +53,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build workspace packages
-        run: pnpm run build
 
       - name: Build scatterplot example
         run: |
