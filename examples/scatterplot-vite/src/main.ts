@@ -74,16 +74,12 @@ if (dataLoader) {
 
             const firstFeature = Object.keys(newData.features)[0];
             if (firstFeature) {
-              const featureValues = newData.protein_ids.map((_, index) => {
-                const featureIdx = newData.feature_data[firstFeature][index];
-                // Handle out-of-bounds indices the same way as DataProcessor
-                return featureIdx !== undefined &&
-                  featureIdx !== null &&
-                  Array.isArray(newData.features[firstFeature].values) &&
-                  featureIdx >= 0 &&
-                  featureIdx < newData.features[firstFeature].values.length
-                  ? newData.features[firstFeature].values[featureIdx] || null
-                  : null;
+              const featureValues = newData.protein_ids.flatMap((_, index) => {
+                const featureIdxArray = newData.feature_data[firstFeature][index];
+
+                return featureIdxArray.map((featureIdx) => {
+                  return newData.features[firstFeature].values[featureIdx] || null;
+                });
               });
               legendElement.featureValues = featureValues;
               legendElement.proteinIds = newData.protein_ids;
@@ -382,9 +378,6 @@ Promise.all([
                   const chunkSize = 2000; // Larger chunks for better performance
                   const featureValues: (string | null)[] = [];
 
-                  // Pre-allocate array for better memory performance
-                  featureValues.length = newData.protein_ids.length;
-
                   for (let i = 0; i < newData.protein_ids.length; i += chunkSize) {
                     const endIndex = Math.min(i + chunkSize, newData.protein_ids.length);
 
@@ -393,7 +386,10 @@ Promise.all([
                     const featureValuesArray = newData.features[firstFeature].values;
 
                     for (let j = i; j < endIndex; j++) {
-                      featureValues[j] = featureValuesArray[featureDataArray[j]];
+                      // featureValues = featureValuesArray[featureDataArray[j]];
+                      for (let k = 0; k < featureDataArray[j].length; k++) {
+                        featureValues.push(featureValuesArray[featureDataArray[j][k]]);
+                      }
                     }
 
                     // Yield to browser every few chunks and update progress
@@ -416,8 +412,13 @@ Promise.all([
                     const endIndex = Math.min(i + chunkSize, newData.protein_ids.length);
 
                     for (let j = i; j < endIndex; j++) {
-                      const featureIdx = newData.feature_data[firstFeature][j];
-                      featureValues.push(newData.features[firstFeature].values[featureIdx]);
+                      const featureIdxArray = newData.feature_data[firstFeature][j];
+
+                      for (let k = 0; k < featureIdxArray.length; k++) {
+                        featureValues.push(
+                          newData.features[firstFeature].values[featureIdxArray[k]]
+                        );
+                      }
                     }
 
                     if (i + chunkSize < newData.protein_ids.length) {
@@ -428,9 +429,10 @@ Promise.all([
                   legendElement.featureValues = featureValues;
                 } else {
                   // Small datasets: Process normally with high quality
-                  const featureValues = newData.protein_ids.map((_, index) => {
+                  const featureValues = newData.protein_ids.flatMap((_, index) => {
                     const featureIdx = newData.feature_data[firstFeature][index];
-                    return newData.features[firstFeature].values[featureIdx];
+
+                    return featureIdx.map((idx) => newData.features[firstFeature].values[idx]);
                   });
                   legendElement.featureValues = featureValues;
                 }
@@ -589,16 +591,12 @@ Promise.all([
           legendElement.selectedFeature = currentFeature;
 
           // Extract feature values for current data
-          const featureValues = currentData.protein_ids.map((_, index) => {
-            const featureIdx = currentData.feature_data[currentFeature][index];
-            // Handle out-of-bounds indices the same way as DataProcessor
-            return featureIdx !== undefined &&
-              featureIdx !== null &&
-              Array.isArray(currentData.features[currentFeature].values) &&
-              featureIdx >= 0 &&
-              featureIdx < currentData.features[currentFeature].values.length
-              ? currentData.features[currentFeature].values[featureIdx] || null
-              : null;
+          const featureValues = currentData.protein_ids.flatMap((_, index) => {
+            const featureIdxArray = currentData.feature_data[currentFeature][index];
+
+            return featureIdxArray.map((featureIdx) => {
+              return currentData.features[currentFeature].values[featureIdx];
+            });
           });
 
           legendElement.featureValues = featureValues;
@@ -621,114 +619,39 @@ Promise.all([
       }
     };
 
-    // Update control bar state - simplified since auto-sync handles most updates
-    const updateControlBarState = () => {
-      // Control bar now auto-syncs with scatterplot, so we only need to update local state
-      controlBar.selectedProteinsCount = selectedProteins.length;
-    };
-
-    // Initialize legend
-    updateLegend();
-
-    // Listen for split state changes from scatterplot
-    plotElement.addEventListener('split-state-change', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { isolationMode: newIsolationMode, selectedProteinsCount } = customEvent.detail;
-
-      isolationMode = newIsolationMode;
-      controlBar.selectedProteinsCount = selectedProteinsCount;
-      controlBar.requestUpdate();
-
-      console.log(`Split state changed: ${isolationMode ? 'ON' : 'OFF'}`);
-    });
-
-    // Listen for data changes from scatterplot
-    plotElement.addEventListener('data-change', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { isFiltered } = customEvent.detail;
-
-      updateLegend();
-      console.log(`Data changed: ${isFiltered ? 'Filtered' : 'Full'} data`);
-    });
-
-    // Handle brush selections from scatterplot
-    plotElement.addEventListener('brush-selection', (event: Event) => {
+    // Link structure viewer to scatterplot and control bar selections
+    const handleSelectionChange = (event: Event) => {
       const customEvent = event as CustomEvent;
       const { proteinIds } = customEvent.detail;
 
-      // For brush selections, just sync the local state without interfering
-      selectedProteins = [...proteinIds];
-      updateControlBarState();
+      selectedProteins = Array.isArray(proteinIds) ? [...proteinIds] : [];
 
       if (selectedProteins.length > 0) {
+        // Load the most recently selected protein into the viewer
+        const lastSelected = selectedProteins[selectedProteins.length - 1];
+        if (structureViewer.style.display === 'none') {
+          structureViewer.style.display = 'block';
+        }
+        structureViewer.loadProtein(lastSelected);
         updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
       } else {
         updateSelectedProteinDisplay(null);
       }
-    });
+    };
 
-    // Handle individual protein clicks from scatterplot
-    plotElement.addEventListener('protein-click', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { proteinId, modifierKeys } = customEvent.detail;
+    // The control bar is now the single source of truth for selection events.
+    controlBar.addEventListener('protein-selection-change', handleSelectionChange);
 
-      // Handle selection based on mode and modifier keys
-      if (selectionMode || modifierKeys.ctrl || modifierKeys.shift) {
-        // Multi-selection mode - add to selection without clearing others
-        if (selectedProteins.includes(proteinId)) {
-          // Remove from selection if already selected (deselect)
-          selectedProteins = selectedProteins.filter((id) => id !== proteinId);
-        } else {
-          // Add to selection
-          selectedProteins.push(proteinId);
-        }
+    // Initialize legend
+    updateLegend();
 
-        // Update the scatterplot's selectedProteinIds to show visual selection
-        plotElement.selectedProteinIds = [...selectedProteins];
-
-        // Force the web component to update its visual state
-        plotElement.requestUpdate();
-
-        updateControlBarState();
-
-        if (selectedProteins.length > 0) {
-          updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
-        } else {
-          updateSelectedProteinDisplay(null);
-        }
-      } else {
-        // Single selection mode - handle single click behavior
-        if (selectedProteins.length === 1 && selectedProteins[0] === proteinId) {
-          // Clicking the same protein again - deselect it
-          selectedProteins = [];
-          plotElement.selectedProteinIds = [];
-
-          // Force the web component to update its visual state
-          plotElement.requestUpdate();
-
-          updateControlBarState();
-          updateSelectedProteinDisplay(null);
-        } else {
-          // Select new protein or first selection
-          selectedProteins = [proteinId];
-          plotElement.selectedProteinIds = [...selectedProteins];
-
-          // Force the web component to update its visual state
-          plotElement.requestUpdate();
-
-          updateControlBarState();
-          updateSelectedProteinDisplay(proteinId);
-        }
-      }
-    });
-
-    // Handle split events from scatterplot
-    plotElement.addEventListener('data-split', (event: Event) => {
-      // Update legend with new filtered data
+    // Handle isolation events from scatterplot
+    plotElement.addEventListener('data-isolation', (event: Event) => {
+      // Update legend with filtered data
       updateLegend();
     });
 
-    plotElement.addEventListener('data-split-reset', (event: Event) => {
+    plotElement.addEventListener('data-isolation-reset', (event: Event) => {
       // Update legend with full data
       updateLegend();
     });
@@ -805,10 +728,12 @@ Promise.all([
       selectionMode = plotElement.selectionMode; // Sync with scatterplot state
     });
 
-    // Handle clear selections for local state
-    controlBar.addEventListener('clear-selections', () => {
-      selectedProteins = [];
-      updateSelectedProteinDisplay(null);
+    // Handle data-change from scatterplot to sync selections
+    plotElement.addEventListener('data-change', (event: Event) => {
+      // When data changes (e.g. after a split), the selection is often cleared.
+      // Sync local selection state with the component state.
+      selectedProteins = plotElement.selectedProteinIds || [];
+      updateLegend();
     });
 
     // Handle notification events from control bar

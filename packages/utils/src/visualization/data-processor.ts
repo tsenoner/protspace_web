@@ -6,7 +6,7 @@ export class DataProcessor {
     data: VisualizationData,
     projectionIndex: number,
     isolationMode: boolean = false,
-    splitHistory?: string[][],
+    isolationHistory?: string[][],
     projectionPlane: 'xy' | 'xz' | 'yz' = 'xy'
   ): PlotDataPoint[] {
     if (!data.projections[projectionIndex]) return [];
@@ -17,17 +17,13 @@ export class DataProcessor {
         | [number, number, number];
 
       // Map feature values for this protein
-      const featureValues: Record<string, string | null> = {};
+      const featureValues: Record<string, string[]> = {};
       Object.keys(data.features).forEach((featureKey) => {
-        const featureIndex = data.feature_data[featureKey][index];
-        featureValues[featureKey] =
-          featureIndex !== undefined &&
-          featureIndex !== null &&
-          Array.isArray(data.features[featureKey].values) &&
-          featureIndex >= 0 &&
-          featureIndex < data.features[featureKey].values.length
-            ? data.features[featureKey].values[featureIndex] || null
-            : null;
+        const featureIndices = data.feature_data[featureKey][index];
+
+        featureValues[featureKey] = Array.isArray(data.features[featureKey].values)
+          ? featureIndices.map((i) => data.features[featureKey].values[i]).filter((v) => v !== null)
+          : [];
       });
 
       // Determine 2D mapping depending on plane for 3D coordinates
@@ -55,11 +51,11 @@ export class DataProcessor {
     });
 
     // Apply isolation filtering if needed
-    if (isolationMode && splitHistory && splitHistory.length > 0) {
-      let filteredData = processedData.filter((p) => splitHistory[0].includes(p.id));
+    if (isolationMode && isolationHistory && isolationHistory.length > 0) {
+      let filteredData = processedData.filter((p) => isolationHistory[0].includes(p.id));
 
-      for (let i = 1; i < splitHistory.length; i++) {
-        const splitIds = splitHistory[i];
+      for (let i = 1; i < isolationHistory.length; i++) {
+        const splitIds = isolationHistory[i];
         filteredData = filteredData.filter((p) => splitIds.includes(p.id));
       }
 

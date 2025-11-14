@@ -6,8 +6,6 @@ export interface RenderConfig {
   height: number;
   margin: { top: number; right: number; bottom: number; left: number };
   pointSize: number;
-  highlightedPointSize: number;
-  selectedPointSize: number;
   baseOpacity: number;
   selectedOpacity: number;
   fadedOpacity: number;

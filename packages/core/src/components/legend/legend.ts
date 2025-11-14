@@ -35,7 +35,7 @@ export class ProtspaceLegend extends LitElement {
   @property({ type: Number }) maxVisibleValues: number = LEGEND_DEFAULTS.maxVisibleValues;
   @property({ type: Array }) selectedItems: string[] = [];
   @property({ type: Boolean }) isolationMode = false;
-  @property({ type: Array }) splitHistory: string[][] = [];
+  @property({ type: Array }) isolationHistory: string[][] = [];
 
   // Additional properties for wrapper compatibility
   @property({ type: Object }) data: LegendDataInput | null = null;
@@ -198,16 +198,11 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateFeatureValues(currentData: any, selectedFeature: string): void {
     // Extract feature values for current data
-    const featureValues = currentData.protein_ids.map((_: string, index: number) => {
-      const featureIdx = currentData.feature_data[selectedFeature][index];
-      // Handle out-of-bounds indices the same way as DataProcessor
-      return featureIdx !== undefined &&
-        featureIdx !== null &&
-        Array.isArray(currentData.features[selectedFeature].values) &&
-        featureIdx >= 0 &&
-        featureIdx < currentData.features[selectedFeature].values.length
-        ? currentData.features[selectedFeature].values[featureIdx] || null
-        : null;
+    const featureValues = currentData.protein_ids.flatMap((_: string, index: number) => {
+      const featureIdxArray = currentData.feature_data[selectedFeature][index];
+      return featureIdxArray.map((featureIdx: number) => {
+        return currentData.features[selectedFeature].values[featureIdx];
+      });
     });
 
     this.featureValues = featureValues;
@@ -258,16 +253,23 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateFeatureDataFromData() {
     // Update featureData from data property when available
-    if (this.data && this.data.features && this.selectedFeature) {
-      const featureInfo = this.data.features[this.selectedFeature];
-      if (featureInfo) {
-        this.featureData = {
-          name: this.selectedFeature,
-          values: featureInfo.values,
-          colors: featureInfo.colors,
-          shapes: featureInfo.shapes,
-        };
-      }
+    const featureInfo = this.data?.features?.[this.selectedFeature] ?? null;
+
+    if (featureInfo) {
+      this.featureData = {
+        name: this.selectedFeature,
+        values: featureInfo.values,
+        colors: featureInfo.colors,
+        shapes: featureInfo.shapes,
+      };
+    } else {
+      // Clear featureData if data has no features or selectedFeature doesn't exist
+      this.featureData = {
+        name: '',
+        values: [],
+        colors: [],
+        shapes: [],
+      };
     }
   }
 
@@ -303,12 +305,12 @@ export class ProtspaceLegend extends LitElement {
     this._updateFeatureValues(currentData, selectedFeature);
     this.proteinIds = currentData.protein_ids;
 
-    // Sync split state from scatterplot
-    if ('isSplitMode' in this._scatterplotElement) {
-      this.isolationMode = (this._scatterplotElement as any).isSplitMode();
+    // Sync isolation state from scatterplot
+    if ('isIsolationMode' in this._scatterplotElement) {
+      this.isolationMode = (this._scatterplotElement as any).isIsolationMode();
     }
-    if ('getSplitHistory' in this._scatterplotElement) {
-      this.splitHistory = (this._scatterplotElement as any).getSplitHistory();
+    if ('getIsolationHistory' in this._scatterplotElement) {
+      this.isolationHistory = (this._scatterplotElement as any).getIsolationHistory();
     }
   }
 
@@ -321,7 +323,13 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private updateLegendItems() {
-    if (!this.featureData || !this.featureValues || this.featureValues.length === 0) {
+    if (
+      !this.featureData ||
+      !this.featureData.values ||
+      this.featureData.values.length === 0 ||
+      !this.featureValues ||
+      this.featureValues.length === 0
+    ) {
       this.legendItems = [];
       return;
     }
@@ -337,7 +345,7 @@ export class ProtspaceLegend extends LitElement {
       this.proteinIds,
       this.maxVisibleValues,
       this.isolationMode,
-      this.splitHistory,
+      this.isolationHistory,
       this.legendItems,
       this.includeOthers,
       this.manualOtherValues,
@@ -1021,16 +1029,12 @@ export class ProtspaceLegend extends LitElement {
           10,
           Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier)
         );
-        const highlightedSize = Math.round(baseSize * 1.5);
-        const selectedSize = Math.round(baseSize * 1.875);
         // @ts-ignore config is a public prop on the scatterplot element
         const currentConfig = (this._scatterplotElement as any).config || {};
         // @ts-ignore assign merged config to trigger update
         (this._scatterplotElement as any).config = {
           ...currentConfig,
           pointSize: baseSize,
-          highlightedPointSize: highlightedSize,
-          selectedPointSize: selectedSize,
         };
       }
     };

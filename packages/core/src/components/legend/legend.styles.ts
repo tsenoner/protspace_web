@@ -156,9 +156,6 @@ export const legendStyles = css`
     position: relative;
   }
 
-  .legend-item.extracted {
-    border-left: 4px solid var(--legend-extracted-border);
-  }
 
   .legend-item-content {
     display: flex;

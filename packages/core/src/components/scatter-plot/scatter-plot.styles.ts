@@ -142,6 +142,12 @@ export const scatterplotStyles = css`
     color: #5b6b7a;
   }
 
+  .tooltip-feature-header {
+    font-size: 0.75rem;
+    color: #5b6b7a;
+    margin-bottom: 0.125rem;
+  }
+
   .tooltip-hint {
     font-size: 0.75rem;
     color: #94a3b8;

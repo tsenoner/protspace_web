@@ -43,8 +43,8 @@ export class ProtspaceScatterplot extends LitElement {
   } | null = null;
   @state() private _mergedConfig = DEFAULT_CONFIG;
   @state() private _transform = d3.zoomIdentity;
-  @state() private _splitHistory: string[][] = [];
-  @state() private _splitMode = false;
+  @state() private _isolationHistory: string[][] = [];
+  @state() private _isolationMode = false;
 
   // Queries
   @query('canvas') private _canvas?: HTMLCanvasElement;
@@ -65,12 +65,51 @@ export class ProtspaceScatterplot extends LitElement {
   private _zOrderMapping: Record<string, number> = {};
   private _styleGettersCache: ReturnType<typeof createStyleGetters> | null = null;
   private _quadtreeRebuildRafId: number | null = null;
-  private _selectionRerenderTimeout: number | null = null;
+  private _cachedScales: ReturnType<typeof DataProcessor.createScales> = null;
+  private _scalesCacheDeps: {
+    plotDataLength: number;
+    width: number;
+    height: number;
+    margin: { top: number; right: number; bottom: number; left: number };
+  } | null = null;
 
-  // Computed properties
+  // Computed properties with caching
   private get _scales() {
     const config = this._mergedConfig;
-    return DataProcessor.createScales(this._plotData, config.width, config.height, config.margin);
+
+    // Check if cache is valid
+    const needsRecompute =
+      !this._cachedScales ||
+      !this._scalesCacheDeps ||
+      this._scalesCacheDeps.plotDataLength !== this._plotData.length ||
+      this._scalesCacheDeps.width !== config.width ||
+      this._scalesCacheDeps.height !== config.height ||
+      this._scalesCacheDeps.margin.top !== config.margin.top ||
+      this._scalesCacheDeps.margin.right !== config.margin.right ||
+      this._scalesCacheDeps.margin.bottom !== config.margin.bottom ||
+      this._scalesCacheDeps.margin.left !== config.margin.left;
+
+    if (needsRecompute) {
+      this._cachedScales = DataProcessor.createScales(
+        this._plotData,
+        config.width,
+        config.height,
+        config.margin
+      );
+      this._scalesCacheDeps = {
+        plotDataLength: this._plotData.length,
+        width: config.width,
+        height: config.height,
+        margin: { ...config.margin },
+      };
+    }
+
+    return this._cachedScales;
+  }
+
+  private _invalidateScalesCache() {
+    this._cachedScales = null;
+    this._scalesCacheDeps = null;
   }
 
   constructor() {
@@ -178,7 +217,6 @@ export class ProtspaceScatterplot extends LitElement {
       this._updateStyleSignature();
       this._canvasRenderer?.invalidateStyleCache();
       this._canvasRenderer?.setStyleSignature(this._styleSig);
-      // Rebuild spatial index when config changes may affect scales (e.g., width/height/margins)
       this._scheduleQuadtreeRebuild();
     }
     if (
@@ -194,22 +232,6 @@ export class ProtspaceScatterplot extends LitElement {
         this._canvasRenderer?.setSelectedFeature(this.selectedFeature);
         this._canvasRenderer?.setZOrderMapping(this._zOrderMapping);
       }
-    }
-    // Ensure selection/highlight changes immediately reflect in canvas styles
-    if (
-      changedProperties.has('selectedProteinIds') ||
-      changedProperties.has('highlightedProteinIds')
-    ) {
-      // Fast path: draw selection overlay immediately without full rerender
-      this._updateSelectionOverlays();
-      this._scheduleDeferredSelectionRerender();
-    }
-    // Ensure selection/highlight changes immediately reflect in canvas styles
-    if (
-      changedProperties.has('selectedProteinIds') ||
-      changedProperties.has('highlightedProteinIds')
-    ) {
-      this._canvasRenderer?.invalidateStyleCache();
     }
     if (changedProperties.has('selectionMode')) {
       this._updateSelectionMode();
@@ -234,8 +256,6 @@ export class ProtspaceScatterplot extends LitElement {
         useShapes: this.useShapes,
         sizes: {
           base: this._mergedConfig.pointSize,
-          highlighted: this._mergedConfig.highlightedPointSize,
-          selected: this._mergedConfig.selectedPointSize,
         },
         opacities: {
           base: this._mergedConfig.baseOpacity,
@@ -244,7 +264,15 @@ export class ProtspaceScatterplot extends LitElement {
         },
       });
     }
-    // Avoid full rerender if only selection/highlight changed; overlay handles immediate feedback
+    if (
+      changedProperties.has('selectedProteinIds') ||
+      changedProperties.has('highlightedProteinIds')
+    ) {
+      this._updateSelectionOverlays();
+      this._canvasRenderer?.invalidateStyleCache();
+      this._renderPlot();
+    }
+    // Render for other changes
     const selectionKeys = ['selectedProteinIds', 'highlightedProteinIds'];
     const changedKeys = Array.from(changedProperties.keys());
     const onlySelectionChanged =
@@ -264,7 +292,7 @@ export class ProtspaceScatterplot extends LitElement {
         () => this._scales,
         () => this._transform,
         {
-          getColor: (p: PlotDataPoint) => this._getColor(p),
+          getColors: (p: PlotDataPoint) => this._getColors(p),
           getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
           getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
           getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
@@ -286,10 +314,12 @@ export class ProtspaceScatterplot extends LitElement {
     this._plotData = DataProcessor.processVisualizationData(
       dataToUse,
       this.selectedProjectionIndex,
-      this._splitMode,
-      this._splitHistory,
+      this._isolationMode,
+      this._isolationHistory,
       this.projectionPlane
     );
+    // Invalidate scales cache when plot data changes
+    this._invalidateScalesCache();
   }
 
   private _buildQuadtree() {
@@ -371,7 +401,7 @@ export class ProtspaceScatterplot extends LitElement {
           () => this._scales,
           () => this._transform,
           {
-            getColor: (p: PlotDataPoint) => this._getColor(p),
+            getColors: (p: PlotDataPoint) => this._getColors(p),
             getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
             getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
             getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
@@ -549,7 +579,7 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     enterPoints
-      .attr('fill', (d) => this._getColor(d))
+      .attr('fill', (d) => this._getColors(d))
       .attr('stroke', (d) => this._getStrokeColor(d))
       .attr('stroke-opacity', 0.5)
       .attr('stroke-width', (d) => this._getStrokeWidth(d))
@@ -563,53 +593,9 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
-  /**
-   * Draw selection overlays on the SVG layer to avoid full canvas rerenders on selection changes.
-   */
   private _updateSelectionOverlays() {
-    if (!this._overlayGroup || !this._scales) return;
-
-    const selectedSet = new Set(this.selectedProteinIds || []);
-    const selectedPoints = this._plotData.filter((p) => selectedSet.has(p.id));
-
-    const k = this._transform.k || 1;
-    const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
-    const baseRadius = Math.sqrt(this._mergedConfig.selectedPointSize) / 3;
-    const r = Math.max(1, baseRadius / Math.pow(k, exp));
-    const strokeW = 2 / k;
-
-    const sel = this._overlayGroup
-      .selectAll<SVGCircleElement, any>('.selected-overlay')
-      .data(selectedPoints, (d: any) => d.id);
-
-    sel
-      .enter()
-      .append('circle')
-      .attr('class', 'selected-overlay')
-      .attr('fill', 'none')
-      .attr('pointer-events', 'none')
-      .merge(sel as any)
-      .attr('cx', (d: any) => this._scales!.x(d.x))
-      .attr('cy', (d: any) => this._scales!.y(d.y))
-      .attr('r', r)
-      .attr('stroke', '#000')
-      .attr('stroke-width', strokeW)
-      .attr('opacity', 0.95);
-
-    sel.exit().remove();
-  }
-
-  private _scheduleDeferredSelectionRerender() {
-    if (this._selectionRerenderTimeout !== null) {
-      clearTimeout(this._selectionRerenderTimeout);
-    }
-    // Debounce a full style recompute + rerender to keep styles consistent after bursty selection
-    this._selectionRerenderTimeout = window.setTimeout(() => {
-      this._selectionRerenderTimeout = null;
-      this._canvasRenderer?.invalidateStyleCache();
-      this._renderPlot();
-      this._updateSelectionOverlays();
-    }, 200);
+    if (!this._overlayGroup) return;
+    this._overlayGroup.selectAll('.selected-overlay').remove();
   }
 
   private _getPointPath(point: PlotDataPoint): string {
@@ -623,9 +609,9 @@ export class ProtspaceScatterplot extends LitElement {
     return getters.getPointShape(point);
   }
 
-  private _getColor(point: PlotDataPoint): string {
+  private _getColors(point: PlotDataPoint): string[] {
     const getters = this._getStyleGetters();
-    return getters.getColor(point);
+    return getters.getColors(point);
   }
 
   private _getPointSize(point: PlotDataPoint): number {
@@ -659,8 +645,6 @@ export class ProtspaceScatterplot extends LitElement {
         useShapes: this.useShapes,
         sizes: {
           base: this._mergedConfig.pointSize,
-          highlighted: this._mergedConfig.highlightedPointSize,
-          selected: this._mergedConfig.selectedPointSize,
         },
         opacities: {
           base: this._mergedConfig.baseOpacity,
@@ -713,6 +697,7 @@ export class ProtspaceScatterplot extends LitElement {
           point,
           modifierKeys: {
             ctrl: event.ctrlKey,
+            meta: event.metaKey,
             shift: event.shiftKey,
             alt: event.altKey,
           },
@@ -865,10 +850,12 @@ export class ProtspaceScatterplot extends LitElement {
                 60}px; z-index: 10;"
               >
                 <div class="tooltip-protein-id">${this._tooltipData.protein.id}</div>
-                <div class="tooltip-feature">
-                  ${this.selectedFeature}:
-                  ${this._tooltipData.protein.featureValues[this.selectedFeature] || 'N/A'}
-                </div>
+
+                <div class="tooltip-feature-header">${this.selectedFeature}:</div>
+
+                ${this._tooltipData.protein.featureValues[this.selectedFeature].map(
+                  (value) => html`<div class="tooltip-feature">${value || 'N/A'}</div>`
+                )}
               </div>
             `
           : ''}
@@ -887,10 +874,10 @@ export class ProtspaceScatterplot extends LitElement {
               </div>
             `
           : ''}
-        ${this._splitMode
+        ${this._isolationMode
           ? html`
               <div
-                class="split-indicator"
+                class="isolation-indicator"
                 style="z-index: 10; bottom: 10px; right: 10px; position: absolute; background: rgba(59, 130, 246, 0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;"
               >
                 ${this._plotData.length} points
@@ -905,15 +892,13 @@ export class ProtspaceScatterplot extends LitElement {
     const cfg = this._mergedConfig;
     const parts = [
       `ps:${cfg.pointSize}`,
-      `ph:${cfg.highlightedPointSize}`,
-      `psel:${cfg.selectedPointSize}`,
       `feat:${this.selectedFeature}`,
       `sh:${this.useShapes ? 1 : 0}`,
     ];
     this._styleSig = parts.join('|');
   }
 
-  splitDataBySelection() {
+  isolateSelection() {
     if (!this.data || this.selectedProteinIds.length === 0) {
       return;
     }
@@ -926,9 +911,9 @@ export class ProtspaceScatterplot extends LitElement {
       return;
     }
 
-    // Add valid selection to split history
-    this._splitHistory.push(validSelectedIds);
-    this._splitMode = true;
+    // Add valid selection to isolation history
+    this._isolationHistory.push(validSelectedIds);
+    this._isolationMode = true;
     this.selectedProteinIds = [];
 
     // Process data and update rendering
@@ -952,10 +937,10 @@ export class ProtspaceScatterplot extends LitElement {
     });
 
     this.dispatchEvent(
-      new CustomEvent('data-split', {
+      new CustomEvent('data-isolation', {
         detail: {
-          splitHistory: this._splitHistory,
-          splitMode: this._splitMode,
+          isolationHistory: this._isolationHistory,
+          isolationMode: this._isolationMode,
           dataSize: this._plotData.length,
         },
         bubbles: true,
@@ -969,7 +954,7 @@ export class ProtspaceScatterplot extends LitElement {
         detail: {
           data: this.getCurrentData(),
           isSplitData: true,
-          splitMode: true,
+          isolationMode: true,
         },
         bubbles: true,
         composed: true,
@@ -992,9 +977,9 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
-  resetSplit() {
-    this._splitHistory = [];
-    this._splitMode = false;
+  resetIsolation() {
+    this._isolationHistory = [];
+    this._isolationMode = false;
     this.selectedProteinIds = [];
 
     // Process data and update rendering
@@ -1018,10 +1003,10 @@ export class ProtspaceScatterplot extends LitElement {
     });
 
     this.dispatchEvent(
-      new CustomEvent('data-split-reset', {
+      new CustomEvent('data-isolation-reset', {
         detail: {
-          splitHistory: this._splitHistory,
-          splitMode: this._splitMode,
+          isolationHistory: this._isolationHistory,
+          isolationMode: this._isolationMode,
           dataSize: this._plotData.length,
         },
         bubbles: true,
@@ -1035,7 +1020,7 @@ export class ProtspaceScatterplot extends LitElement {
         detail: {
           data: this.getCurrentData(),
           isFiltered: false,
-          splitMode: false,
+          isolationMode: false,
         },
         bubbles: true,
         composed: true,
@@ -1043,24 +1028,24 @@ export class ProtspaceScatterplot extends LitElement {
     );
   }
 
-  getSplitHistory(): string[][] {
-    return [...this._splitHistory];
+  getIsolationHistory(): string[][] {
+    return [...this._isolationHistory];
   }
 
-  isSplitMode(): boolean {
-    return this._splitMode;
+  isIsolationMode(): boolean {
+    return this._isolationMode;
   }
 
   getCurrentData(): VisualizationData | null {
     if (!this.data) return null;
 
-    // If we're in split mode, return filtered data based on current plot data
-    if (this._splitMode && this._plotData.length > 0) {
+    // If we're in isolation mode, return filtered data based on current plot data
+    if (this._isolationMode && this._plotData.length > 0) {
       const currentProteinIds = this._plotData.map((point) => point.id);
       const currentProteinIdsSet = new Set(currentProteinIds);
 
       // Filter feature data to match current protein IDs
-      const filteredFeatureData: { [key: string]: number[] } = {};
+      const filteredFeatureData: { [key: string]: number[][] } = {};
 
       for (const [featureName, featureValues] of Object.entries(this.data.feature_data)) {
         filteredFeatureData[featureName] = [];

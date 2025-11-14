@@ -2,7 +2,7 @@ import * as d3 from 'd3';
 import type { PlotDataPoint } from '@protspace/utils';
 
 export interface CanvasStyleGetters {
-  getColor: (point: PlotDataPoint) => string;
+  getColors: (point: PlotDataPoint) => string[];
   getPointSize: (point: PlotDataPoint) => number;
   getOpacity: (point: PlotDataPoint) => number;
   getStrokeColor: (point: PlotDataPoint) => string;
@@ -46,8 +46,9 @@ export class CanvasRenderer {
   private selectedFeature: string = '';
   private groupsCache: Array<{
     isCircle: boolean;
+    isMultiLabel?: boolean;
     path?: Path2D;
-    color: string;
+    colors: string[];
     strokeColor: string;
     strokeWidth: number;
     opacity: number;
@@ -166,11 +167,12 @@ export class CanvasRenderer {
     if (!this.groupsCache) {
       // Batch points by style and shape, store indices
       const tempGroups = new Map<string, { meta: any; idx: number[]; zOrders: number[] }>();
+
       for (let i = 0; i < pointsData.length; i++) {
         const point = pointsData[i];
         const opacity = this.style.getOpacity(point);
         if (opacity === 0) continue;
-        const color = this.style.getColor(point);
+        const colors = this.style.getColors(point);
         const size = Math.sqrt(this.style.getPointSize(point)) / 3;
         const strokeColor = this.style.getStrokeColor(point);
         const strokeWidth = this.style.getStrokeWidth(point);
@@ -179,17 +181,18 @@ export class CanvasRenderer {
         const area = Math.pow(size * 3, 2);
         const pathString = isCircle ? null : d3.symbol().type(shape).size(area)()!;
         const shapeKey = isCircle ? 'circle' : `path:${pathString}`;
-        const key = `${color}_${size}_${strokeColor}_${strokeWidth}_${opacity}_${shapeKey}`;
+        const isMultiLabel = colors.length > 1;
+
+        const key = `${colors}_${size}_${strokeColor}_${strokeWidth}_${opacity}_${shapeKey}${isMultiLabel ? '_multilabel' : ''}`;
 
         // Get z-order for this point's feature value
         let pointZOrder = Number.MAX_SAFE_INTEGER; // Default to very high number (drawn last)
         if (point.featureValues && this.selectedFeature) {
           const featureValue = point.featureValues[this.selectedFeature];
-          if (featureValue != null) {
-            const valueKey = String(featureValue);
-            pointZOrder = this.zOrderMapping[valueKey] ?? Number.MAX_SAFE_INTEGER;
-          } else {
-            pointZOrder = this.zOrderMapping['null'] ?? Number.MAX_SAFE_INTEGER;
+          pointZOrder = Math.max(...featureValue.map((v) => this.zOrderMapping[v] ?? -1));
+
+          if (pointZOrder === 0) {
+            pointZOrder = Number.MAX_SAFE_INTEGER;
           }
         }
 
@@ -198,8 +201,9 @@ export class CanvasRenderer {
           entry = {
             meta: {
               isCircle,
+              isMultiLabel,
               path: isCircle ? undefined : new Path2D(pathString!),
-              color,
+              colors,
               strokeColor,
               strokeWidth,
               opacity,
@@ -215,8 +219,9 @@ export class CanvasRenderer {
       }
       this.groupsCache = Array.from(tempGroups.values()).map((g) => ({
         isCircle: g.meta.isCircle,
+        isMultiLabel: g.meta.isMultiLabel,
         path: g.meta.path,
-        color: g.meta.color,
+        colors: g.meta.colors,
         strokeColor: g.meta.strokeColor,
         strokeWidth: g.meta.strokeWidth,
         opacity: g.meta.opacity,
@@ -234,29 +239,58 @@ export class CanvasRenderer {
 
     for (const group of sortedGroups) {
       if (group.indices.length === 0) continue;
-      const pointSize = Math.max(0.5, group.basePointSize / Math.pow(transform.k, exp));
+      const pointSize = group.basePointSize / Math.pow(transform.k, exp);
       ctx.globalAlpha = group.opacity;
-      ctx.fillStyle = group.color;
       ctx.strokeStyle = group.strokeColor;
       ctx.lineWidth = group.strokeWidth / transform.k;
 
       if (group.isCircle) {
-        ctx.beginPath();
-        for (let i = 0; i < group.indices.length; i++) {
-          const idx = group.indices[i];
-          const x = this.cachedScreenX![idx];
-          const y = this.cachedScreenY![idx];
-          ctx.moveTo(x + pointSize, y);
-          ctx.arc(x, y, pointSize, 0, 2 * Math.PI);
+        const arc = (2 * Math.PI) / group.colors.length;
+
+        if (group.isMultiLabel) {
+          for (let i = 0; i < group.colors.length; i++) {
+            ctx.fillStyle = group.colors[i];
+
+            ctx.beginPath();
+
+            for (let j = 0; j < group.indices.length; j++) {
+              const idx = group.indices[j];
+              const x = this.cachedScreenX![idx];
+              const y = this.cachedScreenY![idx];
+              ctx.moveTo(x, y);
+              ctx.arc(x, y, pointSize, i * arc, (i + 1) * arc);
+            }
+
+            ctx.fill();
+            if (group.strokeWidth > 0) {
+              ctx.save();
+              ctx.globalAlpha = 0.35 * group.opacity;
+              ctx.stroke();
+              ctx.restore();
+            }
+          }
+        } else {
+          ctx.fillStyle = group.colors[0];
+          ctx.beginPath();
+          for (let i = 0; i < group.indices.length; i++) {
+            const idx = group.indices[i];
+            const x = this.cachedScreenX![idx];
+            const y = this.cachedScreenY![idx];
+            ctx.moveTo(x + pointSize, y);
+            ctx.arc(x, y, pointSize, 0, 2 * Math.PI);
+          }
+
+          ctx.fill();
+
+          if (group.strokeWidth > 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.35 * group.opacity;
+            ctx.stroke();
+            ctx.restore();
+          }
         }
-        ctx.fill();
-        if (group.strokeWidth > 0) {
-          ctx.save();
-          ctx.globalAlpha = 0.35 * group.opacity;
-          ctx.stroke();
-          ctx.restore();
-        }
-      } else {
+      } else if (group.colors.length === 1) {
+        ctx.fillStyle = group.colors[0];
         const shapePath = group.path!;
         const combinedPath = new Path2D();
         for (let i = 0; i < group.indices.length; i++) {
@@ -274,6 +308,8 @@ export class CanvasRenderer {
           ctx.stroke(combinedPath);
           ctx.restore();
         }
+      } else {
+        throw new Error('Multilabel values only support circle shape');
       }
     }
 

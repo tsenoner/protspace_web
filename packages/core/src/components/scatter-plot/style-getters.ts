@@ -12,8 +12,6 @@ export interface StyleConfig {
   useShapes?: boolean;
   sizes: {
     base: number;
-    highlighted: number;
-    selected: number;
   };
   opacities: {
     base: number;
@@ -57,10 +55,6 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       }
     }
   }
-  const isNullishDisplay = (value: unknown): boolean => {
-    return value === null || (typeof value === 'string' && value.trim() === '');
-  };
-
   // Detect if the user has effectively hidden all values for the selected feature
   // In that case, we ignore the hidden filter to avoid rendering an empty plot.
   const computeAllHidden = (): boolean => {
@@ -77,40 +71,64 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
 
   const allHidden = computeAllHidden();
 
-  const getPointSize = (point: PlotDataPoint): number => {
-    if (selectedIdsSet.has(point.id)) return styleConfig.sizes.selected;
-    if (highlightedIdsSet.has(point.id)) return styleConfig.sizes.highlighted;
+  const getPointSize = (_point: PlotDataPoint): number => {
     return styleConfig.sizes.base;
   };
 
   const getPointShape = (point: PlotDataPoint): d3.SymbolType => {
     if (styleConfig.useShapes === false) return d3.symbolCircle;
     if (!data || !styleConfig.selectedFeature) return d3.symbolCircle;
-    const featureValue = point.featureValues[styleConfig.selectedFeature];
-    if (featureValue !== null && otherValuesSet.has(featureValue)) return d3.symbolCircle;
-    if (isNullishDisplay(featureValue)) return d3.symbolCircle;
+
+    const featureValueArray = point.featureValues[styleConfig.selectedFeature];
+
+    // multilabel points only suppor circle for now
+    if (featureValueArray.length > 1) return d3.symbolCircle;
+
+    // default to circle for points with no feature
+    if (featureValueArray.length === 0) return d3.symbolCircle;
+
+    const featureValue = featureValueArray[0];
+    if (featureValue && otherValuesSet.has(featureValue)) return d3.symbolCircle;
+
     const k = normalizeToKey(featureValue);
     return valueToShape.get(k) ?? d3.symbolCircle;
   };
 
-  const getColor = (point: PlotDataPoint): string => {
-    if (!data || !styleConfig.selectedFeature) return NEUTRAL_VALUE_COLOR;
-    const featureValue = point.featureValues[styleConfig.selectedFeature];
-    if (featureValue !== null && otherValuesSet.has(featureValue)) return NEUTRAL_VALUE_COLOR;
-    if (isNullishDisplay(featureValue)) return nullishConfiguredColor ?? NEUTRAL_VALUE_COLOR;
-    const k = normalizeToKey(featureValue);
-    return valueToColor.get(k) ?? NEUTRAL_VALUE_COLOR;
+  const getColors = (point: PlotDataPoint): string[] => {
+    if (!data || !styleConfig.selectedFeature) return [NEUTRAL_VALUE_COLOR];
+
+    const featureValueArray = point.featureValues[styleConfig.selectedFeature];
+
+    if (featureValueArray.length === 0) {
+      if (nullishConfiguredColor) return [nullishConfiguredColor];
+      else return [NEUTRAL_VALUE_COLOR];
+    }
+
+    if (featureValueArray.every((v) => otherValuesSet.has(v))) {
+      return [NEUTRAL_VALUE_COLOR];
+    }
+
+    const colors = featureValueArray
+      .map((v) => {
+        if (hiddenKeysSet.has(normalizeToKey(v))) return undefined;
+        if (otherValuesSet.has(v)) return NEUTRAL_VALUE_COLOR;
+        return valueToColor.get(normalizeToKey(v)) ?? NEUTRAL_VALUE_COLOR;
+      })
+      .filter((v) => v !== undefined);
+
+    // Remove multiple neutral colors from multiple other features
+    return [...new Set(colors)];
   };
 
   const getOpacity = (point: PlotDataPoint): number => {
     const featureValue = point.featureValues[styleConfig.selectedFeature];
+
     if (!allHidden) {
-      const key = normalizeToKey(featureValue);
-      if (hiddenKeysSet.has(key)) return 0;
+      if (featureValue.every((f) => hiddenKeysSet.has(normalizeToKey(f)))) return 0;
     }
 
-    const isSelected = styleConfig.selectedProteinIds.includes(point.id);
-    const isHighlighted = styleConfig.highlightedProteinIds.includes(point.id);
+    const isSelected = selectedIdsSet.has(point.id);
+    const isHighlighted = highlightedIdsSet.has(point.id);
     const hasSelection = styleConfig.selectedProteinIds.length > 0;
 
     if (isSelected || isHighlighted) {
@@ -122,22 +140,18 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     return styleConfig.opacities.base;
   };
 
-  const getStrokeColor = (point: PlotDataPoint): string => {
-    if (selectedIdsSet.has(point.id)) return 'var(--protspace-selection-color, #FF5500)';
-    if (highlightedIdsSet.has(point.id)) return 'var(--protspace-highlight-color, #00A3E0)';
+  const getStrokeColor = (_point: PlotDataPoint): string => {
     return 'var(--protspace-default-stroke, #333333)';
   };
 
-  const getStrokeWidth = (point: PlotDataPoint): number => {
-    if (selectedIdsSet.has(point.id)) return 3;
-    if (highlightedIdsSet.has(point.id)) return 2;
+  const getStrokeWidth = (_point: PlotDataPoint): number => {
     return 1;
   };
 
   return {
     getPointSize,
     getPointShape,
-    getColor,
+    getColors,
     getOpacity,
     getStrokeColor,
     getStrokeWidth,
