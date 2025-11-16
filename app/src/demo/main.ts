@@ -9,114 +9,6 @@ import type {
 } from '@protspace/core';
 import { createExporter, showNotification } from '@protspace/utils';
 
-// Set up data loader event listeners immediately
-const dataLoader = document.getElementById('myDataLoader') as DataLoader | null;
-
-if (dataLoader) {
-  console.log('🎧 Setting up data-loaded event listener on:', dataLoader);
-
-  // Handle successful data loading
-  dataLoader.addEventListener('data-loaded', (event: Event) => {
-    console.log('🔥 DATA-LOADED EVENT FIRED!', event);
-    const customEvent = event as CustomEvent;
-    const { data } = customEvent.detail;
-    console.log('📁 Data loaded from Arrow file:', data);
-
-    // Wait for other components to be ready before loading data
-    Promise.all([
-      customElements.whenDefined('protspace-scatterplot'),
-      customElements.whenDefined('protspace-legend'),
-      customElements.whenDefined('protspace-structure-viewer'),
-      customElements.whenDefined('protspace-control-bar'),
-    ]).then(() => {
-      const plotElement = document.getElementById('myPlot') as ProtspaceScatterplot | null;
-      const legendElement = document.getElementById('myLegend') as ProtspaceLegend | null;
-      const structureViewer = document.getElementById(
-        'myStructureViewer'
-      ) as ProtspaceStructureViewer | null;
-      const controlBar = document.getElementById('myControlBar') as ProtspaceControlBar | null;
-
-      if (plotElement && legendElement && structureViewer && controlBar) {
-        // Create a loadNewData function in this scope
-        const loadNewDataFromEvent = (newData: VisualizationData) => {
-          console.log('🔄 Loading new data from event:', newData);
-
-          // Update scatterplot with new data
-          console.log('📊 Updating scatterplot with new data...');
-          const oldData = plotElement.data;
-          plotElement.data = newData;
-          plotElement.requestUpdate('data', oldData);
-
-          plotElement.selectedProjectionIndex = 0;
-          plotElement.selectedFeature = Object.keys(newData.features)[0] || '';
-          plotElement.selectedProteinIds = [];
-          plotElement.selectionMode = false;
-          plotElement.hiddenFeatureValues = [];
-          plotElement.requestUpdate();
-
-          console.log('📊 Scatterplot updated with:', {
-            projections: newData.projections.map((p) => p.name),
-            features: Object.keys(newData.features),
-            proteinCount: newData.protein_ids.length,
-            selectedFeature: plotElement.selectedFeature,
-          });
-
-          // Control bar will auto-sync with new data
-          // Local state will be reset when variables are initialized below
-
-          // Update legend
-          setTimeout(() => {
-            console.log('🏷️ Updating legend with new data...');
-            legendElement.autoSync = true;
-            legendElement.autoHide = true;
-            legendElement.data = { features: newData.features };
-            legendElement.selectedFeature = Object.keys(newData.features)[0] || '';
-
-            const firstFeature = Object.keys(newData.features)[0];
-            if (firstFeature) {
-              const featureValues = newData.protein_ids.flatMap((_, index) => {
-                const featureIdxArray = newData.feature_data[firstFeature][index];
-
-                return featureIdxArray.map((featureIdx) => {
-                  return newData.features[firstFeature].values[featureIdx] || null;
-                });
-              });
-              legendElement.featureValues = featureValues;
-              legendElement.proteinIds = newData.protein_ids;
-            }
-            legendElement.requestUpdate();
-
-            console.log('🏷️ Legend updated with:', {
-              feature: legendElement.selectedFeature,
-              dataKeys: Object.keys(newData.features),
-              proteinCount: newData.protein_ids.length,
-            });
-          }, 200);
-
-          console.log(
-            '✅ Data loaded successfully from event with',
-            newData.protein_ids.length,
-            'proteins'
-          );
-        };
-
-        // Load the new data
-        loadNewDataFromEvent(data);
-      }
-    });
-  });
-
-  // Handle data loading errors
-  dataLoader.addEventListener('data-load-error', (event: Event) => {
-    const customEvent = event as CustomEvent;
-    const { error } = customEvent.detail;
-    console.error('❌ Data loading failed:', error);
-    alert(`Failed to load data: ${error}`);
-  });
-
-  console.log('🎧 Event listeners attached successfully');
-}
-
 // Wait for all components to be defined for initial setup
 Promise.all([
   customElements.whenDefined('protspace-scatterplot'),
@@ -132,6 +24,7 @@ Promise.all([
     'myStructureViewer'
   ) as ProtspaceStructureViewer | null;
   const controlBar = document.getElementById('myControlBar') as ProtspaceControlBar | null;
+  const dataLoader = document.getElementById('myDataLoader') as DataLoader | null;
 
   // UI elements
   const selectedProteinElement = document.getElementById('selectedProtein') as HTMLElement | null;
@@ -564,10 +457,6 @@ Promise.all([
       }
     };
 
-    // Try to load data from file, but don't fail if it doesn't work
-    // The user can still drag and drop the file manually
-    loadDataFromFile();
-
     // Initialize control bar - auto-sync handles most initialization
     // The control bar will automatically sync with the scatterplot
 
@@ -774,6 +663,10 @@ Promise.all([
       // You could show a toast notification or error message here
       alert(`Failed to load data: ${error}`);
     });
+
+    // Try to load data from file, but don't fail if it doesn't work
+    // The user can still drag and drop the file manually
+    loadDataFromFile();
 
     // Handle export using the new export utilities
     controlBar.addEventListener('export', async (event: Event) => {

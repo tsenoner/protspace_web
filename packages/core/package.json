@@ -7,8 +7,9 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/core.mjs",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/core.js"
     }
   },
   "files": [
@@ -40,6 +41,8 @@
   },
   "devDependencies": {
     "@types/d3": "^7.4.3",
+    "@typescript-eslint/eslint-plugin": "^8.46.0",
+    "@typescript-eslint/parser": "^8.46.0",
     "eslint": "^9.27.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
