@@ -1,4 +1,4 @@
-import { Network, Layers, Zap, Search, Database, Code2 } from 'lucide-react';
+import { Network, Layers, Box, Search, Database, Code2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 
 const features = [
@@ -14,10 +14,10 @@ const features = [
     description: 'Visualize high-dimensional embeddings using UMAP, t-SNE, and PCA techniques.',
   },
   {
-    icon: Zap,
-    title: 'WebGPU Rendering',
+    icon: Box,
+    title: '3D Protein Structure Visualization',
     description:
-      'Efficient rendering of millions of data points with hardware-accelerated graphics.',
+      'Visualize protein 3D structures with AlphaFold2 predictions directly in the browser.',
   },
   {
     icon: Search,

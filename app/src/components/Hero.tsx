@@ -86,7 +86,7 @@ const Hero = () => {
               Apache-2.0 License
             </span>
             <span className="px-4 py-2 rounded-full bg-card/50 backdrop-blur-sm border border-border/40 text-sm">
-              WebGPU Powered
+              AlphaFold2 Integration
             </span>
           </div>
         </div>
