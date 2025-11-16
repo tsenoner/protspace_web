@@ -1,4 +1,4 @@
-name: Deploy Scatterplot Example to GitHub Pages
+name: Deploy App and Demo to GitHub Pages
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Setup PNPM
         uses: pnpm/action-setup@v4
@@ -57,9 +57,9 @@ jobs:
       - name: Build workspace packages
         run: pnpm run build
 
-      - name: Build scatterplot example
+      - name: Build app (includes landing page and demo)
         run: |
-          pnpm turbo run build --filter=@protspace/example-scatterplot
+          NODE_ENV=production pnpm turbo run build --filter=@protspace/app
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -67,7 +67,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'examples/scatterplot-vite/dist'
+          path: 'app/dist'
 
   # Deployment job
   deploy:

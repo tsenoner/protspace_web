@@ -754,7 +754,7 @@ export class ProtspaceLegend extends LitElement {
                     <span class="other-item-name">
                       ${item.value === null ||
                       (typeof item.value === 'string' && item.value.trim() === '')
-                        ? 'N\\A'
+                        ? 'N/A'
                         : item.value}
                     </span>
                     <span class="other-item-count">(${item.count})</span>
@@ -856,6 +856,69 @@ export class ProtspaceLegend extends LitElement {
     if (item.extractedFromOther) classes.push('extracted');
 
     return classes.join(' ');
+  }
+
+  private _renderDragHandle() {
+    return html`
+      <div class="drag-handle">
+        <svg
+          width="16"
+          height="16"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          @mousedown=${(e: Event) => e.stopPropagation()}
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 8h16M4 16h16"
+          />
+        </svg>
+      </div>
+    `;
+  }
+
+  private _renderItemSymbol(item: LegendItem, isItemSelected: boolean) {
+    return html`
+      <div class="mr-2">
+        ${item.value === 'Other'
+          ? this.renderSymbol('circle', '#888')
+          : this.renderSymbol(
+              this.includeShapes ? item.shape : 'circle',
+              item.color,
+              16,
+              isItemSelected
+            )}
+      </div>
+    `;
+  }
+
+  private _renderItemText(item: LegendItem) {
+    const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
+    const displayText = item.value === null || isEmptyString ? 'N/A' : item.value;
+
+    return html` <span class="legend-text">${displayText}</span> `;
+  }
+
+  private _renderItemActions(item: LegendItem) {
+    if (item.value !== 'Other') {
+      return html``;
+    }
+
+    return html`
+      <button
+        class="view-button"
+        @click=${(e: Event) => {
+          e.stopPropagation();
+          this.showOtherDialog = true;
+        }}
+        title="Extract items from Other"
+      >
+        (view)
+      </button>
+    `;
   }
 
   private renderSettingsDialog() {
