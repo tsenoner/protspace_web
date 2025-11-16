@@ -14,10 +14,13 @@ export class LegendRenderer {
   static renderSymbol(
     shape: string | null,
     color: string,
-    size = LEGEND_DEFAULTS.symbolSize,
-    isSelected = false
+    size: number = LEGEND_DEFAULTS.symbolSize,
+    isSelected: boolean = false
   ): TemplateResult {
-    const halfSize = size / 1;
+    // Add padding to accommodate shapes that extend beyond circles (like stars and crosses)
+    const padding = 4;
+    const canvasSize = size + padding * 2;
+    const centerOffset = canvasSize / 2;
 
     // Safely handle null or undefined shape
     const shapeKey = (shape || 'circle').toLowerCase() as keyof typeof SHAPE_MAPPING;
@@ -48,8 +51,8 @@ export class LegendRenderer {
     const validColor = color || LEGEND_STYLES.colors.fallback;
 
     return html`
-      <svg width="${size}" height="${size}" class="legend-symbol">
-        <g transform="translate(${halfSize}, ${halfSize})">
+      <svg width="${canvasSize}" height="${canvasSize}" class="legend-symbol">
+        <g transform="translate(${centerOffset}, ${centerOffset})">
           <path
             d="${path}"
             fill="${isOutlineOnly ? 'none' : validColor}"
@@ -132,12 +135,22 @@ export class LegendRenderer {
   /**
    * Render the item symbol (either "Other" default or feature-specific symbol)
    */
-  static renderItemSymbol(item: LegendItem, isItemSelected: boolean): TemplateResult {
+  static renderItemSymbol(
+    item: LegendItem,
+    isItemSelected: boolean,
+    includeShapes: boolean = true,
+    size: number = LEGEND_DEFAULTS.symbolSize
+  ): TemplateResult {
     return html`
       <div class="mr-2">
         ${item.value === 'Other'
-          ? this.renderSymbol('circle', '#888')
-          : this.renderSymbol(item.shape, item.color, LEGEND_DEFAULTS.symbolSize, isItemSelected)}
+          ? this.renderSymbol('circle', '#888', size)
+          : this.renderSymbol(
+              includeShapes ? item.shape : 'circle',
+              item.color,
+              size,
+              isItemSelected
+            )}
       </div>
     `;
   }
@@ -177,10 +190,13 @@ export class LegendRenderer {
       onClick: () => void;
       onDoubleClick: () => void;
       onDragStart: () => void;
-      onDragOver: () => void;
+      onDragOver: (e: DragEvent) => void;
+      onDrop: (e: DragEvent) => void;
       onDragEnd: () => void;
       onViewOther: (e: Event) => void;
-    }
+    },
+    includeShapes: boolean = true,
+    symbolSize: number = LEGEND_DEFAULTS.symbolSize
   ): TemplateResult {
     return html`
       <div
@@ -190,10 +206,12 @@ export class LegendRenderer {
         draggable="true"
         @dragstart=${eventHandlers.onDragStart}
         @dragover=${eventHandlers.onDragOver}
+        @drop=${eventHandlers.onDrop}
         @dragend=${eventHandlers.onDragEnd}
       >
         <div class="legend-item-content">
-          ${this.renderDragHandle()} ${this.renderItemSymbol(item, isItemSelected)}
+          ${this.renderDragHandle()}
+          ${this.renderItemSymbol(item, isItemSelected, includeShapes, symbolSize)}
           ${this.renderItemText(item)} ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>
         <span class="legend-count">${item.count}</span>

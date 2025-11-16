@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import { NEUTRAL_VALUE_COLOR } from '../scatter-plot/config';
+import { NEUTRAL_VALUE_COLOR, DEFAULT_CONFIG } from '../scatter-plot/config';
 
 /**
  * Legend configuration constants
@@ -34,10 +34,12 @@ export const DEFAULT_STYLES = {
 /**
  * Legend component default configuration
  */
+const SYMBOL_SIZE_MULTIPLIER = 8; // For D3 symbol size calculation
+
 export const LEGEND_DEFAULTS = {
   maxVisibleValues: 10,
-  symbolSize: 10,
-  symbolSizeMultiplier: 8, // For D3 symbol size calculation
+  symbolSize: DEFAULT_CONFIG.pointSize / SYMBOL_SIZE_MULTIPLIER,
+  symbolSizeMultiplier: SYMBOL_SIZE_MULTIPLIER,
   dragTimeout: 100,
   scatterplotSelector: 'protspace-scatterplot',
   autoSyncDelay: 100,
@@ -60,6 +62,7 @@ export const LEGEND_STYLES = {
     fallback: NEUTRAL_VALUE_COLOR,
   },
   outlineShapes: new Set(['plus', 'asterisk', 'cross', 'times']),
+  legendDisplaySize: 16, // legend symbols size (independent of canvas point size)
 } as const;
 
 /**
