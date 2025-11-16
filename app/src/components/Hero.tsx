@@ -33,7 +33,7 @@ const Hero = () => {
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Title */}
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight">
-            <span className="block"> Drag & Drop Discovery of</span>
+            <span className="block"> Your Journey Through</span>
             <span className="block bg-gradient-primary bg-clip-text text-transparent">
               Protein Universe
             </span>
