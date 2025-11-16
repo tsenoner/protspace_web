@@ -19,8 +19,6 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
     "test": "vitest",
     "lint": "eslint src --ext .ts --fix",
     "type-check": "tsc --noEmit",
@@ -42,9 +40,6 @@
     "lit": "^3.3.0"
   },
   "devDependencies": {
-    "@storybook/addon-essentials": "^8.6.14",
-    "@storybook/web-components": "^8.6.14",
-    "@storybook/web-components-vite": "^8.6.14",
     "@types/d3": "^7.4.3",
     "@typescript-eslint/eslint-plugin": "^8.46.0",
     "@typescript-eslint/parser": "^8.46.0",

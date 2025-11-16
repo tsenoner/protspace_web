@@ -239,7 +239,7 @@ export class CanvasRenderer {
 
     for (const group of sortedGroups) {
       if (group.indices.length === 0) continue;
-      const pointSize = Math.max(0.5, group.basePointSize / Math.pow(transform.k, exp));
+      const pointSize = group.basePointSize / Math.pow(transform.k, exp);
       ctx.globalAlpha = group.opacity;
       ctx.strokeStyle = group.strokeColor;
       ctx.lineWidth = group.strokeWidth / transform.k;

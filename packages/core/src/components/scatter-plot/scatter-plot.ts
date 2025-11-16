@@ -854,7 +854,7 @@ export class ProtspaceScatterplot extends LitElement {
                 <div class="tooltip-feature-header">${this.selectedFeature}:</div>
 
                 ${this._tooltipData.protein.featureValues[this.selectedFeature].map(
-                  (value) => html`<div class="tooltip-feature">${value}</div>`
+                  (value) => html`<div class="tooltip-feature">${value || 'N/A'}</div>`
                 )}
               </div>
             `
