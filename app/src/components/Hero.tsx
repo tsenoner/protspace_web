@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Github, BookOpen, Play } from 'lucide-react';
+import { Database, BookOpen, Play } from 'lucide-react';
 
 const Hero = () => {
   return (
@@ -67,12 +67,12 @@ const Hero = () => {
 
             <Button variant="outline-hero" size="lg" className="w-full sm:w-auto" asChild>
               <a
-                href="https://github.com/tsenoner/protspace_web"
+                href="https://colab.research.google.com/github/tsenoner/protspace_web/blob/main/notebooks/ProtSpace_Preparation.ipynb"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Github className="h-5 w-5" />
-                GitHub
+                <Database className="h-5 w-5" />
+                Create Data
               </a>
             </Button>
           </div>
