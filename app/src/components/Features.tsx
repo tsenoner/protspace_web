@@ -4,9 +4,9 @@ import { Card } from '@/components/ui/card';
 const features = [
   {
     icon: Network,
-    title: 'Protein Embedding Clustering',
+    title: 'Protein Language Models',
     description:
-      'Explore protein families via automatic clustering algorithms and similarity metrics.',
+      'Explore protein families as never before, leveraging the comprehensive knowledge of protein Language Models.',
   },
   {
     icon: Layers,
@@ -22,7 +22,7 @@ const features = [
   {
     icon: Search,
     title: 'Real-Time Search',
-    description: 'Find proteins by ID, sequence similarity, or functional annotations instantly.',
+    description: 'Find proteins by ID or functional annotations instantly.',
   },
   {
     icon: Database,
