@@ -12,7 +12,7 @@ const Header = () => {
           {/* Logo */}
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-gradient-primary" />
-            <span className="text-xl font-bold">ProtSpace Web</span>
+            <span className="text-xl font-bold">ProtSpace</span>
           </div>
 
           {/* Desktop Navigation */}
