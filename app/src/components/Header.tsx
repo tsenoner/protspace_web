@@ -1,6 +1,7 @@
 import { Menu, X, Github } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -37,12 +38,12 @@ const Header = () => {
             >
               Docs
             </a>
-            <a
-              href="/demo"
+            <Link
+              to="/demo"
               className="text-sm font-medium text-foreground hover:text-primary transition-colors"
             >
               Demo
-            </a>
+            </Link>
             <a
               href="https://github.com/tsenoner/protspace_web"
               target="_blank"
@@ -89,13 +90,13 @@ const Header = () => {
             >
               Docs
             </a>
-            <a
-              href="/demo"
+            <Link
+              to="/demo"
               className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               onClick={() => setIsMenuOpen(false)}
             >
               Demo
-            </a>
+            </Link>
             <a
               href="https://github.com/tsenoner/protspace_web"
               target="_blank"

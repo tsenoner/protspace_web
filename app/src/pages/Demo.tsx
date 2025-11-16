@@ -3,8 +3,8 @@ import './Demo.css';
 
 const Demo = () => {
   useEffect(() => {
-    // Import demo initialization
-    import('../demo/main.ts');
+    let mounted = true;
+    let scatterplot: HTMLElement | null = null;
 
     // Setup file drop handler
     const handleFileDrop = (e: CustomEvent) => {
@@ -15,11 +15,35 @@ const Demo = () => {
       }
     };
 
-    const scatterplot = document.getElementById('myPlot');
-    scatterplot?.addEventListener('file-dropped', handleFileDrop as EventListener);
+    // Initialize demo asynchronously
+    const init = async () => {
+      try {
+        // Import and initialize demo
+        const { initializeDemo } = await import('../demo/main.ts');
+
+        // Only proceed if component is still mounted
+        if (!mounted) return;
+
+        // Wait for custom elements to be defined and initialized
+        await initializeDemo();
+
+        // Setup file drop handler after initialization
+        if (mounted) {
+          scatterplot = document.getElementById('myPlot');
+          scatterplot?.addEventListener('file-dropped', handleFileDrop as EventListener);
+        }
+      } catch (error) {
+        console.error('Failed to initialize demo:', error);
+      }
+    };
+
+    init();
 
     return () => {
-      scatterplot?.removeEventListener('file-dropped', handleFileDrop as EventListener);
+      mounted = false;
+      if (scatterplot) {
+        scatterplot.removeEventListener('file-dropped', handleFileDrop as EventListener);
+      }
     };
   }, []);
 

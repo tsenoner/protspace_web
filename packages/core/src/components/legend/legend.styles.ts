@@ -156,7 +156,6 @@ export const legendStyles = css`
     position: relative;
   }
 
-
   .legend-item-content {
     display: flex;
     align-items: center;

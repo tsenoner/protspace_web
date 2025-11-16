@@ -9,14 +9,17 @@ import type {
 } from '@protspace/core';
 import { createExporter, showNotification } from '@protspace/utils';
 
-// Wait for all components to be defined for initial setup
-Promise.all([
-  customElements.whenDefined('protspace-scatterplot'),
-  customElements.whenDefined('protspace-legend'),
-  customElements.whenDefined('protspace-structure-viewer'),
-  customElements.whenDefined('protspace-control-bar'),
-  customElements.whenDefined('protspace-data-loader'),
-]).then(() => {
+// Export initialization function that can be called when the component mounts
+export async function initializeDemo() {
+  // Wait for all components to be defined for initial setup
+  await Promise.all([
+    customElements.whenDefined('protspace-scatterplot'),
+    customElements.whenDefined('protspace-legend'),
+    customElements.whenDefined('protspace-structure-viewer'),
+    customElements.whenDefined('protspace-control-bar'),
+    customElements.whenDefined('protspace-data-loader'),
+  ]);
+
   console.log('🚀 All web components defined and ready!');
   const plotElement = document.getElementById('myPlot') as ProtspaceScatterplot | null;
   const legendElement = document.getElementById('myLegend') as ProtspaceLegend | null;
@@ -720,4 +723,4 @@ Promise.all([
     console.log('Structure viewer:', structureViewer);
     console.log('Control bar:', controlBar);
   }
-});
+}

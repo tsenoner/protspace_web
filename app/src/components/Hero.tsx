@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Database, BookOpen, Play } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Hero = () => {
   return (
@@ -48,10 +49,10 @@ const Hero = () => {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
             <Button variant="hero" size="lg" className="w-full sm:w-auto" asChild>
-              <a href="/demo">
+              <Link to="/demo">
                 <Play className="h-5 w-5" />
                 Start Exploring
-              </a>
+              </Link>
             </Button>
 
             <Button variant="outline-hero" size="lg" className="w-full sm:w-auto" asChild>
