@@ -50,7 +50,7 @@ const Hero = () => {
             <Button variant="hero" size="lg" className="w-full sm:w-auto" asChild>
               <a href="/demo">
                 <Play className="h-5 w-5" />
-                View Demo
+                Start Exploring
               </a>
             </Button>
 
