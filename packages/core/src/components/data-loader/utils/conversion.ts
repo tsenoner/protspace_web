@@ -1,7 +1,61 @@
 import type { Feature, VisualizationData } from '@protspace/utils';
+import { NEUTRAL_COLOR_VALUE } from '@protspace/utils';
 import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
 import type { Rows } from './types';
+
+/**
+ * Checks if a value should be treated as N/A (null/missing value)
+ * Handles common N/A variants including "N/A", "N\A", "NA", "NaN", "none", empty strings
+ * Additionally, handles "null" and "undefined", "uncertain", "unknown", "not available", "not reported" as N/A values
+ */
+function isNAValue(value: string): boolean {
+  if (!value || value.trim() === '') return true;
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized === 'n/a' ||
+    normalized === 'n\\a' ||
+    normalized === 'na' ||
+    normalized === 'nan' ||
+    normalized === 'none' ||
+    normalized === 'null' ||
+    normalized === 'undefined' ||
+    normalized === 'uncertain' ||
+    normalized === 'unknown' ||
+    normalized === 'not available' ||
+    normalized === 'not reported'
+  );
+}
+
+/**
+ * Normalizes a value by converting N/A variants to null
+ * Returns null if the value is an N/A variant, otherwise returns the original value
+ */
+function normalizeValue(value: unknown): string | null {
+  if (value == null) return null;
+  const stringValue = String(value);
+  return isNAValue(stringValue) ? null : stringValue;
+}
+
+/**
+ * Splits a value by semicolon and filters out N/A values
+ * Returns [null] if the value is null or contains only N/A values (so N/A proteins are counted in legend)
+ * Filters out N/A from multi-value strings (e.g., "value1;N/A;value2" becomes ["value1", "value2"])
+ */
+function splitAndNormalizeValue(value: unknown): (string | null)[] {
+  if (value == null) return [null];
+  const normalized = normalizeValue(value);
+  if (normalized === null) return [null];
+
+  // At this point, normalized is definitely a string
+  const parts = normalized
+    .split(';')
+    .map(v => normalizeValue(v))
+    .filter((v): v is string => v !== null);
+
+  // If all parts were N/A (empty after filtering), return [null]
+  return parts.length > 0 ? parts : [null];
+}
 
 export function convertParquetToVisualizationData(rows: Rows): VisualizationData {
   validateRowsBasic(rows);
@@ -105,16 +159,12 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
   const baseProjectionData = projectionGroups.values().next().value || rows;
 
   for (const featureCol of featureColumns) {
-    const featureMap = new Map<string, string[]>();
+    const featureMap = new Map<string, (string | null)[]>();
     for (const row of baseProjectionData) {
       const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
       const value = row[featureCol];
 
-      if (value == null) {
-        featureMap.set(proteinId, []);
-      } else {
-        featureMap.set(proteinId, String(value).split(';'));
-      }
+      featureMap.set(proteinId, splitAndNormalizeValue(value));
     }
 
     const allValues = Array.from(featureMap.values());
@@ -124,6 +174,12 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
 
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
+
+    // Ensure null values get grey color
+    const nullIndex = uniqueValues.findIndex((v) => v === null);
+    if (nullIndex !== -1) {
+      colors[nullIndex] = NEUTRAL_COLOR_VALUE;
+    }
 
     const featureDataArray = uniqueProteinIds.map((proteinId) => {
       const value = featureMap.get(proteinId);
@@ -256,16 +312,23 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
   const feature_data: Record<string, number[][]> = {};
 
   for (const featureCol of featureColumns) {
-    const rawValues: string[][] = rows.map((row) => {
+    const rawValues: (string | null)[][] = rows.map((row) => {
       const v = row[featureCol];
-      return v == null ? [] : String(v).split(';');
+      return splitAndNormalizeValue(v);
     });
     const uniqueValues = Array.from(new Set(rawValues.flat()));
-    const valueToIndex = new Map<string, number>();
+    const valueToIndex = new Map<string | null, number>();
     uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
 
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
+
+    // Ensure null values get grey color
+    const nullIndex = uniqueValues.findIndex((v) => v === null);
+    if (nullIndex !== -1) {
+      colors[nullIndex] = NEUTRAL_COLOR_VALUE;
+    }
+
     const featureDataArray = rawValues.map((valueArray) =>
       valueArray.map((v) => valueToIndex.get(v) ?? -1)
     );
@@ -450,7 +513,7 @@ export async function extractFeaturesOptimized(
 
   const chunkSize = 10000;
   for (const featureCol of featureColumns) {
-    const featureMap = new Map<string, string[]>();
+    const featureMap = new Map<string, (string | null)[]>();
     const valueCountMap = new Map<string | null, number>();
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, Math.min(i + chunkSize, rows.length));
@@ -458,12 +521,7 @@ export async function extractFeaturesOptimized(
         const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
         const value = row[featureCol];
 
-        if (value == null) {
-          featureMap.set(proteinId, []);
-          continue;
-        }
-
-        const valueArray = String(value).split(';');
+        const valueArray = splitAndNormalizeValue(value);
 
         featureMap.set(proteinId, valueArray);
 
@@ -482,6 +540,12 @@ export async function extractFeaturesOptimized(
 
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
+
+    // Ensure null values get grey color
+    const nullIndex = uniqueValues.findIndex((v) => v === null);
+    if (nullIndex !== -1) {
+      colors[nullIndex] = NEUTRAL_COLOR_VALUE;
+    }
 
     const featureDataArray = new Array<number[]>(uniqueProteinIds.length);
 
