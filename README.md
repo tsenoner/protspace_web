@@ -7,7 +7,7 @@ ProtSpace Web is a browser-based visualization tool for exploring protein langua
 
 ## 🌐 Try Online
 
-**Demo**: https://tsenoner.github.io/protspace_web/ → Drag & drop `.parquetbundle` files
+**Demo**: https://protspace.app/ → Drag & drop `.parquetbundle` files
 
 ## 🚀 Prepare Your Data
 

@@ -4,17 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ProtSpace Web - Visualize Protein Embedding Spaces</title>
-    <meta name="description" content="Open-source tool to start your journey through protein universe" />
+    <meta
+      name="description"
+      content="Open-source tool to start your journey through protein universe"
+    />
     <meta name="author" content="ProtSpace contributors" />
 
     <meta property="og:title" content="ProtSpace Web - Visualize Protein Embedding Spaces" />
-    <meta property="og:description" content="Open-source tool to start your journey through protein universe" />
+    <meta
+      property="og:description"
+      content="Open-source tool to start your journey through protein universe"
+    />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://tsenoner.github.io/protspace_web/" />
+    <meta property="og:url" content="https://protspace.app/" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="ProtSpace Web" />
-    <meta name="twitter:description" content="Open-source tool to start your journey through protein universe" />
+    <meta
+      name="twitter:description"
+      content="Open-source tool to start your journey through protein universe"
+    />
 
     <!-- Start Single Page Apps for GitHub Pages -->
     <script>
@@ -27,16 +36,18 @@
       // When the single page app is loaded further down in this file,
       // the correct url will be waiting in the browser's history for
       // the single page app to route accordingly.
-      (function(l) {
-        if (l.search[1] === '/' ) {
-          var decoded = l.search.slice(1).split('&').map(function(s) {
-            return s.replace(/~and~/g, '&')
-          }).join('?');
-          window.history.replaceState(null, null,
-              l.pathname.slice(0, -1) + decoded + l.hash
-          );
+      (function (l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search
+            .slice(1)
+            .split('&')
+            .map(function (s) {
+              return s.replace(/~and~/g, '&');
+            })
+            .join('?');
+          window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
         }
-      }(window.location))
+      })(window.location);
     </script>
     <!-- End Single Page Apps for GitHub Pages -->
   </head>
