@@ -1,5 +1,6 @@
 import * as d3 from 'd3';
-import { NEUTRAL_VALUE_COLOR, DEFAULT_CONFIG } from '../scatter-plot/config';
+import { DEFAULT_CONFIG } from '../scatter-plot/config';
+import { NEUTRAL_COLOR_VALUE } from '@protspace/utils';
 
 /**
  * Legend configuration constants
@@ -22,11 +23,11 @@ export const SHAPE_MAPPING = {
 // Default styles for special cases
 export const DEFAULT_STYLES = {
   other: {
-    color: NEUTRAL_VALUE_COLOR,
+    color: NEUTRAL_COLOR_VALUE,
     shape: 'circle',
   },
   null: {
-    color: NEUTRAL_VALUE_COLOR,
+    color: NEUTRAL_COLOR_VALUE,
     shape: 'circle',
   },
 } as const;
@@ -59,7 +60,7 @@ export const LEGEND_STYLES = {
   colors: {
     defaultStroke: '#394150',
     selectedStroke: '#00A3E0',
-    fallback: NEUTRAL_VALUE_COLOR,
+    fallback: NEUTRAL_COLOR_VALUE,
   },
   outlineShapes: new Set(['plus', 'asterisk', 'cross', 'times']),
   legendDisplaySize: 16, // legend symbols size (independent of canvas point size)

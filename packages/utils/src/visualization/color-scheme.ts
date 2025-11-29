@@ -63,6 +63,11 @@ export const COLOR_SCHEMES = {
   ],
 };
 
+/**
+ * Color for neutral (null/missing) values
+ */
+export const NEUTRAL_COLOR_VALUE = '#888888';
+
 export function generateColorScale(
   values: string[],
   scheme: keyof typeof COLOR_SCHEMES = 'category10'
