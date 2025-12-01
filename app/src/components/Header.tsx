@@ -1,7 +1,8 @@
-import { Menu, X, Github } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
+import { DOCS_URL } from '@/config/constants';
+import { GitHubIcon } from '@/components/icons/brand-icons';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -31,7 +32,7 @@ const Header = () => {
               Features
             </a>
             <a
-              href="https://github.com/tsenoner/protspace_web/wiki"
+              href={DOCS_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-medium text-foreground hover:text-primary transition-colors"
@@ -51,7 +52,7 @@ const Header = () => {
               className="text-foreground hover:text-primary transition-colors"
               aria-label="View on GitHub"
             >
-              <Github className="h-5 w-5" />
+              <GitHubIcon className="h-5 w-5" />
             </a>
           </nav>
 
@@ -83,7 +84,7 @@ const Header = () => {
               Features
             </a>
             <a
-              href="https://github.com/tsenoner/protspace_web/wiki"
+              href={DOCS_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
@@ -103,7 +104,7 @@ const Header = () => {
               rel="noopener noreferrer"
               className="flex items-center gap-2 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
             >
-              <Github className="h-4 w-4" />
+              <GitHubIcon className="h-4 w-4" />
               GitHub
             </a>
           </nav>
