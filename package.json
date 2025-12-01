@@ -2,10 +2,12 @@
   "name": "protspace_web",
   "private": true,
   "description": "ProtSpace interactive protein visualization components",
-  "packageManager": "pnpm@10.11.0",
+  "packageManager": "pnpm@10.24.0",
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo run --filter @protspace/app dev",
+    "dev": "concurrently \"pnpm dev:app\" \"pnpm dev:docs\" --names \"app,docs\" --prefix-colors \"cyan,magenta\"",
+    "dev:app": "turbo run --filter @protspace/app dev",
+    "dev:docs": "vitepress dev docs --port 5174",
     "test": "turbo test",
     "lint": "turbo lint",
     "lint:fix": "turbo lint -- --fix",
@@ -13,6 +15,9 @@
     "clean": "turbo clean",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,css,scss,md,json,yml,yaml,mjs,cjs}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,css,scss,md,json,yml,yaml,mjs,cjs}\"",
+    "docs:dev": "vitepress dev docs --port 5174",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo build && changeset publish"
@@ -24,10 +29,12 @@
     "@types/three": "^0.179.0",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
     "@typescript-eslint/parser": "^8.46.1",
+    "concurrently": "^9.2.1",
     "esbuild": "^0.25.10",
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.6.2",
-    "turbo": "^2.5.3"
+    "turbo": "^2.5.3",
+    "vitepress": "^1.6.4"
   }
 }
