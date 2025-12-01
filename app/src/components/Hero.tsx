@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Database, BookOpen, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { DOCS_URL } from '@/config/constants';
 
 const Hero = () => {
   return (
@@ -57,7 +58,7 @@ const Hero = () => {
 
             <Button variant="outline-hero" size="lg" className="w-full sm:w-auto" asChild>
               <a
-                href="https://github.com/tsenoner/protspace_web/wiki"
+                href={DOCS_URL}
                 target="_blank"
                 rel="noopener noreferrer"
               >

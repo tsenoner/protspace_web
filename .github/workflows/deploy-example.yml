@@ -16,7 +16,7 @@ permissions:
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
 # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
-  group: 'pages'
+  group: "pages"
   cancel-in-progress: false
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Setup PNPM
         uses: pnpm/action-setup@v4
@@ -61,13 +61,21 @@ jobs:
         run: |
           NODE_ENV=production pnpm turbo run build --filter=@protspace/app
 
+      - name: Build documentation
+        run: pnpm docs:build
+
+      - name: Copy docs to app dist
+        run: |
+          mkdir -p app/dist/docs
+          cp -r docs/.vitepress/dist/* app/dist/docs/
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'app/dist'
+          path: "app/dist"
 
   # Deployment job
   deploy:
