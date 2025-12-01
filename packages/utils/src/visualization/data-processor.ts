@@ -7,7 +7,7 @@ export class DataProcessor {
     projectionIndex: number,
     isolationMode: boolean = false,
     isolationHistory?: string[][],
-    projectionPlane: 'xy' | 'xz' | 'yz' = 'xy'
+    projectionPlane: 'xy' | 'xz' | 'yz' = 'xy',
   ): PlotDataPoint[] {
     if (!data.projections[projectionIndex]) return [];
 
@@ -73,7 +73,7 @@ export class DataProcessor {
     plotData: PlotDataPoint[],
     width: number,
     height: number,
-    margin: { top: number; right: number; bottom: number; left: number }
+    margin: { top: number; right: number; bottom: number; left: number },
   ) {
     if (plotData.length === 0) return null;
 

@@ -65,7 +65,7 @@ export const COLOR_SCHEMES = {
 
 export function generateColorScale(
   values: string[],
-  scheme: keyof typeof COLOR_SCHEMES = 'category10'
+  scheme: keyof typeof COLOR_SCHEMES = 'category10',
 ): string[] {
   const colors = COLOR_SCHEMES[scheme];
 

@@ -15,7 +15,7 @@ export class LegendRenderer {
     shape: string | null,
     color: string,
     size: number = LEGEND_DEFAULTS.symbolSize,
-    isSelected: boolean = false
+    isSelected: boolean = false,
   ): TemplateResult {
     // Add padding to accommodate shapes that extend beyond circles (like stars and crosses)
     const padding = 4;
@@ -96,7 +96,7 @@ export class LegendRenderer {
    */
   static renderLegendContent(
     sortedLegendItems: LegendItem[],
-    renderItemCallback: (item: LegendItem) => TemplateResult
+    renderItemCallback: (item: LegendItem) => TemplateResult,
   ): TemplateResult {
     if (sortedLegendItems.length === 0) {
       return html`<div class="legend-empty">No data available</div>`;
@@ -139,7 +139,7 @@ export class LegendRenderer {
     item: LegendItem,
     isItemSelected: boolean,
     includeShapes: boolean = true,
-    size: number = LEGEND_DEFAULTS.symbolSize
+    size: number = LEGEND_DEFAULTS.symbolSize,
   ): TemplateResult {
     return html`
       <div class="mr-2">
@@ -149,7 +149,7 @@ export class LegendRenderer {
               includeShapes ? item.shape : 'circle',
               item.color,
               size,
-              isItemSelected
+              isItemSelected,
             )}
       </div>
     `;
@@ -196,7 +196,7 @@ export class LegendRenderer {
       onViewOther: (e: Event) => void;
     },
     includeShapes: boolean = true,
-    symbolSize: number = LEGEND_DEFAULTS.symbolSize
+    symbolSize: number = LEGEND_DEFAULTS.symbolSize,
   ): TemplateResult {
     return html`
       <div

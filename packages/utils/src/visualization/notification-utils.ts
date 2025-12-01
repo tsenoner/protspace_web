@@ -118,7 +118,7 @@ export interface SelectionDisabledEventDetail {
  */
 export function createSelectionDisabledEvent(
   reason: string,
-  dataSize: number
+  dataSize: number,
 ): CustomEvent<SelectionDisabledEventDetail> {
   const message =
     reason === 'insufficient-data'

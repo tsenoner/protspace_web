@@ -1,4 +1,4 @@
-import type { LegendItem, LegendFeatureData, ScatterplotElement } from './types';
+import type { LegendItem, LegendFeatureData, ScatterplotElement, ScatterplotData } from './types';
 
 /**
  * Utility class for legend state management and operations
@@ -20,7 +20,7 @@ export class LegendUtils {
   static getItemClasses(
     item: LegendItem,
     isItemSelected: boolean,
-    draggedItem: string | null
+    draggedItem: string | null,
   ): string {
     const classes = ['legend-item'];
 
@@ -38,7 +38,7 @@ export class LegendUtils {
   static performDragReorder(
     legendItems: LegendItem[],
     draggedItem: string | null,
-    targetItem: LegendItem
+    targetItem: LegendItem,
   ): LegendItem[] | null {
     // Find the indices
     const draggedIdx = legendItems.findIndex((i) => i.value === draggedItem);
@@ -74,7 +74,10 @@ export class LegendUtils {
   /**
    * Update feature data from scatterplot data
    */
-  static updateFeatureData(currentData: any, selectedFeature: string): LegendFeatureData {
+  static updateFeatureData(
+    currentData: ScatterplotData,
+    selectedFeature: string,
+  ): LegendFeatureData {
     return {
       name: selectedFeature,
       values: currentData.features[selectedFeature].values,
@@ -86,7 +89,10 @@ export class LegendUtils {
   /**
    * Extract feature values for current data
    */
-  static updateFeatureValues(currentData: any, selectedFeature: string): (string | null)[] {
+  static updateFeatureValues(
+    currentData: ScatterplotData,
+    selectedFeature: string,
+  ): (string | null)[] {
     return currentData.protein_ids.flatMap((_: string, index: number) => {
       const featureIdxData = currentData.feature_data[selectedFeature][index];
       // Handle both array and single value cases
@@ -104,7 +110,7 @@ export class LegendUtils {
    * Get current data from scatterplot element
    */
   static getCurrentScatterplotData(scatterplotElement: Element | null): {
-    currentData: any;
+    currentData: ScatterplotData;
     selectedFeature: string;
   } | null {
     if (!scatterplotElement || !('getCurrentData' in scatterplotElement)) {
@@ -179,7 +185,7 @@ export class LegendUtils {
     value: string,
     count: number,
     featureData: LegendFeatureData,
-    zOrder: number
+    zOrder: number,
   ): LegendItem {
     // Find the valueIndex for color and shape
     const valueIndex = featureData.values.indexOf(value);
@@ -201,7 +207,7 @@ export class LegendUtils {
   static updateScatterplotHiddenValues(
     scatterplotElement: Element | null,
     hiddenValues: string[],
-    autoHide: boolean
+    autoHide: boolean,
   ): void {
     if (autoHide && scatterplotElement && 'hiddenFeatureValues' in scatterplotElement) {
       (scatterplotElement as ScatterplotElement).hiddenFeatureValues = [...hiddenValues];

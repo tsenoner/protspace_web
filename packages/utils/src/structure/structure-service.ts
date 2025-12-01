@@ -96,7 +96,7 @@ export class StructureService {
     } catch (error) {
       console.error(
         `[StructureService] Failed to load AlphaFold structure for ${formattedId}:`,
-        error
+        error,
       );
       throw new Error(`AlphaFold structure not available for ${formattedId}`);
     }
@@ -119,7 +119,7 @@ export class StructureService {
    */
   public static async getAlphaFoldModelPageUrl(
     proteinId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<string | null> {
     const formattedId = this.formatProteinId(proteinId);
 
@@ -138,15 +138,20 @@ export class StructureService {
 
       const data = await res.json();
       const root = Array.isArray(data) ? data[0] : data;
-      const structures: any[] = root?.structures ?? [];
+      // API returns dynamic JSON structure, use Record for flexible access
+      const structures: Record<string, unknown>[] = root?.structures ?? [];
 
       let modelPageUrl: string | null = null;
       for (let i = 0; i < structures.length; i++) {
-        const summary = structures[i]?.summary;
+        const summary = (structures[i] as Record<string, unknown>)?.summary as
+          | Record<string, unknown>
+          | undefined;
         if (!summary) continue;
-        const provider = summary?.provider?.name ?? summary?.provider;
+        const providerObj = summary?.provider as Record<string, unknown> | string | undefined;
+        const provider =
+          typeof providerObj === 'object' ? (providerObj?.name as string) : providerObj;
         if (provider === 'AlphaFold DB') {
-          modelPageUrl = summary?.model_page_url ?? null;
+          modelPageUrl = (summary?.model_page_url as string) ?? null;
           break;
         }
       }

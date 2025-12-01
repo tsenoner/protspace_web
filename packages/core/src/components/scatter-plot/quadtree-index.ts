@@ -12,7 +12,7 @@ export class QuadtreeIndex {
     scales: {
       x: d3.ScaleLinear<number, number>;
       y: d3.ScaleLinear<number, number>;
-    } | null
+    } | null,
   ) {
     this.scales = scales;
   }

@@ -7,7 +7,7 @@ export class ScaleManager {
     width: number,
     height: number,
     margin: { top: number; right: number; bottom: number; left: number },
-    padding: number = 0.05
+    padding: number = 0.05,
   ) {
     if (data.length === 0) return null;
 
@@ -31,7 +31,7 @@ export class ScaleManager {
 
   static createColorScale(
     values: (string | null)[],
-    colors?: string[]
+    colors?: string[],
   ): d3.ScaleOrdinal<string, string> {
     const uniqueValues = Array.from(new Set(values.filter((v) => v != null))) as string[];
 
@@ -43,7 +43,7 @@ export class ScaleManager {
 
   static createSizeScale(
     values: number[],
-    range: [number, number] = [20, 200]
+    range: [number, number] = [20, 200],
   ): d3.ScaleLinear<number, number> {
     return d3
       .scaleLinear()

@@ -49,7 +49,7 @@ export class ProtspaceProteinSearch extends LitElement {
                     >
                       ${sid}
                     </div>
-                  `
+                  `,
                 )}
               </div>
             `
@@ -66,7 +66,7 @@ export class ProtspaceProteinSearch extends LitElement {
 
   private _focusSearchInput() {
     const input = this.shadowRoot?.querySelector(
-      '#protein-search-input'
+      '#protein-search-input',
     ) as HTMLInputElement | null;
     input?.focus();
   }
@@ -103,7 +103,7 @@ export class ProtspaceProteinSearch extends LitElement {
       if (this.searchSuggestions.length > 0) {
         const next = Math.min(
           this.highlightedSuggestionIndex + 1,
-          this.searchSuggestions.length - 1
+          this.searchSuggestions.length - 1,
         );
         this.highlightedSuggestionIndex = next;
       }
@@ -184,7 +184,7 @@ export class ProtspaceProteinSearch extends LitElement {
         detail: { proteinId: validId },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
@@ -217,7 +217,7 @@ export class ProtspaceProteinSearch extends LitElement {
           detail: { proteinIds: uniqueNewIds },
           bubbles: true,
           composed: true,
-        })
+        }),
       );
     }
 
@@ -238,7 +238,7 @@ export class ProtspaceProteinSearch extends LitElement {
           detail: { proteinIds: [] },
           bubbles: true,
           composed: true,
-        })
+        }),
       );
     }
   }
@@ -256,7 +256,7 @@ export class ProtspaceProteinSearch extends LitElement {
           detail: { proteinIds: validIds },
           bubbles: true,
           composed: true,
-        })
+        }),
       );
     }
   }

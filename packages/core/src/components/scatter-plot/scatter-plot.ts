@@ -94,7 +94,7 @@ export class ProtspaceScatterplot extends LitElement {
         this._plotData,
         config.width,
         config.height,
-        config.margin
+        config.margin,
       );
       this._scalesCacheDeps = {
         plotDataLength: this._plotData.length,
@@ -169,7 +169,7 @@ export class ProtspaceScatterplot extends LitElement {
           detail: { file: files[0] },
           bubbles: true,
           composed: true,
-        })
+        }),
       );
     }
   };
@@ -186,7 +186,7 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
-  updated(changedProperties: Map<string, any>) {
+  updated(changedProperties: Map<PropertyKey, unknown>) {
     if (
       changedProperties.has('data') ||
       changedProperties.has('selectedProjectionIndex') ||
@@ -207,7 +207,7 @@ export class ProtspaceScatterplot extends LitElement {
             detail: { data: this.data },
             bubbles: true,
             composed: true,
-          })
+          }),
         );
       }
     }
@@ -274,7 +274,7 @@ export class ProtspaceScatterplot extends LitElement {
     }
     // Render for other changes
     const selectionKeys = ['selectedProteinIds', 'highlightedProteinIds'];
-    const changedKeys = Array.from(changedProperties.keys());
+    const changedKeys = Array.from(changedProperties.keys()).map(String);
     const onlySelectionChanged =
       changedKeys.length > 0 && changedKeys.every((k) => selectionKeys.includes(k));
     if (!onlySelectionChanged) {
@@ -299,7 +299,7 @@ export class ProtspaceScatterplot extends LitElement {
           getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
           getShape: (p: PlotDataPoint) => this._getPointShape(p),
         },
-        () => this._mergedConfig.zoomSizeScaleExponent
+        () => this._mergedConfig.zoomSizeScaleExponent,
       );
       this._updateStyleSignature();
       this._canvasRenderer.setStyleSignature(this._styleSig);
@@ -316,7 +316,7 @@ export class ProtspaceScatterplot extends LitElement {
       this.selectedProjectionIndex,
       this._isolationMode,
       this._isolationHistory,
-      this.projectionPlane
+      this.projectionPlane,
     );
     // Invalidate scales cache when plot data changes
     this._invalidateScalesCache();
@@ -408,7 +408,7 @@ export class ProtspaceScatterplot extends LitElement {
             getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
             getShape: (p: PlotDataPoint) => this._getPointShape(p),
           },
-          () => this._mergedConfig.zoomSizeScaleExponent
+          () => this._mergedConfig.zoomSizeScaleExponent,
         );
         this._updateStyleSignature();
         this._canvasRenderer.setStyleSignature(this._styleSig);
@@ -500,7 +500,7 @@ export class ProtspaceScatterplot extends LitElement {
             },
             bubbles: true,
             composed: true,
-          })
+          }),
         );
 
         this.requestUpdate(); // Force re-render for highlighting
@@ -555,8 +555,8 @@ export class ProtspaceScatterplot extends LitElement {
 
     // Create points
     const points = this._mainGroup
-      .selectAll('.protein-point')
-      .data(this._plotData, (d: any) => d.id);
+      .selectAll<SVGElement, PlotDataPoint>('.protein-point')
+      .data(this._plotData, (d) => d.id);
 
     const enterPoints = points
       .enter()
@@ -675,7 +675,7 @@ export class ProtspaceScatterplot extends LitElement {
       new CustomEvent('protein-hover', {
         detail: { proteinId: point.id, point },
         bubbles: true,
-      })
+      }),
     );
   }
 
@@ -685,7 +685,7 @@ export class ProtspaceScatterplot extends LitElement {
       new CustomEvent('protein-hover', {
         detail: { proteinId: null },
         bubbles: true,
-      })
+      }),
     );
   }
 
@@ -703,7 +703,7 @@ export class ProtspaceScatterplot extends LitElement {
           },
         },
         bubbles: true,
-      })
+      }),
     );
   }
 
@@ -854,7 +854,7 @@ export class ProtspaceScatterplot extends LitElement {
                 <div class="tooltip-feature-header">${this.selectedFeature}:</div>
 
                 ${this._tooltipData.protein.featureValues[this.selectedFeature].map(
-                  (value) => html`<div class="tooltip-feature">${value || 'N/A'}</div>`
+                  (value) => html`<div class="tooltip-feature">${value || 'N/A'}</div>`,
                 )}
               </div>
             `
@@ -945,7 +945,7 @@ export class ProtspaceScatterplot extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
 
     // Dispatch data-change event to update legend and other auto-sync components
@@ -958,7 +958,7 @@ export class ProtspaceScatterplot extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
 
     // Auto-disable selection mode if only 1 point left
@@ -972,7 +972,7 @@ export class ProtspaceScatterplot extends LitElement {
           },
           bubbles: true,
           composed: true,
-        })
+        }),
       );
     }
   }
@@ -1011,7 +1011,7 @@ export class ProtspaceScatterplot extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
 
     // Dispatch data-change event to update legend back to full data
@@ -1024,7 +1024,7 @@ export class ProtspaceScatterplot extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 

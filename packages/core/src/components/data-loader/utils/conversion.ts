@@ -42,7 +42,7 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
 
   const projectionGroups = new Map<string, Rows>();
   for (const row of rows) {
-    const projectionName = row.projection_name || 'Unknown';
+    const projectionName = String(row.projection_name || 'Unknown');
     let group = projectionGroups.get(projectionName);
     if (!group) {
       group = [];
@@ -56,8 +56,8 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
       rows.map((row) => {
         const value = row[proteinIdCol];
         return value ? String(value) : '';
-      })
-    )
+      }),
+    ),
   );
 
   const projections = [] as VisualizationData['projections'];
@@ -139,7 +139,7 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
 
 async function convertBundleFormatDataOptimized(
   rows: Rows,
-  columnNames: string[]
+  columnNames: string[],
 ): Promise<VisualizationData> {
   const chunkSize = 5000;
   const proteinIdCol =
@@ -152,7 +152,7 @@ async function convertBundleFormatDataOptimized(
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, Math.min(i + chunkSize, rows.length));
     for (const row of chunk) {
-      const projectionName = row.projection_name || 'Unknown';
+      const projectionName = String(row.projection_name || 'Unknown');
       let group = projectionGroups.get(projectionName);
       if (!group) {
         group = [];
@@ -185,7 +185,7 @@ async function convertBundleFormatDataOptimized(
       }
     }
     const projectionData: Array<[number, number] | [number, number, number]> = new Array(
-      uniqueProteinIds.length
+      uniqueProteinIds.length,
     );
     for (let i = 0; i < uniqueProteinIds.length; i++) {
       projectionData[i] = coordMap.get(uniqueProteinIds[i]) || [0, 0];
@@ -205,7 +205,7 @@ async function convertBundleFormatDataOptimized(
     rows,
     columnNames,
     proteinIdCol,
-    uniqueProteinIds
+    uniqueProteinIds,
   );
 
   return { protein_ids: uniqueProteinIds, projections, features, feature_data };
@@ -227,7 +227,7 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
     });
     if (numericColumns.length === 0) {
       throw new Error(
-        `No projection coordinate pairs found. Available columns: ${columnNames.join(', ')}`
+        `No projection coordinate pairs found. Available columns: ${columnNames.join(', ')}`,
       );
     }
   }
@@ -267,7 +267,7 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
     const featureDataArray = rawValues.map((valueArray) =>
-      valueArray.map((v) => valueToIndex.get(v) ?? -1)
+      valueArray.map((v) => valueToIndex.get(v) ?? -1),
     );
 
     features[featureCol] = { values: uniqueValues, colors, shapes };
@@ -278,7 +278,7 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
 }
 
 export function findProjectionPairs(
-  columnNames: string[]
+  columnNames: string[],
 ): Array<{ name: string; xCol: string; yCol: string }> {
   const pairs: Array<{ name: string; xCol: string; yCol: string }> = [];
   const groups = new Map<string, { x?: string; y?: string }>();
@@ -426,7 +426,7 @@ export async function extractFeaturesOptimized(
   rows: Rows,
   columnNames: string[],
   proteinIdCol: string,
-  uniqueProteinIds: string[]
+  uniqueProteinIds: string[],
 ): Promise<{
   features: Record<string, Feature>;
   feature_data: Record<string, number[][]>;

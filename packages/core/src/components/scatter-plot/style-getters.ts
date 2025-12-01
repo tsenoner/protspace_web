@@ -64,7 +64,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     const hidden = new Set(styleConfig.hiddenFeatureValues);
     if (hidden.size === 0) return false;
     const normalizedKeys = feature.values.map((v) =>
-      v === null ? 'null' : typeof v === 'string' && v.trim() === '' ? '' : (v as string)
+      v === null ? 'null' : typeof v === 'string' && v.trim() === '' ? '' : (v as string),
     );
     return normalizedKeys.length > 0 && normalizedKeys.every((k) => hidden.has(k));
   };

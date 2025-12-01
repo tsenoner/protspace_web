@@ -65,7 +65,7 @@ export class CanvasRenderer {
     } | null,
     getTransform: () => d3.ZoomTransform,
     style: CanvasStyleGetters,
-    getSizeScaleExponent?: () => number
+    getSizeScaleExponent?: () => number,
   ) {
     this.canvas = canvas;
     this.getScales = getScales;
@@ -166,7 +166,20 @@ export class CanvasRenderer {
     // Build or reuse style groups cache
     if (!this.groupsCache) {
       // Batch points by style and shape, store indices
-      const tempGroups = new Map<string, { meta: any; idx: number[]; zOrders: number[] }>();
+      interface StyleGroupMeta {
+        isCircle: boolean;
+        isMultiLabel: boolean;
+        colors: string[];
+        strokeColor: string;
+        strokeWidth: number;
+        opacity: number;
+        path?: Path2D;
+        basePointSize: number;
+      }
+      const tempGroups = new Map<
+        string,
+        { meta: StyleGroupMeta; idx: number[]; zOrders: number[] }
+      >();
 
       for (let i = 0; i < pointsData.length; i++) {
         const point = pointsData[i];
