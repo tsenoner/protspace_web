@@ -41,24 +41,36 @@ Use the web components in any HTML page or JavaScript framework:
   <head>
     <script type="module">
       import '@protspace/core';
+      import {
+        readFileOptimized,
+        extractRowsFromParquetBundle,
+        convertParquetToVisualizationDataOptimized,
+      } from '@protspace/core';
     </script>
   </head>
   <body>
-    <protspace-data-loader id="loader" allow-drop></protspace-data-loader>
+    <input type="file" id="fileInput" accept=".parquetbundle" />
+
+    <protspace-control-bar auto-sync scatterplot-selector="#plot"></protspace-control-bar>
     <protspace-scatterplot id="plot"></protspace-scatterplot>
-    <protspace-legend auto-sync scatterplot-selector="protspace-scatterplot"></protspace-legend>
-    <protspace-control-bar
-      auto-sync
-      scatterplot-selector="protspace-scatterplot"
-    ></protspace-control-bar>
+    <protspace-legend auto-sync scatterplot-selector="#plot"></protspace-legend>
+    <protspace-structure-viewer auto-sync scatterplot-selector="#plot"></protspace-structure-viewer>
 
     <script type="module">
-      const loader = document.getElementById('loader');
+      const fileInput = document.getElementById('fileInput');
       const plot = document.getElementById('plot');
-      loader.addEventListener('data-loaded', (e) => {
-        plot.data = e.detail.data;
+
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const arrayBuffer = await readFileOptimized(file);
+        const rows = await extractRowsFromParquetBundle(arrayBuffer);
+        const data = await convertParquetToVisualizationDataOptimized(rows);
+
+        plot.data = data;
         plot.selectedProjectionIndex = 0;
-        plot.selectedFeature = Object.keys(e.detail.data.features)[0] || '';
+        plot.selectedFeature = Object.keys(data.features)[0] || '';
       });
     </script>
   </body>
@@ -67,10 +79,14 @@ Use the web components in any HTML page or JavaScript framework:
 
 ### Available Components
 
-- `<protspace-data-loader>`: Loads `.parquetbundle` files
-- `<protspace-scatterplot>`: 2D scatter plot
+- `<protspace-scatterplot>`: Main 2D/3D visualization
 - `<protspace-legend>`: Filter and color categories
-- `<protspace-control-bar>`: Switch projections and export
+- `<protspace-control-bar>`: Switch projections, features, and export
+- `<protspace-structure-viewer>`: Display 3D protein structures
+
+### Documentation
+
+📚 **[Full Documentation](https://tsenoner.github.io/protspace_web/)** - Complete guides, API reference, and examples
 
 ## 🔧 Development
 
