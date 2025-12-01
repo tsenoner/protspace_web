@@ -24,7 +24,7 @@ export async function initializeDemo() {
   const plotElement = document.getElementById('myPlot') as ProtspaceScatterplot | null;
   const legendElement = document.getElementById('myLegend') as ProtspaceLegend | null;
   const structureViewer = document.getElementById(
-    'myStructureViewer'
+    'myStructureViewer',
   ) as ProtspaceStructureViewer | null;
   const controlBar = document.getElementById('myControlBar') as ProtspaceControlBar | null;
   const dataLoader = document.getElementById('myDataLoader') as DataLoader | null;
@@ -76,7 +76,7 @@ export async function initializeDemo() {
       // Show enhanced loading indicator for large datasets
       if (isLargeDataset) {
         console.log(
-          `⚡ Large dataset detected (${dataSize.toLocaleString()} proteins) - using optimized loading pipeline`
+          `⚡ Large dataset detected (${dataSize.toLocaleString()} proteins) - using optimized loading pipeline`,
         );
 
         // Show enhanced loading overlay with performance info
@@ -187,7 +187,7 @@ export async function initializeDemo() {
                   plotElement.requestUpdate('data', oldData);
                   resolve();
                 },
-                { timeout: 1000 }
+                { timeout: 1000 },
               );
             });
           } else {
@@ -239,7 +239,7 @@ export async function initializeDemo() {
               controlBar.requestUpdate();
               resolve(undefined);
             },
-            isLargeDataset ? 50 : 10
+            isLargeDataset ? 50 : 10,
           ); // Longer delay for large datasets
         });
 
@@ -312,7 +312,7 @@ export async function initializeDemo() {
 
                       for (let k = 0; k < featureIdxArray.length; k++) {
                         featureValues.push(
-                          newData.features[firstFeature].values[featureIdxArray[k]]
+                          newData.features[firstFeature].values[featureIdxArray[k]],
                         );
                       }
                     }
@@ -351,7 +351,7 @@ export async function initializeDemo() {
 
               resolve(undefined);
             },
-            isLargeDataset ? 30 : 20
+            isLargeDataset ? 30 : 20,
           );
         });
 
@@ -402,12 +402,12 @@ export async function initializeDemo() {
         if (performanceMetrics.loadingTime > 5000) {
           console.warn(
             `⚠️ Loading took ${Math.round(
-              performanceMetrics.loadingTime / 1000
-            )}s. Consider using canvas mode for better performance.`
+              performanceMetrics.loadingTime / 1000,
+            )}s. Consider using canvas mode for better performance.`,
           );
         } else if (performanceMetrics.loadingTime < 1000) {
           console.log(
-            `🚀 Excellent performance! Loaded in ${Math.round(performanceMetrics.loadingTime)}ms`
+            `🚀 Excellent performance! Loaded in ${Math.round(performanceMetrics.loadingTime)}ms`,
           );
         }
       } finally {
@@ -448,14 +448,14 @@ export async function initializeDemo() {
         console.error('❌ Failed to load data from file:', error);
         console.log('💡 Make sure data.parquetbundle exists in the public directory');
         console.log(
-          '🎯 Alternative: You can drag and drop the data.parquetbundle file onto the data loader component'
+          '🎯 Alternative: You can drag and drop the data.parquetbundle file onto the data loader component',
         );
 
         // Show user-friendly error message with instructions
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.warn(`Auto-load failed: ${errorMessage}`);
         console.log(
-          '📋 The data loader is ready for drag-and-drop. Simply drag the data.parquetbundle file onto the component.'
+          '📋 The data loader is ready for drag-and-drop. Simply drag the data.parquetbundle file onto the component.',
         );
       }
     };
@@ -584,7 +584,7 @@ export async function initializeDemo() {
       if (status === 'loaded') {
         console.log(`✅ Structure viewer is now visible with protein ${proteinId}`);
         console.log(
-          `Close button should be visible in header (showCloseButton: ${structureViewer.showCloseButton})`
+          `Close button should be visible in header (showCloseButton: ${structureViewer.showCloseButton})`,
         );
       }
 

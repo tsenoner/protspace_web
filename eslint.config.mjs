@@ -4,13 +4,7 @@ import prettier from 'eslint-config-prettier';
 
 export default [
   {
-    ignores: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/build/**',
-      '**/*.d.ts',
-      '**/.turbo/**',
-    ],
+    ignores: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/*.d.ts', '**/.turbo/**'],
   },
   {
     files: ['packages/**/*.{ts,tsx}', 'examples/**/*.{ts,tsx}', 'docs/**/*.{ts,tsx}', '*.mjs'],

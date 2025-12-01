@@ -242,7 +242,7 @@ this.dispatchEvent(
     detail: { value: this.myProp },
     bubbles: true,
     composed: true,
-  })
+  }),
 );
 ```
 

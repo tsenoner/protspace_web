@@ -19,9 +19,7 @@ export default defineConfig(({ mode }) => ({
   },
   define: {
     __DOCS_URL__: JSON.stringify(
-      mode === 'development'
-        ? 'http://localhost:5174/docs/'
-        : 'https://protspace.app/docs/'
+      mode === 'development' ? 'http://localhost:5174/docs/' : 'https://protspace.app/docs/',
     ),
   },
 }));

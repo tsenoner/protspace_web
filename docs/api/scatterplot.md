@@ -191,15 +191,15 @@ Fired when the selection changes.
 plot.addEventListener('selection-change', (e) => {
   console.log(
     'Selected proteins:',
-    e.detail.selected.map((p) => p.id)
+    e.detail.selected.map((p) => p.id),
   );
   console.log(
     'Added:',
-    e.detail.added.map((p) => p.id)
+    e.detail.added.map((p) => p.id),
   );
   console.log(
     'Removed:',
-    e.detail.removed.map((p) => p.id)
+    e.detail.removed.map((p) => p.id),
   );
 });
 ```

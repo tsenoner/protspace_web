@@ -57,11 +57,7 @@ const Hero = () => {
             </Button>
 
             <Button variant="outline-hero" size="lg" className="w-full sm:w-auto" asChild>
-              <a
-                href={DOCS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
                 <BookOpen className="h-5 w-5" />
                 Documentation
               </a>

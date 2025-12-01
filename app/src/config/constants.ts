@@ -4,4 +4,3 @@
  * - Production: https://protspace.app/docs/
  */
 export const DOCS_URL = __DOCS_URL__;
-
