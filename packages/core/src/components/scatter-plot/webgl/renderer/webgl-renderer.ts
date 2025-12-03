@@ -1,6 +1,12 @@
-// ============================================================================
-// WebGL2 Renderer with Gamma-Correct Rendering Pipeline
-// ============================================================================
+/**
+ * WebGL2 Renderer with Gamma-Correct Rendering Pipeline
+ * 
+ * This renderer implements a two-pass gamma-correct rendering pipeline:
+ * 1. Render points to a linear RGB framebuffer
+ * 2. Apply gamma correction to convert to sRGB for display
+ * 
+ * Falls back to direct rendering if gamma pipeline is unavailable.
+ */
 
 import * as d3 from 'd3';
 import type { PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
@@ -15,7 +21,7 @@ import { resolveColor } from '../color-utils';
 import { createProgramFromSources } from '../shader-utils';
 
 // ============================================================================
-// Shaders (Inlined)
+// Shader Sources
 // ============================================================================
 
 const POINT_VERTEX_SHADER = `#version 300 es
@@ -61,6 +67,11 @@ void main() {
   fragColor = vec4(v_color.rgb * finalAlpha, finalAlpha);
 }`;
 
+// Constants
+const POINT_SIZE_DIVISOR = 3;
+const MIN_POINT_SIZE = 1;
+const MIN_CAPACITY = 1024;
+
 const GAMMA_VERTEX_SHADER = `#version 300 es
 precision highp float;
 
@@ -91,7 +102,7 @@ void main() {
 }`;
 
 // ============================================================================
-// WebGL2 Point Renderer
+// WebGL2 Renderer Implementation
 // ============================================================================
 
 export class WebGLRenderer {
@@ -153,7 +164,6 @@ export class WebGLRenderer {
   // Config
   private dpr = window.devicePixelRatio || 1;
   private styleSignature: string | null = null;
-  private selectedFeature = '';
   private gammaPipelineAvailable = true;
   private warnedGammaFallback = false;
 
@@ -172,6 +182,7 @@ export class WebGLRenderer {
   /**
    * Set the gamma value for display.
    * Standard sRGB displays use gamma ~2.2.
+   * @param gamma Gamma value (clamped between 1.0 and 3.0)
    */
   setGamma(gamma: number) {
     this.gamma = Math.max(1.0, Math.min(3.0, gamma));
@@ -179,6 +190,7 @@ export class WebGLRenderer {
 
   /**
    * Get the current gamma value.
+   * @returns Current gamma value
    */
   getGamma(): number {
     return this.gamma;
@@ -191,11 +203,12 @@ export class WebGLRenderer {
     }
   }
 
-  setSelectedFeature(feature: string) {
-    if (this.selectedFeature !== feature) {
-      this.selectedFeature = feature;
-      this.stylesDirty = true;
-    }
+  /**
+   * @deprecated Selected feature is now handled via style signature.
+   * Kept for backward compatibility.
+   */
+  setSelectedFeature(_feature: string) {
+    // No-op: selected feature is now part of style signature
   }
 
   invalidateStyleCache() {
@@ -234,25 +247,24 @@ export class WebGLRenderer {
   }
 
   private resizeLinearFramebuffer(width: number, height: number): boolean {
+    if (!this.gl) return false;
     const gl = this.gl;
-    if (!gl) return false;
 
-    // Delete old framebuffer if dimensions changed
+    // Reuse existing framebuffer if dimensions match
     if (this.linearFramebuffer) {
-      if (this.linearFramebuffer.width !== width || this.linearFramebuffer.height !== height) {
-        gl.deleteFramebuffer(this.linearFramebuffer.framebuffer);
-        gl.deleteTexture(this.linearFramebuffer.texture);
-        this.linearFramebuffer = null;
-      } else {
+      if (this.linearFramebuffer.width === width && this.linearFramebuffer.height === height) {
         return true;
       }
+      // Clean up old framebuffer
+      gl.deleteFramebuffer(this.linearFramebuffer.framebuffer);
+      gl.deleteTexture(this.linearFramebuffer.texture);
+      this.linearFramebuffer = null;
     }
 
     const framebuffer = gl.createFramebuffer();
     const texture = gl.createTexture();
 
     if (!framebuffer || !texture) {
-      this.linearFramebuffer = null;
       return false;
     }
 
@@ -275,7 +287,6 @@ export class WebGLRenderer {
       gl.deleteTexture(texture);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.bindTexture(gl.TEXTURE_2D, null);
-      this.linearFramebuffer = null;
       return false;
     }
 
@@ -287,9 +298,9 @@ export class WebGLRenderer {
   }
 
   private handleGammaFallback(reason?: string) {
-    if (this.gammaPipelineAvailable) {
-      this.gammaPipelineAvailable = false;
-    }
+    if (!this.gammaPipelineAvailable) return;
+    
+    this.gammaPipelineAvailable = false;
 
     if (!this.warnedGammaFallback) {
       const suffix = reason ? ` (${reason})` : '';
@@ -298,16 +309,26 @@ export class WebGLRenderer {
     }
 
     const gl = this.gl;
-    if (gl) {
-      if (this.gammaCorrectionProgram) {
-        gl.deleteProgram(this.gammaCorrectionProgram);
-      }
-      if (this.linearFramebuffer) {
-        gl.deleteFramebuffer(this.linearFramebuffer.framebuffer);
-        gl.deleteTexture(this.linearFramebuffer.texture);
-      }
+    if (!gl) {
+      this.cleanupGammaResources();
+      return;
     }
 
+    if (this.gammaCorrectionProgram) {
+      gl.deleteProgram(this.gammaCorrectionProgram);
+      this.gammaCorrectionProgram = null;
+    }
+    
+    if (this.linearFramebuffer) {
+      gl.deleteFramebuffer(this.linearFramebuffer.framebuffer);
+      gl.deleteTexture(this.linearFramebuffer.texture);
+      this.linearFramebuffer = null;
+    }
+
+    this.gammaCorrectionUniformLocations = null;
+  }
+
+  private cleanupGammaResources() {
     this.gammaCorrectionProgram = null;
     this.gammaCorrectionUniformLocations = null;
     this.linearFramebuffer = null;
@@ -365,13 +386,13 @@ export class WebGLRenderer {
   }
 
   /**
-   * Render with gamma-correct pipeline:
-   * 1. Render scene to linear RGB framebuffer
-   * 2. Apply gamma correction to convert to sRGB for display
+   * Render using gamma-correct pipeline:
+   * 1. Render points to linear RGB framebuffer
+   * 2. Apply gamma correction pass to convert to sRGB for display
+   * Falls back to direct rendering if pipeline is unavailable.
    */
   private renderWithGammaCorrection(transform: d3.ZoomTransform) {
-    const gl = this.gl;
-    if (!gl) return;
+    if (!this.gl) return;
 
     if (!this.shouldUseGammaPipeline()) {
       if (this.gammaPipelineAvailable) {
@@ -387,7 +408,9 @@ export class WebGLRenderer {
       return;
     }
 
-    // === PASS 1: Render to linear RGB framebuffer ===
+    const gl = this.gl;
+
+    // Pass 1: Render to linear RGB framebuffer
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer.framebuffer);
     gl.viewport(0, 0, framebuffer.width, framebuffer.height);
     gl.clearColor(0, 0, 0, 0);
@@ -396,11 +419,9 @@ export class WebGLRenderer {
     // Use premultiplied alpha blending for linear color space
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-
-    // Render points
     this.renderPoints(transform);
 
-    // === PASS 2: Gamma correction to canvas ===
+    // Pass 2: Gamma correction to canvas
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clearColor(0, 0, 0, 0);
@@ -410,9 +431,11 @@ export class WebGLRenderer {
   }
 
   private renderGammaCorrection() {
-    const gl = this.gl;
-    if (!gl || !this.gammaCorrectionProgram || !this.linearFramebuffer || !this.gammaCorrectionUniformLocations) return;
+    if (!this.gl || !this.gammaCorrectionProgram || !this.linearFramebuffer || !this.gammaCorrectionUniformLocations) {
+      return;
+    }
 
+    const gl = this.gl;
     gl.disable(gl.BLEND);
     gl.useProgram(this.gammaCorrectionProgram);
 
@@ -434,8 +457,8 @@ export class WebGLRenderer {
   }
 
   private renderDirect(transform: d3.ZoomTransform) {
+    if (!this.gl) return;
     const gl = this.gl;
-    if (!gl) return;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -449,8 +472,8 @@ export class WebGLRenderer {
   }
 
   dispose() {
+    if (!this.gl) return;
     const gl = this.gl;
-    if (!gl) return;
 
     if (this.pointVao) gl.deleteVertexArray(this.pointVao);
     if (this.dataPositionBuffer) gl.deleteBuffer(this.dataPositionBuffer);
@@ -498,6 +521,7 @@ export class WebGLRenderer {
     const colorBufferFloatExt = gl.getExtension('EXT_color_buffer_float');
     const floatBlendExt = gl.getExtension('EXT_float_blend');
     gl.getExtension('OES_texture_float_linear');
+    
     this.gammaPipelineAvailable = !!colorBufferFloatExt && !!floatBlendExt;
     if (!this.gammaPipelineAvailable) {
       this.handleGammaFallback('required extensions missing');
@@ -522,11 +546,8 @@ export class WebGLRenderer {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-    if (this.gammaPipelineAvailable) {
-      const success = this.resizeLinearFramebuffer(this.canvas.width, this.canvas.height);
-      if (!success) {
-        this.handleGammaFallback('framebuffer incomplete');
-      }
+    if (this.gammaPipelineAvailable && !this.resizeLinearFramebuffer(this.canvas.width, this.canvas.height)) {
+      this.handleGammaFallback('framebuffer incomplete');
     }
 
     return gl;
@@ -608,10 +629,13 @@ export class WebGLRenderer {
   // ============================================================================
 
   private renderPoints(transform: d3.ZoomTransform) {
-    const gl = this.gl;
-    if (!gl || this.currentPointCount === 0 || !this.pointProgram || !this.pointUniformLocations) return;
+    if (!this.gl || this.currentPointCount === 0 || !this.pointProgram || !this.pointUniformLocations) {
+      return;
+    }
 
+    const gl = this.gl;
     gl.useProgram(this.pointProgram);
+    
     const gamma = this.getEffectiveGamma();
     gl.uniform2f(this.pointUniformLocations.resolution, this.canvas.width, this.canvas.height);
     gl.uniform3f(this.pointUniformLocations.transform, transform.x, transform.y, transform.k);
@@ -638,18 +662,22 @@ export class WebGLRenderer {
 
   private computeStyleSignature(points: PlotDataPoint[]): string {
     if (points.length === 0) return 'empty';
+    
     const len = points.length;
     const indices = [0, Math.floor(len / 4), Math.floor(len / 2), len - 1];
-    const parts = indices.filter(i => i < len).map(i => {
-      const p = points[i];
-      return `${p.id}:${this.style.getOpacity(p).toFixed(2)}:${this.style.getColors(p)[0]}`;
-    });
+    const parts = indices
+      .filter(i => i < len)
+      .map(i => {
+        const p = points[i];
+        return `${p.id}:${this.style.getOpacity(p).toFixed(2)}:${this.style.getColors(p)[0]}`;
+      });
+    
     return `${this.styleSignature}|${parts.join('|')}`;
   }
 
   private populateBuffers(points: PlotDataPoint[], scales: ScalePair, updatePositions: boolean, updateStyles: boolean) {
+    if (!this.gl) return;
     const gl = this.gl;
-    if (!gl) return;
 
     const maxPoints = Math.min(points.length, MAX_POINTS_DIRECT_RENDER);
 
@@ -676,13 +704,13 @@ export class WebGLRenderer {
 
       if (updateStyles) {
         const [r, g, b] = resolveColor(this.style.getColors(point)[0] ?? '#888888');
-        const size = Math.sqrt(this.style.getPointSize(point)) / 3;
+        const size = Math.sqrt(this.style.getPointSize(point)) / POINT_SIZE_DIVISOR;
 
         this.colors[idx * 4] = r;
         this.colors[idx * 4 + 1] = g;
         this.colors[idx * 4 + 2] = b;
         this.colors[idx * 4 + 3] = Math.min(1, Math.max(0, opacity));
-        this.sizes[idx] = Math.max(1, size * 2 * this.dpr);
+        this.sizes[idx] = Math.max(MIN_POINT_SIZE, size * 2 * this.dpr);
       }
 
       idx++;
@@ -693,36 +721,30 @@ export class WebGLRenderer {
     gl.bindVertexArray(this.pointVao);
 
     if (updatePositions) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.dataPositionBuffer);
-      if (this.buffersInitialized) {
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.dataPositions.subarray(0, idx * 2));
-      } else {
-        gl.bufferData(gl.ARRAY_BUFFER, this.dataPositions, gl.DYNAMIC_DRAW);
-      }
+      this.updateBuffer(gl, this.dataPositionBuffer, this.dataPositions, idx * 2);
     }
 
     if (updateStyles) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.sizeBuffer);
-      if (this.buffersInitialized) {
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.sizes.subarray(0, idx));
-      } else {
-        gl.bufferData(gl.ARRAY_BUFFER, this.sizes, gl.DYNAMIC_DRAW);
-      }
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer);
-      if (this.buffersInitialized) {
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.colors.subarray(0, idx * 4));
-      } else {
-        gl.bufferData(gl.ARRAY_BUFFER, this.colors, gl.DYNAMIC_DRAW);
-      }
+      this.updateBuffer(gl, this.sizeBuffer, this.sizes, idx);
+      this.updateBuffer(gl, this.colorBuffer, this.colors, idx * 4);
     }
 
     gl.bindVertexArray(null);
     this.buffersInitialized = true;
   }
 
+  private updateBuffer(gl: WebGL2RenderingContext, buffer: WebGLBuffer | null, data: Float32Array, length: number) {
+    if (!buffer) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    if (this.buffersInitialized) {
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, data.subarray(0, length));
+    } else {
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    }
+  }
+
   private expandCapacity(minCapacity: number) {
-    const nextCapacity = Math.pow(2, Math.ceil(Math.log2(Math.max(minCapacity, 1024))));
+    const nextCapacity = Math.pow(2, Math.ceil(Math.log2(Math.max(minCapacity, MIN_CAPACITY))));
     this.capacity = nextCapacity;
     this.dataPositions = new Float32Array(nextCapacity * 2);
     this.colors = new Float32Array(nextCapacity * 4);
