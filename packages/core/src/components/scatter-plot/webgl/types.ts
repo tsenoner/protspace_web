@@ -19,27 +19,32 @@ export type ScalePair = {
   y: d3.ScaleLinear<number, number>;
 };
 
-export type RenderMode = 'points' | 'density' | 'hybrid';
+/**
+ * Configuration for gamma-correct rendering pipeline
+ */
+export interface GammaConfig {
+  /** Enable gamma-correct rendering pipeline (default: true for WebGL2) */
+  enabled: boolean;
+  /** Gamma value for display (standard sRGB is ~2.2) */
+  gamma: number;
+}
+
+/**
+ * Framebuffer resources for offscreen rendering
+ */
+export interface FramebufferResources {
+  framebuffer: WebGLFramebuffer;
+  texture: WebGLTexture;
+  width: number;
+  height: number;
+}
 
 // ============================================================================
-// Configuration Constants
+// Configuration Constants (tuned for performance)
 // ============================================================================
 
-/** Threshold for switching between density and point rendering */
-export const DENSITY_MODE_THRESHOLD = 10_000;
+/** Maximum points to render directly */
+export const MAX_POINTS_DIRECT_RENDER = 1_000_000;
 
-/** Points per pixel threshold - if higher, use density rendering */
-export const DENSITY_PER_PIXEL_THRESHOLD = 0.3;
-
-/** Density grid resolution */
-export const DENSITY_GRID_SIZE = 200;
-
-/** Kernel radius for density estimation (in grid cells) */
-export const KERNEL_RADIUS = 2;
-
-/** Zoom level at which to fully transition to point rendering */
-export const POINT_MODE_ZOOM_THRESHOLD = 5;
-
-/** Maximum points to render in point mode */
-export const MAX_POINTS_DIRECT_RENDER = 200_000;
-
+/** Default gamma value (standard sRGB) */
+export const DEFAULT_GAMMA = 2.2;

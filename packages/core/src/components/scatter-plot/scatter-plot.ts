@@ -10,7 +10,6 @@ import { WebGLRenderer } from './webgl';
 import { QuadtreeIndex } from './quadtree-index';
 
 // Virtualization is only needed for viewport culling on very large datasets
-// The WebGL renderer handles density/point mode switching automatically
 const VIRTUALIZATION_THRESHOLD = 500_000;
 const VIRTUALIZATION_PADDING = 100;
 type ScalePair = {
@@ -69,7 +68,6 @@ export class ProtspaceScatterplot extends LitElement {
   private _webglRenderer: WebGLRenderer | null = null;
   private _zoomRafId: number | null = null;
   private _styleSig: string | null = null;
-  private _zOrderMapping: Record<string, number> = {};
   private _styleGettersCache: ReturnType<typeof createStyleGetters> | null = null;
   private _quadtreeRebuildRafId: number | null = null;
   private _visiblePlotData: PlotDataPoint[] = [];
@@ -131,8 +129,6 @@ export class ProtspaceScatterplot extends LitElement {
     super.connectedCallback();
     this.resizeObserver.observe(this);
 
-    // Listen for legend z-order changes
-    this.addEventListener('legend-zorder-change', this._handleLegendZOrderChange.bind(this));
     this.addEventListener('dragover', this.handleDragOver);
     this.addEventListener('dragenter', this.handleDragEnter);
     this.addEventListener('dragleave', this.handleDragLeave);
@@ -184,18 +180,6 @@ export class ProtspaceScatterplot extends LitElement {
     }
   };
 
-  private _handleLegendZOrderChange(event: Event) {
-    const customEvent = event as CustomEvent;
-    const { zOrderMapping } = customEvent.detail;
-
-    if (zOrderMapping) {
-      this._zOrderMapping = { ...zOrderMapping };
-      // Update renderer with new z-order mapping
-      this._webglRenderer?.setZOrderMapping(this._zOrderMapping);
-      this._renderPlot();
-    }
-  }
-
   updated(changedProperties: Map<string, any>) {
     if (
       changedProperties.has('data') ||
@@ -236,11 +220,13 @@ export class ProtspaceScatterplot extends LitElement {
     ) {
       this._scheduleQuadtreeRebuild();
       this._webglRenderer?.invalidateStyleCache();
+      // Visibility might change (points hidden/shown), so we must rebuild position buffer
+      // to keep colors and positions in sync in the dense arrays
+      this._webglRenderer?.invalidatePositionCache();
       this._updateStyleSignature();
       this._webglRenderer?.setStyleSignature(this._styleSig);
       if (changedProperties.has('selectedFeature')) {
         this._webglRenderer?.setSelectedFeature(this.selectedFeature);
-        this._webglRenderer?.setZOrderMapping(this._zOrderMapping);
       }
     }
     if (changedProperties.has('selectionMode')) {
@@ -314,7 +300,6 @@ export class ProtspaceScatterplot extends LitElement {
       this._updateStyleSignature();
       this._webglRenderer.setStyleSignature(this._styleSig);
       this._webglRenderer.setSelectedFeature(this.selectedFeature);
-      this._webglRenderer.setZOrderMapping(this._zOrderMapping);
     }
   }
 
@@ -424,7 +409,6 @@ export class ProtspaceScatterplot extends LitElement {
         this._updateStyleSignature();
         this._webglRenderer.setStyleSignature(this._styleSig);
         this._webglRenderer.setSelectedFeature(this.selectedFeature);
-        this._webglRenderer.setZOrderMapping(this._zOrderMapping);
       }
       this._webglRenderer.resize(width, height);
       this._webglRenderer.invalidatePositionCache();
@@ -565,8 +549,7 @@ export class ProtspaceScatterplot extends LitElement {
       return this._plotData;
     }
 
-    // For very large datasets, apply viewport culling only
-    // The WebGL renderer handles density/point mode switching automatically
+    // For very large datasets, apply viewport culling
     const config = this._mergedConfig;
     const transform = this._transform;
     const padding = VIRTUALIZATION_PADDING;
@@ -723,6 +706,15 @@ export class ProtspaceScatterplot extends LitElement {
     const nearestPoint = this._quadtreeIndex.findNearest(dataX, dataY, searchRadius);
 
     if (nearestPoint) {
+      // Verify the point is actually rendered (not excluded due to point limits)
+      if (this._webglRenderer && !this._webglRenderer.isPointRendered(nearestPoint.id)) {
+        // Point exists in spatial index but isn't rendered - clear tooltip
+        if (this._tooltipData) {
+          this._tooltipData = null;
+        }
+        return;
+      }
+
       // Calculate actual distance to verify it's within the point
       const pointX = this._scales.x(nearestPoint.x);
       const pointY = this._scales.y(nearestPoint.y);
@@ -758,6 +750,11 @@ export class ProtspaceScatterplot extends LitElement {
     const nearestPoint = this._quadtreeIndex.findNearest(dataX, dataY, searchRadius);
 
     if (nearestPoint) {
+      // Verify the point is actually rendered (not excluded due to point limits)
+      if (this._webglRenderer && !this._webglRenderer.isPointRendered(nearestPoint.id)) {
+        return;
+      }
+
       // Calculate actual distance to verify it's within the point
       const pointX = this._scales.x(nearestPoint.x);
       const pointY = this._scales.y(nearestPoint.y);
