@@ -6,14 +6,23 @@ import { DataProcessor } from '@protspace/utils';
 import { scatterplotStyles } from './scatter-plot.styles';
 import { DEFAULT_CONFIG } from './config';
 import { createStyleGetters } from './style-getters';
-import { CanvasRenderer } from './canvas-renderer';
+import { WebGLRenderer } from './webgl';
 import { QuadtreeIndex } from './quadtree-index';
+
+// Virtualization is only needed for viewport culling on very large datasets
+// The WebGL renderer handles density/point mode switching automatically
+const VIRTUALIZATION_THRESHOLD = 500_000;
+const VIRTUALIZATION_PADDING = 100;
+type ScalePair = {
+  x: d3.ScaleLinear<number, number>;
+  y: d3.ScaleLinear<number, number>;
+};
 
 // Default configuration moved to config.ts
 
 /**
- * High-performance canvas-based scatterplot component for up to 100k points.
- * Uses canvas for rendering and SVG overlay for interactions.
+ * High-performance WebGL-based scatterplot component for large datasets.
+ * Uses WebGL for rendering and SVG overlay for interactions.
  */
 @customElement('protspace-scatterplot')
 export class ProtspaceScatterplot extends LitElement {
@@ -31,8 +40,6 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Array }) otherFeatureValues: string[] = [];
   @property({ type: Boolean }) useShapes: boolean = false;
   @property({ type: Object }) config: Partial<ScatterplotConfig> = {};
-  @property({ type: Boolean }) useCanvas = true;
-  @property({ type: Boolean }) enableVirtualization = false;
 
   // State
   @state() private _plotData: PlotDataPoint[] = [];
@@ -59,13 +66,15 @@ export class ProtspaceScatterplot extends LitElement {
   private _brushGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _overlayGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _brush: d3.BrushBehavior<unknown> | null = null;
-  private _canvasRenderer: CanvasRenderer | null = null;
+  private _webglRenderer: WebGLRenderer | null = null;
   private _zoomRafId: number | null = null;
   private _styleSig: string | null = null;
   private _zOrderMapping: Record<string, number> = {};
   private _styleGettersCache: ReturnType<typeof createStyleGetters> | null = null;
   private _quadtreeRebuildRafId: number | null = null;
-  private _cachedScales: ReturnType<typeof DataProcessor.createScales> = null;
+  private _visiblePlotData: PlotDataPoint[] = [];
+  private _virtualizationCacheKey: string | null = null;
+  private _cachedScales: ScalePair | null = null;
   private _scalesCacheDeps: {
     plotDataLength: number;
     width: number;
@@ -74,7 +83,7 @@ export class ProtspaceScatterplot extends LitElement {
   } | null = null;
 
   // Computed properties with caching
-  private get _scales() {
+  private get _scales(): ScalePair | null {
     const config = this._mergedConfig;
 
     // Check if cache is valid
@@ -90,12 +99,13 @@ export class ProtspaceScatterplot extends LitElement {
       this._scalesCacheDeps.margin.left !== config.margin.left;
 
     if (needsRecompute) {
-      this._cachedScales = DataProcessor.createScales(
+      const computedScales = DataProcessor.createScales(
         this._plotData,
         config.width,
         config.height,
         config.margin
-      );
+      ) as ScalePair | null;
+      this._cachedScales = computedScales;
       this._scalesCacheDeps = {
         plotDataLength: this._plotData.length,
         width: config.width,
@@ -180,8 +190,8 @@ export class ProtspaceScatterplot extends LitElement {
 
     if (zOrderMapping) {
       this._zOrderMapping = { ...zOrderMapping };
-      // Update CanvasRenderer with new z-order mapping
-      this._canvasRenderer?.setZOrderMapping(this._zOrderMapping);
+      // Update renderer with new z-order mapping
+      this._webglRenderer?.setZOrderMapping(this._zOrderMapping);
       this._renderPlot();
     }
   }
@@ -194,8 +204,8 @@ export class ProtspaceScatterplot extends LitElement {
     ) {
       this._processData();
       this._scheduleQuadtreeRebuild();
-      this._canvasRenderer?.invalidatePositionCache();
-      this._canvasRenderer?.invalidateStyleCache();
+      this._webglRenderer?.invalidatePositionCache();
+      this._webglRenderer?.invalidateStyleCache();
       if (changedProperties.has('data')) {
         this.resetZoom();
       }
@@ -215,8 +225,8 @@ export class ProtspaceScatterplot extends LitElement {
       const prev = this._mergedConfig;
       this._mergedConfig = { ...DEFAULT_CONFIG, ...prev, ...this.config };
       this._updateStyleSignature();
-      this._canvasRenderer?.invalidateStyleCache();
-      this._canvasRenderer?.setStyleSignature(this._styleSig);
+      this._webglRenderer?.invalidateStyleCache();
+      this._webglRenderer?.setStyleSignature(this._styleSig);
       this._scheduleQuadtreeRebuild();
     }
     if (
@@ -225,12 +235,12 @@ export class ProtspaceScatterplot extends LitElement {
       changedProperties.has('otherFeatureValues')
     ) {
       this._scheduleQuadtreeRebuild();
-      this._canvasRenderer?.invalidateStyleCache();
+      this._webglRenderer?.invalidateStyleCache();
       this._updateStyleSignature();
-      this._canvasRenderer?.setStyleSignature(this._styleSig);
+      this._webglRenderer?.setStyleSignature(this._styleSig);
       if (changedProperties.has('selectedFeature')) {
-        this._canvasRenderer?.setSelectedFeature(this.selectedFeature);
-        this._canvasRenderer?.setZOrderMapping(this._zOrderMapping);
+        this._webglRenderer?.setSelectedFeature(this.selectedFeature);
+        this._webglRenderer?.setZOrderMapping(this._zOrderMapping);
       }
     }
     if (changedProperties.has('selectionMode')) {
@@ -269,7 +279,7 @@ export class ProtspaceScatterplot extends LitElement {
       changedProperties.has('highlightedProteinIds')
     ) {
       this._updateSelectionOverlays();
-      this._canvasRenderer?.invalidateStyleCache();
+      this._webglRenderer?.invalidateStyleCache();
       this._renderPlot();
     }
     // Render for other changes
@@ -287,10 +297,11 @@ export class ProtspaceScatterplot extends LitElement {
     this._initializeInteractions();
     this._updateSizeAndRender();
     if (this._canvas) {
-      this._canvasRenderer = new CanvasRenderer(
+      this._webglRenderer = new WebGLRenderer(
         this._canvas,
         () => this._scales,
         () => this._transform,
+        () => this._mergedConfig,
         {
           getColors: (p: PlotDataPoint) => this._getColors(p),
           getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
@@ -298,13 +309,12 @@ export class ProtspaceScatterplot extends LitElement {
           getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
           getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
           getShape: (p: PlotDataPoint) => this._getPointShape(p),
-        },
-        () => this._mergedConfig.zoomSizeScaleExponent
+        }
       );
       this._updateStyleSignature();
-      this._canvasRenderer.setStyleSignature(this._styleSig);
-      this._canvasRenderer.setSelectedFeature(this.selectedFeature);
-      this._canvasRenderer.setZOrderMapping(this._zOrderMapping);
+      this._webglRenderer.setStyleSignature(this._styleSig);
+      this._webglRenderer.setSelectedFeature(this.selectedFeature);
+      this._webglRenderer.setZOrderMapping(this._zOrderMapping);
     }
   }
 
@@ -320,6 +330,7 @@ export class ProtspaceScatterplot extends LitElement {
     );
     // Invalidate scales cache when plot data changes
     this._invalidateScalesCache();
+    this._invalidateVirtualizationCache();
   }
 
   private _buildQuadtree() {
@@ -370,14 +381,14 @@ export class ProtspaceScatterplot extends LitElement {
         if (this._overlayGroup) {
           this._overlayGroup.attr('transform', event.transform);
         }
-        // Smooth canvas rendering during zoom using requestAnimationFrame
-        if (this.useCanvas && this._canvas) {
+        // Smooth WebGL rendering during zoom using requestAnimationFrame
+        if (this._canvas) {
           if (this._zoomRafId !== null) {
             cancelAnimationFrame(this._zoomRafId);
           }
           this._zoomRafId = requestAnimationFrame(() => {
             this._zoomRafId = null;
-            this._renderCanvas();
+            this._renderWebGL();
             this._updateSelectionOverlays();
           });
         }
@@ -395,28 +406,28 @@ export class ProtspaceScatterplot extends LitElement {
     const height = this.clientHeight || 600;
 
     if (this._canvas) {
-      if (!this._canvasRenderer) {
-        this._canvasRenderer = new CanvasRenderer(
+      if (!this._webglRenderer) {
+        this._webglRenderer = new WebGLRenderer(
           this._canvas,
           () => this._scales,
           () => this._transform,
-          {
-            getColors: (p: PlotDataPoint) => this._getColors(p),
-            getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
-            getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
-            getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
-            getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
-            getShape: (p: PlotDataPoint) => this._getPointShape(p),
-          },
-          () => this._mergedConfig.zoomSizeScaleExponent
+        () => this._mergedConfig,
+        {
+          getColors: (p: PlotDataPoint) => this._getColors(p),
+          getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
+          getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
+          getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
+          getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
+          getShape: (p: PlotDataPoint) => this._getPointShape(p),
+        }
         );
         this._updateStyleSignature();
-        this._canvasRenderer.setStyleSignature(this._styleSig);
-        this._canvasRenderer.setSelectedFeature(this.selectedFeature);
-        this._canvasRenderer.setZOrderMapping(this._zOrderMapping);
+        this._webglRenderer.setStyleSignature(this._styleSig);
+        this._webglRenderer.setSelectedFeature(this.selectedFeature);
+        this._webglRenderer.setZOrderMapping(this._zOrderMapping);
       }
-      this._canvasRenderer.setupHighDPICanvas(width, height);
-      this._canvasRenderer.invalidatePositionCache();
+      this._webglRenderer.resize(width, height);
+      this._webglRenderer.invalidatePositionCache();
     }
 
     if (this._svg) {
@@ -425,13 +436,14 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     this._mergedConfig = { ...this._mergedConfig, width, height };
+    this._invalidateVirtualizationCache();
     // Scales depend on width/height; rebuild spatial index to keep hit-testing accurate after resize
     this._scheduleQuadtreeRebuild();
     this._renderPlot();
     this._updateSelectionOverlays();
   }
 
-  // HiDPI setup and quality moved to CanvasRenderer
+  // HiDPI setup and quality handled by WebGLRenderer
 
   private _updateSelectionMode() {
     if (!this._svgSelection || !this._brushGroup || !this._scales) return;
@@ -520,88 +532,72 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _renderPlot() {
     if (!this._scales || this._plotData.length === 0) {
+      this._webglRenderer?.clear();
       return;
     }
 
-    // Always prefer canvas for better performance
-    if (this._canvas && this.useCanvas) {
-      this._renderCanvas();
-      // Setup canvas event handling for interactions
+    if (this._canvas && this._webglRenderer) {
+      this._renderWebGL();
       this._setupCanvasEventHandling();
-    } else {
-      // Fallback to SVG only if canvas is explicitly disabled
-      if (this._mainGroup) {
-        this._renderSVG();
-      }
     }
   }
 
-  private _renderCanvas() {
-    if (!this._canvasRenderer || !this._scales) return;
-    this._canvasRenderer.render(this._plotData);
+  private _renderWebGL() {
+    if (!this._webglRenderer || !this._scales) return;
+    const points = this._getPointsForRendering();
+    if (points.length === 0) {
+      this._webglRenderer.clear();
+      return;
+    }
+    this._webglRenderer.render(points);
     this._mainGroup?.selectAll('.protein-point').remove();
   }
 
-  private _renderSVG() {
-    if (!this._mainGroup || !this._scales) return;
+  private _getPointsForRendering(): PlotDataPoint[] {
+    if (!this._scales || this._plotData.length === 0) {
+      this._visiblePlotData = [];
+      return [];
+    }
 
-    const dataSize = this._plotData.length;
+    // For smaller datasets, pass all points - renderer handles display mode
+    if (this._plotData.length < VIRTUALIZATION_THRESHOLD || !this._quadtreeIndex.hasTree()) {
+      this._visiblePlotData = this._plotData;
+      return this._plotData;
+    }
+
+    // For very large datasets, apply viewport culling only
+    // The WebGL renderer handles density/point mode switching automatically
     const config = this._mergedConfig;
-    const useSimpleShapes = dataSize > config.maxPointsForComplexShapes || config.useSimpleShapes;
-    const enableTransitions = config.enableTransitions && dataSize < config.largeDatasetThreshold;
+    const transform = this._transform;
+    const padding = VIRTUALIZATION_PADDING;
 
-    // Clear any existing points
-    this._mainGroup.selectAll('.protein-point').remove();
+    const leftPx = transform.invertX(config.margin.left - padding);
+    const rightPx = transform.invertX(config.width - config.margin.right + padding);
+    const topPx = transform.invertY(config.margin.top - padding);
+    const bottomPx = transform.invertY(config.height - config.margin.bottom + padding);
 
-    // Create points
-    const points = this._mainGroup
-      .selectAll('.protein-point')
-      .data(this._plotData, (d: any) => d.id);
+    const minX = Math.min(leftPx, rightPx);
+    const maxX = Math.max(leftPx, rightPx);
+    const minY = Math.min(topPx, bottomPx);
+    const maxY = Math.max(topPx, bottomPx);
 
-    const enterPoints = points
-      .enter()
-      .append(useSimpleShapes ? 'circle' : 'path')
-      .attr('class', 'protein-point')
-      .attr('cursor', 'pointer')
-      .on('mouseover', (event, d) => this._handleMouseOver(event, d))
-      .on('mouseout', (event, d) => this._handleMouseOut(event, d))
-      .on('click', (event, d) => this._handleClick(event, d));
-
-    if (useSimpleShapes) {
-      enterPoints
-        .attr('r', (d) => Math.sqrt(this._getPointSize(d)) / 3)
-        .attr('cx', (d) => this._scales!.x(d.x))
-        .attr('cy', (d) => this._scales!.y(d.y));
-    } else {
-      enterPoints
-        .attr('d', (d) => this._getPointPath(d))
-        .attr('transform', (d) => `translate(${this._scales!.x(d.x)}, ${this._scales!.y(d.y)})`);
+    const cacheKey = `${Math.round(transform.x)}|${Math.round(transform.y)}|${transform.k.toFixed(3)}|${config.width}|${config.height}`;
+    if (this._virtualizationCacheKey !== cacheKey) {
+      this._visiblePlotData = this._quadtreeIndex.queryByPixels(minX, minY, maxX, maxY);
+      this._virtualizationCacheKey = cacheKey;
     }
 
-    enterPoints
-      .attr('fill', (d) => this._getColors(d))
-      .attr('stroke', (d) => this._getStrokeColor(d))
-      .attr('stroke-opacity', 0.5)
-      .attr('stroke-width', (d) => this._getStrokeWidth(d))
-      .attr('opacity', enableTransitions ? 0 : (d) => this._getOpacity(d));
+    return this._visiblePlotData;
+  }
 
-    if (enableTransitions) {
-      enterPoints
-        .transition()
-        .duration(config.transitionDuration)
-        .attr('opacity', (d) => this._getOpacity(d));
-    }
+  private _invalidateVirtualizationCache() {
+    this._virtualizationCacheKey = null;
+    this._visiblePlotData = this._plotData;
   }
 
   private _updateSelectionOverlays() {
     if (!this._overlayGroup) return;
     this._overlayGroup.selectAll('.selected-overlay').remove();
-  }
-
-  private _getPointPath(point: PlotDataPoint): string {
-    const shape = this._getPointShape(point);
-    const size = this._getPointSize(point);
-    return d3.symbol().type(shape).size(size)()!;
   }
 
   private _getPointShape(point: PlotDataPoint): d3.SymbolType {
@@ -679,16 +675,6 @@ export class ProtspaceScatterplot extends LitElement {
     );
   }
 
-  private _handleMouseOut(_event: MouseEvent, _point: PlotDataPoint) {
-    this._tooltipData = null;
-    this.dispatchEvent(
-      new CustomEvent('protein-hover', {
-        detail: { proteinId: null },
-        bubbles: true,
-      })
-    );
-  }
-
   private _handleClick(event: MouseEvent, point: PlotDataPoint) {
     this.dispatchEvent(
       new CustomEvent('protein-click', {
@@ -741,9 +727,7 @@ export class ProtspaceScatterplot extends LitElement {
       const pointX = this._scales.x(nearestPoint.x);
       const pointY = this._scales.y(nearestPoint.y);
       const distance = Math.sqrt(Math.pow(dataX - pointX, 2) + Math.pow(dataY - pointY, 2));
-      const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
-      const pointRadius =
-        Math.sqrt(this._getPointSize(nearestPoint)) / 3 / Math.pow(this._transform.k, exp);
+      const pointRadius = Math.sqrt(this._getPointSize(nearestPoint)) / 3;
 
       if (distance <= pointRadius) {
         this._handleMouseOver(event, nearestPoint);
@@ -778,9 +762,7 @@ export class ProtspaceScatterplot extends LitElement {
       const pointX = this._scales.x(nearestPoint.x);
       const pointY = this._scales.y(nearestPoint.y);
       const distance = Math.sqrt(Math.pow(dataX - pointX, 2) + Math.pow(dataY - pointY, 2));
-      const exp = this._mergedConfig.zoomSizeScaleExponent ?? 1;
-      const pointRadius =
-        Math.sqrt(this._getPointSize(nearestPoint)) / 3 / Math.pow(this._transform.k, exp);
+      const pointRadius = Math.sqrt(this._getPointSize(nearestPoint)) / 3;
 
       if (distance <= pointRadius) {
         this._handleClick(event, nearestPoint);
@@ -795,28 +777,6 @@ export class ProtspaceScatterplot extends LitElement {
     if (this._tooltipData) {
       this._tooltipData = null;
     }
-  }
-
-  // Public API Methods (these were missing in the original but are required by main.ts)
-  configurePerformance(dataSize: number, mode: string = 'auto') {
-    const config = { ...this._mergedConfig };
-
-    if (mode === 'fast' || dataSize > config.fastRenderingThreshold) {
-      this.useCanvas = true;
-      this.enableVirtualization = true;
-      config.enableTransitions = false;
-      config.useSimpleShapes = true;
-    } else if (mode === 'auto' || dataSize > config.largeDatasetThreshold) {
-      this.useCanvas = true; // Always prefer canvas for better performance
-      config.enableTransitions = false;
-    } else {
-      this.useCanvas = true; // Canvas is fast even for small datasets
-      config.enableTransitions = false; // Canvas doesn't use transitions
-      config.useSimpleShapes = false;
-    }
-
-    this._mergedConfig = config;
-    this.requestUpdate();
   }
 
   resetZoom() {
@@ -921,11 +881,11 @@ export class ProtspaceScatterplot extends LitElement {
     this._buildQuadtree();
 
     // Ensure canvas renderer is completely refreshed
-    if (this._canvasRenderer) {
-      this._canvasRenderer.invalidatePositionCache();
-      this._canvasRenderer.invalidateStyleCache();
+    if (this._webglRenderer) {
+      this._webglRenderer.invalidatePositionCache();
+      this._webglRenderer.invalidateStyleCache();
       this._updateStyleSignature();
-      this._canvasRenderer.setStyleSignature(this._styleSig);
+      this._webglRenderer.setStyleSignature(this._styleSig);
     }
 
     // Force immediate component update
@@ -987,11 +947,11 @@ export class ProtspaceScatterplot extends LitElement {
     this._buildQuadtree();
 
     // Ensure canvas renderer is completely refreshed
-    if (this._canvasRenderer) {
-      this._canvasRenderer.invalidatePositionCache();
-      this._canvasRenderer.invalidateStyleCache();
+    if (this._webglRenderer) {
+      this._webglRenderer.invalidatePositionCache();
+      this._webglRenderer.invalidateStyleCache();
       this._updateStyleSignature();
-      this._canvasRenderer.setStyleSignature(this._styleSig);
+      this._webglRenderer.setStyleSignature(this._styleSig);
     }
 
     // Force immediate component update

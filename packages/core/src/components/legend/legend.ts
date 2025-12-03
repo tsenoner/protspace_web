@@ -87,7 +87,7 @@ export class ProtspaceLegend extends LitElement {
 
   /**
    * Check if the current feature is multilabel (any protein has multiple values)
-   * Uses the same check as canvas-renderer: colors.length > 1 means multilabel
+   * Mirrors the scatterplot renderer logic: colors.length > 1 means multilabel
    */
   private _isMultilabelFeature(): boolean {
     const currentData = (this._scatterplotElement as ScatterplotElement)?.getCurrentData?.();

@@ -33,4 +33,33 @@ export class QuadtreeIndex {
     if (!this.qt) return undefined;
     return this.qt.find(screenX, screenY, radius) || undefined;
   }
+
+  hasTree(): boolean {
+    return !!this.qt;
+  }
+
+  queryByPixels(minX: number, minY: number, maxX: number, maxY: number): PlotDataPoint[] {
+    if (!this.qt || !this.scales) {
+      return [];
+    }
+
+    const results: PlotDataPoint[] = [];
+    this.qt.visit((node, x0, y0, x1, y1) => {
+      if (!node.length) {
+        let leaf: d3.QuadtreeLeaf<PlotDataPoint> | undefined = node as d3.QuadtreeLeaf<PlotDataPoint>;
+        while (leaf) {
+          const dataPoint = leaf.data;
+          const px = this.scales!.x(dataPoint.x);
+          const py = this.scales!.y(dataPoint.y);
+          if (px >= minX && px <= maxX && py >= minY && py <= maxY) {
+            results.push(dataPoint);
+          }
+          leaf = leaf.next as d3.QuadtreeLeaf<PlotDataPoint> | undefined;
+        }
+      }
+      return x0 > maxX || x1 < minX || y0 > maxY || y1 < minY;
+    });
+
+    return results;
+  }
 }

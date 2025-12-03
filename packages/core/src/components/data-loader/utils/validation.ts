@@ -8,7 +8,7 @@ const PARQUET_MAGIC = new Uint8Array([0x50, 0x41, 0x52, 0x31]);
 const MAX_FILE_SIZE_BYTES_DEFAULT = 500 * 1024 * 1024; // 500MB
 const MAX_ROWS_DEFAULT = 2_000_000;
 const MAX_COLUMNS_DEFAULT = 200;
-const MAX_TOTAL_CELLS_DEFAULT = 10_000_000;
+const MAX_TOTAL_CELLS_DEFAULT = 1_000_000_000;
 const MAX_CELL_STRING_LENGTH_DEFAULT = 1024;
 
 export function assertValidParquetMagic(buffer: ArrayBuffer): void {

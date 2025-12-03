@@ -10,13 +10,6 @@ export const DEFAULT_CONFIG: Required<ScatterplotConfig> = {
   baseOpacity: 0.8,
   selectedOpacity: 1.0,
   fadedOpacity: 0.15,
-  transitionDuration: 250,
-  largeDatasetThreshold: 5000,
-  fastRenderingThreshold: 10000,
-  enableTransitions: false,
-  useSimpleShapes: false,
-  maxPointsForComplexShapes: 2000,
-  zoomSizeScaleExponent: 1.0,
 };
 
 export const NEUTRAL_VALUE_COLOR = '#888888';

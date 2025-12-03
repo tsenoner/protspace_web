@@ -43,7 +43,6 @@ export async function initializeDemo() {
     const performanceMetrics = {
       lastDataSize: 0,
       loadingTime: 0,
-      renderingMode: 'unknown' as string,
     };
 
     // Function to load new data and reset all state with progressive loading and performance optimization
@@ -55,22 +54,12 @@ export async function initializeDemo() {
       // Store performance metrics
       performanceMetrics.lastDataSize = dataSize;
 
-      // Determine performance characteristics
+      // Determine if we need loading indicator (for large datasets)
       const isLargeDataset = dataSize > 1000;
-      const isMassiveDataset = dataSize > 10000;
-      const isMegaDataset = dataSize > 50000;
 
       console.log('📊 Dataset analysis:', {
         size: dataSize.toLocaleString(),
-        category: isMegaDataset
-          ? 'MEGA'
-          : isMassiveDataset
-            ? 'MASSIVE'
-            : isLargeDataset
-              ? 'LARGE'
-              : 'NORMAL',
         willUseProgressiveLoading: isLargeDataset,
-        expectedPerformanceMode: isMegaDataset ? 'canvas' : isMassiveDataset ? 'hybrid' : 'svg',
       });
 
       // Show enhanced loading indicator for large datasets
@@ -90,29 +79,17 @@ export async function initializeDemo() {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         `;
 
-        const performanceMode = isMegaDataset
-          ? 'Canvas (Maximum Performance)'
-          : isMassiveDataset
-            ? 'Hybrid (Balanced)'
-            : 'SVG (High Quality)';
-
         loadingOverlay.innerHTML = `
           <div style="text-align: center; max-width: 500px;">
-            <div style="font-size: 24px; margin-bottom: 10px;">🚀 ProtSpace Performance Mode</div>
+            <div style="font-size: 24px; margin-bottom: 10px;">🚀 Loading ProtSpace</div>
             <div style="font-size: 18px; margin-bottom: 20px;">
               Processing ${dataSize.toLocaleString()} proteins
-            </div>
-            <div style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">
-              Rendering Mode: <strong>${performanceMode}</strong>
             </div>
             <div style="width: 300px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: 20px auto;">
               <div id="progress-bar" style="height: 100%; background: linear-gradient(90deg, #3b82f6, #06b6d4); border-radius: 2px; width: 0%; transition: width 0.3s ease;"></div>
             </div>
             <div id="progress-text" style="font-size: 14px; opacity: 0.8; margin-top: 10px;">
-              Initializing performance optimizations...
-            </div>
-            <div style="font-size: 12px; opacity: 0.6; margin-top: 15px;">
-              Large datasets use automatic performance optimization
+              Initializing...
             </div>
           </div>
         `;
@@ -130,76 +107,18 @@ export async function initializeDemo() {
         if (isLargeDataset) {
           const progressBar = document.getElementById('progress-bar');
           const progressText = document.getElementById('progress-text');
-          if (progressBar) progressBar.style.width = '10%';
-          if (progressText)
-            progressText.textContent = 'Step 1/5: Configuring performance settings...';
-        }
-
-        // ✨ NEW: Configure performance settings based on data size
-        console.log('⚡ Configuring performance settings...');
-        if (isMegaDataset) {
-          // Maximum performance for mega datasets
-          plotElement.configurePerformance(dataSize, 'fast');
-          plotElement.useCanvas = true;
-          plotElement.enableVirtualization = true;
-          performanceMetrics.renderingMode = 'canvas-extreme';
-          console.log('🎨 Configured for EXTREME performance mode (canvas + virtualization)');
-        } else if (isMassiveDataset) {
-          // Balanced performance for massive datasets
-          plotElement.configurePerformance(dataSize, 'auto');
-          performanceMetrics.renderingMode = 'auto-optimized';
-          console.log('⚖️ Configured for AUTO performance mode (balanced)');
-        } else if (isLargeDataset) {
-          // Quality-focused but still optimized
-          plotElement.configurePerformance(dataSize, 'auto');
-          performanceMetrics.renderingMode = 'svg-optimized';
-          console.log('✨ Configured for OPTIMIZED performance mode (quality + speed)');
-        } else {
-          // Maximum quality for small datasets
-          plotElement.configurePerformance(dataSize, 'quality');
-          performanceMetrics.renderingMode = 'svg-quality';
-          console.log('🌟 Configured for QUALITY performance mode (full features)');
+          if (progressBar) progressBar.style.width = '20%';
+          if (progressText) progressText.textContent = 'Step 1/4: Loading data into scatterplot...';
         }
 
         // Yield to browser before heavy processing
         await new Promise((resolve) => requestAnimationFrame(resolve));
 
-        // Update progress
-        if (isLargeDataset) {
-          const progressBar = document.getElementById('progress-bar');
-          const progressText = document.getElementById('progress-text');
-          if (progressBar) progressBar.style.width = '25%';
-          if (progressText) progressText.textContent = 'Step 2/5: Loading data into scatterplot...';
-        }
-
-        // Update scatterplot with new data (non-blocking)
+        // Update scatterplot with new data
         console.log('📊 Updating scatterplot with new data...');
         const oldData = plotElement.data;
-
-        // ✨ NEW: Set data with performance-aware batching
-        if (isMegaDataset) {
-          // For mega datasets, use requestIdleCallback if available
-          if ('requestIdleCallback' in window) {
-            await new Promise<void>((resolve) => {
-              (window as any).requestIdleCallback(
-                () => {
-                  plotElement.data = newData;
-                  plotElement.requestUpdate('data', oldData);
-                  resolve();
-                },
-                { timeout: 1000 }
-              );
-            });
-          } else {
-            // Fallback for browsers without requestIdleCallback
-            await new Promise((resolve) => setTimeout(resolve, 10));
-            plotElement.data = newData;
-            plotElement.requestUpdate('data', oldData);
-          }
-        } else {
-          plotElement.data = newData;
-          plotElement.requestUpdate('data', oldData);
-        }
+        plotElement.data = newData;
+        plotElement.requestUpdate('data', oldData);
 
         plotElement.selectedProjectionIndex = 0;
         const firstFeatureKey = Object.keys(newData.features)[0] || '';
@@ -213,15 +132,14 @@ export async function initializeDemo() {
           features: Object.keys(newData.features),
           proteinCount: newData.protein_ids.length,
           selectedFeature: plotElement.selectedFeature,
-          renderingMode: performanceMetrics.renderingMode,
         });
 
         // Update progress
         if (isLargeDataset) {
           const progressBar = document.getElementById('progress-bar');
           const progressText = document.getElementById('progress-text');
-          if (progressBar) progressBar.style.width = '50%';
-          if (progressText) progressText.textContent = 'Step 3/5: Updating control interface...';
+          if (progressBar) progressBar.style.width = '40%';
+          if (progressText) progressText.textContent = 'Step 2/4: Updating control interface...';
         }
 
         // Yield to browser
@@ -247,8 +165,8 @@ export async function initializeDemo() {
         if (isLargeDataset) {
           const progressBar = document.getElementById('progress-bar');
           const progressText = document.getElementById('progress-text');
-          if (progressBar) progressBar.style.width = '75%';
-          if (progressText) progressText.textContent = 'Step 4/5: Processing legend data...';
+          if (progressBar) progressBar.style.width = '60%';
+          if (progressText) progressText.textContent = 'Step 3/4: Processing legend data...';
         }
 
         // Yield to browser
@@ -265,42 +183,11 @@ export async function initializeDemo() {
               legendElement.data = { features: newData.features };
               legendElement.selectedFeature = Object.keys(newData.features)[0] || '';
 
-              // ✨ NEW: Enhanced progressive processing with memory management
+              // Process legend feature values
               const firstFeature = Object.keys(newData.features)[0];
               if (firstFeature) {
-                if (isMegaDataset) {
-                  // Mega datasets: Use web workers if available, otherwise chunk processing
-                  console.log('🔧 Using advanced chunked processing for mega dataset...');
-                  const chunkSize = 2000; // Larger chunks for better performance
-                  const featureValues: (string | null)[] = [];
-
-                  for (let i = 0; i < newData.protein_ids.length; i += chunkSize) {
-                    const endIndex = Math.min(i + chunkSize, newData.protein_ids.length);
-
-                    // Process chunk with optimized loop
-                    const featureDataArray = newData.feature_data[firstFeature];
-                    const featureValuesArray = newData.features[firstFeature].values;
-
-                    for (let j = i; j < endIndex; j++) {
-                      // featureValues = featureValuesArray[featureDataArray[j]];
-                      for (let k = 0; k < featureDataArray[j].length; k++) {
-                        featureValues.push(featureValuesArray[featureDataArray[j][k]]);
-                      }
-                    }
-
-                    // Yield to browser every few chunks and update progress
-                    if (i % (chunkSize * 3) === 0) {
-                      const progress = 75 + (i / newData.protein_ids.length) * 20;
-                      const progressBar = document.getElementById('progress-bar');
-                      if (progressBar) progressBar.style.width = `${progress}%`;
-
-                      await new Promise((resolve) => requestAnimationFrame(resolve));
-                    }
-                  }
-
-                  legendElement.featureValues = featureValues;
-                } else if (isLargeDataset) {
-                  // Large datasets: Standard chunked processing
+                if (isLargeDataset) {
+                  // Large datasets: Chunked processing to keep UI responsive
                   const chunkSize = 1000;
                   const featureValues: (string | null)[] = [];
 
@@ -317,17 +204,20 @@ export async function initializeDemo() {
                       }
                     }
 
+                    // Yield to browser and update progress
                     if (i + chunkSize < newData.protein_ids.length) {
+                      const progress = 60 + (i / newData.protein_ids.length) * 30;
+                      const progressBar = document.getElementById('progress-bar');
+                      if (progressBar) progressBar.style.width = `${progress}%`;
                       await new Promise((resolve) => requestAnimationFrame(resolve));
                     }
                   }
 
                   legendElement.featureValues = featureValues;
                 } else {
-                  // Small datasets: Process normally with high quality
+                  // Small datasets: Process directly
                   const featureValues = newData.protein_ids.flatMap((_, index) => {
                     const featureIdx = newData.feature_data[firstFeature][index];
-
                     return featureIdx.map((idx) => newData.features[firstFeature].values[idx]);
                   });
                   legendElement.featureValues = featureValues;
@@ -342,11 +232,6 @@ export async function initializeDemo() {
                 feature: legendElement.selectedFeature,
                 dataKeys: Object.keys(newData.features),
                 proteinCount: newData.protein_ids.length,
-                processingMode: isMegaDataset
-                  ? 'chunked-optimized'
-                  : isLargeDataset
-                    ? 'chunked'
-                    : 'standard',
               });
 
               resolve(undefined);
@@ -360,7 +245,7 @@ export async function initializeDemo() {
           const progressBar = document.getElementById('progress-bar');
           const progressText = document.getElementById('progress-text');
           if (progressBar) progressBar.style.width = '95%';
-          if (progressText) progressText.textContent = 'Step 5/5: Finalizing interface...';
+          if (progressText) progressText.textContent = 'Step 4/4: Finalizing interface...';
         }
 
         // Yield to browser
@@ -379,7 +264,7 @@ export async function initializeDemo() {
           const progressText = document.getElementById('progress-text');
           if (progressBar) progressBar.style.width = '100%';
           if (progressText)
-            progressText.textContent = '✅ Loading complete! Optimized for performance.';
+            progressText.textContent = '✅ Loading complete!';
 
           // Keep the success message visible briefly
           await new Promise((resolve) => setTimeout(resolve, 800));
@@ -388,28 +273,10 @@ export async function initializeDemo() {
         const endTime = performance.now();
         performanceMetrics.loadingTime = endTime - startTime;
 
-        console.log('✅ Performance-optimized data loading completed:', {
+        console.log('✅ Data loading completed:', {
           proteins: newData.protein_ids.length.toLocaleString(),
           loadingTime: `${Math.round(performanceMetrics.loadingTime)}ms`,
-          renderingMode: performanceMetrics.renderingMode,
-          averageTimePerProtein: `${(
-            performanceMetrics.loadingTime / newData.protein_ids.length
-          ).toFixed(3)}ms`,
-          memoryEstimate: `~${Math.round((newData.protein_ids.length * 0.1) / 1024)}MB`,
         });
-
-        // ✨ NEW: Performance monitoring and optimization feedback
-        if (performanceMetrics.loadingTime > 5000) {
-          console.warn(
-            `⚠️ Loading took ${Math.round(
-              performanceMetrics.loadingTime / 1000
-            )}s. Consider using canvas mode for better performance.`
-          );
-        } else if (performanceMetrics.loadingTime < 1000) {
-          console.log(
-            `🚀 Excellent performance! Loaded in ${Math.round(performanceMetrics.loadingTime)}ms`
-          );
-        }
       } finally {
         // Remove loading overlay with fade effect
         if (isLargeDataset) {
