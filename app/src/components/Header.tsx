@@ -1,7 +1,6 @@
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { DOCS_URL } from '@/config/constants';
 import { GitHubIcon } from '@/components/icons/brand-icons';
 
 const Header = () => {
@@ -25,25 +24,17 @@ const Header = () => {
             >
               Home
             </a>
-            <a
-              href="#features"
-              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-            >
-              Features
-            </a>
-            <a
-              href={DOCS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/docs/"
               className="text-sm font-medium text-foreground hover:text-primary transition-colors"
             >
               Docs
-            </a>
+            </Link>
             <Link
-              to="/demo"
+              to="/explore"
               className="text-sm font-medium text-foreground hover:text-primary transition-colors"
             >
-              Demo
+              Explore
             </Link>
             <a
               href="https://github.com/tsenoner/protspace_web"
@@ -76,27 +67,19 @@ const Header = () => {
             >
               Home
             </a>
-            <a
-              href="#features"
+            <Link
+              to="/docs/"
               className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               onClick={() => setIsMenuOpen(false)}
-            >
-              Features
-            </a>
-            <a
-              href={DOCS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
             >
               Docs
-            </a>
+            </Link>
             <Link
-              to="/demo"
+              to="/explore"
               className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               onClick={() => setIsMenuOpen(false)}
             >
-              Demo
+              Explore
             </Link>
             <a
               href="https://github.com/tsenoner/protspace_web"
