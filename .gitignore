@@ -48,3 +48,6 @@ next-env.d.ts
 # vitepress
 docs/.vitepress/cache
 docs/.vitepress/dist
+
+# publication data
+/publication

@@ -124,7 +124,7 @@ pnpm docs:preview
 
 ## Monorepo Structure
 
-ProtSpace Web uses a monorepo managed by Turbo:
+ProtSpace uses a monorepo managed by Turbo:
 
 ### Workspaces
 

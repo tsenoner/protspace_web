@@ -444,7 +444,7 @@ await loadFromUrl('./my-dataset.parquetbundle');
 ```javascript
 // Check if Web Components are supported
 if ('customElements' in window) {
-  // Load ProtSpace Web
+  // Load ProtSpace
   import('@protspace/core');
 } else {
   // Fallback for older browsers

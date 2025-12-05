@@ -102,9 +102,9 @@ Technically possible but not recommended. Performance degrades significantly abo
 
 ## Integration
 
-### Can I embed ProtSpace Web in my website?
+### Can I embed ProtSpace in my website?
 
-Yes. ProtSpace Web provides web components that work in any HTML page. See [Integration guides](/guide/integration-html).
+Yes. ProtSpace provides web components that work in any HTML page. See [Integration guides](/guide/integration-html).
 
 ### Does it work offline?
 
@@ -120,7 +120,7 @@ Yes. Web components work in all frameworks. See integration guides:
 
 ### Is there a backend API?
 
-No. ProtSpace Web is purely client-side. All processing happens in the browser.
+No. ProtSpace is purely client-side. All processing happens in the browser.
 
 ## Technical
 

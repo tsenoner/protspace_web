@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { GitHubIcon } from '@/components/icons/brand-icons';
 
 const Footer = () => {
@@ -22,12 +21,12 @@ const Footer = () => {
               <GitHubIcon />
               <span className="text-sm">GitHub</span>
             </a>
-            <Link
-              to="/docs/"
+            <a
+              href="/docs/"
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               Documentation
-            </Link>
+            </a>
           </div>
         </div>
       </div>

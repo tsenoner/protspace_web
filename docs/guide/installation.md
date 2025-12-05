@@ -117,7 +117,7 @@ See [Data Preparation](/guide/data-preparation) for detailed instructions.
 
 ### Browser Support
 
-ProtSpace Web requires modern browsers with WebGL support:
+ProtSpace requires modern browsers with WebGL support:
 
 - Chrome 80+
 - Firefox 75+

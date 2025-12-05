@@ -162,7 +162,7 @@ interface DatasetMetadata {
 
 ## Feature Types
 
-ProtSpace Web automatically detects feature types:
+ProtSpace automatically detects feature types:
 
 ### Categorical Features
 

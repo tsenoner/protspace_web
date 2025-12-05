@@ -24,12 +24,12 @@ const Header = () => {
             >
               Home
             </a>
-            <Link
-              to="/docs/"
+            <a
+              href="/docs/"
               className="text-sm font-medium text-foreground hover:text-primary transition-colors"
             >
               Docs
-            </Link>
+            </a>
             <Link
               to="/explore"
               className="text-sm font-medium text-foreground hover:text-primary transition-colors"
@@ -67,13 +67,13 @@ const Header = () => {
             >
               Home
             </a>
-            <Link
-              to="/docs/"
+            <a
+              href="/docs/"
               className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               onClick={() => setIsMenuOpen(false)}
             >
               Docs
-            </Link>
+            </a>
             <Link
               to="/explore"
               className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"

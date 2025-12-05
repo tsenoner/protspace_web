@@ -10,6 +10,14 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: '::',
     port: 8080,
+    proxy: {
+      // Proxy /docs/* requests to VitePress dev server
+      '/docs': {
+        target: 'http://localhost:5174',
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
   plugins: [react(), mode === 'development' && componentTagger()].filter(Boolean),
   resolve: {

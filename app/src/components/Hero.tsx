@@ -44,8 +44,9 @@ const Hero = () => {
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
             Explore, analyze, understand your protein space.
             <br />
-            Put your embeddings and UniProt side by side to uncover confirmations, contradictions,
-            and unexpected biology.
+            Put your embeddings and UniProt side by side to uncover
+            <br />
+            confirmations, contradictions, and unexpected biology.
           </p>
 
           {/* CTA Buttons */}
@@ -58,10 +59,10 @@ const Hero = () => {
             </Button>
 
             <Button variant="outline-hero" size="lg" className="w-full sm:w-auto" asChild>
-              <Link to="/docs/">
+              <a href="/docs/">
                 <BookOpen className="h-5 w-5" />
                 Documentation
-              </Link>
+              </a>
             </Button>
 
             <Button variant="outline-hero" size="lg" className="w-full sm:w-auto" asChild>
@@ -85,7 +86,7 @@ const Hero = () => {
               Apache-2.0 License
             </span>
             <span className="px-4 py-2 rounded-full bg-card/50 backdrop-blur-sm border border-border/40 text-sm">
-              AlphaFold2 Integration
+              3D-Beacons API
             </span>
           </div>
         </div>

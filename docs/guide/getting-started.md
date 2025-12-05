@@ -183,7 +183,7 @@ See the [Python ProtSpace repository](https://github.com/tsenoner/protspace) for
 
 ## Core Components
 
-ProtSpace Web consists of four main components that work together:
+ProtSpace consists of four main components that work together:
 
 | Component                      | Purpose                             |
 | ------------------------------ | ----------------------------------- |
@@ -233,7 +233,7 @@ Components with `auto-sync` attribute automatically communicate with the scatter
 
 ## Loading Data
 
-ProtSpace Web uses programmatic data loading. Here are common patterns:
+ProtSpace uses programmatic data loading. Here are common patterns:
 
 ### File Input
 

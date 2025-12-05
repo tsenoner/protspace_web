@@ -74,7 +74,7 @@ ProtSpace provides four main web components that work together to create interac
 
 ## Data Loading Utilities
 
-ProtSpace Web uses programmatic data loading. See [Data Loading](/api/data-loading) for utilities:
+ProtSpace uses programmatic data loading. See [Data Loading](/api/data-loading) for utilities:
 
 - `readFileOptimized(file)` - Efficiently read large files
 - `isParquetBundle(arrayBuffer)` - Validate bundle format
