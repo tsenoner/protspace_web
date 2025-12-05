@@ -1,5 +1,7 @@
 import { defineConfig } from 'vitepress';
 
+const HOME_URL = process.env.VITE_HOME_URL || 'http://localhost:8080/';
+
 export default defineConfig({
   title: 'ProtSpace',
   description: 'Interactive visualization for protein language model embeddings',
@@ -9,9 +11,15 @@ export default defineConfig({
   head: [['link', { rel: 'icon', href: '/docs/favicon.svg' }]],
 
   themeConfig: {
-    logo: { src: '/docs/logo.svg', link: '/' },
+    logo: { src: '/logo.svg' },
+    siteTitle: 'ProtSpace',
 
     nav: [
+      {
+        text: 'Home',
+        link: HOME_URL,
+        target: '_self',
+      },
       { text: 'Guide', link: '/guide/' },
       { text: 'API', link: '/api/' },
       { text: 'Examples', link: '/examples/' },
