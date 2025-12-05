@@ -1,7 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Database, BookOpen, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { DOCS_URL } from '@/config/constants';
 
 const Hero = () => {
   return (
@@ -43,24 +42,26 @@ const Hero = () => {
 
           {/* Subtitle */}
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
-            Explore, analyze, and understand large-scale protein embeddings through interactive
-            visualizations, clustering, and metadata integration.
+            Explore, analyze, understand your protein space.
+            <br />
+            Put your embeddings and UniProt side by side to uncover confirmations, contradictions,
+            and unexpected biology.
           </p>
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
             <Button variant="hero" size="lg" className="w-full sm:w-auto" asChild>
-              <Link to="/demo">
+              <Link to="/explore">
                 <Play className="h-5 w-5" />
                 Start Exploring
               </Link>
             </Button>
 
             <Button variant="outline-hero" size="lg" className="w-full sm:w-auto" asChild>
-              <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
+              <Link to="/docs/">
                 <BookOpen className="h-5 w-5" />
                 Documentation
-              </a>
+              </Link>
             </Button>
 
             <Button variant="outline-hero" size="lg" className="w-full sm:w-auto" asChild>
