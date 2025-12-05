@@ -94,7 +94,7 @@ Use the web components in any HTML page or JavaScript framework:
 git clone https://github.com/tsenoner/protspace_web.git
 cd protspace_web
 pnpm install
-pnpm dev  # starts local demo at http://localhost:5173
+pnpm dev  # App: http://localhost:8080 | Docs: http://localhost:5174/docs/
 ```
 
 ## 🧹 Code Style (Prettier + ESLint)

@@ -2,12 +2,13 @@ import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GitHubIcon } from '@/components/icons/brand-icons';
+import { DOCS_URL } from '@/config';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-lg">
+    <header className="absolute top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-lg">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
@@ -18,14 +19,14 @@ const Header = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
-            <a
-              href="#home"
+            <Link
+              to="/"
               className="text-sm font-medium text-foreground hover:text-primary transition-colors"
             >
               Home
-            </a>
+            </Link>
             <a
-              href="/docs/"
+              href={DOCS_URL}
               className="text-sm font-medium text-foreground hover:text-primary transition-colors"
             >
               Docs
@@ -60,15 +61,15 @@ const Header = () => {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <nav className="md:hidden py-4 space-y-3 border-t border-border/40">
-            <a
-              href="#home"
+            <Link
+              to="/"
               className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               onClick={() => setIsMenuOpen(false)}
             >
               Home
-            </a>
+            </Link>
             <a
-              href="/docs/"
+              href={DOCS_URL}
               className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               onClick={() => setIsMenuOpen(false)}
             >

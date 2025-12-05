@@ -7,17 +7,15 @@ import { componentTagger } from 'lovable-tagger';
 export default defineConfig(({ mode }) => ({
   // Set base path for custom domain deployment
   base: '/',
+  // Define environment variables
+  define: {
+    'import.meta.env.VITE_DOCS_URL': JSON.stringify(
+      mode === 'production' ? '/docs/' : 'http://localhost:5174/docs/',
+    ),
+  },
   server: {
     host: '::',
     port: 8080,
-    proxy: {
-      // Proxy /docs/* requests to VitePress dev server
-      '/docs': {
-        target: 'http://localhost:5174',
-        changeOrigin: true,
-        ws: true,
-      },
-    },
   },
   plugins: [react(), mode === 'development' && componentTagger()].filter(Boolean),
   resolve: {

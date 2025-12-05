@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Database, BookOpen, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { DOCS_URL } from '@/config';
 
 const Hero = () => {
   return (
@@ -59,7 +60,7 @@ const Hero = () => {
             </Button>
 
             <Button variant="outline-hero" size="lg" className="w-full sm:w-auto" asChild>
-              <a href="/docs/">
+              <a href={DOCS_URL}>
                 <BookOpen className="h-5 w-5" />
                 Documentation
               </a>

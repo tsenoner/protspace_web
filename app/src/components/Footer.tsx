@@ -1,4 +1,5 @@
 import { GitHubIcon } from '@/components/icons/brand-icons';
+import { DOCS_URL } from '@/config';
 
 const Footer = () => {
   return (
@@ -22,7 +23,7 @@ const Footer = () => {
               <span className="text-sm">GitHub</span>
             </a>
             <a
-              href="/docs/"
+              href={DOCS_URL}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               Documentation
