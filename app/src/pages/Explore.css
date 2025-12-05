@@ -1,9 +1,7 @@
 .explore-wrapper {
-  padding-top: 64px;
-  width: 100vw;
-  height: calc(100vh - 64px);
+  width: 100%;
+  height: 100%;
   background-color: #f4f4f4;
-  overflow: auto;
   font-family: sans-serif;
   color: #333;
   scrollbar-width: thin;
@@ -17,7 +15,7 @@
 
 .explore-container {
   width: 100%;
-  min-height: calc(100vh - 64px);
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -40,10 +38,12 @@
 .visualization-container {
   display: grid;
   grid-template-columns: 3fr 1fr;
-  grid-template-rows: calc(100vh - 156px);
+  grid-template-rows: 1fr;
   gap: 1rem;
   align-items: flex-start;
   width: 100%;
+  height: 100%;
+  min-height: 0; /* Important for nested flex/grid scrolling */
 }
 
 .right-panel {
