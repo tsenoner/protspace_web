@@ -1,6 +1,6 @@
 # Examples
 
-This section contains practical examples for using ProtSpace Web in different scenarios and frameworks.
+This section contains practical examples for using ProtSpace in different scenarios and frameworks.
 
 ## Basic Complete Example
 

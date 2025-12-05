@@ -1,6 +1,6 @@
 # API Reference
 
-ProtSpace Web provides four main web components that work together to create interactive protein embedding visualizations.
+ProtSpace provides four main web components that work together to create interactive protein embedding visualizations.
 
 ## Component Overview
 

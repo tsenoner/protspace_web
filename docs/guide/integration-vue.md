@@ -1,6 +1,6 @@
 # Vue Integration
 
-This guide shows how to integrate ProtSpace Web into Vue 3 applications.
+This guide shows how to integrate ProtSpace into Vue 3 applications.
 
 ## Installation
 

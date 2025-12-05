@@ -1,10 +1,10 @@
 # User Guide
 
-This document explains all interactive features of ProtSpace Web in detail. No machine learning or computational biology background is required.
+This document explains all interactive features of ProtSpace in detail. No machine learning or computational biology background is required.
 
 ## Loading Data
 
-ProtSpace Web uses `.parquetbundle` files. There are several ways to load your data:
+ProtSpace uses `.parquetbundle` files. There are several ways to load your data:
 
 ### File Input
 

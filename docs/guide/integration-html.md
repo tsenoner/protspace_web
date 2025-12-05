@@ -1,6 +1,6 @@
 # HTML Integration
 
-This guide shows how to integrate ProtSpace Web into vanilla HTML/JavaScript applications.
+This guide shows how to integrate ProtSpace into vanilla HTML/JavaScript applications.
 
 ## Basic Setup
 

@@ -1,10 +1,10 @@
 # Data Preparation
 
-This guide explains how to generate `.parquetbundle` files for use with ProtSpace Web.
+This guide explains how to generate `.parquetbundle` files for use with ProtSpace.
 
 ## Overview
 
-ProtSpace Web requires data in a specific format that combines:
+ProtSpace requires data in a specific format that combines:
 
 - Protein embeddings reduced to 2D/3D coordinates
 - Metadata and biological features

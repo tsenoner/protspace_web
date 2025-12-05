@@ -1,10 +1,10 @@
 # Data Loading Utilities
 
-ProtSpace Web uses programmatic data loading through utility functions. This page documents the available utilities for loading and processing `.parquetbundle` files.
+ProtSpace uses programmatic data loading through utility functions. This page documents the available utilities for loading and processing `.parquetbundle` files.
 
 ## Why Programmatic Loading?
 
-Instead of a `<protspace-data-loader>` component, ProtSpace Web provides utility functions that give you more control over:
+Instead of a `<protspace-data-loader>` component, ProtSpace provides utility functions that give you more control over:
 
 - **Error handling**: Custom error messages and recovery
 - **Loading UI**: Your own loading indicators and progress bars

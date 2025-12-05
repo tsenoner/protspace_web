@@ -1,6 +1,6 @@
 # Installation
 
-There are multiple ways to use ProtSpace Web depending on your needs.
+There are multiple ways to use ProtSpace depending on your needs.
 
 ## Browser Only (No Installation)
 

@@ -1,12 +1,12 @@
 # FAQ
 
-Frequently asked questions about ProtSpace Web.
+Frequently asked questions about ProtSpace.
 
 ## General
 
 ### Do I need machine learning knowledge?
 
-No. ProtSpace Web is designed for biologists and researchers without machine learning expertise. You only need protein data.
+No. ProtSpace is designed for biologists and researchers without machine learning expertise. You only need protein data.
 
 ### Is my data uploaded to a server?
 
@@ -18,11 +18,11 @@ Only `.parquetbundle` files. See [Data Preparation](/guide/data-preparation) for
 
 ### Can I use it offline?
 
-Yes. After the initial page load, ProtSpace Web works offline. However, loading 3D structures requires internet connectivity.
+Yes. After the initial page load, ProtSpace works offline. However, loading 3D structures requires internet connectivity.
 
 ### Is it free?
 
-Yes. ProtSpace Web is open source under the Apache 2.0 license.
+Yes. ProtSpace is open source under the Apache 2.0 license.
 
 ## Data
 

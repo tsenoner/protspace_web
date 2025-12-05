@@ -1,6 +1,6 @@
 # Data Format
 
-ProtSpace Web uses `.parquetbundle` files as its primary data format. This page explains the structure and how to work with it.
+ProtSpace uses `.parquetbundle` files as its primary data format. This page explains the structure and how to work with it.
 
 ## Parquet Bundle Structure
 

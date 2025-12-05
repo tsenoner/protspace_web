@@ -1,15 +1,15 @@
-# What is ProtSpace Web?
+# What is ProtSpace?
 
-**ProtSpace Web** is a browser-based, interactive visualization tool specifically designed for exploring protein language model (pLM) embeddings. Built entirely with modular web components, it provides a lightweight, framework-agnostic solution for visualizing high-dimensional protein data.
+**ProtSpace** is a browser-based, interactive visualization tool specifically designed for exploring protein language model (pLM) embeddings. Built entirely with modular web components, it provides a lightweight, framework-agnostic solution for visualizing high-dimensional protein data.
 
 ## Core Purpose
 
-Protein language models create embeddings (typically 1000+ dimensions) that capture complex biological information. Understanding these representations requires reducing them to 2D or 3D space for human visualization and interpretation. ProtSpace Web addresses this challenge by providing:
+Protein language models create embeddings (typically 1000+ dimensions) that capture complex biological information. Understanding these representations requires reducing them to 2D space for human visualization and interpretation. ProtSpace addresses this challenge by providing:
 
 - **Dimensionality reduction visualization** using PCA, UMAP, t-SNE, MDS, and PaCMAP
 - **Interactive exploration** with zoom, pan, selection, and filtering
 - **Feature-based coloring** to identify patterns and clusters
-- **3D structure viewing** alongside 2D embeddings
+- **3D structure viewing** alongside 2D projection embeddings
 
 ## Architecture Overview
 
@@ -39,7 +39,7 @@ Protein language models create embeddings (typically 1000+ dimensions) that capt
 
 ## Web Components
 
-ProtSpace Web provides four main web components:
+ProtSpace provides four main web components:
 
 | Component            | Tag Name                       | Purpose                                     |
 | -------------------- | ------------------------------ | ------------------------------------------- |
@@ -71,7 +71,7 @@ ProtSpace Web provides four main web components:
 
 ## Client-Side Architecture
 
-ProtSpace Web operates entirely in the browser with no backend server required:
+ProtSpace operates entirely in the browser with no backend server required:
 
 - **Data stays local**: Files never leave your computer
 - **Privacy-first**: No uploads, no tracking, no external dependencies

@@ -1,6 +1,6 @@
 # Developer Guide
 
-This guide is for developers who want to contribute to ProtSpace Web or understand its internal architecture.
+This guide is for developers who want to contribute to ProtSpace or understand its internal architecture.
 
 ## Repository Structure
 

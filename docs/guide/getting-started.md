@@ -1,10 +1,10 @@
 # Getting Started
 
-This guide will help you get up and running with ProtSpace Web in minutes.
+This guide will help you get up and running with ProtSpace in minutes.
 
 ## Try the Demo (No Installation)
 
-The quickest way to try ProtSpace Web:
+The quickest way to try ProtSpace:
 
 1. Visit **[https://protspace.app/](https://protspace.app/)**
 2. Load a `.parquetbundle` file using the file picker

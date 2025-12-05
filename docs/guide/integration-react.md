@@ -1,6 +1,6 @@
 # React Integration
 
-This guide shows how to integrate ProtSpace Web into React applications.
+This guide shows how to integrate ProtSpace into React applications.
 
 ## Installation
 
