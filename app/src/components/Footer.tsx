@@ -1,4 +1,4 @@
-import { DOCS_URL } from '@/config/constants';
+import { Link } from 'react-router-dom';
 import { GitHubIcon } from '@/components/icons/brand-icons';
 
 const Footer = () => {
@@ -22,14 +22,12 @@ const Footer = () => {
               <GitHubIcon />
               <span className="text-sm">GitHub</span>
             </a>
-            <a
-              href={DOCS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/docs/"
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               Documentation
-            </a>
+            </Link>
           </div>
         </div>
       </div>

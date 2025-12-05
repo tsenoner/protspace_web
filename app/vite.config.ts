@@ -17,9 +17,4 @@ export default defineConfig(({ mode }) => ({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  define: {
-    __DOCS_URL__: JSON.stringify(
-      mode === 'development' ? 'http://localhost:5174/docs/' : 'https://protspace.app/docs/',
-    ),
-  },
 }));
