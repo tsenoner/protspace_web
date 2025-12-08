@@ -45,6 +45,64 @@ export async function initializeDemo() {
       loadingTime: 0,
     };
 
+    // Helper to show/update loading overlay
+    const updateLoadingOverlay = (
+      show: boolean,
+      progress: number = 0,
+      message: string = '',
+      subMessage: string = ''
+    ) => {
+      let overlay = document.getElementById('progressive-loading');
+
+      if (!show) {
+        if (overlay) {
+          overlay.style.transition = 'opacity 0.5s ease';
+          overlay.style.opacity = '0';
+          setTimeout(() => overlay?.remove(), 500);
+        }
+        return;
+      }
+
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'progressive-loading';
+        overlay.style.cssText = `
+          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          background: linear-gradient(135deg, rgba(0,0,0,0.9), rgba(20,20,40,0.9));
+          color: white; z-index: 9999;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+
+        overlay.innerHTML = `
+          <div style="text-align: center; max-width: 500px;">
+            <div style="font-size: 24px; margin-bottom: 10px;">🚀 Loading ProtSpace</div>
+            <div id="processing-text" style="font-size: 18px; margin-bottom: 20px;">
+              ${subMessage}
+            </div>
+            <div style="width: 300px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: 20px auto;">
+              <div id="progress-bar" style="height: 100%; background: linear-gradient(90deg, #3b82f6, #06b6d4); border-radius: 2px; width: 0%; transition: width 0.3s ease;"></div>
+            </div>
+            <div id="progress-text" style="font-size: 14px; opacity: 0.8; margin-top: 10px;">
+              ${message}
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+      } else {
+        overlay.style.opacity = '1';
+        overlay.style.transition = 'none';
+      }
+
+      const progressBar = document.getElementById('progress-bar');
+      const progressText = document.getElementById('progress-text');
+      const processingText = document.getElementById('processing-text');
+
+      if (progressBar) progressBar.style.width = `${progress}%`;
+      if (progressText) progressText.textContent = message;
+      if (processingText) processingText.textContent = subMessage;
+    };
+
     // Function to load new data and reset all state with progressive loading and performance optimization
     const loadNewData = async (newData: VisualizationData) => {
       console.log('🔄 Loading new data:', newData);
@@ -67,33 +125,15 @@ export async function initializeDemo() {
         console.log(
           `⚡ Large dataset detected (${dataSize.toLocaleString()} proteins) - using optimized loading pipeline`
         );
-
-        // Show enhanced loading overlay with performance info
-        const loadingOverlay = document.createElement('div');
-        loadingOverlay.id = 'progressive-loading';
-        loadingOverlay.style.cssText = `
-          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-          background: linear-gradient(135deg, rgba(0,0,0,0.9), rgba(20,20,40,0.9));
-          color: white; z-index: 9999;
-          display: flex; flex-direction: column; align-items: center; justify-content: center;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        `;
-
-        loadingOverlay.innerHTML = `
-          <div style="text-align: center; max-width: 500px;">
-            <div style="font-size: 24px; margin-bottom: 10px;">🚀 Loading ProtSpace</div>
-            <div style="font-size: 18px; margin-bottom: 20px;">
-              Processing ${dataSize.toLocaleString()} proteins
-            </div>
-            <div style="width: 300px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: 20px auto;">
-              <div id="progress-bar" style="height: 100%; background: linear-gradient(90deg, #3b82f6, #06b6d4); border-radius: 2px; width: 0%; transition: width 0.3s ease;"></div>
-            </div>
-            <div id="progress-text" style="font-size: 14px; opacity: 0.8; margin-top: 10px;">
-              Initializing...
-            </div>
-          </div>
-        `;
-        document.body.appendChild(loadingOverlay);
+        updateLoadingOverlay(
+          true,
+          20,
+          'Preparing visualization...',
+          `Found ${dataSize.toLocaleString()} proteins`
+        );
+      } else {
+        // If not large dataset, hide the overlay that was shown during file reading
+        updateLoadingOverlay(false);
       }
 
       try {
@@ -105,10 +145,12 @@ export async function initializeDemo() {
 
         // Update progress
         if (isLargeDataset) {
-          const progressBar = document.getElementById('progress-bar');
-          const progressText = document.getElementById('progress-text');
-          if (progressBar) progressBar.style.width = '20%';
-          if (progressText) progressText.textContent = 'Step 1/4: Loading data into scatterplot...';
+          updateLoadingOverlay(
+            true,
+            20,
+            'Rendering scatterplot points...',
+            `Visualizing ${dataSize.toLocaleString()} proteins`
+          );
         }
 
         // Yield to browser before heavy processing
@@ -136,10 +178,12 @@ export async function initializeDemo() {
 
         // Update progress
         if (isLargeDataset) {
-          const progressBar = document.getElementById('progress-bar');
-          const progressText = document.getElementById('progress-text');
-          if (progressBar) progressBar.style.width = '40%';
-          if (progressText) progressText.textContent = 'Step 2/4: Updating control interface...';
+          updateLoadingOverlay(
+            true,
+            40,
+            'Configuring controls and filters...',
+            `Visualizing ${dataSize.toLocaleString()} proteins`
+          );
         }
 
         // Yield to browser
@@ -163,10 +207,12 @@ export async function initializeDemo() {
 
         // Update progress
         if (isLargeDataset) {
-          const progressBar = document.getElementById('progress-bar');
-          const progressText = document.getElementById('progress-text');
-          if (progressBar) progressBar.style.width = '60%';
-          if (progressText) progressText.textContent = 'Step 3/4: Processing legend data...';
+          updateLoadingOverlay(
+            true,
+            60,
+            'Organizing color categories...',
+            `Visualizing ${dataSize.toLocaleString()} proteins`
+          );
         }
 
         // Yield to browser
@@ -207,8 +253,12 @@ export async function initializeDemo() {
                     // Yield to browser and update progress
                     if (i + chunkSize < newData.protein_ids.length) {
                       const progress = 60 + (i / newData.protein_ids.length) * 30;
-                      const progressBar = document.getElementById('progress-bar');
-                      if (progressBar) progressBar.style.width = `${progress}%`;
+                      updateLoadingOverlay(
+                        true,
+                        progress,
+                        'Organizing color categories...',
+                        `Visualizing ${dataSize.toLocaleString()} proteins`
+                      );
                       await new Promise((resolve) => requestAnimationFrame(resolve));
                     }
                   }
@@ -242,10 +292,12 @@ export async function initializeDemo() {
 
         // Update progress
         if (isLargeDataset) {
-          const progressBar = document.getElementById('progress-bar');
-          const progressText = document.getElementById('progress-text');
-          if (progressBar) progressBar.style.width = '95%';
-          if (progressText) progressText.textContent = 'Step 4/4: Finalizing interface...';
+          updateLoadingOverlay(
+            true,
+            95,
+            'Finalizing view...',
+            `Visualizing ${dataSize.toLocaleString()} proteins`
+          );
         }
 
         // Yield to browser
@@ -260,11 +312,12 @@ export async function initializeDemo() {
 
         // Update progress to 100%
         if (isLargeDataset) {
-          const progressBar = document.getElementById('progress-bar');
-          const progressText = document.getElementById('progress-text');
-          if (progressBar) progressBar.style.width = '100%';
-          if (progressText)
-            progressText.textContent = '✅ Loading complete!';
+          updateLoadingOverlay(
+            true,
+            100,
+            'Ready to explore!',
+            `Visualizing ${dataSize.toLocaleString()} proteins`
+          );
 
           // Keep the success message visible briefly
           await new Promise((resolve) => setTimeout(resolve, 800));
@@ -280,12 +333,7 @@ export async function initializeDemo() {
       } finally {
         // Remove loading overlay with fade effect
         if (isLargeDataset) {
-          const overlay = document.getElementById('progressive-loading');
-          if (overlay) {
-            overlay.style.transition = 'opacity 0.5s ease';
-            overlay.style.opacity = '0';
-            setTimeout(() => overlay.remove(), 500);
-          }
+          updateLoadingOverlay(false);
         }
       }
     };
@@ -510,6 +558,23 @@ export async function initializeDemo() {
     });
 
     // Data Loader Event Handlers
+
+    // Handle loading start
+    dataLoader.addEventListener('data-loading-start', () => {
+      console.log('🚀 Data loading started');
+      updateLoadingOverlay(true, 5, 'Analyzing file structure...', 'Starting upload...');
+    });
+
+    // Handle loading progress
+    dataLoader.addEventListener('data-loading-progress', (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { percentage } = customEvent.detail;
+      // Map 0-100 from loader to 0-20 of overall process (since loadNewData does the rest)
+      // Or maybe 0-50? loadNewData seems to do a lot.
+      // Let's say data loading is the first 20%.
+      const visualProgress = Math.min(20, Math.max(5, percentage * 0.2));
+      updateLoadingOverlay(true, visualProgress, 'Reading protein data...', 'Uploading...');
+    });
 
     // Handle successful data loading
     console.log('🎧 Setting up data-loaded event listener on:', dataLoader);

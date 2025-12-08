@@ -90,6 +90,7 @@ export class DataLoader extends LitElement {
   async loadFromUrl(url: string) {
     this.setLoading(true);
     this.error = null;
+    this.dispatchLoadingStart();
 
     try {
       // Steps: fetch -> read ArrayBuffer -> parse parquet -> convert to visualization
@@ -129,6 +130,7 @@ export class DataLoader extends LitElement {
   async loadFromFile(file: File) {
     this.setLoading(true);
     this.error = null;
+    this.dispatchLoadingStart();
 
     try {
       // Plan initial steps common to both branches: validate size, read ArrayBuffer
@@ -193,6 +195,30 @@ export class DataLoader extends LitElement {
 
   private completeStep() {
     this.completedSteps += 1;
+    this.dispatchProgress();
+  }
+
+  private dispatchLoadingStart() {
+    this.dispatchEvent(
+      new CustomEvent('data-loading-start', {
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private dispatchProgress() {
+    this.dispatchEvent(
+      new CustomEvent('data-loading-progress', {
+        detail: {
+          current: this.completedSteps,
+          total: this.totalSteps,
+          percentage: Math.round((this.completedSteps / this.totalSteps) * 100),
+        },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   private dispatchDataLoaded(data: VisualizationData) {
