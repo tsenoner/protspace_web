@@ -51,6 +51,7 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _transform = d3.zoomIdentity;
   @state() private _isolationHistory: string[][] = [];
   @state() private _isolationMode = false;
+  @state() private _zOrderMapping: Record<string, number> | null = null;
 
   // Queries
   @query('canvas') private _canvas?: HTMLCanvasElement;
@@ -129,6 +130,7 @@ export class ProtspaceScatterplot extends LitElement {
     super.connectedCallback();
     this.resizeObserver.observe(this);
 
+    this.addEventListener('legend-zorder-change', this._handleZOrderChange);
     this.addEventListener('dragover', this.handleDragOver);
     this.addEventListener('dragenter', this.handleDragEnter);
     this.addEventListener('dragleave', this.handleDragLeave);
@@ -143,6 +145,7 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     super.disconnectedCallback();
+    this.removeEventListener('legend-zorder-change', this._handleZOrderChange);
     this.removeEventListener('dragover', this.handleDragOver);
     this.removeEventListener('dragenter', this.handleDragEnter);
     this.removeEventListener('dragleave', this.handleDragLeave);
@@ -179,6 +182,42 @@ export class ProtspaceScatterplot extends LitElement {
       );
     }
   };
+
+  private _handleZOrderChange = (event: Event) => {
+    const customEvent = event as CustomEvent;
+    this._zOrderMapping = customEvent.detail.zOrderMapping;
+
+    // Trigger sort and render
+    if (this._plotData.length > 0) {
+      this._sortDataByZOrder();
+      // Force webgl update
+      this._webglRenderer?.invalidatePositionCache();
+      this._webglRenderer?.invalidateStyleCache();
+      this._renderPlot();
+    }
+  };
+
+  private _sortDataByZOrder() {
+    if (!this._zOrderMapping || !this.selectedFeature || this._plotData.length === 0) return;
+
+    const mapping = this._zOrderMapping;
+    const featureKey = this.selectedFeature;
+
+    // Sort in place
+    this._plotData.sort((a, b) => {
+      // Get values (handle array/single value - take first if array)
+      const valA = a.featureValues[featureKey]?.[0] ?? 'null';
+      const valB = b.featureValues[featureKey]?.[0] ?? 'null';
+
+      // Get z-order index (default to Infinity if not found, so they go to the end)
+      const orderA = mapping[valA] ?? Infinity;
+      const orderB = mapping[valB] ?? Infinity;
+
+      // Ascending sort: Lower order (Top of legend) comes first in array -> drawn first -> visible on top
+      // (Renderer uses LESS depth test, so first drawn pixel wins)
+      return orderA - orderB;
+    });
+  }
 
   updated(changedProperties: Map<string, any>) {
     if (
@@ -313,6 +352,12 @@ export class ProtspaceScatterplot extends LitElement {
       this._isolationHistory,
       this.projectionPlane
     );
+
+    // Apply sorting if mapping exists
+    if (this._zOrderMapping) {
+      this._sortDataByZOrder();
+    }
+
     // Invalidate scales cache when plot data changes
     this._invalidateScalesCache();
     this._invalidateVirtualizationCache();
