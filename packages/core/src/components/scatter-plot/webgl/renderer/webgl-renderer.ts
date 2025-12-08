@@ -42,7 +42,13 @@ void main() {
   vec2 cssTransformed = a_dataPosition * u_transform.z + u_transform.xy;
   vec2 physicalPos = cssTransformed * u_dpr;
   vec2 clipSpace = (physicalPos / u_resolution) * 2.0 - 1.0;
-  gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
+  
+  // Use alpha for depth sorting to prevent opacity accumulation for overlapping points
+  // Higher alpha (1.0) -> Z = 0.0 (Front)
+  // Lower alpha (0.15) -> Z = 0.85 (Back)
+  float z = 1.0 - a_color.a;
+  
+  gl_Position = vec4(clipSpace.x, -clipSpace.y, z, 1.0);
   gl_PointSize = max(1.0, a_pointSize);
   
   // Convert sRGB input to linear RGB for proper blending
@@ -59,12 +65,31 @@ out vec4 fragColor;
 void main() {
   vec2 coord = gl_PointCoord * 2.0 - 1.0;
   float distSq = dot(coord, coord);
-  float alpha = 1.0 - smoothstep(0.8, 1.0, distSq);
-  if (alpha < 0.01) discard;
+  
+  // Hard cutoff for the outer edge (radius > 1.0)
+  if (distSq > 1.0) discard;
+  
+  // Calculate distance from center (0.0 to 1.0)
+  float dist = sqrt(distSq);
+  
+  // Define stroke width (e.g., 10% of the radius)
+  float strokeWidth = 0.15;
+  float strokeStart = 1.0 - strokeWidth;
+
+  vec3 finalColor;
+
+  if (dist > strokeStart) {
+    // Render Stroke: Darker version of the point color (or specific stroke color)
+    // Here we just darken the RGB by 50%
+    finalColor = v_color.rgb * 0.5; 
+  } else {
+    // Render Fill
+    finalColor = v_color.rgb;
+  }
   
   // Output premultiplied alpha for proper blending in linear space
-  float finalAlpha = v_color.a * alpha;
-  fragColor = vec4(v_color.rgb * finalAlpha, finalAlpha);
+  float finalAlpha = v_color.a;
+  fragColor = vec4(finalColor * finalAlpha, finalAlpha);
 }`;
 
 // Constants
@@ -258,13 +283,15 @@ export class WebGLRenderer {
       // Clean up old framebuffer
       gl.deleteFramebuffer(this.linearFramebuffer.framebuffer);
       gl.deleteTexture(this.linearFramebuffer.texture);
+      gl.deleteRenderbuffer(this.linearFramebuffer.depthBuffer);
       this.linearFramebuffer = null;
     }
 
     const framebuffer = gl.createFramebuffer();
     const texture = gl.createTexture();
+    const depthBuffer = gl.createRenderbuffer();
 
-    if (!framebuffer || !texture) {
+    if (!framebuffer || !texture || !depthBuffer) {
       return false;
     }
 
@@ -277,23 +304,30 @@ export class WebGLRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
 
     const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
     if (status !== gl.FRAMEBUFFER_COMPLETE) {
       console.error('Linear framebuffer not complete:', status);
       gl.deleteFramebuffer(framebuffer);
       gl.deleteTexture(texture);
+      gl.deleteRenderbuffer(depthBuffer);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.bindTexture(gl.TEXTURE_2D, null);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, null);
       return false;
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
 
-    this.linearFramebuffer = { framebuffer, texture, width, height };
+    this.linearFramebuffer = { framebuffer, texture, depthBuffer, width, height };
     return true;
   }
 
@@ -322,6 +356,7 @@ export class WebGLRenderer {
     if (this.linearFramebuffer) {
       gl.deleteFramebuffer(this.linearFramebuffer.framebuffer);
       gl.deleteTexture(this.linearFramebuffer.texture);
+      gl.deleteRenderbuffer(this.linearFramebuffer.depthBuffer);
       this.linearFramebuffer = null;
     }
 
@@ -351,7 +386,7 @@ export class WebGLRenderer {
     const gl = this.ensureGL();
     if (!gl) return;
     gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     this.currentPointCount = 0;
   }
 
@@ -414,7 +449,7 @@ export class WebGLRenderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer.framebuffer);
     gl.viewport(0, 0, framebuffer.width, framebuffer.height);
     gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Use premultiplied alpha blending for linear color space
     gl.enable(gl.BLEND);
@@ -425,7 +460,7 @@ export class WebGLRenderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     this.renderGammaCorrection();
   }
@@ -463,7 +498,7 @@ export class WebGLRenderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -486,6 +521,7 @@ export class WebGLRenderer {
     if (this.linearFramebuffer) {
       gl.deleteFramebuffer(this.linearFramebuffer.framebuffer);
       gl.deleteTexture(this.linearFramebuffer.texture);
+      gl.deleteRenderbuffer(this.linearFramebuffer.depthBuffer);
       this.linearFramebuffer = null;
     }
 
@@ -545,6 +581,10 @@ export class WebGLRenderer {
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+    // Enable depth testing to prevent opacity accumulation
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
 
     if (this.gammaPipelineAvailable && !this.resizeLinearFramebuffer(this.canvas.width, this.canvas.height)) {
       this.handleGammaFallback('framebuffer incomplete');

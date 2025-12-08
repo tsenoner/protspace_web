@@ -35,6 +35,7 @@ export interface GammaConfig {
 export interface FramebufferResources {
   framebuffer: WebGLFramebuffer;
   texture: WebGLTexture;
+  depthBuffer: WebGLRenderbuffer;
   width: number;
   height: number;
 }
