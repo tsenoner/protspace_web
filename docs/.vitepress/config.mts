@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress';
 
 const HOME_URL = process.env.VITE_HOME_URL || 'http://localhost:8080/';
+const EXPLORE_URL = `${HOME_URL.replace(/\/$/, '')}/explore`;
 
 export default defineConfig({
   title: 'ProtSpace',
@@ -26,7 +27,7 @@ export default defineConfig({
       {
         text: 'Links',
         items: [
-          { text: 'Explore', link: '/explore' },
+          { text: 'Explore', link: EXPLORE_URL, target: '_self' },
           { text: 'Python Package', link: 'https://github.com/tsenoner/protspace' },
           { text: 'Paper', link: 'https://doi.org/10.1016/j.jmb.2025.168940' },
         ],
