@@ -8,7 +8,7 @@
     "dev": "concurrently \"pnpm dev:app\" \"pnpm dev:docs\" --names \"app,docs\" --prefix-colors \"cyan,magenta\"",
     "dev:app": "turbo run --filter @protspace/app dev",
     "dev:docs": "vitepress dev docs --port 5174",
-    "docs:build": "VITE_HOME_URL=https://protspace.app/ vitepress build docs",
+    "docs:build": "NODE_ENV=production vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "test": "turbo test",
     "lint": "turbo lint",

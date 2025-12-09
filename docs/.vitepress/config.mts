@@ -1,13 +1,15 @@
 import { defineConfig } from 'vitepress';
+import { getUrls, buildUrl } from '../../config/urls';
 
-const HOME_URL = process.env.VITE_HOME_URL || 'http://localhost:8080/';
-const EXPLORE_URL = `${HOME_URL.replace(/\/$/, '')}/explore`;
+const isDev = process.env.NODE_ENV !== 'production';
+const mode = isDev ? 'development' : 'production';
+const urls = getUrls(mode);
 
 export default defineConfig({
   title: 'ProtSpace',
   description: 'Interactive visualization for protein language model embeddings',
 
-  base: '/docs/',
+  base: urls.docs,
 
   head: [['link', { rel: 'icon', href: '/docs/favicon.svg' }]],
 
@@ -18,7 +20,7 @@ export default defineConfig({
     nav: [
       {
         text: 'Home',
-        link: HOME_URL,
+        link: urls.base,
         target: '_self',
       },
       { text: 'Guide', link: '/guide/' },
@@ -27,7 +29,7 @@ export default defineConfig({
       {
         text: 'Links',
         items: [
-          { text: 'Explore', link: EXPLORE_URL, target: '_self' },
+          { text: 'Explore', link: buildUrl(mode, 'explore'), target: '_self' },
           { text: 'Python Package', link: 'https://github.com/tsenoner/protspace' },
           { text: 'Paper', link: 'https://doi.org/10.1016/j.jmb.2025.168940' },
         ],
