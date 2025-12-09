@@ -24,12 +24,21 @@ import { createProgramFromSources } from '../shader-utils';
 // Shader Sources
 // ============================================================================
 
+
+// Constants
+const POINT_SIZE_DIVISOR = 3;
+const MIN_POINT_SIZE = 1;
+const MIN_CAPACITY = 1024;
+const MAX_LABELS = 8;
+const LABEL_TEXTURE_WIDTH = 2048;
+
 const POINT_VERTEX_SHADER = `#version 300 es
 precision highp float;
 
 in vec2 a_dataPosition;
 in float a_pointSize;
 in vec4 a_color;
+in float a_labelCount;
 
 uniform vec2 u_resolution;
 uniform vec3 u_transform;
@@ -37,15 +46,15 @@ uniform float u_dpr;
 uniform float u_gamma;
 
 out vec4 v_color;
+out float v_labelCount;
+flat out int v_pointIndex;
 
 void main() {
   vec2 cssTransformed = a_dataPosition * u_transform.z + u_transform.xy;
   vec2 physicalPos = cssTransformed * u_dpr;
   vec2 clipSpace = (physicalPos / u_resolution) * 2.0 - 1.0;
   
-  // Use alpha for depth sorting to prevent opacity accumulation for overlapping points
-  // Higher alpha (1.0) -> Z = 0.0 (Front)
-  // Lower alpha (0.15) -> Z = 0.85 (Back)
+  // Use alpha for depth sorting
   float z = 1.0 - a_color.a;
   
   gl_Position = vec4(clipSpace.x, -clipSpace.y, z, 1.0);
@@ -54,49 +63,68 @@ void main() {
   // Convert sRGB input to linear RGB for proper blending
   vec3 linearColor = pow(max(a_color.rgb, vec3(0.0)), vec3(u_gamma));
   v_color = vec4(linearColor, a_color.a);
+  v_labelCount = a_labelCount;
+  v_pointIndex = gl_VertexID;
 }`;
 
 const POINT_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 
 in vec4 v_color;
+in float v_labelCount;
+flat in int v_pointIndex;
+
+uniform sampler2D u_labelColors;
+uniform vec2 u_labelTextureSize;
+uniform int u_maxLabels;
+uniform float u_gamma;
+
 out vec4 fragColor;
+
+const float PI = 3.14159265359;
 
 void main() {
   vec2 coord = gl_PointCoord * 2.0 - 1.0;
   float distSq = dot(coord, coord);
   
-  // Hard cutoff for the outer edge (radius > 1.0)
   if (distSq > 1.0) discard;
   
-  // Calculate distance from center (0.0 to 1.0)
+  vec3 finalColor = v_color.rgb;
+
+  // Pie Chart Logic
+  if (v_labelCount > 1.5) {
+    float angle = atan(coord.y, coord.x); // -PI to PI
+    // Map to 0..1
+    float normalizedAngle = (angle + PI) / (2.0 * PI);
+    
+    float count = floor(v_labelCount + 0.5);
+    float sliceIndex = floor(normalizedAngle * count);
+    
+    // Calculate texture lookup index
+    int globalIndex = v_pointIndex * u_maxLabels + int(sliceIndex);
+    int texW = int(u_labelTextureSize.x);
+    int tx = globalIndex % texW;
+    int ty = globalIndex / texW;
+    
+    vec4 texColor = texelFetch(u_labelColors, ivec2(tx, ty), 0);
+    
+    // Linearize texture color
+    finalColor = pow(max(texColor.rgb, vec3(0.0)), vec3(u_gamma));
+  }
+  
   float dist = sqrt(distSq);
   
-  // Define stroke width (e.g., 10% of the radius)
+  // Stroke width
   float strokeWidth = 0.15;
   float strokeStart = 1.0 - strokeWidth;
 
-  vec3 finalColor;
-
   if (dist > strokeStart) {
-    // Render Stroke: Darker version of the point color (or specific stroke color)
-    // Here we just darken the RGB by 50%
-    finalColor = v_color.rgb * 0.5; 
-  } else {
-    // Render Fill
-    finalColor = v_color.rgb;
+    finalColor = finalColor * 0.5; 
   }
   
-  // Output premultiplied alpha for proper blending in linear space
   float finalAlpha = v_color.a;
   fragColor = vec4(finalColor * finalAlpha, finalAlpha);
 }`;
-
-// Constants
-const POINT_SIZE_DIVISOR = 3;
-const MIN_POINT_SIZE = 1;
-const MIN_CAPACITY = 1024;
-
 const GAMMA_VERTEX_SHADER = `#version 300 es
 precision highp float;
 
@@ -140,16 +168,21 @@ export class WebGLRenderer {
     dataPosition: number;
     size: number;
     color: number;
+    labelCount: number;
   } | null = null;
   private pointUniformLocations: {
     resolution: WebGLUniformLocation | null;
     transform: WebGLUniformLocation | null;
     dpr: WebGLUniformLocation | null;
     gamma: WebGLUniformLocation | null;
+    labelColors: WebGLUniformLocation | null;
+    labelTextureSize: WebGLUniformLocation | null;
+    maxLabels: WebGLUniformLocation | null;
   } | null = null;
 
   // Full-screen quad for gamma correction
   private quadBuffer: WebGLBuffer | null = null;
+
 
   // Gamma correction (final pass)
   private gammaCorrectionProgram: WebGLProgram | null = null;
@@ -166,14 +199,19 @@ export class WebGLRenderer {
   private dataPositionBuffer: WebGLBuffer | null = null;
   private sizeBuffer: WebGLBuffer | null = null;
   private colorBuffer: WebGLBuffer | null = null;
+  private labelCountBuffer: WebGLBuffer | null = null;
+  private labelColorTexture: WebGLTexture | null = null;
 
   // CPU arrays
   private dataPositions = new Float32Array(0);
   private sizes = new Float32Array(0);
   private colors = new Float32Array(0);
+  private labelCounts = new Float32Array(0);
+  private labelColorData = new Float32Array(0);
 
   // State
   private capacity = 0;
+
   private currentPointCount = 0;
   private positionsDirty = true;
   private stylesDirty = true;
@@ -514,7 +552,9 @@ export class WebGLRenderer {
     if (this.dataPositionBuffer) gl.deleteBuffer(this.dataPositionBuffer);
     if (this.sizeBuffer) gl.deleteBuffer(this.sizeBuffer);
     if (this.colorBuffer) gl.deleteBuffer(this.colorBuffer);
+    if (this.labelCountBuffer) gl.deleteBuffer(this.labelCountBuffer);
     if (this.quadBuffer) gl.deleteBuffer(this.quadBuffer);
+    if (this.labelColorTexture) gl.deleteTexture(this.labelColorTexture);
     if (this.pointProgram) gl.deleteProgram(this.pointProgram);
     if (this.gammaCorrectionProgram) gl.deleteProgram(this.gammaCorrectionProgram);
 
@@ -574,9 +614,12 @@ export class WebGLRenderer {
     this.dataPositionBuffer = gl.createBuffer();
     this.sizeBuffer = gl.createBuffer();
     this.colorBuffer = gl.createBuffer();
+    this.labelCountBuffer = gl.createBuffer();
     this.quadBuffer = gl.createBuffer();
+    this.labelColorTexture = gl.createTexture();
 
     this.createPointVAO();
+
     this.setupQuad();
 
     gl.enable(gl.BLEND);
@@ -601,6 +644,7 @@ export class WebGLRenderer {
       dataPosition: gl.getAttribLocation(this.pointProgram, 'a_dataPosition'),
       size: gl.getAttribLocation(this.pointProgram, 'a_pointSize'),
       color: gl.getAttribLocation(this.pointProgram, 'a_color'),
+      labelCount: gl.getAttribLocation(this.pointProgram, 'a_labelCount'),
     };
 
     this.pointUniformLocations = {
@@ -608,6 +652,9 @@ export class WebGLRenderer {
       transform: gl.getUniformLocation(this.pointProgram, 'u_transform'),
       dpr: gl.getUniformLocation(this.pointProgram, 'u_dpr'),
       gamma: gl.getUniformLocation(this.pointProgram, 'u_gamma'),
+      labelColors: gl.getUniformLocation(this.pointProgram, 'u_labelColors'),
+      labelTextureSize: gl.getUniformLocation(this.pointProgram, 'u_labelTextureSize'),
+      maxLabels: gl.getUniformLocation(this.pointProgram, 'u_maxLabels'),
     };
 
     return true;
@@ -648,6 +695,10 @@ export class WebGLRenderer {
     gl.enableVertexAttribArray(this.pointAttribLocations.color);
     gl.vertexAttribPointer(this.pointAttribLocations.color, 4, gl.FLOAT, false, 0, 0);
 
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.labelCountBuffer);
+    gl.enableVertexAttribArray(this.pointAttribLocations.labelCount);
+    gl.vertexAttribPointer(this.pointAttribLocations.labelCount, 1, gl.FLOAT, false, 0, 0);
+
     gl.bindVertexArray(null);
   }
 
@@ -681,6 +732,12 @@ export class WebGLRenderer {
     gl.uniform3f(this.pointUniformLocations.transform, transform.x, transform.y, transform.k);
     gl.uniform1f(this.pointUniformLocations.dpr, this.dpr);
     gl.uniform1f(this.pointUniformLocations.gamma, gamma);
+    gl.uniform1i(this.pointUniformLocations.maxLabels, MAX_LABELS);
+    gl.uniform2f(this.pointUniformLocations.labelTextureSize, LABEL_TEXTURE_WIDTH, this.labelColorData.length / 4 / LABEL_TEXTURE_WIDTH);
+    
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.labelColorTexture);
+    gl.uniform1i(this.pointUniformLocations.labelColors, 1);
 
     gl.bindVertexArray(this.pointVao);
     gl.drawArrays(gl.POINTS, 0, this.currentPointCount);
@@ -743,7 +800,8 @@ export class WebGLRenderer {
       }
 
       if (updateStyles) {
-        const [r, g, b] = resolveColor(this.style.getColors(point)[0] ?? '#888888');
+        const pointColors = this.style.getColors(point);
+        const [r, g, b] = resolveColor(pointColors[0] ?? '#888888');
         const size = Math.sqrt(this.style.getPointSize(point)) / POINT_SIZE_DIVISOR;
 
         this.colors[idx * 4] = r;
@@ -751,6 +809,21 @@ export class WebGLRenderer {
         this.colors[idx * 4 + 2] = b;
         this.colors[idx * 4 + 3] = Math.min(1, Math.max(0, opacity));
         this.sizes[idx] = Math.max(MIN_POINT_SIZE, size * 2 * this.dpr);
+        this.labelCounts[idx] = pointColors.length;
+
+        // Fill label color texture data
+        for (let j = 0; j < MAX_LABELS; j++) {
+          if (j < pointColors.length) {
+             const [lr, lg, lb] = resolveColor(pointColors[j]);
+             const texIndex = (idx * MAX_LABELS + j) * 4;
+             if (texIndex < this.labelColorData.length) {
+                this.labelColorData[texIndex] = lr;
+                this.labelColorData[texIndex + 1] = lg;
+                this.labelColorData[texIndex + 2] = lb;
+                this.labelColorData[texIndex + 3] = 1.0;
+             }
+          }
+        }
       }
 
       idx++;
@@ -767,6 +840,15 @@ export class WebGLRenderer {
     if (updateStyles) {
       this.updateBuffer(gl, this.sizeBuffer, this.sizes, idx);
       this.updateBuffer(gl, this.colorBuffer, this.colors, idx * 4);
+      this.updateBuffer(gl, this.labelCountBuffer, this.labelCounts, idx);
+      
+      // Update texture
+      gl.bindTexture(gl.TEXTURE_2D, this.labelColorTexture);
+      const texHeight = this.labelColorData.length / 4 / LABEL_TEXTURE_WIDTH;
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, LABEL_TEXTURE_WIDTH, texHeight, 0, gl.RGBA, gl.FLOAT, this.labelColorData);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.bindTexture(gl.TEXTURE_2D, null);
     }
 
     gl.bindVertexArray(null);
@@ -789,6 +871,15 @@ export class WebGLRenderer {
     this.dataPositions = new Float32Array(nextCapacity * 2);
     this.colors = new Float32Array(nextCapacity * 4);
     this.sizes = new Float32Array(nextCapacity);
+    this.labelCounts = new Float32Array(nextCapacity);
+    // Align texture height to next power of 2 or just simple expansion
+    // Total pixels needed = nextCapacity * MAX_LABELS
+    // Texture Width = LABEL_TEXTURE_WIDTH
+    // Height = ceil(Total / Width)
+    const requiredPixels = nextCapacity * MAX_LABELS;
+    const texHeight = Math.ceil(requiredPixels / LABEL_TEXTURE_WIDTH);
+    this.labelColorData = new Float32Array(LABEL_TEXTURE_WIDTH * texHeight * 4);
+    
     this.buffersInitialized = false;
   }
 }
