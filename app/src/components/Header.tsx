@@ -124,7 +124,6 @@ const Header = () => {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block py-2 text-sm text-foreground/80 hover:text-primary transition-colors"
-                            onClick={() => setIsMenuOpen(false)}
                           >
                             {subItem.text}
                           </a>
@@ -135,7 +134,7 @@ const Header = () => {
                 );
               }
 
-              // Internal link
+              // Internal link (SPA navigation - needs onClick to close menu)
               if (item.internal && item.link) {
                 return (
                   <Link
@@ -149,13 +148,12 @@ const Header = () => {
                 );
               }
 
-              // External link
+              // External link (full page load - onClick is redundant but harmless)
               return (
                 <a
                   key={item.text}
                   href={item.link}
                   className={linkClasses}
-                  onClick={() => setIsMenuOpen(false)}
                   {...(item.target && {
                     target: item.target,
                     rel: 'noopener noreferrer',
