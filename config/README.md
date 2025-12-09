@@ -1,8 +1,10 @@
 # Centralized Configuration
 
-Single source of truth for all URLs, ports, and environment settings.
+Single source of truth for all URLs, ports, navigation, and environment settings.
 
 ## Structure
+
+### URLs Configuration (`urls.ts`)
 
 ```typescript
 PORTS = { app: 8080, docs: 5174 }
@@ -10,16 +12,39 @@ PRODUCTION_DOMAIN = 'https://protspace.app'
 URLS = { production: {...}, development: {...} }
 ```
 
+### Navigation Configuration (`navigation.ts`)
+
+```typescript
+NavItem = { text, link, internal?, target?, icon? }
+getNavigation(mode) // Returns all navigation items
+getPrimaryNavigation(mode) // Returns main nav (excludes external)
+getExternalLinks(mode) // Returns external links only
+```
+
 ## Usage
+
+### URLs
 
 ```typescript
 // VitePress config
-import { getUrls, buildUrl } from '../../config/urls';
+import { getUrls } from '../../config/urls';
 const urls = getUrls(mode);
 
 // React app
-import { getUrls, PORTS } from '../../config/urls';
+import { getUrls } from '../../config/urls';
 export const DOCS_URL = getUrls(mode).docs;
+```
+
+### Navigation
+
+```typescript
+// React app
+import { getNavigation } from '../../config/navigation';
+const navItems = getNavigation(mode);
+
+// VitePress config
+import { getPrimaryNavigation } from '../../config/navigation';
+const primaryNav = getPrimaryNavigation(mode);
 ```
 
 ## Development Proxy

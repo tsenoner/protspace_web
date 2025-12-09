@@ -1,0 +1,73 @@
+/**
+ * Shared navigation configuration for ProtSpace
+ *
+ * Single source of truth for all navigation items across the app and docs.
+ * This ensures consistent navigation structure in both React app and VitePress docs.
+ */
+import { getUrls, buildUrl, type Environment } from './urls';
+
+export interface NavItem {
+  text: string;
+  link?: string;
+  /** Whether this link is internal (uses React Router) or external (uses <a> tag) */
+  internal?: boolean;
+  /** Target attribute for external links */
+  target?: string;
+  /** Icon identifier (optional, for custom rendering) */
+  icon?: string;
+  /** Dropdown items for navigation groups */
+  items?: Array<{ text: string; link: string }>;
+}
+
+/**
+ * Get navigation items for the specified environment
+ */
+export const getNavigation = (mode: Environment): NavItem[] => {
+  const urls = getUrls(mode);
+
+  return [
+    {
+      text: 'Home',
+      link: urls.base,
+      internal: true,
+    },
+    {
+      text: 'Docs',
+      link: urls.docs,
+      internal: false, // Cross-app navigation
+    },
+    {
+      text: 'Explore',
+      link: buildUrl(mode, 'explore'),
+      internal: true,
+    },
+    {
+      text: 'Resources',
+      items: [
+        { text: 'Python Package', link: 'https://github.com/tsenoner/protspace' },
+        { text: 'Research Paper', link: 'https://doi.org/10.1016/j.jmb.2025.168940' },
+      ],
+    },
+    {
+      text: 'GitHub',
+      link: 'https://github.com/tsenoner/protspace_web',
+      internal: false,
+      target: '_blank',
+      icon: 'github',
+    },
+  ];
+};
+
+/**
+ * Get primary navigation items (excludes external links like GitHub)
+ */
+export const getPrimaryNavigation = (mode: Environment): NavItem[] => {
+  return getNavigation(mode).filter((item) => !item.target);
+};
+
+/**
+ * Get external links (e.g., GitHub, social media)
+ */
+export const getExternalLinks = (mode: Environment): NavItem[] => {
+  return getNavigation(mode).filter((item) => item.target);
+};

@@ -1,11 +1,15 @@
-import { Menu, X } from 'lucide-react';
+import { Menu, X, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GitHubIcon } from '@/components/icons/brand-icons';
-import { DOCS_URL } from '@/config';
+import { getNavigation } from '../../../config/navigation';
+
+const mode = import.meta.env.MODE === 'production' ? 'production' : 'development';
+const navItems = getNavigation(mode);
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-lg">
@@ -19,33 +23,62 @@ const Header = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
-            <Link
-              to="/"
-              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-            >
-              Home
-            </Link>
-            <a
-              href={DOCS_URL}
-              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-            >
-              Docs
-            </a>
-            <Link
-              to="/explore"
-              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-            >
-              Explore
-            </Link>
-            <a
-              href="https://github.com/tsenoner/protspace_web"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-foreground hover:text-primary transition-colors"
-              aria-label="View on GitHub"
-            >
-              <GitHubIcon className="h-5 w-5" />
-            </a>
+            {navItems.map((item) => {
+              const isGitHub = item.icon === 'github';
+              const linkClasses = isGitHub
+                ? 'text-foreground hover:text-primary transition-colors'
+                : 'text-sm font-medium text-foreground hover:text-primary transition-colors';
+
+              // Dropdown menu
+              if (item.items) {
+                return (
+                  <div key={item.text} className="relative group">
+                    <button className="flex items-center gap-1 text-sm font-medium text-foreground hover:text-primary transition-colors">
+                      {item.text}
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                    <div className="absolute top-full right-0 mt-2 w-48 bg-background border border-border/40 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                      {item.items.map((subItem) => (
+                        <a
+                          key={subItem.text}
+                          href={subItem.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block px-4 py-2 text-sm text-foreground hover:text-primary hover:bg-muted/50 first:rounded-t-lg last:rounded-b-lg transition-colors"
+                        >
+                          {subItem.text}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+
+              // Internal link
+              if (item.internal && item.link) {
+                return (
+                  <Link key={item.text} to={item.link} className={linkClasses}>
+                    {item.text}
+                  </Link>
+                );
+              }
+
+              // External link
+              return (
+                <a
+                  key={item.text}
+                  href={item.link}
+                  className={linkClasses}
+                  {...(item.target && {
+                    target: item.target,
+                    rel: 'noopener noreferrer',
+                  })}
+                  {...(isGitHub && { 'aria-label': 'View on GitHub' })}
+                >
+                  {isGitHub ? <GitHubIcon className="h-5 w-5" /> : item.text}
+                </a>
+              );
+            })}
           </nav>
 
           {/* Mobile Menu Button */}
@@ -61,36 +94,78 @@ const Header = () => {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <nav className="md:hidden py-4 space-y-3 border-t border-border/40">
-            <Link
-              to="/"
-              className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Home
-            </Link>
-            <a
-              href={DOCS_URL}
-              className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Docs
-            </a>
-            <Link
-              to="/explore"
-              className="block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Explore
-            </Link>
-            <a
-              href="https://github.com/tsenoner/protspace_web"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
-            >
-              <GitHubIcon className="h-4 w-4" />
-              GitHub
-            </a>
+            {navItems.map((item) => {
+              const isGitHub = item.icon === 'github';
+              const linkClasses = isGitHub
+                ? 'flex items-center gap-2 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors'
+                : 'block py-2 text-sm font-medium text-foreground hover:text-primary transition-colors';
+
+              // Dropdown menu
+              if (item.items) {
+                return (
+                  <div key={item.text}>
+                    <button
+                      onClick={() => setOpenDropdown(openDropdown === item.text ? null : item.text)}
+                      className="flex items-center justify-between w-full py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+                    >
+                      {item.text}
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${
+                          openDropdown === item.text ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                    {openDropdown === item.text && (
+                      <div className="pl-4 space-y-2 mt-2">
+                        {item.items.map((subItem) => (
+                          <a
+                            key={subItem.text}
+                            href={subItem.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block py-2 text-sm text-foreground/80 hover:text-primary transition-colors"
+                            onClick={() => setIsMenuOpen(false)}
+                          >
+                            {subItem.text}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Internal link
+              if (item.internal && item.link) {
+                return (
+                  <Link
+                    key={item.text}
+                    to={item.link}
+                    className={linkClasses}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {item.text}
+                  </Link>
+                );
+              }
+
+              // External link
+              return (
+                <a
+                  key={item.text}
+                  href={item.link}
+                  className={linkClasses}
+                  onClick={() => setIsMenuOpen(false)}
+                  {...(item.target && {
+                    target: item.target,
+                    rel: 'noopener noreferrer',
+                  })}
+                >
+                  {isGitHub && <GitHubIcon className="h-4 w-4" />}
+                  {item.text}
+                </a>
+              );
+            })}
           </nav>
         )}
       </div>

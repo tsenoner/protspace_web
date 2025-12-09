@@ -1,9 +1,11 @@
 import { defineConfig } from 'vitepress';
-import { getUrls, buildUrl } from '../../config/urls';
+import { getUrls } from '../../config/urls';
+import { getNavigation } from '../../config/navigation';
 
 const isDev = process.env.NODE_ENV !== 'production';
 const mode = isDev ? 'development' : 'production';
 const urls = getUrls(mode);
+const navItems = getNavigation(mode);
 
 export default defineConfig({
   title: 'ProtSpace',
@@ -17,85 +19,69 @@ export default defineConfig({
     logo: { src: '/logo.svg' },
     siteTitle: 'ProtSpace',
 
-    nav: [
+    nav: navItems
+      .filter((item) => item.icon !== 'github') // Exclude GitHub icon (it's in socialLinks)
+      .map((item) => {
+        // When in VitePress (base is /docs/), map "Docs" link to root '/'
+        // to avoid /docs/docs/ issue
+        const link = item.text === 'Docs' ? '/' : item.link || '';
+
+        return {
+          text: item.text,
+          link,
+          ...(item.link && item.text !== 'Docs' && { target: '_self' }), // Only set target for non-Docs items
+          ...(item.items && { items: item.items }),
+        };
+      }),
+
+    sidebar: [
       {
-        text: 'Home',
-        link: urls.base,
-        target: '_self',
-      },
-      { text: 'Guide', link: '/guide/' },
-      { text: 'API', link: '/api/' },
-      { text: 'Examples', link: '/examples/' },
-      {
-        text: 'Links',
+        text: 'Introduction',
         items: [
-          { text: 'Explore', link: buildUrl(mode, 'explore'), target: '_self' },
-          { text: 'Python Package', link: 'https://github.com/tsenoner/protspace' },
-          { text: 'Paper', link: 'https://doi.org/10.1016/j.jmb.2025.168940' },
+          { text: 'Getting Started', link: '/' },
+          { text: 'What is ProtSpace?', link: '/guide/' },
+          { text: 'Installation', link: '/guide/installation' },
         ],
       },
+      {
+        text: 'Core Concepts',
+        items: [
+          { text: 'Data Format', link: '/guide/data-format' },
+          { text: 'Data Preparation', link: '/guide/data-preparation' },
+          { text: 'User Guide', link: '/guide/user-guide' },
+        ],
+      },
+      {
+        text: 'Integration',
+        items: [
+          { text: 'HTML', link: '/guide/integration-html' },
+          { text: 'React', link: '/guide/integration-react' },
+          { text: 'Vue', link: '/guide/integration-vue' },
+        ],
+      },
+      {
+        text: 'Advanced',
+        items: [
+          { text: 'Developer Guide', link: '/guide/developer-guide' },
+          { text: 'FAQ', link: '/guide/faq' },
+        ],
+      },
+      {
+        text: 'API Reference',
+        items: [
+          { text: 'Overview', link: '/api/' },
+          { text: 'Scatterplot', link: '/api/scatterplot' },
+          { text: 'Legend', link: '/api/legend' },
+          { text: 'Control Bar', link: '/api/control-bar' },
+          { text: 'Structure Viewer', link: '/api/structure-viewer' },
+          { text: 'Data Loading', link: '/api/data-loading' },
+        ],
+      },
+      {
+        text: 'Examples',
+        items: [{ text: 'Basic Usage', link: '/examples/' }],
+      },
     ],
-
-    sidebar: {
-      '/': [
-        {
-          text: 'Introduction',
-          items: [
-            { text: 'Getting Started', link: '/' },
-            { text: 'What is ProtSpace?', link: '/guide/' },
-            { text: 'Installation', link: '/guide/installation' },
-          ],
-        },
-        {
-          text: 'Core Concepts',
-          items: [
-            { text: 'Data Format', link: '/guide/data-format' },
-            { text: 'Data Preparation', link: '/guide/data-preparation' },
-            { text: 'User Guide', link: '/guide/user-guide' },
-          ],
-        },
-        {
-          text: 'Integration',
-          items: [
-            { text: 'HTML', link: '/guide/integration-html' },
-            { text: 'React', link: '/guide/integration-react' },
-            { text: 'Vue', link: '/guide/integration-vue' },
-          ],
-        },
-        {
-          text: 'Advanced',
-          items: [
-            { text: 'Developer Guide', link: '/guide/developer-guide' },
-            { text: 'FAQ', link: '/guide/faq' },
-          ],
-        },
-      ],
-      '/api/': [
-        {
-          text: 'API Reference',
-          items: [{ text: 'Overview', link: '/api/' }],
-        },
-        {
-          text: 'Components',
-          items: [
-            { text: 'Scatterplot', link: '/api/scatterplot' },
-            { text: 'Legend', link: '/api/legend' },
-            { text: 'Control Bar', link: '/api/control-bar' },
-            { text: 'Structure Viewer', link: '/api/structure-viewer' },
-          ],
-        },
-        {
-          text: 'Utilities',
-          items: [{ text: 'Data Loading', link: '/api/data-loading' }],
-        },
-      ],
-      '/examples/': [
-        {
-          text: 'Examples',
-          items: [{ text: 'Basic Usage', link: '/examples/' }],
-        },
-      ],
-    },
 
     socialLinks: [{ icon: 'github', link: 'https://github.com/tsenoner/protspace_web' }],
 
