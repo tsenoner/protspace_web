@@ -1,14 +1,14 @@
 /**
  * WebGL2 Renderer with Gamma-Correct Rendering Pipeline
- * 
+ *
  * This renderer implements a two-pass gamma-correct rendering pipeline:
  * 1. Render points to a linear RGB framebuffer
  * 2. Apply gamma correction to convert to sRGB for display
- * 
+ *
  * Falls back to direct rendering if gamma pipeline is unavailable.
  */
 
-import * as d3 from 'd3';
+import type * as d3 from 'd3';
 import type { PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
 import {
   type WebGLStyleGetters,
@@ -23,7 +23,6 @@ import { createProgramFromSources } from '../shader-utils';
 // ============================================================================
 // Shader Sources
 // ============================================================================
-
 
 // Constants
 const POINT_SIZE_DIVISOR = 3;
@@ -182,7 +181,6 @@ export class WebGLRenderer {
 
   // Full-screen quad for gamma correction
   private quadBuffer: WebGLBuffer | null = null;
-
 
   // Gamma correction (final pass)
   private gammaCorrectionProgram: WebGLProgram | null = null;
@@ -371,7 +369,7 @@ export class WebGLRenderer {
 
   private handleGammaFallback(reason?: string) {
     if (!this.gammaPipelineAvailable) return;
-    
+
     this.gammaPipelineAvailable = false;
 
     if (!this.warnedGammaFallback) {
@@ -390,7 +388,7 @@ export class WebGLRenderer {
       gl.deleteProgram(this.gammaCorrectionProgram);
       this.gammaCorrectionProgram = null;
     }
-    
+
     if (this.linearFramebuffer) {
       gl.deleteFramebuffer(this.linearFramebuffer.framebuffer);
       gl.deleteTexture(this.linearFramebuffer.texture);
@@ -504,7 +502,12 @@ export class WebGLRenderer {
   }
 
   private renderGammaCorrection() {
-    if (!this.gl || !this.gammaCorrectionProgram || !this.linearFramebuffer || !this.gammaCorrectionUniformLocations) {
+    if (
+      !this.gl ||
+      !this.gammaCorrectionProgram ||
+      !this.linearFramebuffer ||
+      !this.gammaCorrectionUniformLocations
+    ) {
       return;
     }
 
@@ -597,7 +600,7 @@ export class WebGLRenderer {
     const colorBufferFloatExt = gl.getExtension('EXT_color_buffer_float');
     const floatBlendExt = gl.getExtension('EXT_float_blend');
     gl.getExtension('OES_texture_float_linear');
-    
+
     this.gammaPipelineAvailable = !!colorBufferFloatExt && !!floatBlendExt;
     if (!this.gammaPipelineAvailable) {
       this.handleGammaFallback('required extensions missing');
@@ -629,7 +632,10 @@ export class WebGLRenderer {
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LESS);
 
-    if (this.gammaPipelineAvailable && !this.resizeLinearFramebuffer(this.canvas.width, this.canvas.height)) {
+    if (
+      this.gammaPipelineAvailable &&
+      !this.resizeLinearFramebuffer(this.canvas.width, this.canvas.height)
+    ) {
       this.handleGammaFallback('framebuffer incomplete');
     }
 
@@ -661,7 +667,11 @@ export class WebGLRenderer {
   }
 
   private initializeGammaCorrectionShaders(gl: WebGL2RenderingContext): boolean {
-    this.gammaCorrectionProgram = createProgramFromSources(gl, GAMMA_VERTEX_SHADER, GAMMA_FRAGMENT_SHADER);
+    this.gammaCorrectionProgram = createProgramFromSources(
+      gl,
+      GAMMA_VERTEX_SHADER,
+      GAMMA_FRAGMENT_SHADER
+    );
     if (!this.gammaCorrectionProgram) return false;
 
     this.gammaCorrectionUniformLocations = {
@@ -706,10 +716,7 @@ export class WebGLRenderer {
     const gl = this.gl;
     if (!gl || !this.quadBuffer) return;
 
-    const quadVertices = new Float32Array([
-      -1, -1, 1, -1, -1, 1,
-      -1, 1, 1, -1, 1, 1,
-    ]);
+    const quadVertices = new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, quadVertices, gl.STATIC_DRAW);
@@ -720,21 +727,30 @@ export class WebGLRenderer {
   // ============================================================================
 
   private renderPoints(transform: d3.ZoomTransform) {
-    if (!this.gl || this.currentPointCount === 0 || !this.pointProgram || !this.pointUniformLocations) {
+    if (
+      !this.gl ||
+      this.currentPointCount === 0 ||
+      !this.pointProgram ||
+      !this.pointUniformLocations
+    ) {
       return;
     }
 
     const gl = this.gl;
     gl.useProgram(this.pointProgram);
-    
+
     const gamma = this.getEffectiveGamma();
     gl.uniform2f(this.pointUniformLocations.resolution, this.canvas.width, this.canvas.height);
     gl.uniform3f(this.pointUniformLocations.transform, transform.x, transform.y, transform.k);
     gl.uniform1f(this.pointUniformLocations.dpr, this.dpr);
     gl.uniform1f(this.pointUniformLocations.gamma, gamma);
     gl.uniform1i(this.pointUniformLocations.maxLabels, MAX_LABELS);
-    gl.uniform2f(this.pointUniformLocations.labelTextureSize, LABEL_TEXTURE_WIDTH, this.labelColorData.length / 4 / LABEL_TEXTURE_WIDTH);
-    
+    gl.uniform2f(
+      this.pointUniformLocations.labelTextureSize,
+      LABEL_TEXTURE_WIDTH,
+      this.labelColorData.length / 4 / LABEL_TEXTURE_WIDTH
+    );
+
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.labelColorTexture);
     gl.uniform1i(this.pointUniformLocations.labelColors, 1);
@@ -759,20 +775,25 @@ export class WebGLRenderer {
 
   private computeStyleSignature(points: PlotDataPoint[]): string {
     if (points.length === 0) return 'empty';
-    
+
     const len = points.length;
     const indices = [0, Math.floor(len / 4), Math.floor(len / 2), len - 1];
     const parts = indices
-      .filter(i => i < len)
-      .map(i => {
+      .filter((i) => i < len)
+      .map((i) => {
         const p = points[i];
         return `${p.id}:${this.style.getOpacity(p).toFixed(2)}:${this.style.getColors(p)[0]}`;
       });
-    
+
     return `${this.styleSignature}|${parts.join('|')}`;
   }
 
-  private populateBuffers(points: PlotDataPoint[], scales: ScalePair, updatePositions: boolean, updateStyles: boolean) {
+  private populateBuffers(
+    points: PlotDataPoint[],
+    scales: ScalePair,
+    updatePositions: boolean,
+    updateStyles: boolean
+  ) {
     if (!this.gl) return;
     const gl = this.gl;
 
@@ -814,14 +835,14 @@ export class WebGLRenderer {
         // Fill label color texture data
         for (let j = 0; j < MAX_LABELS; j++) {
           if (j < pointColors.length) {
-             const [lr, lg, lb] = resolveColor(pointColors[j]);
-             const texIndex = (idx * MAX_LABELS + j) * 4;
-             if (texIndex < this.labelColorData.length) {
-                this.labelColorData[texIndex] = lr;
-                this.labelColorData[texIndex + 1] = lg;
-                this.labelColorData[texIndex + 2] = lb;
-                this.labelColorData[texIndex + 3] = 1.0;
-             }
+            const [lr, lg, lb] = resolveColor(pointColors[j]);
+            const texIndex = (idx * MAX_LABELS + j) * 4;
+            if (texIndex < this.labelColorData.length) {
+              this.labelColorData[texIndex] = lr;
+              this.labelColorData[texIndex + 1] = lg;
+              this.labelColorData[texIndex + 2] = lb;
+              this.labelColorData[texIndex + 3] = 1.0;
+            }
           }
         }
       }
@@ -841,11 +862,21 @@ export class WebGLRenderer {
       this.updateBuffer(gl, this.sizeBuffer, this.sizes, idx);
       this.updateBuffer(gl, this.colorBuffer, this.colors, idx * 4);
       this.updateBuffer(gl, this.labelCountBuffer, this.labelCounts, idx);
-      
+
       // Update texture
       gl.bindTexture(gl.TEXTURE_2D, this.labelColorTexture);
       const texHeight = this.labelColorData.length / 4 / LABEL_TEXTURE_WIDTH;
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, LABEL_TEXTURE_WIDTH, texHeight, 0, gl.RGBA, gl.FLOAT, this.labelColorData);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA32F,
+        LABEL_TEXTURE_WIDTH,
+        texHeight,
+        0,
+        gl.RGBA,
+        gl.FLOAT,
+        this.labelColorData
+      );
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       gl.bindTexture(gl.TEXTURE_2D, null);
@@ -855,7 +886,12 @@ export class WebGLRenderer {
     this.buffersInitialized = true;
   }
 
-  private updateBuffer(gl: WebGL2RenderingContext, buffer: WebGLBuffer | null, data: Float32Array, length: number) {
+  private updateBuffer(
+    gl: WebGL2RenderingContext,
+    buffer: WebGLBuffer | null,
+    data: Float32Array,
+    length: number
+  ) {
     if (!buffer) return;
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     if (this.buffersInitialized) {
@@ -879,7 +915,7 @@ export class WebGLRenderer {
     const requiredPixels = nextCapacity * MAX_LABELS;
     const texHeight = Math.ceil(requiredPixels / LABEL_TEXTURE_WIDTH);
     this.labelColorData = new Float32Array(LABEL_TEXTURE_WIDTH * texHeight * 4);
-    
+
     this.buffersInitialized = false;
   }
 }

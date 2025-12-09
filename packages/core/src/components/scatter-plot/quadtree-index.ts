@@ -46,7 +46,8 @@ export class QuadtreeIndex {
     const results: PlotDataPoint[] = [];
     this.qt.visit((node, x0, y0, x1, y1) => {
       if (!node.length) {
-        let leaf: d3.QuadtreeLeaf<PlotDataPoint> | undefined = node as d3.QuadtreeLeaf<PlotDataPoint>;
+        let leaf: d3.QuadtreeLeaf<PlotDataPoint> | undefined =
+          node as d3.QuadtreeLeaf<PlotDataPoint>;
         while (leaf) {
           const dataPoint = leaf.data;
           const px = this.scales!.x(dataPoint.x);

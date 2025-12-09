@@ -441,15 +441,15 @@ export class ProtspaceScatterplot extends LitElement {
           this._canvas,
           () => this._scales,
           () => this._transform,
-        () => this._mergedConfig,
-        {
-          getColors: (p: PlotDataPoint) => this._getColors(p),
-          getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
-          getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
-          getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
-          getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
-          getShape: (p: PlotDataPoint) => this._getPointShape(p),
-        }
+          () => this._mergedConfig,
+          {
+            getColors: (p: PlotDataPoint) => this._getColors(p),
+            getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
+            getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
+            getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
+            getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
+            getShape: (p: PlotDataPoint) => this._getPointShape(p),
+          }
         );
         this._updateStyleSignature();
         this._webglRenderer.setStyleSignature(this._styleSig);

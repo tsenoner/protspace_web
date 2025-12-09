@@ -35,9 +35,7 @@ export function resolveColor(color: string): [number, number, number] {
   }
 
   const normalized = ctx.fillStyle;
-  const parsed = typeof normalized === 'string'
-    ? parseNormalizedColor(ctx, normalized)
-    : null;
+  const parsed = typeof normalized === 'string' ? parseNormalizedColor(ctx, normalized) : null;
 
   const rgb = parsed ?? DEFAULT_RGB;
   const result = cloneRgb(rgb);
@@ -99,9 +97,7 @@ function parseRgbString(normalized: string): [number, number, number] | null {
   const match = normalized.match(/^rgba?\s*\((.+)\)$/i);
   if (!match) return null;
 
-  const body = match[1]
-    .replace(/\//g, ',')
-    .trim();
+  const body = match[1].replace(/\//g, ',').trim();
   const parts = body.split(/[\s,]+/).filter(Boolean);
   if (parts.length < 3) return null;
 
@@ -159,11 +155,7 @@ function sampleContextColor(ctx: CanvasRenderingContext2D): [number, number, num
     const b = clampUnit(data[2] / 255);
 
     if (alpha > 0 && alpha < 1) {
-      return [
-        clampUnit(r / alpha),
-        clampUnit(g / alpha),
-        clampUnit(b / alpha),
-      ];
+      return [clampUnit(r / alpha), clampUnit(g / alpha), clampUnit(b / alpha)];
     }
 
     return [r, g, b];
@@ -189,4 +181,3 @@ function clampUnit(value: number): number {
 function cloneRgb(rgb: [number, number, number]): [number, number, number] {
   return [rgb[0], rgb[1], rgb[2]];
 }
-
