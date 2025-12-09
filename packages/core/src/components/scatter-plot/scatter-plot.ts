@@ -861,16 +861,16 @@ export class ProtspaceScatterplot extends LitElement {
               </div>
             `
           : ''}
-        ${this.selectionMode
+        ${this.selectionMode || this.selectedProteinIds.length > 0
           ? html`
               <div
                 class="mode-indicator"
                 style="z-index: 10; display: flex; flex-direction: column; gap: 4px;"
               >
-                <div>Selection Mode</div>
+                ${this.selectionMode ? html`<div>Selection Mode</div>` : ''}
                 ${this.selectedProteinIds.length > 0
                   ? html`<div style="font-size: 11px; opacity: 0.8;">
-                      ${this.selectedProteinIds.length} selected
+                      ${this.selectedProteinIds.length} proteins selected
                     </div>`
                   : ''}
               </div>
