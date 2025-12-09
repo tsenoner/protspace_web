@@ -22,7 +22,8 @@ export const URLS = {
   },
   development: {
     base: `http://localhost:${PORTS.app}`,
-    docs: `http://localhost:${PORTS.docs}/docs/`,
+    // Use relative path in dev too - the Vite proxy handles routing to the docs server
+    docs: '/docs/',
     explore: '/explore',
   },
 } as const;
