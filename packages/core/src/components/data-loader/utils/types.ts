@@ -12,6 +12,7 @@ export interface ExtractedBundleParts {
 
 export interface ExtractedBundleData {
   rows: Rows;
+  projectionsMetadata?: Rows;
 }
 
 export type FeaturesMap = Record<string, Feature>;

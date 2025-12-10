@@ -36,7 +36,9 @@ export function findBundleDelimiterPositions(uint8Array: Uint8Array): number[] {
   return positions;
 }
 
-export async function extractRowsFromParquetBundle(arrayBuffer: ArrayBuffer): Promise<Rows> {
+export async function extractRowsFromParquetBundle(
+  arrayBuffer: ArrayBuffer
+): Promise<{ rows: Rows; projectionsMetadata: Rows }> {
   const uint8Array = new Uint8Array(arrayBuffer);
   const delimiterPositions = findBundleDelimiterPositions(uint8Array);
 
@@ -55,7 +57,7 @@ export async function extractRowsFromParquetBundle(arrayBuffer: ArrayBuffer): Pr
   assertValidParquetMagic(part2);
   assertValidParquetMagic(part3);
 
-  const [selectedFeaturesData, _projectionsMetadataData, projectionsData] = await Promise.all([
+  const [selectedFeaturesData, projectionsMetadataData, projectionsData] = await Promise.all([
     parquetReadObjects({ file: part1 }),
     parquetReadObjects({ file: part2 }),
     parquetReadObjects({ file: part3 }),
@@ -66,7 +68,7 @@ export async function extractRowsFromParquetBundle(arrayBuffer: ArrayBuffer): Pr
   // Validate merged rows for expected bundle shape
   validateMergedBundleRows(mergedRows);
 
-  return mergedRows;
+  return { rows: mergedRows, projectionsMetadata: projectionsMetadataData };
 }
 
 export function mergeProjectionsWithFeatures(projectionsData: Rows, featuresData: Rows): Rows {

@@ -148,11 +148,15 @@ export class DataLoader extends LitElement {
       if (file.name.endsWith('.parquetbundle') || isParquetBundle(arrayBuffer)) {
         // For bundles: extract -> validate -> convert
         this.addSteps(3);
-        const extractedData = await extractRowsFromParquetBundle(arrayBuffer);
+        const { rows: extractedData, projectionsMetadata } =
+          await extractRowsFromParquetBundle(arrayBuffer);
         this.completeStep();
         validateRowsBasic(extractedData);
         this.completeStep();
-        const visualizationData = await convertParquetToVisualizationDataOptimized(extractedData);
+        const visualizationData = await convertParquetToVisualizationDataOptimized(
+          extractedData,
+          projectionsMetadata
+        );
         this.completeStep();
         this.dispatchDataLoaded(visualizationData);
       } else {

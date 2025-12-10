@@ -827,6 +827,124 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
+  private _getCurrentProjectionMetadata(): Record<string, unknown> | undefined {
+    if (!this.data || !this.data.projections[this.selectedProjectionIndex]) {
+      return undefined;
+    }
+    return this.data.projections[this.selectedProjectionIndex].metadata;
+  }
+
+  private _renderProjectionMetadata() {
+    const metadata = this._getCurrentProjectionMetadata();
+    if (!metadata || Object.keys(metadata).length === 0) {
+      return '';
+    }
+
+    // Filter out dimension, dimensions, and projection name fields
+    let displayMetadata = Object.entries(metadata).filter(([key]) => {
+      const lowerKey = key.toLowerCase();
+      return lowerKey !== 'dimension' && lowerKey !== 'dimensions' && lowerKey !== 'name';
+    });
+
+    // Parse JSON fields (like "info", "info_json", etc.)
+    const parsedMetadata: Array<[string, unknown]> = [];
+    for (const [key, value] of displayMetadata) {
+      const lowerKey = key.toLowerCase();
+      if (
+        (lowerKey === 'info' || lowerKey === 'info_json' || lowerKey.includes('json')) &&
+        typeof value === 'string'
+      ) {
+        try {
+          const parsed = JSON.parse(value);
+          if (typeof parsed === 'object' && parsed !== null) {
+            // Flatten the JSON object into individual fields
+            for (const [subKey, subValue] of Object.entries(parsed)) {
+              parsedMetadata.push([subKey, subValue]);
+            }
+            continue; // Skip adding the original JSON string
+          }
+        } catch {
+          // If parsing fails, keep the original value
+        }
+      }
+      parsedMetadata.push([key, value]);
+    }
+
+    if (parsedMetadata.length === 0) {
+      return '';
+    }
+
+    return html`
+      <div class="projection-metadata">
+        <div class="projection-metadata-label">
+          <span>Projection Metadata</span>
+        </div>
+        <div class="projection-metadata-content">
+          ${parsedMetadata.map(
+            ([key, value]) => html`
+              <div class="projection-metadata-item">
+                <span class="projection-metadata-key">${this._formatMetadataKey(key)}:</span>
+                <span class="projection-metadata-value"
+                  >${this._formatMetadataValue(value, key)}</span
+                >
+              </div>
+            `
+          )}
+        </div>
+      </div>
+    `;
+  }
+
+  private _formatMetadataKey(key: string): string {
+    // Convert snake_case or camelCase to Title Case
+    return key
+      .replace(/_/g, ' ')
+      .replace(/([A-Z])/g, ' $1')
+      .split(' ')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ')
+      .trim();
+  }
+
+  private _formatMetadataValue(value: unknown, key?: string): string {
+    if (value == null) return 'N/A';
+
+    const lowerKey = key?.toLowerCase() || '';
+    const isVarianceRatio =
+      lowerKey.includes('explained_variance') || lowerKey.includes('variance_ratio');
+
+    // Handle arrays
+    if (Array.isArray(value)) {
+      const formattedValues = value.map((item) => {
+        if (typeof item === 'number') {
+          if (item % 1 === 0) return item.toString();
+          return isVarianceRatio ? item.toFixed(2) : item.toFixed(3);
+        }
+        return String(item);
+      });
+      return formattedValues.join(', ');
+    }
+
+    if (typeof value === 'number') {
+      // Format numbers with appropriate precision
+      if (value % 1 === 0) {
+        return value.toString();
+      }
+      // Use 2 decimal places for explained variance ratio
+      if (isVarianceRatio) {
+        return value.toFixed(2);
+      }
+      return value.toFixed(3);
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No';
+    }
+    if (typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+    return String(value);
+  }
+
   render() {
     const config = this._mergedConfig;
 
@@ -844,6 +962,7 @@ export class ProtspaceScatterplot extends LitElement {
           style="position: absolute; top: 0; left: 0; max-width: ${config.width}px; max-height: ${config.height}px; z-index: 2; background: transparent;"
         ></svg>
 
+        ${this._renderProjectionMetadata()}
         ${this._tooltipData
           ? html`
               <div
