@@ -1,4 +1,4 @@
-import type { LegendItem, OtherItem, LegendFeatureData } from './types';
+import type { LegendItem, OtherItem, LegendFeatureData, LegendSortMode } from './types';
 import { DEFAULT_STYLES } from './config';
 
 /**
@@ -75,61 +75,65 @@ export class LegendDataProcessor {
     maxVisibleValues: number,
     isolationMode: boolean,
     manuallyOtherValues: Set<string>,
-    sortAlphabetically: boolean
+    sortMode: LegendSortMode
   ): {
     topItems: Array<[string | null, number]>;
     otherItems: OtherItem[];
     otherCount: number;
   } {
-    // Convert to array and sort either by the first number found in the value string (ascending)
-    // or by frequency (descending)
+    // Helper functions for alphabetic/numeric sorting
+    const getFirstNumber = (val: string | null): number => {
+      if (val === null) return Number.POSITIVE_INFINITY;
+      const match = String(val).match(/-?\d+(?:\.\d+)?/);
+      return match ? parseFloat(match[0]) : Number.POSITIVE_INFINITY;
+    };
+
+    const getPatternRank = (val: string | null): number => {
+      if (val === null) return 99;
+      const s = String(val).trim();
+      if (/^[<>]/.test(s)) return 0; // e.g., ">50" or "<50" should come first
+      if (/^\d+\s*-\s*\d+/.test(s)) return 1; // range like "50-100"
+      if (/^\d+\s*\+/.test(s)) return 2; // plus like "2000+"
+      return 3; // anything else
+    };
+
+    // Convert to array and sort based on the sort mode
     const entries = Array.from(frequencyMap.entries());
     const sortedItems = entries.sort((a, b) => {
-      if (sortAlphabetically) {
-        const getFirstNumber = (val: string | null): number => {
-          if (val === null) return Number.POSITIVE_INFINITY;
-          const match = String(val).match(/-?\d+(?:\.\d+)?/);
-          return match ? parseFloat(match[0]) : Number.POSITIVE_INFINITY;
-        };
-        const getPatternRank = (val: string | null): number => {
-          if (val === null) return 99;
-          const s = String(val).trim();
-          if (/^[<>]/.test(s)) return 0; // e.g., ">50" or "<50" should come first
-          if (/^\d+\s*-\s*\d+/.test(s)) return 1; // range like "50-100"
-          if (/^\d+\s*\+/.test(s)) return 2; // plus like "2000+"
-          return 3; // anything else
-        };
+      if (sortMode === 'alpha') {
+        // Alphabetic/numeric ascending
         const an = getFirstNumber(a[0]);
         const bn = getFirstNumber(b[0]);
         if (an !== bn) return an - bn;
-        // If first numbers are equal, prioritize comparator forms ("<", ">") before ranges
         const ar = getPatternRank(a[0]);
         const br = getPatternRank(b[0]);
         if (ar !== br) return ar - br;
         // Final tie-break by count desc to have a stable, meaningful secondary order
         return (b[1] ?? 0) - (a[1] ?? 0);
+      } else if (sortMode === 'alpha-desc') {
+        // Alphabetic/numeric descending
+        const an = getFirstNumber(a[0]);
+        const bn = getFirstNumber(b[0]);
+        if (an !== bn) return bn - an; // Reversed
+        const ar = getPatternRank(a[0]);
+        const br = getPatternRank(b[0]);
+        if (ar !== br) return br - ar; // Reversed
+        // Final tie-break by count desc
+        return (b[1] ?? 0) - (a[1] ?? 0);
+      } else if (sortMode === 'size-asc') {
+        // Size ascending
+        return a[1] - b[1];
+      } else {
+        // 'size' - Size descending (default)
+        return b[1] - a[1];
       }
-      return b[1] - a[1];
     });
 
     // When in isolation mode, we only show the values that actually appear in the data
     // Count how many of the original top-N are being manually assigned to Other
     const manualCountInOriginalTop = Array.from(frequencyMap.entries())
       .sort((a, b) => {
-        if (sortAlphabetically) {
-          const getFirstNumber = (val: string | null): number => {
-            if (val === null) return Number.POSITIVE_INFINITY;
-            const match = String(val).match(/-?\d+(?:\.\d+)?/);
-            return match ? parseFloat(match[0]) : Number.POSITIVE_INFINITY;
-          };
-          const getPatternRank = (val: string | null): number => {
-            if (val === null) return 99;
-            const s = String(val).trim();
-            if (/^[<>]/.test(s)) return 0;
-            if (/^\d+\s*-\s*\d+/.test(s)) return 1;
-            if (/^\d+\s*\+/.test(s)) return 2;
-            return 3;
-          };
+        if (sortMode === 'alpha') {
           const an = getFirstNumber(a[0]);
           const bn = getFirstNumber(b[0]);
           if (an !== bn) return an - bn;
@@ -137,8 +141,19 @@ export class LegendDataProcessor {
           const br = getPatternRank(b[0]);
           if (ar !== br) return ar - br;
           return (b[1] ?? 0) - (a[1] ?? 0);
+        } else if (sortMode === 'alpha-desc') {
+          const an = getFirstNumber(a[0]);
+          const bn = getFirstNumber(b[0]);
+          if (an !== bn) return bn - an;
+          const ar = getPatternRank(a[0]);
+          const br = getPatternRank(b[0]);
+          if (ar !== br) return br - ar;
+          return (b[1] ?? 0) - (a[1] ?? 0);
+        } else if (sortMode === 'size-asc') {
+          return a[1] - b[1];
+        } else {
+          return b[1] - a[1];
         }
-        return b[1] - a[1];
       })
       .slice(0, maxVisibleValues)
       .filter(([value]) => value !== null && manuallyOtherValues.has(String(value))).length;
@@ -371,7 +386,7 @@ export class LegendDataProcessor {
     existingLegendItems: LegendItem[],
     includeOthers: boolean,
     manuallyOtherValues: string[] = [],
-    sortAlphabetically: boolean = false
+    sortMode: LegendSortMode = 'size'
   ): {
     legendItems: LegendItem[];
     otherItems: OtherItem[];
@@ -397,7 +412,7 @@ export class LegendDataProcessor {
       effectiveMaxVisibleValues,
       isolationMode,
       manualOtherSet,
-      sortAlphabetically
+      sortMode
     );
 
     // Create legend items

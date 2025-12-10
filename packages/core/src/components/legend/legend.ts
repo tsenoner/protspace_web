@@ -10,6 +10,7 @@ import type {
   LegendDataInput,
   LegendFeatureData,
   LegendItem,
+  LegendSortMode,
   OtherItem,
   ScatterplotElement,
 } from './types';
@@ -50,8 +51,8 @@ export class ProtspaceLegend extends LitElement {
   @property({ type: Number }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
   @state() private settingsShapeSize: number = LEGEND_DEFAULTS.symbolSize;
   @state() private manualOtherValues: string[] = [];
-  @state() private featureSortModes: Record<string, 'size' | 'alpha'> = {};
-  @state() private settingsFeatureSortModes: Record<string, 'size' | 'alpha'> = {};
+  @state() private featureSortModes: Record<string, LegendSortMode> = {};
+  @state() private settingsFeatureSortModes: Record<string, LegendSortMode> = {};
 
   // Auto-sync properties
   @property({ type: String, attribute: 'scatterplot-selector' })
@@ -290,7 +291,7 @@ export class ProtspaceLegend extends LitElement {
   private _ensureSortModeDefaults() {
     const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
     if (featureNames.length === 0) return;
-    const updated: Record<string, 'size' | 'alpha'> = {
+    const updated: Record<string, LegendSortMode> = {
       ...this.featureSortModes,
     };
     for (const fname of featureNames) {
@@ -349,10 +350,9 @@ export class ProtspaceLegend extends LitElement {
     }
 
     // Use the data processor to handle all legend item processing
-    const sortMode =
+    const sortMode: LegendSortMode =
       this.featureSortModes[this.selectedFeature] ??
       (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size');
-    const sortAlphabetically = sortMode === 'alpha';
     const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
       this.featureData,
       this.featureValues,
@@ -363,7 +363,7 @@ export class ProtspaceLegend extends LitElement {
       this.legendItems,
       this.includeOthers,
       this.manualOtherValues,
-      sortAlphabetically
+      sortMode
     );
 
     // Set items state
@@ -918,16 +918,14 @@ export class ProtspaceLegend extends LitElement {
       this.showSettingsDialog = false;
     };
 
-    // Build list of features and initialize temp settings map
-    const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
-    if (featureNames.length && Object.keys(this.settingsFeatureSortModes).length === 0) {
-      const initial: Record<string, 'size' | 'alpha'> = {};
-      for (const fname of featureNames) {
-        initial[fname] =
-          this.featureSortModes[fname] ??
-          (FIRST_NUMBER_SORT_FEATURES.has(fname) ? 'alpha' : 'size');
-      }
-      this.settingsFeatureSortModes = initial;
+    // Initialize temp settings for the currently selected feature
+    if (this.selectedFeature && !this.settingsFeatureSortModes[this.selectedFeature]) {
+      this.settingsFeatureSortModes = {
+        ...this.settingsFeatureSortModes,
+        [this.selectedFeature]:
+          this.featureSortModes[this.selectedFeature] ??
+          (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size'),
+      };
     }
 
     return html`
@@ -1018,46 +1016,79 @@ export class ProtspaceLegend extends LitElement {
             <div class="other-items-list-item-sorting">
               <div class="other-items-list-item-sorting-title">Sorting</div>
               <div class="other-items-list-item-sorting-container">
-                ${featureNames.map(
-                  (fname) => html`
-                    <div class="other-items-list-item-sorting-container-item">
-                      <span class="other-items-list-item-sorting-container-item-name"
-                        >${fname}</span
-                      >
-                      <span class="other-items-list-item-sorting-container-item-container">
-                        <label class="other-items-list-item-sorting-container-item-container-label">
-                          <input
-                            class="other-items-list-item-sorting-container-item-container-input"
-                            type="radio"
-                            name=${`sort-${fname}`}
-                            .checked=${this.settingsFeatureSortModes[fname] === 'size'}
-                            @change=${() => {
-                              this.settingsFeatureSortModes = {
-                                ...this.settingsFeatureSortModes,
-                                [fname]: 'size',
-                              };
-                            }}
-                          />
-                          by feature size
-                        </label>
-                        <label>
-                          <input
-                            type="radio"
-                            name=${`sort-${fname}`}
-                            .checked=${this.settingsFeatureSortModes[fname] === 'alpha'}
-                            @change=${() => {
-                              this.settingsFeatureSortModes = {
-                                ...this.settingsFeatureSortModes,
-                                [fname]: 'alpha',
-                              };
-                            }}
-                          />
-                          by number
-                        </label>
-                      </span>
-                    </div>
-                  `
-                )}
+                ${this.selectedFeature
+                  ? (() => {
+                      const fname = this.selectedFeature;
+                      const currentMode = this.settingsFeatureSortModes[fname] || 'size';
+                      const isAlphabetic = currentMode === 'alpha' || currentMode === 'alpha-desc';
+                      const isReversed = currentMode === 'alpha-desc' || currentMode === 'size-asc';
+
+                      return html`
+                        <div class="other-items-list-item-sorting-container-item">
+                          <span class="other-items-list-item-sorting-container-item-name"
+                            >${fname}</span
+                          >
+                          <span class="other-items-list-item-sorting-container-item-container">
+                            <label
+                              class="other-items-list-item-sorting-container-item-container-label"
+                            >
+                              <input
+                                class="other-items-list-item-sorting-container-item-container-input"
+                                type="radio"
+                                name=${`sort-${fname}`}
+                                .checked=${!isAlphabetic}
+                                @change=${() => {
+                                  const newMode: LegendSortMode = isReversed ? 'size-asc' : 'size';
+                                  this.settingsFeatureSortModes = {
+                                    ...this.settingsFeatureSortModes,
+                                    [fname]: newMode,
+                                  };
+                                }}
+                              />
+                              by feature size
+                            </label>
+                            <label>
+                              <input
+                                type="radio"
+                                name=${`sort-${fname}`}
+                                .checked=${isAlphabetic}
+                                @change=${() => {
+                                  const newMode: LegendSortMode = isReversed
+                                    ? 'alpha-desc'
+                                    : 'alpha';
+                                  this.settingsFeatureSortModes = {
+                                    ...this.settingsFeatureSortModes,
+                                    [fname]: newMode,
+                                  };
+                                }}
+                              />
+                              by number
+                            </label>
+                            <label style="margin-left: 12px;">
+                              <input
+                                type="checkbox"
+                                .checked=${isReversed}
+                                @change=${(e: Event) => {
+                                  const target = e.target as HTMLInputElement;
+                                  let newMode: LegendSortMode;
+                                  if (isAlphabetic) {
+                                    newMode = target.checked ? 'alpha-desc' : 'alpha';
+                                  } else {
+                                    newMode = target.checked ? 'size-asc' : 'size';
+                                  }
+                                  this.settingsFeatureSortModes = {
+                                    ...this.settingsFeatureSortModes,
+                                    [fname]: newMode,
+                                  };
+                                }}
+                              />
+                              Reverse order
+                            </label>
+                          </span>
+                        </div>
+                      `;
+                    })()
+                  : ''}
               </div>
             </div>
           </div>
