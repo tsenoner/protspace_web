@@ -111,7 +111,7 @@ export class ProtspaceStructureViewer extends LitElement {
 
   public show(proteinId?: string) {
     if (this.autoShow) {
-      this.style.display = 'block';
+      this.style.display = 'flex';
       if (proteinId) {
         this.proteinId = proteinId;
       }
@@ -132,7 +132,7 @@ export class ProtspaceStructureViewer extends LitElement {
     // Public method to load a specific protein
     this.proteinId = proteinId;
     if (this.autoShow) {
-      this.style.display = 'block';
+      this.style.display = 'flex';
     }
   }
 

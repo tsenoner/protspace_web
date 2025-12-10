@@ -13,6 +13,7 @@ export const structureViewerStyles = css`
     --protspace-viewer-error: #c53030;
     --protspace-viewer-loading: #00a3e0;
 
+    display: flex;
     flex-direction: column;
     width: 100%;
 
@@ -21,9 +22,10 @@ export const structureViewerStyles = css`
     position: relative;
     background: var(--protspace-viewer-bg);
     border: 1px solid var(--protspace-viewer-border);
-    flex-shrink: 0;
+    flex-shrink: 1;
     flex-grow: 0;
-    min-height: 52%;
+    min-height: 400px;
+    max-height: 50%;
     border-radius: 6px;
   }
 
