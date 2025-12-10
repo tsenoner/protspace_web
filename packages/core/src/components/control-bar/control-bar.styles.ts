@@ -197,10 +197,10 @@ export const controlBarStyles = css`
     list-style: none;
     margin: 0;
     display: flex;
-    padding: 0.45rem 0.25rem 0.25rem;
+    padding: 1rem 0.25rem 0.5rem;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     box-sizing: border-box;
     cursor: auto;
     row-gap: 17px;
@@ -228,7 +228,7 @@ export const controlBarStyles = css`
     font-weight: 400;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: space-between;
     width: 100%;
     column-gap: 8px;
   }
