@@ -54,4 +54,3 @@ ProtSpace can handle datasets with **200,000+ proteins** directly in your browse
 - **[Quick Start](/)** - Get started in 5 minutes
 - **[Using Google Colab](/guide/data-preparation)** - Prepare your data
 - **[Using the Explore Page](/explore/)** - Learn all the features
-- **[For Developers](/developers/installation)** - Embed components in your app

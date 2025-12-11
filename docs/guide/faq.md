@@ -84,24 +84,6 @@ Try these solutions:
 
 Not recommended. Performance degrades above 500K proteins. Consider subsetting your data.
 
-## For Developers
-
-### Can I embed ProtSpace in my website?
-
-Yes. ProtSpace provides web components that work in any HTML page. See [Embedding Components](/developers/embedding).
-
-### Can I use it in React/Vue/Angular?
-
-Yes. Web components work in all frameworks. See the [Embedding Guide](/developers/embedding).
-
-### Is there a backend API?
-
-No. ProtSpace is purely client-side. All processing happens in the browser.
-
-### Is TypeScript supported?
-
-Yes. Full TypeScript definitions are included with `@protspace/core`.
-
 ## Technical
 
 ### What are the system requirements?
@@ -129,7 +111,7 @@ See [Data Format](/guide/data-format) for details.
 
 ### How can I contribute?
 
-See the [Contributing guide](/developers/contributing) and [CONTRIBUTING.md](https://github.com/tsenoner/protspace_web/blob/main/CONTRIBUTING.md) on GitHub.
+See [CONTRIBUTING.md](https://github.com/tsenoner/protspace_web/blob/main/CONTRIBUTING.md) on GitHub.
 
 ### Where do I report bugs?
 
