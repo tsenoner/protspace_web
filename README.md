@@ -31,62 +31,9 @@ protspace-local -i embeddings.h5 -o output_dir
 
 See the [Python ProtSpace repository](https://github.com/tsenoner/protspace) for details.
 
-## 💻 Embed in Your Project
+## 📚 Documentation
 
-Use the web components in any HTML page or JavaScript framework:
-
-```html
-<!DOCTYPE html>
-<html>
-  <head>
-    <script type="module">
-      import '@protspace/core';
-      import {
-        readFileOptimized,
-        extractRowsFromParquetBundle,
-        convertParquetToVisualizationDataOptimized,
-      } from '@protspace/core';
-    </script>
-  </head>
-  <body>
-    <input type="file" id="fileInput" accept=".parquetbundle" />
-
-    <protspace-control-bar auto-sync scatterplot-selector="#plot"></protspace-control-bar>
-    <protspace-scatterplot id="plot"></protspace-scatterplot>
-    <protspace-legend auto-sync scatterplot-selector="#plot"></protspace-legend>
-    <protspace-structure-viewer auto-sync scatterplot-selector="#plot"></protspace-structure-viewer>
-
-    <script type="module">
-      const fileInput = document.getElementById('fileInput');
-      const plot = document.getElementById('plot');
-
-      fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const arrayBuffer = await readFileOptimized(file);
-        const rows = await extractRowsFromParquetBundle(arrayBuffer);
-        const data = await convertParquetToVisualizationDataOptimized(rows);
-
-        plot.data = data;
-        plot.selectedProjectionIndex = 0;
-        plot.selectedFeature = Object.keys(data.features)[0] || '';
-      });
-    </script>
-  </body>
-</html>
-```
-
-### Available Components
-
-- `<protspace-scatterplot>`: Main 2D/3D visualization
-- `<protspace-legend>`: Filter and color categories
-- `<protspace-control-bar>`: Switch projections, features, and export
-- `<protspace-structure-viewer>`: Display 3D protein structures
-
-### Documentation
-
-📚 **[Full Documentation](https://tsenoner.github.io/protspace_web/)** - Complete guides, API reference, and examples
+**[Full Documentation](https://protspace.app/docs/)** - User guides, data preparation, and feature explanations.
 
 ## 🔧 Development
 
@@ -97,17 +44,15 @@ pnpm install
 pnpm dev  # App: http://localhost:8080 | Docs: http://localhost:5174/docs/
 ```
 
-## 🧹 Code Style (Prettier + ESLint)
+## 🧹 Code Quality
 
-- **Prettier (formatting)**
-  - Format all files: `pnpm run format`
-  - Check without writing: `pnpm run format:check`
+Before committing, run:
 
-- **ESLint (code quality)**
-  - Lint all packages: `pnpm run lint`
-  - Auto-fix safe issues: `pnpm run lint:fix`
+```bash
+pnpm precommit
+```
 
-Prettier handles formatting and ESLint focuses on correctness and best practices. The ESLint config integrates `eslint-config-prettier` to avoid conflicts with Prettier's formatting.
+This runs formatting (Prettier), linting (ESLint), and type checking in one command.
 
 ## ⚖️ License
 
