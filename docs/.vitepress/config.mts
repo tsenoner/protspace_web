@@ -26,11 +26,22 @@ export default defineConfig({
         // to avoid /docs/docs/ issue
         const link = item.text === 'Docs' ? '/' : item.link || '';
 
+        // Handle items with dropdown menus
+        if (item.items) {
+          return {
+            text: item.text,
+            items: item.items.map((subItem) => ({
+              text: subItem.text,
+              link: subItem.link,
+              target: subItem.link.startsWith('http') ? '_blank' : undefined,
+            })),
+          };
+        }
+
         return {
           text: item.text,
           link,
           ...(item.link && item.text !== 'Docs' && { target: '_self' }), // Only set target for non-Docs items
-          ...(item.items && { items: item.items }),
         };
       }),
 
@@ -38,49 +49,45 @@ export default defineConfig({
       {
         text: 'Introduction',
         items: [
-          { text: 'Getting Started', link: '/' },
+          { text: 'Quick Start', link: '/' },
           { text: 'What is ProtSpace?', link: '/guide/' },
-          { text: 'Installation', link: '/guide/installation' },
         ],
       },
       {
-        text: 'Core Concepts',
+        text: 'Preparing Your Data',
         items: [
-          { text: 'Data Format', link: '/guide/data-format' },
-          { text: 'Data Preparation', link: '/guide/data-preparation' },
-          { text: 'User Guide', link: '/guide/user-guide' },
+          { text: 'Using Google Colab', link: '/guide/data-preparation' },
+          { text: 'Using Python CLI', link: '/guide/python-cli' },
+          { text: 'Data Format Reference', link: '/guide/data-format' },
         ],
       },
       {
-        text: 'Integration',
+        text: 'Using the Explore Page',
         items: [
-          { text: 'HTML', link: '/guide/integration-html' },
-          { text: 'React', link: '/guide/integration-react' },
-          { text: 'Vue', link: '/guide/integration-vue' },
+          { text: 'Interface Overview', link: '/explore/' },
+          { text: 'Importing Data', link: '/explore/importing-data' },
+          { text: 'Navigating the Scatterplot', link: '/explore/scatterplot' },
+          { text: 'Using the Legend', link: '/explore/legend' },
+          { text: 'Control Bar Features', link: '/explore/control-bar' },
+          { text: 'Viewing 3D Structures', link: '/explore/structures' },
+          { text: 'Exporting Results', link: '/explore/exporting' },
         ],
       },
       {
-        text: 'Advanced',
-        items: [
-          { text: 'Developer Guide', link: '/guide/developer-guide' },
-          { text: 'FAQ', link: '/guide/faq' },
-        ],
+        text: 'Help',
+        items: [{ text: 'FAQ', link: '/guide/faq' }],
       },
-      {
-        text: 'API Reference',
-        items: [
-          { text: 'Overview', link: '/api/' },
-          { text: 'Scatterplot', link: '/api/scatterplot' },
-          { text: 'Legend', link: '/api/legend' },
-          { text: 'Control Bar', link: '/api/control-bar' },
-          { text: 'Structure Viewer', link: '/api/structure-viewer' },
-          { text: 'Data Loading', link: '/api/data-loading' },
-        ],
-      },
-      {
-        text: 'Examples',
-        items: [{ text: 'Basic Usage', link: '/examples/' }],
-      },
+      // Developer docs hidden until npm package is published
+      // {
+      //   text: 'For Developers',
+      //   collapsed: true,
+      //   items: [
+      //     { text: 'Installation', link: '/developers/installation' },
+      //     { text: 'Embedding Components', link: '/developers/embedding' },
+      //     { text: 'API Reference', link: '/developers/api/' },
+      //     { text: 'Contributing', link: '/developers/contributing' },
+      //   ],
+      // },
     ],
 
     socialLinks: [{ icon: 'github', link: 'https://github.com/tsenoner/protspace_web' }],
