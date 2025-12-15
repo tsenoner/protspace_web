@@ -75,6 +75,7 @@ export class ProtspaceScatterplot extends LitElement {
   private _quadtreeRebuildRafId: number | null = null;
   private _visiblePlotData: PlotDataPoint[] = [];
   private _virtualizationCacheKey: string | null = null;
+  private _hoveredProteinId: string | null = null;
   private _cachedScales: ScalePair | null = null;
   private _scalesCacheDeps: {
     plotDataLength: number;
@@ -719,12 +720,15 @@ export class ProtspaceScatterplot extends LitElement {
     const { x, y } = this._getLocalPointerPosition(event);
     this._tooltipData = { x, y, protein: point };
 
-    this.dispatchEvent(
-      new CustomEvent('protein-hover', {
-        detail: { proteinId: point.id, point },
-        bubbles: true,
-      })
-    );
+    if (this._hoveredProteinId !== point.id) {
+      this._hoveredProteinId = point.id;
+      this.dispatchEvent(
+        new CustomEvent('protein-hover', {
+          detail: { proteinId: point.id, point },
+          bubbles: true,
+        })
+      );
+    }
   }
 
   private _handleClick(event: MouseEvent, point: PlotDataPoint) {
@@ -777,18 +781,14 @@ export class ProtspaceScatterplot extends LitElement {
     if (nearestPoint) {
       // Don't hover hidden points (opacity=0)
       if (this._getOpacity(nearestPoint) === 0) {
-        if (this._tooltipData) {
-          this._tooltipData = null;
-        }
+        this._clearHoverState();
         return;
       }
 
       // Verify the point is actually rendered (not excluded due to point limits)
       if (this._webglRenderer && !this._webglRenderer.isPointRendered(nearestPoint.id)) {
         // Point exists in spatial index but isn't rendered - clear tooltip
-        if (this._tooltipData) {
-          this._tooltipData = null;
-        }
+        this._clearHoverState();
         return;
       }
 
@@ -804,10 +804,8 @@ export class ProtspaceScatterplot extends LitElement {
       }
     }
 
-    // No point found, clear tooltip if it exists
-    if (this._tooltipData) {
-      this._tooltipData = null;
-    }
+    // No point found, clear hover state if it exists
+    this._clearHoverState();
   }
 
   /**
@@ -853,8 +851,23 @@ export class ProtspaceScatterplot extends LitElement {
    * Handle mouse out events for canvas rendering
    */
   private _handleCanvasMouseOut(): void {
+    this._clearHoverState();
+  }
+
+  private _clearHoverState(): void {
     if (this._tooltipData) {
       this._tooltipData = null;
+    }
+
+    // Dispatch "hover cleared" signal so other components can reset their hover UI.
+    if (this._hoveredProteinId !== null) {
+      this._hoveredProteinId = null;
+      this.dispatchEvent(
+        new CustomEvent('protein-hover', {
+          detail: { proteinId: null, point: null },
+          bubbles: true,
+        })
+      );
     }
   }
 
