@@ -190,9 +190,10 @@ export class ProtspaceScatterplot extends LitElement {
     // Trigger sort and render
     if (this._plotData.length > 0) {
       this._sortDataByZOrder();
-      // Force webgl update
+      // Force webgl update and invalidate virtualization cache to re-sort visible points
       this._webglRenderer?.invalidatePositionCache();
       this._webglRenderer?.invalidateStyleCache();
+      this._invalidateVirtualizationCache();
       this._renderPlot();
     }
   };
@@ -205,6 +206,28 @@ export class ProtspaceScatterplot extends LitElement {
 
     // Sort in place
     this._plotData.sort((a, b) => {
+      // Get values (handle array/single value - take first if array)
+      const valA = a.featureValues[featureKey]?.[0] ?? 'null';
+      const valB = b.featureValues[featureKey]?.[0] ?? 'null';
+
+      // Get z-order index (default to Infinity if not found, so they go to the end)
+      const orderA = mapping[valA] ?? Infinity;
+      const orderB = mapping[valB] ?? Infinity;
+
+      // Ascending sort: Lower order (Top of legend) comes first in array -> drawn first -> visible on top
+      // (Renderer uses LESS depth test, so first drawn pixel wins)
+      return orderA - orderB;
+    });
+  }
+
+  private _sortVisiblePointsByZOrder() {
+    if (!this._zOrderMapping || !this.selectedFeature || this._visiblePlotData.length === 0) return;
+
+    const mapping = this._zOrderMapping;
+    const featureKey = this.selectedFeature;
+
+    // Sort visible points in place
+    this._visiblePlotData.sort((a, b) => {
       // Get values (handle array/single value - take first if array)
       const valA = a.featureValues[featureKey]?.[0] ?? 'null';
       const valB = b.featureValues[featureKey]?.[0] ?? 'null';
@@ -644,6 +667,12 @@ export class ProtspaceScatterplot extends LitElement {
     const cacheKey = `${Math.round(transform.x)}|${Math.round(transform.y)}|${transform.k.toFixed(3)}|${config.width}|${config.height}`;
     if (this._virtualizationCacheKey !== cacheKey) {
       this._visiblePlotData = this._quadtreeIndex.queryByPixels(minX, minY, maxX, maxY);
+
+      // Apply z-order sorting to visible points when virtualization is enabled
+      if (this._zOrderMapping) {
+        this._sortVisiblePointsByZOrder();
+      }
+
       this._virtualizationCacheKey = cacheKey;
     }
 
