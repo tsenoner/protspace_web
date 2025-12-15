@@ -9,6 +9,7 @@ export interface WebGLStyleGetters {
   getColors: (point: PlotDataPoint) => string[];
   getPointSize: (point: PlotDataPoint) => number;
   getOpacity: (point: PlotDataPoint) => number;
+  getDepth: (point: PlotDataPoint) => number;
   getStrokeColor: (point: PlotDataPoint) => string;
   getStrokeWidth: (point: PlotDataPoint) => number;
   getShape: (point: PlotDataPoint) => d3.SymbolType;

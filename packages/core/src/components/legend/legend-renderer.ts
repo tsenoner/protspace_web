@@ -9,6 +9,12 @@ import { SHAPE_MAPPING, LEGEND_DEFAULTS, LEGEND_STYLES } from './config';
  */
 export class LegendRenderer {
   /**
+   * Diamond needs a small boost to visually match the perceived size of other shapes.
+   * D3 symbol sizes are specified as area, so we square the linear scale factor.
+   */
+  private static readonly DIAMOND_LINEAR_SCALE = 1.25;
+
+  /**
    * Render a symbol using D3 shapes for consistency with scatterplot
    */
   static renderSymbol(
@@ -28,11 +34,16 @@ export class LegendRenderer {
     // Get the D3 symbol type (default to circle if not found)
     const symbolType = SHAPE_MAPPING[shapeKey] || d3.symbolCircle;
 
+    const areaScale =
+      shapeKey === 'diamond'
+        ? LegendRenderer.DIAMOND_LINEAR_SCALE * LegendRenderer.DIAMOND_LINEAR_SCALE
+        : 1;
+
     // Generate the SVG path using D3
     const path = d3
       .symbol()
       .type(symbolType)
-      .size(size * LEGEND_DEFAULTS.symbolSizeMultiplier)();
+      .size(size * LEGEND_DEFAULTS.symbolSizeMultiplier * areaScale)();
 
     // Some symbol types should be rendered as outlines only
     const isOutlineOnly = LEGEND_STYLES.outlineShapes.has(shapeKey);

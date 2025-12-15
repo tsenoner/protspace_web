@@ -8,7 +8,7 @@
  * Falls back to direct rendering if gamma pipeline is unavailable.
  */
 
-import type * as d3 from 'd3';
+import * as d3 from 'd3';
 import type { PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
 import {
   type WebGLStyleGetters,
@@ -30,6 +30,19 @@ const MIN_POINT_SIZE = 1;
 const MIN_CAPACITY = 1024;
 const MAX_LABELS = 8;
 const LABEL_TEXTURE_WIDTH = 2048;
+const DIAMOND_SIZE_SCALE = 1.25;
+
+// Shape type to index mapping (matches shader logic)
+// 0=circle, 1=square, 2=diamond, 3=triangle-up, 4=triangle-down, 5=plus
+function getShapeIndex(symbolType: d3.SymbolType): number {
+  if (symbolType === d3.symbolCircle) return 0;
+  if (symbolType === d3.symbolSquare) return 1;
+  if (symbolType === d3.symbolDiamond) return 2;
+  if (symbolType === d3.symbolTriangle) return 3;
+  if (symbolType === d3.symbolTriangle2) return 4;
+  if (symbolType === d3.symbolPlus) return 5;
+  return 0; // Default to circle
+}
 
 const POINT_VERTEX_SHADER = `#version 300 es
 precision highp float;
@@ -37,7 +50,9 @@ precision highp float;
 in vec2 a_dataPosition;
 in float a_pointSize;
 in vec4 a_color;
+in float a_depth;
 in float a_labelCount;
+in float a_shape;
 
 uniform vec2 u_resolution;
 uniform vec3 u_transform;
@@ -46,6 +61,7 @@ uniform float u_gamma;
 
 out vec4 v_color;
 out float v_labelCount;
+flat out float v_shape;
 flat out int v_pointIndex;
 
 void main() {
@@ -53,16 +69,15 @@ void main() {
   vec2 physicalPos = cssTransformed * u_dpr;
   vec2 clipSpace = (physicalPos / u_resolution) * 2.0 - 1.0;
   
-  // Use alpha for depth sorting
-  float z = 1.0 - a_color.a;
-  
-  gl_Position = vec4(clipSpace.x, -clipSpace.y, z, 1.0);
+  // Depth is computed per-point on the CPU (opacity + legend z-order tie-break)
+  gl_Position = vec4(clipSpace.x, -clipSpace.y, a_depth, 1.0);
   gl_PointSize = max(1.0, a_pointSize);
   
   // Convert sRGB input to linear RGB for proper blending
   vec3 linearColor = pow(max(a_color.rgb, vec3(0.0)), vec3(u_gamma));
   v_color = vec4(linearColor, a_color.a);
   v_labelCount = a_labelCount;
+  v_shape = a_shape;
   v_pointIndex = gl_VertexID;
 }`;
 
@@ -71,6 +86,7 @@ precision highp float;
 
 in vec4 v_color;
 in float v_labelCount;
+flat in float v_shape;
 flat in int v_pointIndex;
 
 uniform sampler2D u_labelColors;
@@ -81,16 +97,36 @@ uniform float u_gamma;
 out vec4 fragColor;
 
 const float PI = 3.14159265359;
+const float SQRT3 = 1.73205080757;
 
 void main() {
   vec2 coord = gl_PointCoord * 2.0 - 1.0;
-  float distSq = dot(coord, coord);
+  bool discard_fragment = false;
   
-  if (distSq > 1.0) discard;
+  // Shape rendering (0=circle, 1=square, 2=diamond, 3=triangle-up, 4=triangle-down, 5=plus)
+  if (v_shape < 0.5) { // Circle
+    discard_fragment = dot(coord, coord) > 1.0;
+  } else if (v_shape < 1.5) { // Square
+    discard_fragment = abs(coord.x) > 1.0 || abs(coord.y) > 1.0;
+  } else if (v_shape < 2.5) { // Diamond
+    // Match d3.symbolDiamond proportions (same mapping as D3's "tan30" constant, i.e. sqrt(1/3))
+    discard_fragment = abs(coord.x) * SQRT3 + abs(coord.y) > 1.0;
+  } else if (v_shape < 3.5) { // Triangle Up
+    discard_fragment = coord.y < -0.5 || abs(coord.x) * SQRT3 > 1.0 + coord.y;
+  } else if (v_shape < 4.5) { // Triangle Down
+    discard_fragment = coord.y > 0.5 || abs(coord.x) * SQRT3 > 1.0 - coord.y;
+  } else { // Plus
+    float thickness = 0.35;
+    bool inVertical = abs(coord.x) < thickness;
+    bool inHorizontal = abs(coord.y) < thickness;
+    discard_fragment = !(inVertical || inHorizontal);
+  }
+  
+  if (discard_fragment) discard;
   
   vec3 finalColor = v_color.rgb;
 
-  // Pie Chart Logic
+  // Pie Chart Logic (only for multi-label points, which always use circle shape)
   if (v_labelCount > 1.5) {
     float angle = atan(coord.y, coord.x); // -PI to PI
     // Map to 0..1
@@ -111,14 +147,18 @@ void main() {
     finalColor = pow(max(texColor.rgb, vec3(0.0)), vec3(u_gamma));
   }
   
-  float dist = sqrt(distSq);
-  
-  // Stroke width
-  float strokeWidth = 0.15;
-  float strokeStart = 1.0 - strokeWidth;
+  // Apply shape-specific stroke/edge darkening only for circles
+  // Other shapes look cleaner without the stroke effect
+  if (v_shape < 0.5) { // Circle only
+    float distSq = dot(coord, coord);
+    float dist = sqrt(distSq);
+    
+    float strokeWidth = 0.15;
+    float strokeStart = 1.0 - strokeWidth;
 
-  if (dist > strokeStart) {
-    finalColor = finalColor * 0.5; 
+    if (dist > strokeStart) {
+      finalColor = finalColor * 0.5; 
+    }
   }
   
   float finalAlpha = v_color.a;
@@ -167,7 +207,9 @@ export class WebGLRenderer {
     dataPosition: number;
     size: number;
     color: number;
+    depth: number;
     labelCount: number;
+    shape: number;
   } | null = null;
   private pointUniformLocations: {
     resolution: WebGLUniformLocation | null;
@@ -197,15 +239,19 @@ export class WebGLRenderer {
   private dataPositionBuffer: WebGLBuffer | null = null;
   private sizeBuffer: WebGLBuffer | null = null;
   private colorBuffer: WebGLBuffer | null = null;
+  private depthBuffer: WebGLBuffer | null = null;
   private labelCountBuffer: WebGLBuffer | null = null;
+  private shapeBuffer: WebGLBuffer | null = null;
   private labelColorTexture: WebGLTexture | null = null;
 
   // CPU arrays
   private dataPositions = new Float32Array(0);
   private sizes = new Float32Array(0);
   private colors = new Float32Array(0);
+  private depths = new Float32Array(0);
   private labelCounts = new Float32Array(0);
-  private labelColorData = new Float32Array(0);
+  private shapes = new Float32Array(0);
+  private labelColorData = new Uint8Array(0);
 
   // State
   private capacity = 0;
@@ -220,6 +266,7 @@ export class WebGLRenderer {
   private lastStyleSignature: string | null = null;
 
   // Track rendered point IDs for hover detection
+  private trackRenderedPointIds = false;
   private renderedPointIds = new Set<string>();
 
   // Config
@@ -276,7 +323,25 @@ export class WebGLRenderer {
     this.stylesDirty = true;
   }
 
+  /**
+   * Enable/disable tracking of the exact set of rendered point IDs.
+   *
+   * This exists to guard hover/click behavior when the renderer truncates the
+   * number of points (e.g. datasets > MAX_POINTS_DIRECT_RENDER).
+   *
+   * For typical datasets (<= MAX_POINTS_DIRECT_RENDER), tracking is unnecessary
+   * and expensive (it adds/clears ~N string IDs on every buffer rebuild), so it
+   * should be kept disabled.
+   */
+  setTrackRenderedPointIds(enabled: boolean) {
+    this.trackRenderedPointIds = enabled;
+    if (!enabled) {
+      this.renderedPointIds.clear();
+    }
+  }
+
   isPointRendered(pointId: string): boolean {
+    if (!this.trackRenderedPointIds) return true;
     return this.renderedPointIds.has(pointId);
   }
 
@@ -555,7 +620,9 @@ export class WebGLRenderer {
     if (this.dataPositionBuffer) gl.deleteBuffer(this.dataPositionBuffer);
     if (this.sizeBuffer) gl.deleteBuffer(this.sizeBuffer);
     if (this.colorBuffer) gl.deleteBuffer(this.colorBuffer);
+    if (this.depthBuffer) gl.deleteBuffer(this.depthBuffer);
     if (this.labelCountBuffer) gl.deleteBuffer(this.labelCountBuffer);
+    if (this.shapeBuffer) gl.deleteBuffer(this.shapeBuffer);
     if (this.quadBuffer) gl.deleteBuffer(this.quadBuffer);
     if (this.labelColorTexture) gl.deleteTexture(this.labelColorTexture);
     if (this.pointProgram) gl.deleteProgram(this.pointProgram);
@@ -617,7 +684,9 @@ export class WebGLRenderer {
     this.dataPositionBuffer = gl.createBuffer();
     this.sizeBuffer = gl.createBuffer();
     this.colorBuffer = gl.createBuffer();
+    this.depthBuffer = gl.createBuffer();
     this.labelCountBuffer = gl.createBuffer();
+    this.shapeBuffer = gl.createBuffer();
     this.quadBuffer = gl.createBuffer();
     this.labelColorTexture = gl.createTexture();
 
@@ -650,7 +719,9 @@ export class WebGLRenderer {
       dataPosition: gl.getAttribLocation(this.pointProgram, 'a_dataPosition'),
       size: gl.getAttribLocation(this.pointProgram, 'a_pointSize'),
       color: gl.getAttribLocation(this.pointProgram, 'a_color'),
+      depth: gl.getAttribLocation(this.pointProgram, 'a_depth'),
       labelCount: gl.getAttribLocation(this.pointProgram, 'a_labelCount'),
+      shape: gl.getAttribLocation(this.pointProgram, 'a_shape'),
     };
 
     this.pointUniformLocations = {
@@ -705,9 +776,17 @@ export class WebGLRenderer {
     gl.enableVertexAttribArray(this.pointAttribLocations.color);
     gl.vertexAttribPointer(this.pointAttribLocations.color, 4, gl.FLOAT, false, 0, 0);
 
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.depthBuffer);
+    gl.enableVertexAttribArray(this.pointAttribLocations.depth);
+    gl.vertexAttribPointer(this.pointAttribLocations.depth, 1, gl.FLOAT, false, 0, 0);
+
     gl.bindBuffer(gl.ARRAY_BUFFER, this.labelCountBuffer);
     gl.enableVertexAttribArray(this.pointAttribLocations.labelCount);
     gl.vertexAttribPointer(this.pointAttribLocations.labelCount, 1, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.shapeBuffer);
+    gl.enableVertexAttribArray(this.pointAttribLocations.shape);
+    gl.vertexAttribPointer(this.pointAttribLocations.shape, 1, gl.FLOAT, false, 0, 0);
 
     gl.bindVertexArray(null);
   }
@@ -805,7 +884,9 @@ export class WebGLRenderer {
       updateStyles = true;
     }
 
-    this.renderedPointIds.clear();
+    if (this.trackRenderedPointIds) {
+      this.renderedPointIds.clear();
+    }
 
     let idx = 0;
     for (let i = 0; i < points.length && idx < maxPoints; i++) {
@@ -813,7 +894,9 @@ export class WebGLRenderer {
       const opacity = this.style.getOpacity(point);
       if (opacity === 0) continue;
 
-      this.renderedPointIds.add(point.id);
+      if (this.trackRenderedPointIds) {
+        this.renderedPointIds.add(point.id);
+      }
 
       if (updatePositions) {
         this.dataPositions[idx * 2] = scales.x(point.x);
@@ -824,13 +907,19 @@ export class WebGLRenderer {
         const pointColors = this.style.getColors(point);
         const [r, g, b] = resolveColor(pointColors[0] ?? '#888888');
         const size = Math.sqrt(this.style.getPointSize(point)) / POINT_SIZE_DIVISOR;
+        const shapeType = this.style.getShape(point);
+        const shapeIndex = getShapeIndex(shapeType);
+        const depth = this.style.getDepth(point);
 
         this.colors[idx * 4] = r;
         this.colors[idx * 4 + 1] = g;
         this.colors[idx * 4 + 2] = b;
         this.colors[idx * 4 + 3] = Math.min(1, Math.max(0, opacity));
-        this.sizes[idx] = Math.max(MIN_POINT_SIZE, size * 2 * this.dpr);
+        const basePointSize = Math.max(MIN_POINT_SIZE, size * 2 * this.dpr);
+        this.sizes[idx] = shapeIndex === 2 ? basePointSize * DIAMOND_SIZE_SCALE : basePointSize;
+        this.depths[idx] = depth;
         this.labelCounts[idx] = pointColors.length;
+        this.shapes[idx] = shapeIndex;
 
         // Fill label color texture data
         for (let j = 0; j < MAX_LABELS; j++) {
@@ -838,10 +927,11 @@ export class WebGLRenderer {
             const [lr, lg, lb] = resolveColor(pointColors[j]);
             const texIndex = (idx * MAX_LABELS + j) * 4;
             if (texIndex < this.labelColorData.length) {
-              this.labelColorData[texIndex] = lr;
-              this.labelColorData[texIndex + 1] = lg;
-              this.labelColorData[texIndex + 2] = lb;
-              this.labelColorData[texIndex + 3] = 1.0;
+              // RGBA8 texture: store 0..255 bytes. Sampling returns normalized floats automatically.
+              this.labelColorData[texIndex] = Math.round(lr * 255);
+              this.labelColorData[texIndex + 1] = Math.round(lg * 255);
+              this.labelColorData[texIndex + 2] = Math.round(lb * 255);
+              this.labelColorData[texIndex + 3] = 255;
             }
           }
         }
@@ -861,7 +951,9 @@ export class WebGLRenderer {
     if (updateStyles) {
       this.updateBuffer(gl, this.sizeBuffer, this.sizes, idx);
       this.updateBuffer(gl, this.colorBuffer, this.colors, idx * 4);
+      this.updateBuffer(gl, this.depthBuffer, this.depths, idx);
       this.updateBuffer(gl, this.labelCountBuffer, this.labelCounts, idx);
+      this.updateBuffer(gl, this.shapeBuffer, this.shapes, idx);
 
       // Update texture
       gl.bindTexture(gl.TEXTURE_2D, this.labelColorTexture);
@@ -869,12 +961,12 @@ export class WebGLRenderer {
       gl.texImage2D(
         gl.TEXTURE_2D,
         0,
-        gl.RGBA32F,
+        gl.RGBA8,
         LABEL_TEXTURE_WIDTH,
         texHeight,
         0,
         gl.RGBA,
-        gl.FLOAT,
+        gl.UNSIGNED_BYTE,
         this.labelColorData
       );
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -907,14 +999,16 @@ export class WebGLRenderer {
     this.dataPositions = new Float32Array(nextCapacity * 2);
     this.colors = new Float32Array(nextCapacity * 4);
     this.sizes = new Float32Array(nextCapacity);
+    this.depths = new Float32Array(nextCapacity);
     this.labelCounts = new Float32Array(nextCapacity);
+    this.shapes = new Float32Array(nextCapacity);
     // Align texture height to next power of 2 or just simple expansion
     // Total pixels needed = nextCapacity * MAX_LABELS
     // Texture Width = LABEL_TEXTURE_WIDTH
     // Height = ceil(Total / Width)
     const requiredPixels = nextCapacity * MAX_LABELS;
     const texHeight = Math.ceil(requiredPixels / LABEL_TEXTURE_WIDTH);
-    this.labelColorData = new Float32Array(LABEL_TEXTURE_WIDTH * texHeight * 4);
+    this.labelColorData = new Uint8Array(LABEL_TEXTURE_WIDTH * texHeight * 4);
 
     this.buffersInitialized = false;
   }

@@ -10,6 +10,11 @@ export interface StyleConfig {
   hiddenFeatureValues: string[];
   otherFeatureValues: string[];
   useShapes?: boolean;
+  /**
+   * Optional legend-driven z-order mapping: feature value key -> rank (0 = top).
+   * Used to break overlap ties deterministically without CPU-sorting.
+   */
+  zOrderMapping?: Record<string, number> | null;
   sizes: {
     base: number;
   };
@@ -140,6 +145,41 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     return styleConfig.opacities.base;
   };
 
+  // Precompute normalization for z-order mapping so getDepth is cheap.
+  const zMap = styleConfig.zOrderMapping ?? null;
+  const zMax =
+    zMap && Object.keys(zMap).length > 0
+      ? Math.max(...Object.values(zMap).filter((v) => typeof v === 'number' && Number.isFinite(v)))
+      : 0;
+  const Z_EPS = 1e-3; // must be small enough to not override opacity-based depth differences
+
+  /**
+   * Depth used by WebGL depth test:
+   * - Primary: opacity (more opaque wins)
+   * - Secondary: legend z-order (lower rank wins when opacity ties)
+   */
+  const getDepth = (point: PlotDataPoint): number => {
+    const opacity = getOpacity(point);
+    // Base depth in [0,1]: higher opacity -> smaller depth -> wins with LESS
+    let depth = 1 - Math.min(1, Math.max(0, opacity));
+
+    if (zMap && styleConfig.selectedFeature) {
+      const raw = point.featureValues[styleConfig.selectedFeature]?.[0] ?? 'null';
+      const key = normalizeToKey(raw);
+      const order = zMap[key];
+      if (typeof order === 'number' && Number.isFinite(order) && zMax > 0) {
+        const orderNorm = Math.min(1, Math.max(0, order / zMax));
+        depth = depth + orderNorm * Z_EPS;
+      } else if (zMax > 0) {
+        // Unknown values go to the back within an opacity tier.
+        depth = depth + Z_EPS;
+      }
+    }
+
+    // Clamp to a safe range (shader expects roughly [0,1])
+    return Math.min(1, Math.max(0, depth));
+  };
+
   const getStrokeColor = (_point: PlotDataPoint): string => {
     return 'var(--protspace-default-stroke, #333333)';
   };
@@ -153,6 +193,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     getPointShape,
     getColors,
     getOpacity,
+    getDepth,
     getStrokeColor,
     getStrokeWidth,
   };

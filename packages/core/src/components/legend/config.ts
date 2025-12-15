@@ -5,18 +5,14 @@ import { NEUTRAL_VALUE_COLOR, DEFAULT_CONFIG } from '../scatter-plot/config';
  * Legend configuration constants
  */
 
-// Define the same SHAPE_MAPPING as in ImprovedScatterplot.tsx for consistency
+// Define the same SHAPE_MAPPING as in shapes.ts for consistency
 export const SHAPE_MAPPING = {
-  asterisk: d3.symbolAsterisk,
   circle: d3.symbolCircle,
-  cross: d3.symbolCross,
-  diamond: d3.symbolDiamond,
-  plus: d3.symbolPlus,
   square: d3.symbolSquare,
-  star: d3.symbolStar,
-  triangle: d3.symbolTriangle,
-  wye: d3.symbolWye,
-  times: d3.symbolTimes,
+  diamond: d3.symbolDiamond,
+  'triangle-up': d3.symbolTriangle,
+  'triangle-down': d3.symbolTriangle2, // D3's triangle2 points down
+  plus: d3.symbolPlus,
 } as const;
 
 // Default styles for special cases
@@ -61,7 +57,7 @@ export const LEGEND_STYLES = {
     selectedStroke: '#00A3E0',
     fallback: NEUTRAL_VALUE_COLOR,
   },
-  outlineShapes: new Set(['plus', 'asterisk', 'cross', 'times']),
+  outlineShapes: new Set(['plus']),
   legendDisplaySize: 16, // legend symbols size (independent of canvas point size)
 } as const;
 

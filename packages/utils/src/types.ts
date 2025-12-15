@@ -43,14 +43,4 @@ export interface ScatterplotConfig {
   fadedOpacity?: number;
 }
 
-export type PointShape =
-  | 'asterisk'
-  | 'circle'
-  | 'cross'
-  | 'diamond'
-  | 'plus'
-  | 'square'
-  | 'star'
-  | 'triangle'
-  | 'wye'
-  | 'times';
+export type PointShape = 'circle' | 'square' | 'diamond' | 'triangle-up' | 'triangle-down' | 'plus';

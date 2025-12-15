@@ -6,11 +6,13 @@ import { DataProcessor } from '@protspace/utils';
 import { scatterplotStyles } from './scatter-plot.styles';
 import { DEFAULT_CONFIG } from './config';
 import { createStyleGetters } from './style-getters';
-import { WebGLRenderer } from './webgl';
+import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer } from './webgl';
 import { QuadtreeIndex } from './quadtree-index';
 
-// Virtualization is only needed for viewport culling on very large datasets
-const VIRTUALIZATION_THRESHOLD = 500_000;
+// Virtualization is only needed for viewport culling on very large datasets.
+// For <= MAX_POINTS_DIRECT_RENDER we can render the full set once and then pan/zoom via uniforms
+// (no per-frame quadtree queries or buffer rebuilds), which is substantially faster for ~500k points.
+const VIRTUALIZATION_THRESHOLD = MAX_POINTS_DIRECT_RENDER;
 const VIRTUALIZATION_PADDING = 100;
 type ScalePair = {
   x: d3.ScaleLinear<number, number>;
@@ -186,10 +188,11 @@ export class ProtspaceScatterplot extends LitElement {
   private _handleZOrderChange = (event: Event) => {
     const customEvent = event as CustomEvent;
     this._zOrderMapping = customEvent.detail.zOrderMapping;
+    // z-order affects GPU depth; force a fresh style getter cache so getDepth sees the new mapping
+    this._styleGettersCache = null;
 
-    // Trigger sort and render
+    // Trigger render (z-order is handled in WebGL depth; avoid CPU-sorting on every zoom/pan)
     if (this._plotData.length > 0) {
-      this._sortDataByZOrder();
       // Force webgl update and invalidate virtualization cache to re-sort visible points
       this._webglRenderer?.invalidatePositionCache();
       this._webglRenderer?.invalidateStyleCache();
@@ -197,50 +200,6 @@ export class ProtspaceScatterplot extends LitElement {
       this._renderPlot();
     }
   };
-
-  private _sortDataByZOrder() {
-    if (!this._zOrderMapping || !this.selectedFeature || this._plotData.length === 0) return;
-
-    const mapping = this._zOrderMapping;
-    const featureKey = this.selectedFeature;
-
-    // Sort in place
-    this._plotData.sort((a, b) => {
-      // Get values (handle array/single value - take first if array)
-      const valA = a.featureValues[featureKey]?.[0] ?? 'null';
-      const valB = b.featureValues[featureKey]?.[0] ?? 'null';
-
-      // Get z-order index (default to Infinity if not found, so they go to the end)
-      const orderA = mapping[valA] ?? Infinity;
-      const orderB = mapping[valB] ?? Infinity;
-
-      // Ascending sort: Lower order (Top of legend) comes first in array -> drawn first -> visible on top
-      // (Renderer uses LESS depth test, so first drawn pixel wins)
-      return orderA - orderB;
-    });
-  }
-
-  private _sortVisiblePointsByZOrder() {
-    if (!this._zOrderMapping || !this.selectedFeature || this._visiblePlotData.length === 0) return;
-
-    const mapping = this._zOrderMapping;
-    const featureKey = this.selectedFeature;
-
-    // Sort visible points in place
-    this._visiblePlotData.sort((a, b) => {
-      // Get values (handle array/single value - take first if array)
-      const valA = a.featureValues[featureKey]?.[0] ?? 'null';
-      const valB = b.featureValues[featureKey]?.[0] ?? 'null';
-
-      // Get z-order index (default to Infinity if not found, so they go to the end)
-      const orderA = mapping[valA] ?? Infinity;
-      const orderB = mapping[valB] ?? Infinity;
-
-      // Ascending sort: Lower order (Top of legend) comes first in array -> drawn first -> visible on top
-      // (Renderer uses LESS depth test, so first drawn pixel wins)
-      return orderA - orderB;
-    });
-  }
 
   updated(changedProperties: Map<string, any>) {
     // When new data is loaded (or projection index changes), ensure the selection is valid.
@@ -344,6 +303,7 @@ export class ProtspaceScatterplot extends LitElement {
         hiddenFeatureValues: this.hiddenFeatureValues,
         otherFeatureValues: this.otherFeatureValues,
         useShapes: this.useShapes,
+        zOrderMapping: this._zOrderMapping,
         sizes: {
           base: this._mergedConfig.pointSize,
         },
@@ -386,6 +346,7 @@ export class ProtspaceScatterplot extends LitElement {
           getColors: (p: PlotDataPoint) => this._getColors(p),
           getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
           getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
+          getDepth: (p: PlotDataPoint) => this._getDepth(p),
           getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
           getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
           getShape: (p: PlotDataPoint) => this._getPointShape(p),
@@ -408,10 +369,7 @@ export class ProtspaceScatterplot extends LitElement {
       this.projectionPlane
     );
 
-    // Apply sorting if mapping exists
-    if (this._zOrderMapping) {
-      this._sortDataByZOrder();
-    }
+    // z-order is resolved in WebGL depth (see style getters), so we avoid sorting 500k+ points on CPU.
 
     // Invalidate scales cache when plot data changes
     this._invalidateScalesCache();
@@ -501,6 +459,7 @@ export class ProtspaceScatterplot extends LitElement {
             getColors: (p: PlotDataPoint) => this._getColors(p),
             getPointSize: (p: PlotDataPoint) => this._getPointSize(p),
             getOpacity: (p: PlotDataPoint) => this._getOpacity(p),
+            getDepth: (p: PlotDataPoint) => this._getDepth(p),
             getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
             getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
             getShape: (p: PlotDataPoint) => this._getPointShape(p),
@@ -633,6 +592,9 @@ export class ProtspaceScatterplot extends LitElement {
       this._webglRenderer.clear();
       return;
     }
+    // Only track exact rendered IDs when we might truncate the dataset.
+    // For typical datasets, tracking adds significant per-render overhead.
+    this._webglRenderer.setTrackRenderedPointIds(points.length > MAX_POINTS_DIRECT_RENDER);
     this._webglRenderer.render(points);
     this._mainGroup?.selectAll('.protein-point').remove();
   }
@@ -667,11 +629,6 @@ export class ProtspaceScatterplot extends LitElement {
     const cacheKey = `${Math.round(transform.x)}|${Math.round(transform.y)}|${transform.k.toFixed(3)}|${config.width}|${config.height}`;
     if (this._virtualizationCacheKey !== cacheKey) {
       this._visiblePlotData = this._quadtreeIndex.queryByPixels(minX, minY, maxX, maxY);
-
-      // Apply z-order sorting to visible points when virtualization is enabled
-      if (this._zOrderMapping) {
-        this._sortVisiblePointsByZOrder();
-      }
 
       this._virtualizationCacheKey = cacheKey;
     }
@@ -709,6 +666,11 @@ export class ProtspaceScatterplot extends LitElement {
     return getters.getOpacity(point);
   }
 
+  private _getDepth(point: PlotDataPoint): number {
+    const getters = this._getStyleGetters();
+    return getters.getDepth(point);
+  }
+
   private _getStrokeColor(point: PlotDataPoint): string {
     const getters = this._getStyleGetters();
     return getters.getStrokeColor(point);
@@ -728,6 +690,7 @@ export class ProtspaceScatterplot extends LitElement {
         hiddenFeatureValues: this.hiddenFeatureValues,
         otherFeatureValues: this.otherFeatureValues,
         useShapes: this.useShapes,
+        zOrderMapping: this._zOrderMapping,
         sizes: {
           base: this._mergedConfig.pointSize,
         },
@@ -812,6 +775,14 @@ export class ProtspaceScatterplot extends LitElement {
     const nearestPoint = this._quadtreeIndex.findNearest(dataX, dataY, searchRadius);
 
     if (nearestPoint) {
+      // Don't hover hidden points (opacity=0)
+      if (this._getOpacity(nearestPoint) === 0) {
+        if (this._tooltipData) {
+          this._tooltipData = null;
+        }
+        return;
+      }
+
       // Verify the point is actually rendered (not excluded due to point limits)
       if (this._webglRenderer && !this._webglRenderer.isPointRendered(nearestPoint.id)) {
         // Point exists in spatial index but isn't rendered - clear tooltip
@@ -856,6 +827,11 @@ export class ProtspaceScatterplot extends LitElement {
     const nearestPoint = this._quadtreeIndex.findNearest(dataX, dataY, searchRadius);
 
     if (nearestPoint) {
+      // Don't click hidden points (opacity=0)
+      if (this._getOpacity(nearestPoint) === 0) {
+        return;
+      }
+
       // Verify the point is actually rendered (not excluded due to point limits)
       if (this._webglRenderer && !this._webglRenderer.isPointRendered(nearestPoint.id)) {
         return;

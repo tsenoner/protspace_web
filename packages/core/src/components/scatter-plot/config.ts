@@ -6,8 +6,8 @@ export const DEFAULT_CONFIG: Required<ScatterplotConfig> = {
   height: 600,
   margin: { top: 40, right: 40, bottom: 40, left: 40 },
   pointSize: 240,
-  zoomExtent: [0.1, Infinity],
-  baseOpacity: 0.8,
+  zoomExtent: [0.1, 1000],
+  baseOpacity: 0.9,
   selectedOpacity: 1.0,
   fadedOpacity: 0.15,
 };
