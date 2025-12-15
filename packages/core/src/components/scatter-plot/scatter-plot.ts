@@ -220,6 +220,38 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   updated(changedProperties: Map<string, any>) {
+    // When new data is loaded (or projection index changes), ensure the selection is valid.
+    // This prevents a blank plot when switching from a dataset with many projections/features
+    // to one with only a single projection/feature.
+    if (
+      (changedProperties.has('data') || changedProperties.has('selectedProjectionIndex')) &&
+      this.data
+    ) {
+      const projectionsCount = Array.isArray(this.data.projections)
+        ? this.data.projections.length
+        : 0;
+      if (!Number.isFinite(this.selectedProjectionIndex)) {
+        this.selectedProjectionIndex = 0;
+      } else if (projectionsCount > 0) {
+        const clamped = Math.max(0, Math.min(this.selectedProjectionIndex, projectionsCount - 1));
+        if (clamped !== this.selectedProjectionIndex) {
+          this.selectedProjectionIndex = clamped;
+        }
+      } else if (this.selectedProjectionIndex !== 0) {
+        this.selectedProjectionIndex = 0;
+      }
+
+      const featureKeys = Object.keys(this.data.features || {});
+      if (this.selectedFeature && featureKeys.includes(this.selectedFeature)) {
+        // ok
+      } else {
+        this.selectedFeature = featureKeys[0] || '';
+        // Reset filters when the active feature changes due to a data swap
+        this.hiddenFeatureValues = [];
+        this.otherFeatureValues = [];
+      }
+    }
+
     if (
       changedProperties.has('data') ||
       changedProperties.has('selectedProjectionIndex') ||
