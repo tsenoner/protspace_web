@@ -2,7 +2,7 @@
 
 ProtSpace integrates with AlphaFold to display 3D protein structures alongside your embedding visualization.
 
-![Structure viewer](./images/structure-viewer-full.png)
+<img src="./images/structure-viewer.png" alt="Structure Viewer - showing 3D protein structure" style="max-width: 50%; display: block; margin: 1em 0;" />
 
 ## How It Works
 
@@ -24,8 +24,6 @@ Currently, ProtSpace supports **AlphaFold structures** only. PDB experimental st
 | **Right drag**   | Pan the view         |
 | **Scroll**       | Zoom in/out          |
 | **Double-click** | Reset the view       |
-
-![Structure viewer controls](./images/structure-controls.gif)
 
 ## When Structures Aren't Available
 

@@ -2,8 +2,6 @@
 
 The legend panel lets you filter, customize, and explore your protein annotations.
 
-![Legend panel](./images/legend-full.png)
-
 ## Filtering Categories
 
 ### Show/Hide Labels
@@ -37,8 +35,6 @@ When there are many categories (default more than 10), less frequent ones are gr
 
 Click the **cog icon** (⚙️) in the top-right corner of the legend for advanced options:
 
-![Legend settings](./images/legend-settings.png)
-
 | Setting                  | Description                                                  |
 | ------------------------ | ------------------------------------------------------------ |
 | **Shape size**           | Adjust the size of points in the scatterplot                 |
@@ -54,8 +50,6 @@ When proteins have multiple values (e.g., multiple EC numbers):
 - Points display as **pie charts**
 - Each slice represents a different value
 - All unique values appear in the legend
-
-![Multi-label pie charts](./images/legend-multilabel.png)
 
 ## Next Steps
 

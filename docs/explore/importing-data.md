@@ -6,8 +6,6 @@ ProtSpace uses `.parquetbundle` files containing protein embeddings and annotati
 
 The easiest way to load data:
 
-![Drag and drop - file being dropped onto canvas](./images/drag-drop.gif)
-
 1. Find your `.parquetbundle` file
 2. Drag it onto the scatterplot canvas
 3. Drop when you see the indicator
@@ -15,9 +13,7 @@ The easiest way to load data:
 
 ## Import Button
 
-Alternatively, use the Import button in the control bar:
-
-![Import button location](./images/import-button.png)
+Alternatively, use the **Import** button (button #9) in the control bar:
 
 1. Click the **Import** button
 2. Select your `.parquetbundle` file

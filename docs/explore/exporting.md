@@ -6,7 +6,7 @@ ProtSpace allows you to export images and data for further use.
 
 Click **Export** in the control bar to see available options:
 
-![Export menu](./images/export-menu.png)
+![Export options](./images/control-bar-export.png)
 
 ## Available Formats
 

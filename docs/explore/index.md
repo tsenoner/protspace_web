@@ -15,18 +15,19 @@ The ProtSpace Explore page provides an interactive environment for visualizing a
 
 ## Control Bar
 
-![Control Bar - showing all buttons and dropdowns](./images/control-bar.png)
+![Control Bar - showing all buttons and dropdowns with numbered annotations](./images/control-bar-annotated.png)
 
 The control bar contains:
 
-- **Projection dropdown** - Switch between PCA, UMAP, t-SNE, etc.
-- **Annotation dropdown** - Change how points are colored by annotation
-- **Search box** - Find specific proteins by ID
-- **Select button** - Enable box selection mode
-- **Clear button** - Clear current selection
-- **Isolation button** - Isolate current selection
-- **Export button** - Save images or data
-- **Import button** - Load a `.parquetbundle` file
+1. **Projection dropdown** - Switch between PCA, UMAP, t-SNE, etc.
+2. **Color By dropdown** - Change how points are colored by annotation
+3. **Search box** - Find specific proteins by ID
+4. **Select button** - Enable box selection mode
+5. **Clear button** - Clear current selection
+6. **Isolate button** - Isolate current selection
+7. **Filter button** - Filter data by annotation values
+8. **Export button** - Save images or data
+9. **Import button** - Load a `.parquetbundle` file
 
 ## Scatterplot
 
@@ -56,7 +57,7 @@ The legend shows the current coloring scheme:
 
 When you select a protein, the 3D viewer appears and fetches its structure from AlphaFold (if available). The viewer includes direct links to the [AlphaFold Database](https://alphafold.ebi.ac.uk/) and [UniProt](https://www.uniprot.org/) entries for the selected protein.
 
-![Structure Viewer - showing 3D protein structure](./images/structure-viewer.png)
+<img src="./images/structure-viewer.png" alt="Structure Viewer - showing 3D protein structure" style="max-width: 50%; display: block; margin: 1em 0;" />
 
 ## Next Steps
 

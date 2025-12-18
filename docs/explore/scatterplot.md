@@ -59,9 +59,3 @@ Points close together have similar embeddings - often indicating similar structu
 
 - **Categorical** (reviewed, protein family, species): Unique color per category
 - **Multi-label** (EC numbers, domains): Pie charts showing multiple values
-
-### Isolate Mode
-
-Isolate a category from the legend to show only those proteins.
-
-![Isolate mode](./images/isolate.gif)
