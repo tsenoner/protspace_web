@@ -639,6 +639,25 @@ export class ProtspaceLegend extends LitElement {
     }
   }
 
+  /**
+   * Reverse the CURRENTLY DISPLAYED legend z-order, without re-bucketing items into "Other".
+   * Keeps the synthetic "Other" item (if present) at the end.
+   */
+  private _reverseCurrentLegendZOrderKeepOtherLast(): void {
+    if (!this.legendItems || this.legendItems.length <= 1) return;
+
+    // Start from current rendered order (zOrder), not array order.
+    const sorted = [...this.legendItems].sort((a, b) => a.zOrder - b.zOrder);
+    const otherItem = sorted.find((i) => i.value === 'Other') ?? null;
+
+    const reversed = sorted.filter((i) => i.value !== 'Other').reverse();
+    const reordered = otherItem ? [...reversed, otherItem] : reversed;
+
+    this.legendItems = reordered.map((item, idx) => ({ ...item, zOrder: idx }));
+    this._dispatchZOrderChange();
+    this.requestUpdate();
+  }
+
   private handleDragEnd() {
     this.draggedItem = null;
 
@@ -712,6 +731,12 @@ export class ProtspaceLegend extends LitElement {
     this.settingsIncludeOthers = this.includeOthers;
     this.settingsIncludeShapes = this.includeShapes;
     this.settingsShapeSize = this.shapeSize;
+    // Initialize settings sort modes from current modes (normalize away deprecated reverse modes)
+    const normalized: Record<string, LegendSortMode> = {};
+    for (const [k, v] of Object.entries(this.featureSortModes)) {
+      normalized[k] = v === 'alpha-desc' ? 'alpha' : v === 'size-asc' ? 'size' : v;
+    }
+    this.settingsFeatureSortModes = normalized;
     // Initialize from scatterplot config (default is off)
     this.settingsEnableDuplicateStackUI = !!(this._scatterplotElement as any)?.config
       ?.enableDuplicateStackUI;
@@ -804,7 +829,10 @@ export class ProtspaceLegend extends LitElement {
 
     return html`
       <div class="legend-container">
-        ${LegendRenderer.renderHeader(title, () => this.handleCustomize())}
+        ${LegendRenderer.renderHeader(title, {
+          onReverse: () => this._reverseCurrentLegendZOrderKeepOtherLast(),
+          onCustomize: () => this.handleCustomize(),
+        })}
         ${LegendRenderer.renderLegendContent(sortedLegendItems, (item) =>
           this._renderLegendItem(item)
         )}
@@ -928,7 +956,11 @@ export class ProtspaceLegend extends LitElement {
       this.settingsFeatureSortModes = {
         ...this.settingsFeatureSortModes,
         [this.selectedFeature]:
-          this.featureSortModes[this.selectedFeature] ??
+          (this.featureSortModes[this.selectedFeature] === 'alpha-desc'
+            ? 'alpha'
+            : this.featureSortModes[this.selectedFeature] === 'size-asc'
+              ? 'size'
+              : this.featureSortModes[this.selectedFeature]) ??
           (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size'),
       };
     }
@@ -1037,8 +1069,13 @@ export class ProtspaceLegend extends LitElement {
                   ? (() => {
                       const fname = this.selectedFeature;
                       const currentMode = this.settingsFeatureSortModes[fname] || 'size';
-                      const isAlphabetic = currentMode === 'alpha' || currentMode === 'alpha-desc';
-                      const isReversed = currentMode === 'alpha-desc' || currentMode === 'size-asc';
+                      const normalizedMode: LegendSortMode =
+                        currentMode === 'alpha-desc'
+                          ? 'alpha'
+                          : currentMode === 'size-asc'
+                            ? 'size'
+                            : currentMode;
+                      const isAlphabetic = normalizedMode === 'alpha';
 
                       return html`
                         <div class="other-items-list-item-sorting-container-item">
@@ -1055,7 +1092,7 @@ export class ProtspaceLegend extends LitElement {
                                 name=${`sort-${fname}`}
                                 .checked=${!isAlphabetic}
                                 @change=${() => {
-                                  const newMode: LegendSortMode = isReversed ? 'size-asc' : 'size';
+                                  const newMode: LegendSortMode = 'size';
                                   this.settingsFeatureSortModes = {
                                     ...this.settingsFeatureSortModes,
                                     [fname]: newMode,
@@ -1070,9 +1107,7 @@ export class ProtspaceLegend extends LitElement {
                                 name=${`sort-${fname}`}
                                 .checked=${isAlphabetic}
                                 @change=${() => {
-                                  const newMode: LegendSortMode = isReversed
-                                    ? 'alpha-desc'
-                                    : 'alpha';
+                                  const newMode: LegendSortMode = 'alpha';
                                   this.settingsFeatureSortModes = {
                                     ...this.settingsFeatureSortModes,
                                     [fname]: newMode,
@@ -1080,26 +1115,6 @@ export class ProtspaceLegend extends LitElement {
                                 }}
                               />
                               by number
-                            </label>
-                            <label style="margin-left: 12px;">
-                              <input
-                                type="checkbox"
-                                .checked=${isReversed}
-                                @change=${(e: Event) => {
-                                  const target = e.target as HTMLInputElement;
-                                  let newMode: LegendSortMode;
-                                  if (isAlphabetic) {
-                                    newMode = target.checked ? 'alpha-desc' : 'alpha';
-                                  } else {
-                                    newMode = target.checked ? 'size-asc' : 'size';
-                                  }
-                                  this.settingsFeatureSortModes = {
-                                    ...this.settingsFeatureSortModes,
-                                    [fname]: newMode,
-                                  };
-                                }}
-                              />
-                              Reverse order
                             </label>
                           </span>
                         </div>

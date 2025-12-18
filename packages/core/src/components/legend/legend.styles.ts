@@ -70,6 +70,12 @@ export const legendStyles = css`
     box-sizing: border-box;
   }
 
+  .legend-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
   .legend-title {
     font-weight: 500;
     font-size: 1rem;
