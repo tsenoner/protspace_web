@@ -15,6 +15,7 @@ export class ProtspaceProteinSearch extends LitElement {
   @state() private searchQuery: string = '';
   @state() private searchSuggestions: string[] = [];
   @state() private highlightedSuggestionIndex: number = -1;
+  @state() private isInputFocused: boolean = false;
 
   render() {
     return html`
@@ -29,10 +30,11 @@ export class ProtspaceProteinSearch extends LitElement {
             @input=${this._onSearchInput}
             @keydown=${this._onSearchKeydown}
             @blur=${this._onInputBlur}
+            @focus=${this._onInputFocus}
             @paste=${this._onPaste}
           />
         </div>
-        ${this.searchSuggestions.length > 0 && this.searchQuery
+        ${this.searchSuggestions.length > 0 && (this.searchQuery || this.isInputFocused)
           ? html`
               <div class="search-suggestions">
                 ${this.searchSuggestions.map(
@@ -120,7 +122,13 @@ export class ProtspaceProteinSearch extends LitElement {
     }
   }
 
+  private _onInputFocus() {
+    this.isInputFocused = true;
+    this._updateSuggestions();
+  }
+
   private _onInputBlur() {
+    this.isInputFocused = false;
     // Delay clearing suggestions to allow mousedown to fire on suggestions
     setTimeout(() => {
       this.searchSuggestions = [];
@@ -130,18 +138,25 @@ export class ProtspaceProteinSearch extends LitElement {
 
   private _updateSuggestions() {
     const q = this.searchQuery.trim().toLowerCase();
+
     if (!q) {
-      this.searchSuggestions = [];
-      this.highlightedSuggestionIndex = -1;
+      // If no query but input is focused, show all available proteins (not already selected)
+      if (this.isInputFocused) {
+        const selectedSet = new Set(this.selectedProteinIds);
+        this.searchSuggestions = this.availableProteinIds.filter((id) => !selectedSet.has(id));
+        this.highlightedSuggestionIndex = this.searchSuggestions.length > 0 ? 0 : -1;
+      } else {
+        this.searchSuggestions = [];
+        this.highlightedSuggestionIndex = -1;
+      }
       return;
     }
 
     const selectedSet = new Set(this.selectedProteinIds);
-    const maxItems = 10;
 
-    this.searchSuggestions = this.availableProteinIds
-      .filter((id) => !selectedSet.has(id) && id.toLowerCase().startsWith(q))
-      .slice(0, maxItems);
+    this.searchSuggestions = this.availableProteinIds.filter(
+      (id) => !selectedSet.has(id) && id.toLowerCase().startsWith(q)
+    );
 
     this.highlightedSuggestionIndex = this.searchSuggestions.length > 0 ? 0 : -1;
   }
