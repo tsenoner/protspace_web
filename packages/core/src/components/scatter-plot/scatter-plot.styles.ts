@@ -179,18 +179,26 @@ export const scatterplotStyles = css`
 
   /* Duplicate stack spiderfy UI (SVG overlay) */
 
+  .dup-spiderfy {
+    pointer-events: all;
+  }
+
   .dup-spiderfy-line {
     stroke: rgba(15, 23, 42, 0.35);
     stroke-width: 1px;
+    pointer-events: none;
   }
 
   .dup-spiderfy-node {
     cursor: pointer;
+    pointer-events: all;
   }
 
   .dup-spiderfy-node-circle {
     stroke: rgba(255, 255, 255, 0.95);
     stroke-width: 1.5px;
+    pointer-events: all;
+    cursor: pointer;
   }
 
   .projection-metadata {

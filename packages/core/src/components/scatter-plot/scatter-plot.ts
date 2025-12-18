@@ -113,6 +113,9 @@ export class ProtspaceScatterplot extends LitElement {
   private _duplicateStacksCacheKey: string | null = null;
   private _duplicateStacksComputeJobId = 0;
   private _duplicateStacksComputing = false;
+  // Spiderfy interaction can lose native 'click' due to d3.zoom gesture handling in some browsers.
+  // Track press/release to reliably treat spiderfy node interactions like normal point clicks.
+  private _spiderfyPressByPointerId = new Map<number, { x: number; y: number; t: number }>();
 
   // Computed properties with caching
   private get _scales(): ScalePair | null {
@@ -1088,12 +1091,8 @@ export class ProtspaceScatterplot extends LitElement {
     const spiderGroup = spiderfyLayer
       .append('g')
       .attr('class', 'dup-spiderfy')
-      .attr('transform', `translate(${stack.px},${stack.py}) scale(${1 / k})`)
-      .on('click', (event) => {
-        // Clicking the expanded ring background collapses it.
-        event.stopPropagation();
-        this._toggleSpiderfy(stack.key);
-      });
+      // Keep spiderfy UI constant-size in screen pixels via scale(1/k)
+      .attr('transform', `translate(${stack.px},${stack.py}) scale(${1 / k})`);
 
     const items = points.map((p, idx) => {
       const angle = (idx / n) * Math.PI * 2 - Math.PI / 2;
@@ -1121,28 +1120,75 @@ export class ProtspaceScatterplot extends LitElement {
       .enter()
       .append('g')
       .attr('class', 'dup-spiderfy-node')
-      .attr('transform', (d) => `translate(${d.x},${d.y})`)
+      .attr('transform', (d) => `translate(${d.x},${d.y})`);
+
+    // Create circles with explicit pointer-events and handle selection via pointer press/release.
+    // We avoid relying on the native 'click' event because it can be suppressed by d3.zoom gesture handling.
+    nodes
+      .append('circle')
+      .attr('class', 'dup-spiderfy-node-circle')
+      .attr('r', nodeRadius)
+      .attr('fill', (d) => this._getColors(d.point)[0] ?? '#888888')
+      .style('pointer-events', 'all')
+      .style('cursor', 'pointer')
+      .on('pointerdown', (event) => {
+        event.stopPropagation();
+        const pe = event as PointerEvent;
+        if (typeof pe.pointerId === 'number') {
+          this._spiderfyPressByPointerId.set(pe.pointerId, {
+            x: pe.clientX,
+            y: pe.clientY,
+            t: Date.now(),
+          });
+        }
+        // Keep pointer events routed to this element even if the pointer moves slightly.
+        const el = event.currentTarget as Element | null;
+        if (
+          el &&
+          typeof (el as any).setPointerCapture === 'function' &&
+          typeof pe.pointerId === 'number'
+        ) {
+          try {
+            (el as any).setPointerCapture(pe.pointerId);
+          } catch {
+            // ignore
+          }
+        }
+      })
+      .on('pointerup', (event, d) => {
+        event.stopPropagation();
+        const pe = event as PointerEvent;
+        const rec =
+          typeof pe.pointerId === 'number'
+            ? this._spiderfyPressByPointerId.get(pe.pointerId)
+            : undefined;
+        if (typeof pe.pointerId === 'number') this._spiderfyPressByPointerId.delete(pe.pointerId);
+        if (!rec) return;
+
+        // Treat a short, low-movement press/release as a click.
+        const dx = pe.clientX - rec.x;
+        const dy = pe.clientY - rec.y;
+        const dist2 = dx * dx + dy * dy;
+        const dt = Date.now() - rec.t;
+        if (dist2 <= 16 && dt <= 700) {
+          this._handleClick(event as unknown as MouseEvent, d.point);
+        }
+      })
+      .on('lostpointercapture', (event) => {
+        const pe = event as PointerEvent;
+        if (typeof pe.pointerId === 'number') this._spiderfyPressByPointerId.delete(pe.pointerId);
+      })
+      .on('pointercancel', (event) => {
+        const pe = event as PointerEvent;
+        if (typeof pe.pointerId === 'number') this._spiderfyPressByPointerId.delete(pe.pointerId);
+      })
       .on('mouseenter', (event, d) => {
         // Show the real tooltip for the hovered protein (not the stack centroid)
         this._handleMouseOver(event as unknown as MouseEvent, d.point);
       })
       .on('mouseleave', () => {
         this._clearHoverState();
-      })
-      .on('click', (event, d) => {
-        event.stopPropagation();
-        // Clicking a specific node selects that protein.
-        this._handleClick(event as unknown as MouseEvent, d.point);
-        // Collapse after selection for clarity.
-        this._expandedDuplicateStackKey = null;
-        this._updateDuplicateOverlays();
       });
-
-    nodes
-      .append('circle')
-      .attr('class', 'dup-spiderfy-node-circle')
-      .attr('r', nodeRadius)
-      .attr('fill', (d) => this._getColors(d.point)[0] ?? '#888888');
   }
 
   private _toggleSpiderfy(stackKey: string) {
@@ -1249,6 +1295,7 @@ export class ProtspaceScatterplot extends LitElement {
           },
         },
         bubbles: true,
+        composed: true,
       })
     );
   }
@@ -1317,6 +1364,13 @@ export class ProtspaceScatterplot extends LitElement {
    */
   private _handleCanvasClick(event: MouseEvent): void {
     if (!this._scales) return;
+
+    // If the click originated from the spiderfy UI, let the spiderfy handlers deal with it.
+    // This avoids collapsing the expanded stack (and early-returning) before a spiderfy node can be selected.
+    const target = event.target as Element | null;
+    if (target?.closest('.dup-spiderfy')) {
+      return;
+    }
 
     // Clicking anywhere outside the expanded stack collapses it.
     const hadExpanded = !!this._expandedDuplicateStackKey;
