@@ -147,18 +147,58 @@ void main() {
     finalColor = pow(max(texColor.rgb, vec3(0.0)), vec3(u_gamma));
   }
   
-  // Apply shape-specific stroke/edge darkening only for circles
-  // Other shapes look cleaner without the stroke effect
-  if (v_shape < 0.5) { // Circle only
-    float distSq = dot(coord, coord);
-    float dist = sqrt(distSq);
-    
-    float strokeWidth = 0.15;
-    float strokeStart = 1.0 - strokeWidth;
+  // Apply a cheap "outline" effect by darkening near the edge of each shape.
+  // (This is distinct from the SVG renderer's true stroke color/width.)
+  //
+  // NOTE: Users expect "non-circle" shapes to also have a border similar to circles.
+  // We implement a simple per-shape edge-distance metric and darken near the edge.
+  // This is not a true stroke color/width pipeline; it's an inexpensive outline effect.
+  float strokeWidth = 0.15;
+  float edgeDist = 1e6; // larger = far from edge
 
-    if (dist > strokeStart) {
-      finalColor = finalColor * 0.5; 
+  if (v_shape < 0.5) { // Circle
+    float dist = length(coord);
+    edgeDist = 1.0 - dist;
+  } else if (v_shape < 1.5) { // Square
+    edgeDist = 1.0 - max(abs(coord.x), abs(coord.y));
+  } else if (v_shape < 2.5) { // Diamond
+    edgeDist = 1.0 - (abs(coord.x) * SQRT3 + abs(coord.y));
+  } else if (v_shape < 3.5) { // Triangle Up
+    // Inside region (see discard logic above):
+    //   y >= -0.5 and abs(x)*SQRT3 <= 1 + y, also clipped to the point quad [-1,1]^2.
+    float eBottom = coord.y + 0.5;
+    float eSides = 1.0 + coord.y - abs(coord.x) * SQRT3;
+    float eTop = 1.0 - coord.y;
+    float eLR = 1.0 - abs(coord.x);
+    edgeDist = min(min(eBottom, eSides), min(eTop, eLR));
+  } else if (v_shape < 4.5) { // Triangle Down
+    // Inside region:
+    //   y <= 0.5 and abs(x)*SQRT3 <= 1 - y, also clipped to the point quad [-1,1]^2.
+    float eTop = 0.5 - coord.y;
+    float eSides = 1.0 - coord.y - abs(coord.x) * SQRT3;
+    float eBottom = 1.0 + coord.y;
+    float eLR = 1.0 - abs(coord.x);
+    edgeDist = min(min(eTop, eSides), min(eBottom, eLR));
+  } else { // Plus
+    float thickness = 0.35;
+    bool inVertical = abs(coord.x) < thickness;
+    bool inHorizontal = abs(coord.y) < thickness;
+    // For each rectangle arm, edge distance is min distance to its 4 edges.
+    float edgeV = 1e6;
+    float edgeH = 1e6;
+    if (inVertical) {
+      edgeV = min(thickness - abs(coord.x), 1.0 - abs(coord.y));
     }
+    if (inHorizontal) {
+      edgeH = min(thickness - abs(coord.y), 1.0 - abs(coord.x));
+    }
+    edgeDist = min(edgeV, edgeH);
+  }
+
+  // Darken near the edge to mimic a border/outline.
+  // Clamp to avoid NaNs if something goes slightly negative due to precision.
+  if (max(edgeDist, 0.0) < strokeWidth) {
+    finalColor = finalColor * 0.5;
   }
   
   float finalAlpha = v_color.a;
