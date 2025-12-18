@@ -51,3 +51,8 @@ docs/.vitepress/dist
 
 # publication data
 /publication
+
+# playwright
+/test-results
+/temp-videos
+/playwright-report
