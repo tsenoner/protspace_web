@@ -1,51 +1,51 @@
-# Screenshots and GIFs Needed
+# Documentation Images
 
-This folder should contain the following images for the documentation:
+This folder contains screenshots and animations for the ProtSpace Explore documentation.
 
-## Interface Overview (`index.md`)
+## Generating Images
 
-- `interface-overview.png` - Full page layout showing scatterplot, legend, control bar
-- `control-bar.png` - Close-up of the control bar
-- `scatterplot-example.png` - Scatterplot with proteins colored by annotation
-- `legend-panel.png` - Legend panel with categories
-- `structure-viewer.png` - 3D structure viewer showing a protein
+Run `pnpm docs:images` to automatically generate all images. This command:
 
-## Importing Data (`importing-data.md`)
+1. Captures static screenshots (PNG) via `docs:screenshots`
+2. Records animations (WebM) via `docs:animations`
+3. Converts videos to GIFs via `docs:gifs`
 
-- `drag-drop.gif` - Animation of dragging and dropping a file
-- `import-button.png` - Location of the import button
+You can also run these commands individually if needed.
 
-## Navigating the Scatterplot (`scatterplot.md`)
+## Static Screenshots
 
-- `zoom.gif` - Animation of zooming and panning
-- `select-single.gif` - Animation of clicking to select a protein
-- `select-box.gif` - Animation of box selection
-- `isolate.gif` - Animation of isolating a category
+### Interface Overview (`index.md`)
 
-## Using the Legend (`legend.md`)
+- `interface-overview.png` - Full page layout
+- `scatterplot-example.png` - Scatterplot with colored proteins
+- `legend-panel.png` - Legend panel
+- `structure-viewer.png` - 3D structure viewer
 
-- `legend-full.png` - Full legend panel
-- `legend-toggle.gif` - Animation of toggling category visibility
-- `legend-reorder.gif` - Animation of dragging to reorder labels
-- `legend-others.gif` - Animation of expanding/collapsing Others group
-- `legend-settings.png` - Settings menu (cog icon)
-- `legend-multilabel.png` - Pie chart display for multi-label annotations
+### Control Bar (`control-bar.md`)
 
-## Control Bar (`control-bar.md`)
-
-- `control-bar-full.png` - Full control bar
-- `control-bar-import.png` - Import button
+- `control-bar-annotated.png` - Full control bar with numbered annotations (1-9)
 - `control-bar-projection.png` - Projection dropdown
 - `control-bar-colorby.png` - Color By dropdown
-- `control-bar-search.png` - Search box
-- `control-bar-select.gif` - Select button and box selection
 - `control-bar-export.png` - Export menu
 
-## Viewing 3D Structures (`structures.md`)
+## Animated GIFs
 
-- `structure-viewer-full.png` - Full structure viewer with links
-- `structure-controls.gif` - Animation of rotating/zooming structure
+### Scatterplot (`scatterplot.md`)
 
-## Exporting Results (`exporting.md`)
+- `zoom.gif` - Zooming and panning
+- `select-single.gif` - Single protein selection
+- `select-box.gif` - Box selection
 
-- `export-menu.png` - Export dropdown menu
+### Legend (`legend.md`)
+
+- `legend-toggle.gif` - Toggling category visibility
+- `legend-reorder.gif` - Reordering labels
+- `legend-others.gif` - Expanding/collapsing Others group
+
+## Shared Images
+
+These images are used in multiple documentation pages:
+
+- `control-bar-annotated.png` - `index.md`, `control-bar.md`
+- `control-bar-export.png` - `control-bar.md`, `exporting.md`
+- `structure-viewer.png` - `index.md`, `structures.md`
