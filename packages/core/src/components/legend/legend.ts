@@ -1099,7 +1099,7 @@ export class ProtspaceLegend extends LitElement {
                                   };
                                 }}
                               />
-                              by feature size
+                              by category size
                             </label>
                             <label>
                               <input
@@ -1114,7 +1114,7 @@ export class ProtspaceLegend extends LitElement {
                                   };
                                 }}
                               />
-                              by number
+                              alphanumerically
                             </label>
                           </span>
                         </div>
