@@ -16,10 +16,10 @@ const Header = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-primary" />
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/logo.svg" alt="ProtSpace" className="h-8 w-8" />
             <span className="text-xl font-bold">ProtSpace</span>
-          </div>
+          </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
