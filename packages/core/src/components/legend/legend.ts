@@ -696,7 +696,7 @@ export class ProtspaceLegend extends LitElement {
   private _dispatchZOrderChange(): void {
     const zOrderMap: Record<string, number> = {};
     this.legendItems.forEach((legendItem) => {
-      if (legendItem.value !== null && legendItem.value !== 'Other') {
+      if (legendItem.value !== null) {
         zOrderMap[legendItem.value] = legendItem.zOrder;
       }
     });

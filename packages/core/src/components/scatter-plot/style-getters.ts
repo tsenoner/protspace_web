@@ -164,8 +164,22 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     let depth = 1 - Math.min(1, Math.max(0, opacity));
 
     if (zMap && styleConfig.selectedFeature) {
-      const raw = point.featureValues[styleConfig.selectedFeature]?.[0] ?? 'null';
-      const key = normalizeToKey(raw);
+      const featureValueArray = point.featureValues[styleConfig.selectedFeature];
+      let key: string;
+
+      if (featureValueArray && featureValueArray.length > 0) {
+        // Check if this point belongs to the "Other" category
+        const isOther = featureValueArray.some((v) => otherValuesSet.has(v));
+        if (isOther) {
+          key = 'Other';
+        } else {
+          const raw = featureValueArray[0];
+          key = normalizeToKey(raw);
+        }
+      } else {
+        key = 'null';
+      }
+
       const order = zMap[key];
       if (typeof order === 'number' && Number.isFinite(order) && zMax > 0) {
         const orderNorm = Math.min(1, Math.max(0, order / zMax));
