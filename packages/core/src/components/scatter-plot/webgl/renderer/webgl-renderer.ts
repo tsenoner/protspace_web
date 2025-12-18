@@ -697,9 +697,10 @@ export class WebGLRenderer {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-    // Enable depth testing to prevent opacity accumulation
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LESS);
+    // We want overlapping points to remain visible, so we do NOT use the depth buffer to cull.
+    // Z-order is preserved via painter's algorithm (CPU sorting) in populateBuffers().
+    gl.disable(gl.DEPTH_TEST);
+    gl.depthMask(false);
 
     if (
       this.gammaPipelineAvailable &&
@@ -861,7 +862,10 @@ export class WebGLRenderer {
       .filter((i) => i < len)
       .map((i) => {
         const p = points[i];
-        return `${p.id}:${this.style.getOpacity(p).toFixed(2)}:${this.style.getColors(p)[0]}`;
+        // Include depth to avoid missing z-order-only updates when we render via painter's algorithm.
+        return `${p.id}:${this.style.getOpacity(p).toFixed(2)}:${this.style
+          .getDepth(p)
+          .toFixed(4)}:${this.style.getColors(p)[0]}`;
       });
 
     return `${this.styleSignature}|${parts.join('|')}`;
@@ -888,28 +892,45 @@ export class WebGLRenderer {
       this.renderedPointIds.clear();
     }
 
-    let idx = 0;
-    for (let i = 0; i < points.length && idx < maxPoints; i++) {
-      const point = points[i];
-      const opacity = this.style.getOpacity(point);
-      if (opacity === 0) continue;
+    // With depth testing disabled (to ensure overlaps are drawn), we preserve z-order using
+    // the painter's algorithm: draw far -> near. This requires reordering the points, so
+    // whenever styles update we must also update positions to keep all parallel buffers aligned.
+    if (updateStyles) {
+      updatePositions = true;
+    }
 
-      if (this.trackRenderedPointIds) {
-        this.renderedPointIds.add(point.id);
+    let idx = 0;
+
+    if (updateStyles) {
+      const staged: Array<{ point: PlotDataPoint; opacity: number; depth: number }> = [];
+      for (let i = 0; i < points.length && staged.length < maxPoints; i++) {
+        const point = points[i];
+        const opacity = this.style.getOpacity(point);
+        if (opacity === 0) continue;
+        const depth = this.style.getDepth(point);
+        staged.push({ point, opacity, depth });
       }
 
-      if (updatePositions) {
+      // Draw far -> near, so near points end up on top.
+      // NOTE: `getDepth` is defined such that smaller depth is "closer" (wins in LESS mode).
+      staged.sort((a, b) => b.depth - a.depth);
+
+      for (let s = 0; s < staged.length; s++) {
+        const { point, opacity, depth } = staged[s];
+
+        if (this.trackRenderedPointIds) {
+          this.renderedPointIds.add(point.id);
+        }
+
+        // updatePositions is always true here (see above)
         this.dataPositions[idx * 2] = scales.x(point.x);
         this.dataPositions[idx * 2 + 1] = scales.y(point.y);
-      }
 
-      if (updateStyles) {
         const pointColors = this.style.getColors(point);
         const [r, g, b] = resolveColor(pointColors[0] ?? '#888888');
         const size = Math.sqrt(this.style.getPointSize(point)) / POINT_SIZE_DIVISOR;
         const shapeType = this.style.getShape(point);
         const shapeIndex = getShapeIndex(shapeType);
-        const depth = this.style.getDepth(point);
 
         this.colors[idx * 4] = r;
         this.colors[idx * 4 + 1] = g;
@@ -935,9 +956,27 @@ export class WebGLRenderer {
             }
           }
         }
-      }
 
-      idx++;
+        idx++;
+      }
+    } else {
+      // No reordering: preserve prior GPU buffer ordering.
+      for (let i = 0; i < points.length && idx < maxPoints; i++) {
+        const point = points[i];
+        const opacity = this.style.getOpacity(point);
+        if (opacity === 0) continue;
+
+        if (this.trackRenderedPointIds) {
+          this.renderedPointIds.add(point.id);
+        }
+
+        if (updatePositions) {
+          this.dataPositions[idx * 2] = scales.x(point.x);
+          this.dataPositions[idx * 2 + 1] = scales.y(point.y);
+        }
+
+        idx++;
+      }
     }
 
     this.currentPointCount = idx;

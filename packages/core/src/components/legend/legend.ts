@@ -50,6 +50,7 @@ export class ProtspaceLegend extends LitElement {
   @state() private settingsIncludeShapes: boolean = LEGEND_DEFAULTS.includeShapes;
   @property({ type: Number }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
   @state() private settingsShapeSize: number = LEGEND_DEFAULTS.symbolSize;
+  @state() private settingsEnableDuplicateStackUI: boolean = false;
   @state() private manualOtherValues: string[] = [];
   @state() private featureSortModes: Record<string, LegendSortMode> = {};
   @state() private settingsFeatureSortModes: Record<string, LegendSortMode> = {};
@@ -711,6 +712,9 @@ export class ProtspaceLegend extends LitElement {
     this.settingsIncludeOthers = this.includeOthers;
     this.settingsIncludeShapes = this.includeShapes;
     this.settingsShapeSize = this.shapeSize;
+    // Initialize from scatterplot config (default is off)
+    this.settingsEnableDuplicateStackUI = !!(this._scatterplotElement as any)?.config
+      ?.enableDuplicateStackUI;
     this.showSettingsDialog = true;
 
     // Keep event for backward compatibility
@@ -910,6 +914,7 @@ export class ProtspaceLegend extends LitElement {
         (this._scatterplotElement as any).config = {
           ...currentConfig,
           pointSize: baseSize,
+          enableDuplicateStackUI: this.settingsEnableDuplicateStackUI,
         };
       }
     };
@@ -1013,6 +1018,18 @@ export class ProtspaceLegend extends LitElement {
                   Disabled for multilabel features
                 </div>`
               : ''}
+            <label class="other-items-list-label">
+              <input
+                class="other-items-list-label-input"
+                type="checkbox"
+                .checked=${this.settingsEnableDuplicateStackUI}
+                @change=${(e: Event) => {
+                  const t = e.target as HTMLInputElement;
+                  this.settingsEnableDuplicateStackUI = t.checked;
+                }}
+              />
+              Show duplicate counts (badges + spiderfy)
+            </label>
             <div class="other-items-list-item-sorting">
               <div class="other-items-list-item-sorting-title">Sorting</div>
               <div class="other-items-list-item-sorting-container">

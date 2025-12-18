@@ -37,6 +37,7 @@ export const scatterplotStyles = css`
     /* Brush */
     --protspace-brush-stroke: #0072b5;
     --protspace-brush-fill: rgba(0, 114, 181, 0.15);
+    --protspace-brush-stroke-width: 1px;
 
     display: block;
     width: var(--protspace-width);
@@ -73,6 +74,25 @@ export const scatterplotStyles = css`
   canvas {
     z-index: 5;
     pointer-events: none;
+  }
+
+  /* D3 brush (drag-to-select rectangle) */
+  .brush-container rect.selection {
+    fill: var(--protspace-brush-fill);
+    stroke: var(--protspace-brush-stroke);
+    stroke-width: var(--protspace-brush-stroke-width);
+    /* Keep the outline thin even when the brush group is scaled by zoom transforms */
+    vector-effect: non-scaling-stroke;
+    shape-rendering: crispEdges;
+  }
+
+  .brush-container rect.overlay {
+    cursor: crosshair;
+  }
+
+  .brush-container .handle {
+    /* If anything renders, hide it — selection should be just a simple rectangle. */
+    display: none;
   }
 
   .loading-overlay {
@@ -155,6 +175,22 @@ export const scatterplotStyles = css`
     display: flex;
     align-items: center;
     gap: 0.25rem;
+  }
+
+  /* Duplicate stack spiderfy UI (SVG overlay) */
+
+  .dup-spiderfy-line {
+    stroke: rgba(15, 23, 42, 0.35);
+    stroke-width: 1px;
+  }
+
+  .dup-spiderfy-node {
+    cursor: pointer;
+  }
+
+  .dup-spiderfy-node-circle {
+    stroke: rgba(255, 255, 255, 0.95);
+    stroke-width: 1.5px;
   }
 
   .projection-metadata {
