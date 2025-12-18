@@ -10,6 +10,10 @@
     "dev:docs": "vitepress dev docs --port 5174",
     "docs:build": "NODE_ENV=production vitepress build docs",
     "docs:preview": "vitepress preview docs",
+    "docs:screenshots": "playwright test --project=screenshots",
+    "docs:animations": "playwright test --project=animations",
+    "docs:gifs": "tsx scripts/docs-screenshots/convert-to-gif.ts",
+    "docs:images": "pnpm docs:screenshots && pnpm docs:animations && pnpm docs:gifs",
     "test": "turbo test",
     "lint": "turbo lint",
     "lint:fix": "turbo lint -- --fix",
@@ -26,6 +30,8 @@
   "author": "",
   "devDependencies": {
     "@changesets/cli": "^2.29.7",
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^22.18.10",
     "@types/three": "^0.179.0",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
     "@typescript-eslint/parser": "^8.46.1",
@@ -34,6 +40,7 @@
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.6.2",
+    "tsx": "^4.21.0",
     "turbo": "^2.5.3",
     "vitepress": "^1.6.4"
   }
