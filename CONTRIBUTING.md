@@ -203,6 +203,7 @@ pnpm test:watch   # Run tests in watch mode (if available)
 pnpm dev:docs      # Start dev server (localhost:5174)
 pnpm docs:build    # Build static site
 pnpm docs:preview  # Preview production build
+pnpm docs:images   # Generate all documentation images (screenshots, animations, GIFs)
 ```
 
 **Documentation standards:**
