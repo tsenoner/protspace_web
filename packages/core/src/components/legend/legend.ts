@@ -55,6 +55,9 @@ export class ProtspaceLegend extends LitElement {
   @state() private featureSortModes: Record<string, LegendSortMode> = {};
   @state() private settingsFeatureSortModes: Record<string, LegendSortMode> = {};
 
+  // Keyboard event listener for settings dialog
+  private _settingsDialogKeydownHandler?: (e: KeyboardEvent) => void;
+
   // Auto-sync properties
   @property({ type: String, attribute: 'scatterplot-selector' })
   scatterplotSelector: string = LEGEND_DEFAULTS.scatterplotSelector;
@@ -149,6 +152,84 @@ export class ProtspaceLegend extends LitElement {
         this._handleFeatureChange.bind(this)
       );
     }
+
+    // Clean up keyboard listener if component is disconnected while dialog is open
+    this._removeGlobalKeyboardListener();
+  }
+
+  private _addGlobalKeyboardListener() {
+    if (this._settingsDialogKeydownHandler) {
+      this._removeGlobalKeyboardListener();
+    }
+
+    this._settingsDialogKeydownHandler = (e: KeyboardEvent) => {
+      if (!this.showSettingsDialog) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this._handleSettingsSave();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        this._handleSettingsClose();
+      }
+    };
+
+    document.addEventListener('keydown', this._settingsDialogKeydownHandler);
+  }
+
+  private _removeGlobalKeyboardListener() {
+    if (this._settingsDialogKeydownHandler) {
+      document.removeEventListener('keydown', this._settingsDialogKeydownHandler);
+      this._settingsDialogKeydownHandler = undefined;
+    }
+  }
+
+  private _handleSettingsSave() {
+    // Apply and close
+    this.maxVisibleValues = this.settingsMaxVisibleValues;
+    this.includeOthers = this.settingsIncludeOthers;
+    this.includeShapes = this.settingsIncludeShapes;
+    this.shapeSize = this.settingsShapeSize;
+    // apply sorting preferences
+    this.featureSortModes = { ...this.settingsFeatureSortModes };
+    this.showSettingsDialog = false;
+    this.manualOtherValues = [];
+    this._hiddenValues = [];
+    this.legendItems = [];
+
+    this._removeGlobalKeyboardListener();
+
+    if (
+      this.autoHide &&
+      this._scatterplotElement &&
+      'hiddenFeatureValues' in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
+    }
+    this.updateLegendItems();
+    this.requestUpdate();
+
+    // Update scatterplot point sizes to match shape size (approximate mapping)
+    if (this._scatterplotElement && 'config' in this._scatterplotElement) {
+      // d3.symbol size is area; approximate by multiplying pixel size by the same multiplier used in legend
+      const baseSize = Math.max(
+        10,
+        Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier)
+      );
+      // @ts-ignore config is a public prop on the scatterplot element
+      const currentConfig = (this._scatterplotElement as any).config || {};
+      // @ts-ignore assign merged config to trigger update
+      (this._scatterplotElement as any).config = {
+        ...currentConfig,
+        pointSize: baseSize,
+        enableDuplicateStackUI: this.settingsEnableDuplicateStackUI,
+      };
+    }
+  }
+
+  private _handleSettingsClose() {
+    this.showSettingsDialog = false;
+    this._removeGlobalKeyboardListener();
   }
 
   private _setupAutoSync() {
@@ -742,6 +823,9 @@ export class ProtspaceLegend extends LitElement {
       ?.enableDuplicateStackUI;
     this.showSettingsDialog = true;
 
+    // Add global keyboard listener for Enter/Escape when dialog opens
+    this._addGlobalKeyboardListener();
+
     // Keep event for backward compatibility
     this.dispatchEvent(
       new CustomEvent('legend-customize', {
@@ -906,50 +990,8 @@ export class ProtspaceLegend extends LitElement {
       this.settingsIncludeOthers = target.checked;
     };
 
-    const onSave = () => {
-      // Apply and close
-      this.maxVisibleValues = this.settingsMaxVisibleValues;
-      this.includeOthers = this.settingsIncludeOthers;
-      this.includeShapes = this.settingsIncludeShapes;
-      this.shapeSize = this.settingsShapeSize;
-      // apply sorting preferences
-      this.featureSortModes = { ...this.settingsFeatureSortModes };
-      this.showSettingsDialog = false;
-      this.manualOtherValues = [];
-      this._hiddenValues = [];
-      this.legendItems = [];
-
-      if (
-        this.autoHide &&
-        this._scatterplotElement &&
-        'hiddenFeatureValues' in this._scatterplotElement
-      ) {
-        (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
-      }
-      this.updateLegendItems();
-      this.requestUpdate();
-
-      // Update scatterplot point sizes to match shape size (approximate mapping)
-      if (this._scatterplotElement && 'config' in this._scatterplotElement) {
-        // d3.symbol size is area; approximate by multiplying pixel size by the same multiplier used in legend
-        const baseSize = Math.max(
-          10,
-          Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier)
-        );
-        // @ts-ignore config is a public prop on the scatterplot element
-        const currentConfig = (this._scatterplotElement as any).config || {};
-        // @ts-ignore assign merged config to trigger update
-        (this._scatterplotElement as any).config = {
-          ...currentConfig,
-          pointSize: baseSize,
-          enableDuplicateStackUI: this.settingsEnableDuplicateStackUI,
-        };
-      }
-    };
-
-    const onClose = () => {
-      this.showSettingsDialog = false;
-    };
+    const onSave = () => this._handleSettingsSave();
+    const onClose = () => this._handleSettingsClose();
 
     // Initialize temp settings for the currently selected feature
     if (this.selectedFeature && !this.settingsFeatureSortModes[this.selectedFeature]) {
