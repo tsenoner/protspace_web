@@ -305,6 +305,8 @@ export class WebGLRenderer {
   private lastDataSignature: string | null = null;
   private lastStyleSignature: string | null = null;
 
+  private selectionActive = false;
+
   // Track rendered point IDs for hover detection
   private trackRenderedPointIds = false;
   private renderedPointIds = new Set<string>();
@@ -348,6 +350,12 @@ export class WebGLRenderer {
     if (this.styleSignature !== signature) {
       this.styleSignature = signature;
       this.stylesDirty = true;
+    }
+  }
+
+  setSelectionActive(active: boolean) {
+    if (this.selectionActive !== active) {
+      this.selectionActive = active;
     }
   }
 
@@ -592,9 +600,12 @@ export class WebGLRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // Use premultiplied alpha blending for linear color space
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    if (this.selectionActive) {
+      gl.disable(gl.BLEND);
+    } else {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    }
     this.renderPoints(transform);
 
     // Pass 2: Gamma correction to canvas
@@ -646,8 +657,12 @@ export class WebGLRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    if (this.selectionActive) {
+      gl.disable(gl.BLEND);
+    } else {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    }
 
     this.renderPoints(transform);
   }

@@ -159,6 +159,12 @@ export class ProtspaceScatterplot extends LitElement {
     this.resizeObserver = new ResizeObserver(() => this._updateSizeAndRender());
   }
 
+  private _syncWebglSelectionActive() {
+    this._webglRenderer?.setSelectionActive(
+      this.selectedProteinIds.length > 0 || this.highlightedProteinIds.length > 0
+    );
+  }
+
   connectedCallback() {
     super.connectedCallback();
     this.resizeObserver.observe(this);
@@ -365,6 +371,7 @@ export class ProtspaceScatterplot extends LitElement {
       changedProperties.has('highlightedProteinIds')
     ) {
       this._updateSelectionOverlays();
+      this._syncWebglSelectionActive();
       this._webglRenderer?.invalidateStyleCache();
       this._renderPlot();
     }
@@ -401,6 +408,7 @@ export class ProtspaceScatterplot extends LitElement {
       this._updateStyleSignature();
       this._webglRenderer.setStyleSignature(this._styleSig);
       this._webglRenderer.setSelectedFeature(this.selectedFeature);
+      this._syncWebglSelectionActive();
     }
   }
 
