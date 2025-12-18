@@ -25,7 +25,7 @@ export class ProtspaceProteinSearch extends LitElement {
             class="search-input"
             type="text"
             .value=${this.searchQuery}
-            placeholder="Search or select protein accession IDs"
+            placeholder="Search or paste one or several protein IDs"
             @input=${this._onSearchInput}
             @keydown=${this._onSearchKeydown}
             @blur=${this._onInputBlur}
