@@ -1,7 +1,13 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { controlBarStyles } from './control-bar.styles';
-import type { DataChangeDetail, ProtspaceData, ScatterplotElementLike } from './types';
+import type {
+  DataChangeDetail,
+  ProtspaceData,
+  ScatterplotElementLike,
+  DataLoaderElement,
+  StructureViewerElement,
+} from './types';
 import './search';
 
 @customElement('protspace-control-bar')
@@ -68,7 +74,8 @@ export class ProtspaceControlBar extends LitElement {
     if (this.autoSync && this._scatterplotElement) {
       const projectionIndex = this.projections.findIndex((p) => p === target.value);
       if (projectionIndex !== -1 && 'selectedProjectionIndex' in this._scatterplotElement) {
-        (this._scatterplotElement as any).selectedProjectionIndex = projectionIndex;
+        (this._scatterplotElement as ScatterplotElementLike).selectedProjectionIndex =
+          projectionIndex;
         this.selectedProjection = target.value;
 
         // If projection is 3D, keep current plane; otherwise, reset to XY
@@ -76,7 +83,7 @@ export class ProtspaceControlBar extends LitElement {
         const is3D = meta?.metadata?.dimension === 3;
         const nextPlane: 'xy' | 'xz' | 'yz' = is3D ? this.projectionPlane : 'xy';
         if ('projectionPlane' in this._scatterplotElement) {
-          (this._scatterplotElement as any).projectionPlane = nextPlane;
+          (this._scatterplotElement as ScatterplotElementLike).projectionPlane = nextPlane;
         }
         this.projectionPlane = nextPlane;
       }
@@ -98,7 +105,7 @@ export class ProtspaceControlBar extends LitElement {
       this._scatterplotElement &&
       'projectionPlane' in this._scatterplotElement
     ) {
-      (this._scatterplotElement as any).projectionPlane = plane;
+      (this._scatterplotElement as ScatterplotElementLike).projectionPlane = plane;
       this.projectionPlane = plane;
     }
     const customEvent = new CustomEvent('projection-plane-change', {
@@ -114,7 +121,7 @@ export class ProtspaceControlBar extends LitElement {
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
       if ('selectedFeature' in this._scatterplotElement) {
-        (this._scatterplotElement as any).selectedFeature = target.value;
+        (this._scatterplotElement as ScatterplotElementLike).selectedFeature = target.value;
         this.selectedFeature = target.value;
       }
     }
@@ -160,7 +167,7 @@ export class ProtspaceControlBar extends LitElement {
     // If auto-sync is enabled, directly clear selections in scatterplot
     if (this.autoSync && this._scatterplotElement) {
       if ('selectedProteinIds' in this._scatterplotElement) {
-        (this._scatterplotElement as any).selectedProteinIds = [];
+        (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds = [];
         this.selectedProteinsCount = 0;
       }
     }
@@ -174,7 +181,7 @@ export class ProtspaceControlBar extends LitElement {
         detail: { proteinIds: [] },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
@@ -223,8 +230,11 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private openFileDialog() {
-    const loader = document.querySelector('protspace-data-loader') as any;
-    loader?.shadowRoot?.querySelector('input[type="file"]')?.click();
+    const loader = document.querySelector('protspace-data-loader') as DataLoaderElement;
+    const fileInput = loader?.shadowRoot?.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement | null;
+    fileInput?.click();
   }
 
   render() {
@@ -241,7 +251,7 @@ export class ProtspaceControlBar extends LitElement {
               @change=${this.handleProjectionChange}
             >
               ${this.projections.map(
-                (projection) => html`<option value=${projection}>${projection}</option>`
+                (projection) => html`<option value=${projection}>${projection}</option>`,
               )}
             </select>
           </div>
@@ -455,7 +465,7 @@ export class ProtspaceControlBar extends LitElement {
                                           this.handleValueToggle(
                                             feature,
                                             null,
-                                            (e.target as HTMLInputElement).checked
+                                            (e.target as HTMLInputElement).checked,
                                           )}
                                       />
                                       <span>N/A</span>
@@ -470,12 +480,12 @@ export class ProtspaceControlBar extends LitElement {
                                               this.handleValueToggle(
                                                 feature,
                                                 String(v),
-                                                (e.target as HTMLInputElement).checked
+                                                (e.target as HTMLInputElement).checked,
                                               )}
                                           />
                                           <span>${String(v)}</span>
                                         </label>
-                                      `
+                                      `,
                                     )}
                                   </div>
                                   <div class="filter-menu-list-item-options-done">
@@ -603,11 +613,11 @@ export class ProtspaceControlBar extends LitElement {
       this._scatterplotElement.removeEventListener('data-isolation', this._onDataIsolation);
       this._scatterplotElement.removeEventListener(
         'data-isolation-reset',
-        this._onDataIsolationReset
+        this._onDataIsolationReset,
       );
       this._scatterplotElement.removeEventListener(
         'auto-disable-selection',
-        this._onAutoDisableSelection
+        this._onAutoDisableSelection,
       );
     }
   }
@@ -624,7 +634,7 @@ export class ProtspaceControlBar extends LitElement {
     // Find scatterplot element with retries
     const trySetup = (attempts: number = 0) => {
       this._scatterplotElement = document.querySelector(
-        this.scatterplotSelector
+        this.scatterplotSelector,
       ) as ScatterplotElementLike | null;
 
       if (this._scatterplotElement) {
@@ -642,12 +652,12 @@ export class ProtspaceControlBar extends LitElement {
 
         this._scatterplotElement.addEventListener(
           'data-isolation-reset',
-          this._onDataIsolationReset
+          this._onDataIsolationReset,
         );
 
         this._scatterplotElement.addEventListener(
           'auto-disable-selection',
-          this._onAutoDisableSelection
+          this._onAutoDisableSelection,
         );
 
         // Initial sync after a short delay to ensure scatterplot is ready
@@ -660,7 +670,7 @@ export class ProtspaceControlBar extends LitElement {
       } else {
         console.warn(
           '❌ Control bar could not find scatterplot element:',
-          this.scatterplotSelector
+          this.scatterplotSelector,
         );
       }
     };
@@ -691,13 +701,11 @@ export class ProtspaceControlBar extends LitElement {
 
     // Update protein ids for search
     try {
-      const ids = (data as any).protein_ids as string[] | undefined;
+      const ids = data.protein_ids;
       this.allProteinIds = Array.isArray(ids) ? ids : [];
       // Keep chips in sync with scatterplot's selection if available
       if (this._scatterplotElement && 'selectedProteinIds' in this._scatterplotElement) {
-        const current = (this._scatterplotElement as any).selectedProteinIds as
-          | string[]
-          | undefined;
+        const current = (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds;
         this.selectedIdsChips = Array.isArray(current) ? current : [];
         this.selectedProteinsCount = this.selectedIdsChips.length;
       }
@@ -706,7 +714,7 @@ export class ProtspaceControlBar extends LitElement {
     }
     // Update feature value options for filter UI
     try {
-      const features = (data as any).features || {};
+      const features = data.features || {};
       const map: Record<string, (string | null)[]> = {};
       Object.keys(features).forEach((k) => {
         const vals = features[k]?.values as (string | null)[] | undefined;
@@ -760,14 +768,14 @@ export class ProtspaceControlBar extends LitElement {
       this._scatterplotElement &&
       'selectedProteinIds' in this._scatterplotElement
     ) {
-      (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
+      (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds = [...newSelection];
     }
     this.dispatchEvent(
       new CustomEvent('protein-selection-change', {
         detail: { proteinIds: newSelection.slice() },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
     this.requestUpdate();
   }
@@ -827,13 +835,13 @@ export class ProtspaceControlBar extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
   private _updateOptionsFromData(data: ProtspaceData) {
     // Update projections and features
-    this.projectionsMeta = (data.projections as any) || [];
+    this.projectionsMeta = data.projections || [];
     this.projections = this.projectionsMeta.map((p) => p.name) || [];
     this.features = Object.keys(data.features || {});
 
@@ -858,7 +866,7 @@ export class ProtspaceControlBar extends LitElement {
 
         // Build feature values map for filter UI
         try {
-          const features = (data as any).features || {};
+          const features = data.features || {};
           const map: Record<string, (string | null)[]> = {};
           Object.keys(features).forEach((k) => {
             const vals = features[k]?.values as (string | null)[] | undefined;
@@ -934,14 +942,14 @@ export class ProtspaceControlBar extends LitElement {
       this._scatterplotElement &&
       'selectedProteinIds' in this._scatterplotElement
     ) {
-      (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
+      (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds = [...newSelection];
     }
     this.dispatchEvent(
       new CustomEvent('protein-selection-change', {
         detail: { proteinIds: newSelection.slice() },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
@@ -958,10 +966,12 @@ export class ProtspaceControlBar extends LitElement {
       this._scatterplotElement &&
       'selectedProteinIds' in this._scatterplotElement
     ) {
-      (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
+      (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds = [...newSelection];
     }
 
-    const viewers = Array.from(document.querySelectorAll('protspace-structure-viewer')) as any[];
+    const viewers = Array.from(
+      document.querySelectorAll('protspace-structure-viewer'),
+    ) as StructureViewerElement[];
     viewers.forEach((v) => v?.loadProtein?.(proteinId));
 
     this.dispatchEvent(
@@ -969,7 +979,7 @@ export class ProtspaceControlBar extends LitElement {
         detail: { proteinIds: newSelection.slice() },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
@@ -991,11 +1001,13 @@ export class ProtspaceControlBar extends LitElement {
       this._scatterplotElement &&
       'selectedProteinIds' in this._scatterplotElement
     ) {
-      (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
+      (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds = [...newSelection];
     }
 
     const lastAddedId = newUniqueIds[newUniqueIds.length - 1];
-    const viewers = Array.from(document.querySelectorAll('protspace-structure-viewer')) as any[];
+    const viewers = Array.from(
+      document.querySelectorAll('protspace-structure-viewer'),
+    ) as StructureViewerElement[];
     viewers.forEach((v) => v?.loadProtein?.(lastAddedId));
 
     this.dispatchEvent(
@@ -1003,7 +1015,7 @@ export class ProtspaceControlBar extends LitElement {
         detail: { proteinIds: newSelection.slice() },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
@@ -1032,7 +1044,7 @@ export class ProtspaceControlBar extends LitElement {
       this._scatterplotElement &&
       'selectedProteinIds' in this._scatterplotElement
     ) {
-      (this._scatterplotElement as any).selectedProteinIds = [...newSelection];
+      (this._scatterplotElement as ScatterplotElementLike).selectedProteinIds = [...newSelection];
     }
 
     // Dispatch a single, consistent event for all selection changes
@@ -1041,7 +1053,7 @@ export class ProtspaceControlBar extends LitElement {
         detail: { proteinIds: newSelection.slice() },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
@@ -1123,7 +1135,7 @@ export class ProtspaceControlBar extends LitElement {
     if (!this._scatterplotElement || !('getCurrentData' in this._scatterplotElement)) {
       return;
     }
-    const sp = this._scatterplotElement as any;
+    const sp = this._scatterplotElement as ScatterplotElementLike;
     const data = sp.getCurrentData?.();
     if (!data) return;
 
@@ -1147,14 +1159,20 @@ export class ProtspaceControlBar extends LitElement {
     for (let i = 0; i < numProteins; i++) {
       let isMatch = true;
       for (const { feature, values } of activeFilters) {
-        const featureIdxArr: number[] | undefined = data.feature_data?.[feature];
+        const featureIdxData = data.feature_data?.[feature];
         const valuesArr: (string | null)[] | undefined = data.features?.[feature]?.values;
-        if (!featureIdxArr || !valuesArr) {
+        if (!featureIdxData || !valuesArr) {
           isMatch = false;
           break;
         }
-        const vi = featureIdxArr[i];
-        const v = vi != null && vi >= 0 && vi < valuesArr.length ? valuesArr[vi] : null;
+        // Handle both number[] and number[][] formats
+        const featureValue = Array.isArray(featureIdxData[i])
+          ? (featureIdxData[i] as number[])[0]
+          : (featureIdxData as number[])[i];
+        const v =
+          featureValue != null && featureValue >= 0 && featureValue < valuesArr.length
+            ? valuesArr[featureValue]
+            : null;
         if (!values.some((allowed) => allowed === v)) {
           isMatch = false;
           break;
@@ -1166,7 +1184,12 @@ export class ProtspaceControlBar extends LitElement {
 
     // Add or replace synthetic Custom feature
     const customName = 'Custom';
-    const newFeatures = { ...data.features };
+    const newFeatures: Record<
+      string,
+      { values: (string | null)[]; colors?: string[]; shapes?: string[] }
+    > = {
+      ...data.features,
+    };
     newFeatures[customName] = {
       values: ['Filtered Proteins', 'Other Proteins'],
       colors: ['#00A35A', '#9AA0A6'],
@@ -1189,11 +1212,11 @@ export class ProtspaceControlBar extends LitElement {
     this.selectedFeature = customName;
     this.featureValuesMap = {
       ...this.featureValuesMap,
-      [customName]: newFeatures[customName].values as unknown as (string | null)[],
+      [customName]: newFeatures[customName].values,
     };
     this.updateComplete.then(() => {
       const featureSelect = this.renderRoot?.querySelector(
-        '#feature-select'
+        '#feature-select',
       ) as HTMLSelectElement | null;
       if (featureSelect && featureSelect.value !== customName) {
         featureSelect.value = customName;
@@ -1206,7 +1229,7 @@ export class ProtspaceControlBar extends LitElement {
         detail: { feature: customName },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
 
     this.showFilterMenu = false;

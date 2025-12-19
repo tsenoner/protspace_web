@@ -27,7 +27,7 @@ export function assertValidParquetMagic(buffer: ArrayBuffer): void {
 
 export function assertWithinFileSizeLimit(
   sizeBytes: number,
-  maxSizeBytes = MAX_FILE_SIZE_BYTES_DEFAULT
+  maxSizeBytes = MAX_FILE_SIZE_BYTES_DEFAULT,
 ): void {
   if (sizeBytes > maxSizeBytes) {
     throw new Error(`File too large: ${(sizeBytes / (1024 * 1024)).toFixed(2)}MB exceeds limit`);
@@ -46,7 +46,7 @@ export function validateRowsBasic(
     maxColumns?: number;
     maxTotalCells?: number;
     maxCellStringLength?: number;
-  } = {}
+  } = {},
 ): asserts rows is Rows {
   if (!Array.isArray(rows)) {
     throw new Error('Parsed data is not an array of rows');
@@ -98,7 +98,7 @@ export function validateMergedBundleRows(rows: Rows): void {
   if (numericLikeColumns.length > 0) {
     const sampleList = sanitizeForMessage(numericLikeColumns.slice(0, 5).join(', '));
     throw new Error(
-      `Invalid bundle: numeric-looking column names detected (${sampleList}). Expected named columns like 'projection_name', 'x', 'y'`
+      `Invalid bundle: numeric-looking column names detected (${sampleList}). Expected named columns like 'projection_name', 'x', 'y'`,
     );
   }
   // Guard: empty column names are not allowed
@@ -117,8 +117,8 @@ export function validateMergedBundleRows(rows: Rows): void {
   const sampleSize = Math.min(1000, rows.length);
   for (let i = 0; i < sampleSize; i++) {
     const r = rows[i] as Record<string, unknown>;
-    const x = Number((r as any).x);
-    const y = Number((r as any).y);
+    const x = Number(r['x']);
+    const y = Number(r['y']);
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
       throw new Error('Invalid coordinates detected in bundle data');
     }

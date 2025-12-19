@@ -3,7 +3,7 @@
  */
 
 // PDF generation libraries are imported dynamically for better browser compatibility
-declare const window: any;
+declare const window: Window & typeof globalThis;
 
 export interface ExportableData {
   protein_ids: string[];
@@ -63,7 +63,7 @@ export class ProtSpaceExporter {
   constructor(
     element: ExportableElement,
     selectedProteins: string[] = [],
-    isolationMode: boolean = false
+    isolationMode: boolean = false,
   ) {
     this.element = element;
     this.selectedProteins = selectedProteins;
@@ -102,8 +102,8 @@ export class ProtSpaceExporter {
     const selectedFeature = this.element.selectedFeature;
     const featureIndices = data.feature_data?.[selectedFeature];
     const featureInfo = data.features?.[selectedFeature];
-    const hiddenValues: string[] = Array.isArray((this.element as any).hiddenFeatureValues)
-      ? ((this.element as any).hiddenFeatureValues as string[])
+    const hiddenValues: string[] = Array.isArray(this.element.hiddenFeatureValues)
+      ? (this.element.hiddenFeatureValues as string[])
       : [];
 
     let visibleIds: string[] = [];
@@ -197,7 +197,7 @@ export class ProtSpaceExporter {
       : this.computeLegendFromData(
           currentData,
           this.element.selectedFeature,
-          options.includeSelection === true ? this.selectedProteins : undefined
+          options.includeSelection === true ? this.selectedProteins : undefined,
         ).filter((it) => {
           const key = it.value === 'N/A' ? 'null' : it.value;
           return !hiddenSet.has(key);
@@ -214,7 +214,7 @@ export class ProtSpaceExporter {
       legendWidth,
       combinedHeight,
       options,
-      featureNameFromLegend || this.element.selectedFeature
+      featureNameFromLegend || this.element.selectedFeature,
     );
 
     // Composite
@@ -249,7 +249,7 @@ export class ProtSpaceExporter {
   private computeLegendFromData(
     data: ExportableData,
     selectedFeature: string,
-    selectedProteinIds?: string[]
+    selectedProteinIds?: string[],
   ): Array<{
     value: string;
     color: string;
@@ -322,7 +322,7 @@ export class ProtSpaceExporter {
     width: number,
     height: number,
     options: ExportOptions,
-    overrideFeatureName?: string
+    overrideFeatureName?: string,
   ): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(100, Math.floor(width));
@@ -412,8 +412,8 @@ export class ProtSpaceExporter {
     const el = document.querySelector('protspace-scatterplot') as
       | (Element & { useShapes?: boolean })
       | null;
-    if (el && typeof (el as any).useShapes === 'boolean') {
-      return Boolean((el as any).useShapes);
+    if (el && typeof el.useShapes === 'boolean') {
+      return Boolean(el.useShapes);
     }
     return false;
   }
@@ -424,8 +424,8 @@ export class ProtSpaceExporter {
    */
   private readHiddenFeatureValueKeys(): Set<string> {
     try {
-      const raw = Array.isArray((this.element as any).hiddenFeatureValues)
-        ? ((this.element as any).hiddenFeatureValues as string[])
+      const raw = Array.isArray(this.element.hiddenFeatureValues)
+        ? (this.element.hiddenFeatureValues as string[])
         : [];
       return new Set(raw);
     } catch (_e) {
@@ -440,7 +440,7 @@ export class ProtSpaceExporter {
     color: string,
     cx: number,
     cy: number,
-    size: number
+    size: number,
   ) {
     const half = size / 2;
     ctx.save();
@@ -516,8 +516,8 @@ export class ProtSpaceExporter {
       | (Element & { getLegendExportData?: () => LegendExportState })
       | null;
     try {
-      if (legendEl && typeof (legendEl as any).getLegendExportData === 'function') {
-        const state = (legendEl as any).getLegendExportData();
+      if (legendEl && typeof legendEl.getLegendExportData === 'function') {
+        const state = legendEl.getLegendExportData();
         if (state && Array.isArray(state.items)) return state as LegendExportState;
       }
     } catch (_e) {
@@ -589,7 +589,7 @@ export class ProtSpaceExporter {
         : this.computeLegendFromData(
             data,
             this.element.selectedFeature,
-            options.includeSelection === true ? this.selectedProteins : undefined
+            options.includeSelection === true ? this.selectedProteins : undefined,
           ).filter((it) => {
             const key = it.value === 'N/A' ? 'null' : it.value;
             return !hiddenSet.has(key);
@@ -600,7 +600,7 @@ export class ProtSpaceExporter {
       Math.max(100, Math.round(scatterCanvas.width * 0.1)),
       scatterCanvas.height,
       options,
-      featureNameFromLegend || this.element.selectedFeature
+      featureNameFromLegend || this.element.selectedFeature,
     );
     const legendImg = legendCanvas.toDataURL('image/png', 1.0);
     const legendRatio = legendCanvas.width / legendCanvas.height;
@@ -608,6 +608,7 @@ export class ProtSpaceExporter {
     // Prepare PDF
     const orientation = scatterRatio > 1 ? 'landscape' : 'portrait';
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdf: any = new (jsPDF as any)({
       orientation,
       unit: 'mm',
@@ -696,7 +697,7 @@ export class ProtSpaceExporter {
 export function createExporter(
   element: ExportableElement,
   selectedProteins: string[] = [],
-  isolationMode: boolean = false
+  isolationMode: boolean = false,
 ): ProtSpaceExporter {
   return new ProtSpaceExporter(element, selectedProteins, isolationMode);
 }
@@ -719,7 +720,7 @@ export const exportUtils = {
   exportProteinIds: (
     element: ExportableElement,
     selectedProteins?: string[],
-    options?: ExportOptions
+    options?: ExportOptions,
   ) => {
     const exporter = createExporter(element, selectedProteins);
     exporter.exportProteinIds(options);

@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Database, BookOpen, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { DOCS_URL } from '@/config';
 
 const Hero = () => {
   return (
@@ -42,25 +43,24 @@ const Hero = () => {
 
           {/* Subtitle */}
           <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
-            Explore, analyze, and understand large-scale protein embeddings through interactive
-            visualizations, clustering, and metadata integration.
+            Explore, analyze, understand your protein space.
+            <br />
+            Put your embeddings and UniProt side by side to uncover
+            <br />
+            confirmations, contradictions, and unexpected biology.
           </p>
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
             <Button variant="hero" size="lg" className="w-full sm:w-auto" asChild>
-              <Link to="/demo">
+              <Link to="/explore">
                 <Play className="h-5 w-5" />
                 Start Exploring
               </Link>
             </Button>
 
             <Button variant="outline-hero" size="lg" className="w-full sm:w-auto" asChild>
-              <a
-                href="https://github.com/tsenoner/protspace_web/wiki"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <a href={DOCS_URL}>
                 <BookOpen className="h-5 w-5" />
                 Documentation
               </a>
@@ -87,7 +87,7 @@ const Hero = () => {
               Apache-2.0 License
             </span>
             <span className="px-4 py-2 rounded-full bg-card/50 backdrop-blur-sm border border-border/40 text-sm">
-              AlphaFold2 Integration
+              3D-Beacons API
             </span>
           </div>
         </div>

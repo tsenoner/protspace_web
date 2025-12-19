@@ -231,7 +231,7 @@ export class DataLoader extends LitElement {
         detail: { data },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
@@ -241,7 +241,7 @@ export class DataLoader extends LitElement {
         detail: { error },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 }

@@ -31,46 +31,9 @@ protspace-local -i embeddings.h5 -o output_dir
 
 See the [Python ProtSpace repository](https://github.com/tsenoner/protspace) for details.
 
-## 💻 Embed in Your Project
+## 📚 Documentation
 
-Use the web components in any HTML page or JavaScript framework:
-
-```html
-<!DOCTYPE html>
-<html>
-  <head>
-    <script type="module">
-      import '@protspace/core';
-    </script>
-  </head>
-  <body>
-    <protspace-data-loader id="loader" allow-drop></protspace-data-loader>
-    <protspace-scatterplot id="plot"></protspace-scatterplot>
-    <protspace-legend auto-sync scatterplot-selector="protspace-scatterplot"></protspace-legend>
-    <protspace-control-bar
-      auto-sync
-      scatterplot-selector="protspace-scatterplot"
-    ></protspace-control-bar>
-
-    <script type="module">
-      const loader = document.getElementById('loader');
-      const plot = document.getElementById('plot');
-      loader.addEventListener('data-loaded', (e) => {
-        plot.data = e.detail.data;
-        plot.selectedProjectionIndex = 0;
-        plot.selectedFeature = Object.keys(e.detail.data.features)[0] || '';
-      });
-    </script>
-  </body>
-</html>
-```
-
-### Available Components
-
-- `<protspace-data-loader>`: Loads `.parquetbundle` files
-- `<protspace-scatterplot>`: 2D scatter plot
-- `<protspace-legend>`: Filter and color categories
-- `<protspace-control-bar>`: Switch projections and export
+**[Full Documentation](https://protspace.app/docs/)** - User guides, data preparation, and feature explanations.
 
 ## 🔧 Development
 
@@ -78,20 +41,18 @@ Use the web components in any HTML page or JavaScript framework:
 git clone https://github.com/tsenoner/protspace_web.git
 cd protspace_web
 pnpm install
-pnpm dev  # starts local demo at http://localhost:5173
+pnpm dev  # App: http://localhost:8080 | Docs: http://localhost:5174/docs/
 ```
 
-## 🧹 Code Style (Prettier + ESLint)
+## 🧹 Code Quality
 
-- **Prettier (formatting)**
-  - Format all files: `pnpm run format`
-  - Check without writing: `pnpm run format:check`
+Before committing, run:
 
-- **ESLint (code quality)**
-  - Lint all packages: `pnpm run lint`
-  - Auto-fix safe issues: `pnpm run lint:fix`
+```bash
+pnpm precommit
+```
 
-Prettier handles formatting and ESLint focuses on correctness and best practices. The ESLint config integrates `eslint-config-prettier` to avoid conflicts with Prettier's formatting.
+This runs formatting (Prettier), linting (ESLint), and type checking in one command.
 
 ## ⚖️ License
 

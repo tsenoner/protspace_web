@@ -249,7 +249,7 @@ export class ProtspaceStructureViewer extends LitElement {
           data: this._structureData,
         },
         bubbles: true,
-      }) as StructureLoadEvent
+      }) as StructureLoadEvent,
     );
   }
 
@@ -260,7 +260,7 @@ export class ProtspaceStructureViewer extends LitElement {
           proteinId: this.proteinId,
         },
         bubbles: true,
-      })
+      }),
     );
   }
 
@@ -291,7 +291,7 @@ export class ProtspaceStructureViewer extends LitElement {
                 <a
                   class="title"
                   href=${`https://alphafold.ebi.ac.uk/entry/${encodeURIComponent(
-                    this.proteinId.split('.')[0]
+                    this.proteinId.split('.')[0],
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -302,7 +302,7 @@ export class ProtspaceStructureViewer extends LitElement {
                 <a
                   class="protein-id"
                   href=${`https://www.uniprot.org/uniprotkb/${encodeURIComponent(
-                    this.proteinId.split('.')[0]
+                    this.proteinId.split('.')[0],
                   )}/entry`}
                   target="_blank"
                   rel="noopener noreferrer"

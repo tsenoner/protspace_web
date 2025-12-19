@@ -21,7 +21,7 @@ export class InteractionHandler {
     svg: SVGSVGElement,
     mainGroup: SVGGElement,
     brushGroup: SVGGElement,
-    config: InteractionConfig
+    config: InteractionConfig,
   ) {
     this.svg = d3.select(svg);
     this.mainGroup = d3.select(mainGroup);
@@ -51,7 +51,7 @@ export class InteractionHandler {
     scales: {
       x: d3.ScaleLinear<number, number>;
       y: d3.ScaleLinear<number, number>;
-    }
+    },
   ) {
     if (!this.config.enableBrush) return;
 

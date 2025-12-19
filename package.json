@@ -2,10 +2,18 @@
   "name": "protspace_web",
   "private": true,
   "description": "ProtSpace interactive protein visualization components",
-  "packageManager": "pnpm@10.11.0",
+  "packageManager": "pnpm@10.24.0",
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo run --filter @protspace/app dev",
+    "dev": "concurrently \"pnpm dev:app\" \"pnpm dev:docs\" --names \"app,docs\" --prefix-colors \"cyan,magenta\"",
+    "dev:app": "turbo run --filter @protspace/app dev",
+    "dev:docs": "vitepress dev docs --port 5174",
+    "docs:build": "NODE_ENV=production vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "docs:screenshots": "playwright test --project=screenshots",
+    "docs:animations": "playwright test --project=animations",
+    "docs:gifs": "tsx scripts/docs-screenshots/convert-to-gif.ts",
+    "docs:images": "pnpm docs:screenshots && pnpm docs:animations && pnpm docs:gifs",
     "test": "turbo test",
     "lint": "turbo lint",
     "lint:fix": "turbo lint -- --fix",
@@ -13,6 +21,7 @@
     "clean": "turbo clean",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,css,scss,md,json,yml,yaml,mjs,cjs}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,css,scss,md,json,yml,yaml,mjs,cjs}\"",
+    "precommit": "pnpm format && pnpm lint:fix && pnpm type-check",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo build && changeset publish"
@@ -21,13 +30,18 @@
   "author": "",
   "devDependencies": {
     "@changesets/cli": "^2.29.7",
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^22.18.10",
     "@types/three": "^0.179.0",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
     "@typescript-eslint/parser": "^8.46.1",
+    "concurrently": "^9.2.1",
     "esbuild": "^0.25.10",
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.6.2",
-    "turbo": "^2.5.3"
+    "tsx": "^4.21.0",
+    "turbo": "^2.5.3",
+    "vitepress": "^1.6.4"
   }
 }

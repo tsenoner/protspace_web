@@ -13,6 +13,7 @@ import type {
   LegendSortMode,
   OtherItem,
   ScatterplotElement,
+  ScatterplotData,
 } from './types';
 
 @customElement('protspace-legend')
@@ -145,11 +146,11 @@ export class ProtspaceLegend extends LitElement {
     if (this._scatterplotElement) {
       this._scatterplotElement.removeEventListener(
         'data-change',
-        this._handleDataChange.bind(this)
+        this._handleDataChange.bind(this),
       );
       this._scatterplotElement.removeEventListener(
         'feature-change',
-        this._handleFeatureChange.bind(this)
+        this._handleFeatureChange.bind(this),
       );
     }
 
@@ -214,7 +215,7 @@ export class ProtspaceLegend extends LitElement {
       // d3.symbol size is area; approximate by multiplying pixel size by the same multiplier used in legend
       const baseSize = Math.max(
         10,
-        Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier)
+        Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier),
       );
       // @ts-ignore config is a public prop on the scatterplot element
       const currentConfig = (this._scatterplotElement as any).config || {};
@@ -280,7 +281,7 @@ export class ProtspaceLegend extends LitElement {
     this.proteinIds = currentData.protein_ids;
   }
 
-  private _updateFeatureData(currentData: any, selectedFeature: string): void {
+  private _updateFeatureData(currentData: ScatterplotData, selectedFeature: string): void {
     this.featureData = {
       name: selectedFeature,
       values: currentData.features[selectedFeature].values,
@@ -289,7 +290,7 @@ export class ProtspaceLegend extends LitElement {
     };
   }
 
-  private _updateFeatureValues(currentData: any, selectedFeature: string): void {
+  private _updateFeatureValues(currentData: ScatterplotData, selectedFeature: string): void {
     // Extract feature values for current data
     const featureValues = currentData.protein_ids.flatMap((_: string, index: number) => {
       const featureIdxData = currentData.feature_data[selectedFeature][index];
@@ -404,10 +405,16 @@ export class ProtspaceLegend extends LitElement {
 
     // Sync isolation state from scatterplot
     if ('isIsolationMode' in this._scatterplotElement) {
-      this.isolationMode = (this._scatterplotElement as any).isIsolationMode();
+      const scatterplot = this._scatterplotElement as ScatterplotElement & {
+        isIsolationMode(): boolean;
+      };
+      this.isolationMode = scatterplot.isIsolationMode();
     }
     if ('getIsolationHistory' in this._scatterplotElement) {
-      this.isolationHistory = (this._scatterplotElement as any).getIsolationHistory();
+      const scatterplot = this._scatterplotElement as ScatterplotElement & {
+        getIsolationHistory(): string[][];
+      };
+      this.isolationHistory = scatterplot.getIsolationHistory();
     }
   }
 
@@ -445,7 +452,7 @@ export class ProtspaceLegend extends LitElement {
       this.legendItems,
       this.includeOthers,
       this.manualOtherValues,
-      sortMode
+      sortMode,
     );
 
     // Set items state
@@ -466,7 +473,7 @@ export class ProtspaceLegend extends LitElement {
     if (this._scatterplotElement && 'useShapes' in this._scatterplotElement) {
       const isMultilabel = this._isMultilabelFeature();
       const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
-      (this._scatterplotElement as any).useShapes = effectiveIncludeShapes;
+      (this._scatterplotElement as ScatterplotElement).useShapes = effectiveIncludeShapes;
     }
   }
 
@@ -518,7 +525,7 @@ export class ProtspaceLegend extends LitElement {
         detail: { value, action: 'toggle' },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
 
     this.requestUpdate();
@@ -576,7 +583,7 @@ export class ProtspaceLegend extends LitElement {
         detail: { value, action: 'isolate' },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
 
     this.requestUpdate();
@@ -643,7 +650,7 @@ export class ProtspaceLegend extends LitElement {
             detail: { value: draggedItem.value, action: 'merge-into-other' },
             bubbles: true,
             composed: true,
-          })
+          }),
         );
       }
     }
@@ -664,7 +671,7 @@ export class ProtspaceLegend extends LitElement {
         detail: { value, action: 'merge-into-other' },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
 
     this.requestUpdate();
@@ -707,7 +714,7 @@ export class ProtspaceLegend extends LitElement {
         new CustomEvent('legend-zorder-change', {
           detail: { zOrderMapping: zOrderMap },
           bubbles: false,
-        })
+        }),
       );
     } else {
       // Fallback to bubbling event
@@ -715,7 +722,7 @@ export class ProtspaceLegend extends LitElement {
         new CustomEvent('legend-zorder-change', {
           detail: { zOrderMapping: zOrderMap },
           bubbles: true,
-        })
+        }),
       );
     }
   }
@@ -788,7 +795,7 @@ export class ProtspaceLegend extends LitElement {
       new CustomEvent('legend-item-click', {
         detail: { value, action: 'extract' },
         bubbles: true,
-      })
+      }),
     );
 
     this.requestUpdate();
@@ -830,7 +837,7 @@ export class ProtspaceLegend extends LitElement {
     this.dispatchEvent(
       new CustomEvent('legend-customize', {
         bubbles: true,
-      })
+      }),
     );
   }
 
@@ -883,7 +890,7 @@ export class ProtspaceLegend extends LitElement {
                     Extract
                   </button>
                 </div>
-              `
+              `,
             )}
           </div>
 
@@ -903,7 +910,7 @@ export class ProtspaceLegend extends LitElement {
     this.dispatchEvent(
       new CustomEvent('legend-download', {
         bubbles: true,
-      })
+      }),
     );
   }
 
@@ -918,7 +925,7 @@ export class ProtspaceLegend extends LitElement {
           onCustomize: () => this.handleCustomize(),
         })}
         ${LegendRenderer.renderLegendContent(sortedLegendItems, (item) =>
-          this._renderLegendItem(item)
+          this._renderLegendItem(item),
         )}
       </div>
       ${this.renderOtherDialog()} ${this.renderSettingsDialog()}
@@ -950,7 +957,7 @@ export class ProtspaceLegend extends LitElement {
         },
       },
       effectiveIncludeShapes,
-      LEGEND_STYLES.legendDisplaySize
+      LEGEND_STYLES.legendDisplaySize,
     );
   }
 

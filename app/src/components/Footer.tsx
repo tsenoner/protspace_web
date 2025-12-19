@@ -1,4 +1,5 @@
-import { Github, Heart } from 'lucide-react';
+import { GitHubIcon } from '@/components/icons/brand-icons';
+import { DOCS_URL } from '@/config';
 
 const Footer = () => {
   return (
@@ -18,13 +19,11 @@ const Footer = () => {
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2"
             >
-              <Github className="h-4 w-4" />
+              <GitHubIcon />
               <span className="text-sm">GitHub</span>
             </a>
             <a
-              href="https://github.com/tsenoner/protspace_web/wiki"
-              target="_blank"
-              rel="noopener noreferrer"
+              href={DOCS_URL}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               Documentation

@@ -9,7 +9,7 @@ export interface MolstarViewer {
   loadStructureFromUrl: (
     url: string,
     format?: string,
-    options?: Record<string, unknown>
+    options?: Record<string, unknown>,
   ) => Promise<void>;
   dispose: () => void;
 }
@@ -32,7 +32,7 @@ declare global {
             viewportShowAnimation?: boolean;
             pdbProvider?: string;
             emdbProvider?: string;
-          }
+          },
         ) => Promise<MolstarViewer>;
       };
     };

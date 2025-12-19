@@ -138,7 +138,7 @@ export class ProtspaceScatterplot extends LitElement {
         this._plotData,
         config.width,
         config.height,
-        config.margin
+        config.margin,
       ) as ScalePair | null;
       this._cachedScales = computedScales;
       this._scalesCacheDeps = {
@@ -164,7 +164,7 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _syncWebglSelectionActive() {
     this._webglRenderer?.setSelectionActive(
-      this.selectedProteinIds.length > 0 || this.highlightedProteinIds.length > 0
+      this.selectedProteinIds.length > 0 || this.highlightedProteinIds.length > 0,
     );
   }
 
@@ -227,7 +227,7 @@ export class ProtspaceScatterplot extends LitElement {
           detail: { file: files[0] },
           bubbles: true,
           composed: true,
-        })
+        }),
       );
     }
   };
@@ -301,7 +301,7 @@ export class ProtspaceScatterplot extends LitElement {
             detail: { data: this.data },
             bubbles: true,
             composed: true,
-          })
+          }),
         );
       }
     }
@@ -380,7 +380,7 @@ export class ProtspaceScatterplot extends LitElement {
     }
     // Render for other changes
     const selectionKeys = ['selectedProteinIds', 'highlightedProteinIds'];
-    const changedKeys = Array.from(changedProperties.keys());
+    const changedKeys = Array.from(changedProperties.keys()).map(String);
     const onlySelectionChanged =
       changedKeys.length > 0 && changedKeys.every((k) => selectionKeys.includes(k));
     if (!onlySelectionChanged) {
@@ -406,7 +406,7 @@ export class ProtspaceScatterplot extends LitElement {
           getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
           getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
           getShape: (p: PlotDataPoint) => this._getPointShape(p),
-        }
+        },
       );
       this._updateStyleSignature();
       this._webglRenderer.setStyleSignature(this._styleSig);
@@ -423,7 +423,7 @@ export class ProtspaceScatterplot extends LitElement {
       this.selectedProjectionIndex,
       this._isolationMode,
       this._isolationHistory,
-      this.projectionPlane
+      this.projectionPlane,
     );
 
     // z-order is resolved in WebGL depth (see style getters), so we avoid sorting 500k+ points on CPU.
@@ -535,7 +535,7 @@ export class ProtspaceScatterplot extends LitElement {
             getStrokeColor: (p: PlotDataPoint) => this._getStrokeColor(p),
             getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
             getShape: (p: PlotDataPoint) => this._getPointShape(p),
-          }
+          },
         );
         this._updateStyleSignature();
         this._webglRenderer.setStyleSignature(this._styleSig);
@@ -584,7 +584,7 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _renderDuplicateBadgesCanvas(
-    stacks: Array<{ key: string; px: number; py: number; points: PlotDataPoint[] }>
+    stacks: Array<{ key: string; px: number; py: number; points: PlotDataPoint[] }>,
   ) {
     if (!this._badgesCanvas) return;
     const ctx = this._badgesCanvas.getContext('2d');
@@ -696,7 +696,7 @@ export class ProtspaceScatterplot extends LitElement {
             },
             bubbles: true,
             composed: true,
-          })
+          }),
         );
 
         this.requestUpdate(); // Force re-render for highlighting
@@ -832,7 +832,7 @@ export class ProtspaceScatterplot extends LitElement {
     minX: number,
     minY: number,
     maxX: number,
-    maxY: number
+    maxY: number,
   ): boolean {
     if (this._duplicateStacksCacheKey === viewKey) return true;
     if (this._duplicateStacksComputing) return false;
@@ -932,7 +932,7 @@ export class ProtspaceScatterplot extends LitElement {
     minX: number,
     minY: number,
     maxX: number,
-    maxY: number
+    maxY: number,
   ): Array<{ key: string; px: number; py: number; points: PlotDataPoint[] }> {
     let stacksToRender = stacks;
 
@@ -982,14 +982,14 @@ export class ProtspaceScatterplot extends LitElement {
     const maxY = Math.max(topPx, bottomPx);
 
     const visibleStacks = this._duplicateStacks.filter(
-      (s) => s.px >= minX && s.px <= maxX && s.py >= minY && s.py <= maxY
+      (s) => s.px >= minX && s.px <= maxX && s.py >= minY && s.py <= maxY,
     );
     const stacksToRender = this._capDuplicateStacksForRendering(
       visibleStacks,
       minX,
       minY,
       maxX,
-      maxY
+      maxY,
     );
 
     // Note: canvas drawing uses screen coordinates and already keeps badge size constant.
@@ -1050,7 +1050,7 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     const visibleStacks = this._duplicateStacks.filter(
-      (s) => s.px >= minX && s.px <= maxX && s.py >= minY && s.py <= maxY
+      (s) => s.px >= minX && s.px <= maxX && s.py >= minY && s.py <= maxY,
     );
 
     // --- Badges (N) ---
@@ -1059,7 +1059,7 @@ export class ProtspaceScatterplot extends LitElement {
       minX,
       minY,
       maxX,
-      maxY
+      maxY,
     );
 
     // Phase 3: render badges via a lightweight 2D canvas overlay (much faster than many SVG nodes).
@@ -1276,7 +1276,7 @@ export class ProtspaceScatterplot extends LitElement {
         new CustomEvent('protein-hover', {
           detail: { proteinId: point.id, point },
           bubbles: true,
-        })
+        }),
       );
     }
   }
@@ -1296,7 +1296,7 @@ export class ProtspaceScatterplot extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
@@ -1445,7 +1445,7 @@ export class ProtspaceScatterplot extends LitElement {
         new CustomEvent('protein-hover', {
           detail: { proteinId: null, point: null },
           bubbles: true,
-        })
+        }),
       );
     }
   }
@@ -1517,7 +1517,7 @@ export class ProtspaceScatterplot extends LitElement {
                   >${this._formatMetadataValue(value, key)}</span
                 >
               </div>
-            `
+            `,
           )}
         </div>
       </div>
@@ -1610,7 +1610,7 @@ export class ProtspaceScatterplot extends LitElement {
                 <div class="tooltip-feature-header">${this.selectedFeature}:</div>
 
                 ${this._tooltipData.protein.featureValues[this.selectedFeature].map(
-                  (value) => html`<div class="tooltip-feature">${value || 'N/A'}</div>`
+                  (value) => html`<div class="tooltip-feature">${value || 'N/A'}</div>`,
                 )}
               </div>
             `
@@ -1701,7 +1701,7 @@ export class ProtspaceScatterplot extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
 
     // Dispatch data-change event to update legend and other auto-sync components
@@ -1714,7 +1714,7 @@ export class ProtspaceScatterplot extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
 
     // Auto-disable selection mode if only 1 point left
@@ -1728,7 +1728,7 @@ export class ProtspaceScatterplot extends LitElement {
           },
           bubbles: true,
           composed: true,
-        })
+        }),
       );
     }
   }
@@ -1767,7 +1767,7 @@ export class ProtspaceScatterplot extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
 
     // Dispatch data-change event to update legend back to full data
@@ -1780,7 +1780,7 @@ export class ProtspaceScatterplot extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 

@@ -11,7 +11,7 @@ export class LegendDataProcessor {
   static getFilteredIndices(
     isolationMode: boolean,
     isolationHistory: string[][],
-    proteinIds: string[]
+    proteinIds: string[],
   ): Set<number> {
     const filteredIndices = new Set<number>();
 
@@ -46,7 +46,7 @@ export class LegendDataProcessor {
     featureValues: (string | null)[],
     isolationMode: boolean,
     isolationHistory: string[][],
-    filteredIndices: Set<number>
+    filteredIndices: Set<number>,
   ): Map<string | null, number> {
     const frequencyMap = new Map<string | null, number>();
 
@@ -75,7 +75,7 @@ export class LegendDataProcessor {
     maxVisibleValues: number,
     isolationMode: boolean,
     manuallyOtherValues: Set<string>,
-    sortMode: LegendSortMode
+    sortMode: LegendSortMode,
   ): {
     topItems: Array<[string | null, number]>;
     otherItems: OtherItem[];
@@ -176,7 +176,7 @@ export class LegendDataProcessor {
     // Build Other array as: everything beyond top cap + all manual-to-Other values, deduped
     const beyondCap = sortedItems.slice(maxVisibleValues).filter(([value]) => value !== null);
     const manualPairs = sortedItems.filter(
-      ([value]) => value !== null && manuallyOtherValues.has(String(value))
+      ([value]) => value !== null && manuallyOtherValues.has(String(value)),
     );
     const seen = new Set<string>();
     const otherItemsArray = [...beyondCap, ...manualPairs].filter(([value]) => {
@@ -207,7 +207,7 @@ export class LegendDataProcessor {
     isolationMode: boolean,
     featureData: LegendFeatureData,
     includeOthers: boolean,
-    existingLegendItems: LegendItem[] = []
+    existingLegendItems: LegendItem[] = [],
   ): LegendItem[] {
     // Create a map of existing z-orders for preservation
     const existingZOrderMap = new Map<string | null, number>();
@@ -293,7 +293,7 @@ export class LegendDataProcessor {
     frequencyMap: Map<string | null, number>,
     topItems: Array<[string | null, number]>,
     featureData: LegendFeatureData,
-    existingLegendItems: LegendItem[] = []
+    existingLegendItems: LegendItem[] = [],
   ): void {
     // Find null entry
     const nullEntry = Array.from(frequencyMap.entries()).find(([value]) => value === null);
@@ -341,7 +341,7 @@ export class LegendDataProcessor {
   static addExtractedItems(
     items: LegendItem[],
     frequencyMap: Map<string | null, number>,
-    existingLegendItems: LegendItem[]
+    existingLegendItems: LegendItem[],
   ): void {
     // Get previously extracted items
     const extractedItems = existingLegendItems.filter((item) => item.extractedFromOther);
@@ -386,7 +386,7 @@ export class LegendDataProcessor {
     existingLegendItems: LegendItem[],
     includeOthers: boolean,
     manuallyOtherValues: string[] = [],
-    sortMode: LegendSortMode = 'size'
+    sortMode: LegendSortMode = 'size',
   ): {
     legendItems: LegendItem[];
     otherItems: OtherItem[];
@@ -400,7 +400,7 @@ export class LegendDataProcessor {
       featureValues,
       isolationMode,
       isolationHistory,
-      filteredIndices
+      filteredIndices,
     );
 
     // Determine effective cap. When Others is disabled, show all categories
@@ -412,7 +412,7 @@ export class LegendDataProcessor {
       effectiveMaxVisibleValues,
       isolationMode,
       manualOtherSet,
-      sortMode
+      sortMode,
     );
 
     // Create legend items
@@ -422,7 +422,7 @@ export class LegendDataProcessor {
       isolationMode,
       featureData,
       includeOthers,
-      existingLegendItems
+      existingLegendItems,
     );
 
     // Add null entry if needed
@@ -434,7 +434,7 @@ export class LegendDataProcessor {
     if (includeOthers && !isolationMode) {
       // Build a set of values already shown individually (exclude null and the synthetic "Other")
       const individuallyShownValues = new Set(
-        items.map((i) => i.value).filter((v): v is string => v !== null && v !== 'Other')
+        items.map((i) => i.value).filter((v): v is string => v !== null && v !== 'Other'),
       );
 
       // Filter Other dialog items by removing already extracted/visible ones

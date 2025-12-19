@@ -46,7 +46,7 @@ export class ScatterplotRenderer {
       onMouseOut: (event: MouseEvent, point: PlotDataPoint) => void;
       onClick: (event: MouseEvent, point: PlotDataPoint) => void;
     },
-    isTransitioning: boolean = false
+    isTransitioning: boolean = false,
   ) {
     if (!this.scales || plotData.length === 0) return;
 
@@ -112,7 +112,7 @@ export class ScatterplotRenderer {
 
   animatePointSelection(proteinId: string, isSelected: boolean) {
     const point = this.mainGroup.select<SVGPathElement>(
-      `.protein-point[data-protein-id="${proteinId}"]`
+      `.protein-point[data-protein-id="${proteinId}"]`,
     );
 
     if (point.empty()) return;

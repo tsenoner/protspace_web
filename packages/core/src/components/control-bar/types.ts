@@ -13,7 +13,8 @@ export interface ControlBarState {
 
 export interface ProtspaceData {
   projections?: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>;
-  features?: Record<string, unknown>;
+  features?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
+  feature_data?: Record<string, number[] | number[][]>;
   protein_ids?: string[];
 }
 
@@ -26,7 +27,9 @@ export interface ScatterplotElementLike extends Element {
   selectedProjectionIndex?: number;
   selectedFeature?: string;
   selectionMode?: boolean;
-  selectedProteinIds?: unknown[];
+  selectedProteinIds?: string[];
+  projectionPlane?: 'xy' | 'xz' | 'yz';
+  data?: ProtspaceData;
 
   // Data access
   getCurrentData?: () => ProtspaceData | undefined;
@@ -38,4 +41,14 @@ export interface ScatterplotElementLike extends Element {
   resetIsolation?: () => void;
 
   // Event emitting is through DOM, so we rely on add/removeEventListener from Element
+  click?: () => void;
+}
+
+export interface DataLoaderElement extends Element {
+  requestLoad?: () => void;
+}
+
+export interface StructureViewerElement extends Element {
+  loadStructure?: (proteinId: string, structureUrl: string | null) => void;
+  loadProtein?: (proteinId: string) => void;
 }

@@ -24,7 +24,7 @@ export async function initializeDemo() {
   const plotElement = document.getElementById('myPlot') as ProtspaceScatterplot | null;
   const legendElement = document.getElementById('myLegend') as ProtspaceLegend | null;
   const structureViewer = document.getElementById(
-    'myStructureViewer'
+    'myStructureViewer',
   ) as ProtspaceStructureViewer | null;
   const controlBar = document.getElementById('myControlBar') as ProtspaceControlBar | null;
   const dataLoader = document.getElementById('myDataLoader') as DataLoader | null;
@@ -50,7 +50,7 @@ export async function initializeDemo() {
       show: boolean,
       progress: number = 0,
       message: string = '',
-      subMessage: string = ''
+      subMessage: string = '',
     ) => {
       let overlay = document.getElementById('progressive-loading');
 
@@ -123,13 +123,13 @@ export async function initializeDemo() {
       // Show enhanced loading indicator for large datasets
       if (isLargeDataset) {
         console.log(
-          `⚡ Large dataset detected (${dataSize.toLocaleString()} proteins) - using optimized loading pipeline`
+          `⚡ Large dataset detected (${dataSize.toLocaleString()} proteins) - using optimized loading pipeline`,
         );
         updateLoadingOverlay(
           true,
           20,
           'Preparing visualization...',
-          `Found ${dataSize.toLocaleString()} proteins`
+          `Found ${dataSize.toLocaleString()} proteins`,
         );
       } else {
         // If not large dataset, hide the overlay that was shown during file reading
@@ -149,7 +149,7 @@ export async function initializeDemo() {
             true,
             20,
             'Rendering scatterplot points...',
-            `Visualizing ${dataSize.toLocaleString()} proteins`
+            `Visualizing ${dataSize.toLocaleString()} proteins`,
           );
         }
 
@@ -182,7 +182,7 @@ export async function initializeDemo() {
             true,
             40,
             'Configuring controls and filters...',
-            `Visualizing ${dataSize.toLocaleString()} proteins`
+            `Visualizing ${dataSize.toLocaleString()} proteins`,
           );
         }
 
@@ -201,7 +201,7 @@ export async function initializeDemo() {
               controlBar.requestUpdate();
               resolve(undefined);
             },
-            isLargeDataset ? 50 : 10
+            isLargeDataset ? 50 : 10,
           ); // Longer delay for large datasets
         });
 
@@ -211,7 +211,7 @@ export async function initializeDemo() {
             true,
             60,
             'Organizing color categories...',
-            `Visualizing ${dataSize.toLocaleString()} proteins`
+            `Visualizing ${dataSize.toLocaleString()} proteins`,
           );
         }
 
@@ -245,7 +245,7 @@ export async function initializeDemo() {
 
                       for (let k = 0; k < featureIdxArray.length; k++) {
                         featureValues.push(
-                          newData.features[firstFeature].values[featureIdxArray[k]]
+                          newData.features[firstFeature].values[featureIdxArray[k]],
                         );
                       }
                     }
@@ -257,7 +257,7 @@ export async function initializeDemo() {
                         true,
                         progress,
                         'Organizing color categories...',
-                        `Visualizing ${dataSize.toLocaleString()} proteins`
+                        `Visualizing ${dataSize.toLocaleString()} proteins`,
                       );
                       await new Promise((resolve) => requestAnimationFrame(resolve));
                     }
@@ -286,7 +286,7 @@ export async function initializeDemo() {
 
               resolve(undefined);
             },
-            isLargeDataset ? 30 : 20
+            isLargeDataset ? 30 : 20,
           );
         });
 
@@ -296,7 +296,7 @@ export async function initializeDemo() {
             true,
             95,
             'Finalizing view...',
-            `Visualizing ${dataSize.toLocaleString()} proteins`
+            `Visualizing ${dataSize.toLocaleString()} proteins`,
           );
         }
 
@@ -316,7 +316,7 @@ export async function initializeDemo() {
             true,
             100,
             'Ready to explore!',
-            `Visualizing ${dataSize.toLocaleString()} proteins`
+            `Visualizing ${dataSize.toLocaleString()} proteins`,
           );
 
           // Keep the success message visible briefly
@@ -363,14 +363,14 @@ export async function initializeDemo() {
         console.error('❌ Failed to load data from file:', error);
         console.log('💡 Make sure data.parquetbundle exists in the public directory');
         console.log(
-          '🎯 Alternative: You can drag and drop the data.parquetbundle file onto the data loader component'
+          '🎯 Alternative: You can drag and drop the data.parquetbundle file onto the data loader component',
         );
 
         // Show user-friendly error message with instructions
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.warn(`Auto-load failed: ${errorMessage}`);
         console.log(
-          '📋 The data loader is ready for drag-and-drop. Simply drag the data.parquetbundle file onto the component.'
+          '📋 The data loader is ready for drag-and-drop. Simply drag the data.parquetbundle file onto the component.',
         );
       }
     };
@@ -499,7 +499,7 @@ export async function initializeDemo() {
       if (status === 'loaded') {
         console.log(`✅ Structure viewer is now visible with protein ${proteinId}`);
         console.log(
-          `Close button should be visible in header (showCloseButton: ${structureViewer.showCloseButton})`
+          `Close button should be visible in header (showCloseButton: ${structureViewer.showCloseButton})`,
         );
       }
 

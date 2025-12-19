@@ -44,3 +44,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# vitepress
+docs/.vitepress/cache
+docs/.vitepress/dist
+
+# publication data
+/publication
+
+# playwright
+/test-results
+/temp-videos
+/playwright-report

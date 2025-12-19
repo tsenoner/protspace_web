@@ -1,5 +1,5 @@
 import { parquetReadObjects } from 'hyparquet';
-import type { Rows } from './types';
+import type { Rows, GenericRow } from './types';
 import { assertValidParquetMagic, validateMergedBundleRows } from './validation';
 
 const BUNDLE_DELIMITER = new TextEncoder().encode('---PARQUET_DELIMITER---');
@@ -37,7 +37,7 @@ export function findBundleDelimiterPositions(uint8Array: Uint8Array): number[] {
 }
 
 export async function extractRowsFromParquetBundle(
-  arrayBuffer: ArrayBuffer
+  arrayBuffer: ArrayBuffer,
 ): Promise<{ rows: Rows; projectionsMetadata: Rows }> {
   const uint8Array = new Uint8Array(arrayBuffer);
   const delimiterPositions = findBundleDelimiterPositions(uint8Array);
@@ -84,7 +84,7 @@ export function mergeProjectionsWithFeatures(projectionsData: Rows, featuresData
   const finalFeatureIdColumn =
     featureIdColumn || (featuresData.length > 0 ? Object.keys(featuresData[0])[0] : undefined);
 
-  const featuresMap = new Map<string, Record<string, any>>();
+  const featuresMap = new Map<string, GenericRow>();
   if (finalFeatureIdColumn) {
     for (const feature of featuresData) {
       const proteinId = feature[finalFeatureIdColumn];
@@ -96,7 +96,7 @@ export function mergeProjectionsWithFeatures(projectionsData: Rows, featuresData
 
   const projectionIdColumn = findColumn(
     projectionsData.length > 0 ? Object.keys(projectionsData[0]) : [],
-    ['identifier', 'protein_id', 'id', 'uniprot', 'entry']
+    ['identifier', 'protein_id', 'id', 'uniprot', 'entry'],
   );
 
   if (!projectionIdColumn) {
