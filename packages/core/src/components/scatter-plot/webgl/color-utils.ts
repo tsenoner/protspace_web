@@ -54,7 +54,7 @@ const DEFAULT_RGB: [number, number, number] = [1, 1, 1];
 
 function parseNormalizedColor(
   ctx: CanvasRenderingContext2D,
-  normalized: string
+  normalized: string,
 ): [number, number, number] | null {
   const hex = parseHexColor(normalized);
   if (hex) return hex;

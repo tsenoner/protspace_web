@@ -155,7 +155,7 @@ export class ProtspaceProteinSearch extends LitElement {
     const selectedSet = new Set(this.selectedProteinIds);
 
     this.searchSuggestions = this.availableProteinIds.filter(
-      (id) => !selectedSet.has(id) && id.toLowerCase().startsWith(q)
+      (id) => !selectedSet.has(id) && id.toLowerCase().startsWith(q),
     );
 
     this.highlightedSuggestionIndex = this.searchSuggestions.length > 0 ? 0 : -1;

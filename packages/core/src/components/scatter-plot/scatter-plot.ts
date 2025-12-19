@@ -248,7 +248,7 @@ export class ProtspaceScatterplot extends LitElement {
     }
   };
 
-  updated(changedProperties: Map<string, any>) {
+  updated(changedProperties: Map<string, unknown>) {
     // When new data is loaded (or projection index changes), ensure the selection is valid.
     // This prevents a blank plot when switching from a dataset with many projections/features
     // to one with only a single projection/feature.
@@ -1142,14 +1142,10 @@ export class ProtspaceScatterplot extends LitElement {
           });
         }
         // Keep pointer events routed to this element even if the pointer moves slightly.
-        const el = event.currentTarget as Element | null;
-        if (
-          el &&
-          typeof (el as any).setPointerCapture === 'function' &&
-          typeof pe.pointerId === 'number'
-        ) {
+        const el = event.currentTarget as HTMLElement | null;
+        if (el && typeof el.setPointerCapture === 'function' && typeof pe.pointerId === 'number') {
           try {
-            (el as any).setPointerCapture(pe.pointerId);
+            el.setPointerCapture(pe.pointerId);
           } catch {
             // ignore
           }

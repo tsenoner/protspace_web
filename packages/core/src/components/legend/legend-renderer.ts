@@ -83,7 +83,7 @@ export class LegendRenderer {
     actions: {
       onReverse?: () => void;
       onCustomize: () => void;
-    }
+    },
   ): TemplateResult {
     return html`
       <div class="legend-header">

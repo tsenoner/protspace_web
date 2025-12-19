@@ -322,7 +322,7 @@ export class WebGLRenderer {
     private getScales: () => ScalePair | null,
     private getTransform: () => d3.ZoomTransform,
     private getConfig: () => ScatterplotConfig,
-    private style: WebGLStyleGetters
+    private style: WebGLStyleGetters,
   ) {}
 
   // ============================================================================
@@ -797,7 +797,7 @@ export class WebGLRenderer {
     this.gammaCorrectionProgram = createProgramFromSources(
       gl,
       GAMMA_VERTEX_SHADER,
-      GAMMA_FRAGMENT_SHADER
+      GAMMA_FRAGMENT_SHADER,
     );
     if (!this.gammaCorrectionProgram) return false;
 
@@ -883,7 +883,7 @@ export class WebGLRenderer {
     gl.uniform2f(
       this.pointUniformLocations.labelTextureSize,
       LABEL_TEXTURE_WIDTH,
-      this.labelColorData.length / 4 / LABEL_TEXTURE_WIDTH
+      this.labelColorData.length / 4 / LABEL_TEXTURE_WIDTH,
     );
 
     gl.activeTexture(gl.TEXTURE1);
@@ -930,7 +930,7 @@ export class WebGLRenderer {
     points: PlotDataPoint[],
     scales: ScalePair,
     updatePositions: boolean,
-    updateStyles: boolean
+    updateStyles: boolean,
   ) {
     if (!this.gl) return;
     const gl = this.gl;
@@ -1061,7 +1061,7 @@ export class WebGLRenderer {
         0,
         gl.RGBA,
         gl.UNSIGNED_BYTE,
-        this.labelColorData
+        this.labelColorData,
       );
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -1076,7 +1076,7 @@ export class WebGLRenderer {
     gl: WebGL2RenderingContext,
     buffer: WebGLBuffer | null,
     data: Float32Array,
-    length: number
+    length: number,
   ) {
     if (!buffer) return;
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);

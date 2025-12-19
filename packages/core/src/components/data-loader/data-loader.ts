@@ -155,7 +155,7 @@ export class DataLoader extends LitElement {
         this.completeStep();
         const visualizationData = await convertParquetToVisualizationDataOptimized(
           extractedData,
-          projectionsMetadata
+          projectionsMetadata,
         );
         this.completeStep();
         this.dispatchDataLoaded(visualizationData);
@@ -207,7 +207,7 @@ export class DataLoader extends LitElement {
       new CustomEvent('data-loading-start', {
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
@@ -221,7 +221,7 @@ export class DataLoader extends LitElement {
         },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
   }
 
