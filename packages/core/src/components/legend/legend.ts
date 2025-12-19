@@ -10,6 +10,7 @@ import type {
   LegendDataInput,
   LegendFeatureData,
   LegendItem,
+  LegendSortMode,
   OtherItem,
   ScatterplotElement,
 } from './types';
@@ -49,9 +50,13 @@ export class ProtspaceLegend extends LitElement {
   @state() private settingsIncludeShapes: boolean = LEGEND_DEFAULTS.includeShapes;
   @property({ type: Number }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
   @state() private settingsShapeSize: number = LEGEND_DEFAULTS.symbolSize;
+  @state() private settingsEnableDuplicateStackUI: boolean = false;
   @state() private manualOtherValues: string[] = [];
-  @state() private featureSortModes: Record<string, 'size' | 'alpha'> = {};
-  @state() private settingsFeatureSortModes: Record<string, 'size' | 'alpha'> = {};
+  @state() private featureSortModes: Record<string, LegendSortMode> = {};
+  @state() private settingsFeatureSortModes: Record<string, LegendSortMode> = {};
+
+  // Keyboard event listener for settings dialog
+  private _settingsDialogKeydownHandler?: (e: KeyboardEvent) => void;
 
   // Auto-sync properties
   @property({ type: String, attribute: 'scatterplot-selector' })
@@ -87,7 +92,7 @@ export class ProtspaceLegend extends LitElement {
 
   /**
    * Check if the current feature is multilabel (any protein has multiple values)
-   * Uses the same check as canvas-renderer: colors.length > 1 means multilabel
+   * Mirrors the scatterplot renderer logic: colors.length > 1 means multilabel
    */
   private _isMultilabelFeature(): boolean {
     const currentData = (this._scatterplotElement as ScatterplotElement)?.getCurrentData?.();
@@ -147,6 +152,84 @@ export class ProtspaceLegend extends LitElement {
         this._handleFeatureChange.bind(this)
       );
     }
+
+    // Clean up keyboard listener if component is disconnected while dialog is open
+    this._removeGlobalKeyboardListener();
+  }
+
+  private _addGlobalKeyboardListener() {
+    if (this._settingsDialogKeydownHandler) {
+      this._removeGlobalKeyboardListener();
+    }
+
+    this._settingsDialogKeydownHandler = (e: KeyboardEvent) => {
+      if (!this.showSettingsDialog) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this._handleSettingsSave();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        this._handleSettingsClose();
+      }
+    };
+
+    document.addEventListener('keydown', this._settingsDialogKeydownHandler);
+  }
+
+  private _removeGlobalKeyboardListener() {
+    if (this._settingsDialogKeydownHandler) {
+      document.removeEventListener('keydown', this._settingsDialogKeydownHandler);
+      this._settingsDialogKeydownHandler = undefined;
+    }
+  }
+
+  private _handleSettingsSave() {
+    // Apply and close
+    this.maxVisibleValues = this.settingsMaxVisibleValues;
+    this.includeOthers = this.settingsIncludeOthers;
+    this.includeShapes = this.settingsIncludeShapes;
+    this.shapeSize = this.settingsShapeSize;
+    // apply sorting preferences
+    this.featureSortModes = { ...this.settingsFeatureSortModes };
+    this.showSettingsDialog = false;
+    this.manualOtherValues = [];
+    this._hiddenValues = [];
+    this.legendItems = [];
+
+    this._removeGlobalKeyboardListener();
+
+    if (
+      this.autoHide &&
+      this._scatterplotElement &&
+      'hiddenFeatureValues' in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
+    }
+    this.updateLegendItems();
+    this.requestUpdate();
+
+    // Update scatterplot point sizes to match shape size (approximate mapping)
+    if (this._scatterplotElement && 'config' in this._scatterplotElement) {
+      // d3.symbol size is area; approximate by multiplying pixel size by the same multiplier used in legend
+      const baseSize = Math.max(
+        10,
+        Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier)
+      );
+      // @ts-ignore config is a public prop on the scatterplot element
+      const currentConfig = (this._scatterplotElement as any).config || {};
+      // @ts-ignore assign merged config to trigger update
+      (this._scatterplotElement as any).config = {
+        ...currentConfig,
+        pointSize: baseSize,
+        enableDuplicateStackUI: this.settingsEnableDuplicateStackUI,
+      };
+    }
+  }
+
+  private _handleSettingsClose() {
+    this.showSettingsDialog = false;
+    this._removeGlobalKeyboardListener();
   }
 
   private _setupAutoSync() {
@@ -290,7 +373,7 @@ export class ProtspaceLegend extends LitElement {
   private _ensureSortModeDefaults() {
     const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
     if (featureNames.length === 0) return;
-    const updated: Record<string, 'size' | 'alpha'> = {
+    const updated: Record<string, LegendSortMode> = {
       ...this.featureSortModes,
     };
     for (const fname of featureNames) {
@@ -349,10 +432,9 @@ export class ProtspaceLegend extends LitElement {
     }
 
     // Use the data processor to handle all legend item processing
-    const sortMode =
+    const sortMode: LegendSortMode =
       this.featureSortModes[this.selectedFeature] ??
       (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size');
-    const sortAlphabetically = sortMode === 'alpha';
     const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
       this.featureData,
       this.featureValues,
@@ -363,7 +445,7 @@ export class ProtspaceLegend extends LitElement {
       this.legendItems,
       this.includeOthers,
       this.manualOtherValues,
-      sortAlphabetically
+      sortMode
     );
 
     // Set items state
@@ -614,7 +696,7 @@ export class ProtspaceLegend extends LitElement {
   private _dispatchZOrderChange(): void {
     const zOrderMap: Record<string, number> = {};
     this.legendItems.forEach((legendItem) => {
-      if (legendItem.value !== null && legendItem.value !== 'Other') {
+      if (legendItem.value !== null) {
         zOrderMap[legendItem.value] = legendItem.zOrder;
       }
     });
@@ -636,6 +718,25 @@ export class ProtspaceLegend extends LitElement {
         })
       );
     }
+  }
+
+  /**
+   * Reverse the CURRENTLY DISPLAYED legend z-order, without re-bucketing items into "Other".
+   * Keeps the synthetic "Other" item (if present) at the end.
+   */
+  private _reverseCurrentLegendZOrderKeepOtherLast(): void {
+    if (!this.legendItems || this.legendItems.length <= 1) return;
+
+    // Start from current rendered order (zOrder), not array order.
+    const sorted = [...this.legendItems].sort((a, b) => a.zOrder - b.zOrder);
+    const otherItem = sorted.find((i) => i.value === 'Other') ?? null;
+
+    const reversed = sorted.filter((i) => i.value !== 'Other').reverse();
+    const reordered = otherItem ? [...reversed, otherItem] : reversed;
+
+    this.legendItems = reordered.map((item, idx) => ({ ...item, zOrder: idx }));
+    this._dispatchZOrderChange();
+    this.requestUpdate();
   }
 
   private handleDragEnd() {
@@ -711,7 +812,19 @@ export class ProtspaceLegend extends LitElement {
     this.settingsIncludeOthers = this.includeOthers;
     this.settingsIncludeShapes = this.includeShapes;
     this.settingsShapeSize = this.shapeSize;
+    // Initialize settings sort modes from current modes (normalize away deprecated reverse modes)
+    const normalized: Record<string, LegendSortMode> = {};
+    for (const [k, v] of Object.entries(this.featureSortModes)) {
+      normalized[k] = v === 'alpha-desc' ? 'alpha' : v === 'size-asc' ? 'size' : v;
+    }
+    this.settingsFeatureSortModes = normalized;
+    // Initialize from scatterplot config (default is off)
+    this.settingsEnableDuplicateStackUI = !!(this._scatterplotElement as any)?.config
+      ?.enableDuplicateStackUI;
     this.showSettingsDialog = true;
+
+    // Add global keyboard listener for Enter/Escape when dialog opens
+    this._addGlobalKeyboardListener();
 
     // Keep event for backward compatibility
     this.dispatchEvent(
@@ -800,7 +913,10 @@ export class ProtspaceLegend extends LitElement {
 
     return html`
       <div class="legend-container">
-        ${LegendRenderer.renderHeader(title, () => this.handleCustomize())}
+        ${LegendRenderer.renderHeader(title, {
+          onReverse: () => this._reverseCurrentLegendZOrderKeepOtherLast(),
+          onCustomize: () => this.handleCustomize(),
+        })}
         ${LegendRenderer.renderLegendContent(sortedLegendItems, (item) =>
           this._renderLegendItem(item)
         )}
@@ -874,60 +990,21 @@ export class ProtspaceLegend extends LitElement {
       this.settingsIncludeOthers = target.checked;
     };
 
-    const onSave = () => {
-      // Apply and close
-      this.maxVisibleValues = this.settingsMaxVisibleValues;
-      this.includeOthers = this.settingsIncludeOthers;
-      this.includeShapes = this.settingsIncludeShapes;
-      this.shapeSize = this.settingsShapeSize;
-      // apply sorting preferences
-      this.featureSortModes = { ...this.settingsFeatureSortModes };
-      this.showSettingsDialog = false;
-      this.manualOtherValues = [];
-      this._hiddenValues = [];
-      this.legendItems = [];
+    const onSave = () => this._handleSettingsSave();
+    const onClose = () => this._handleSettingsClose();
 
-      if (
-        this.autoHide &&
-        this._scatterplotElement &&
-        'hiddenFeatureValues' in this._scatterplotElement
-      ) {
-        (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
-      }
-      this.updateLegendItems();
-      this.requestUpdate();
-
-      // Update scatterplot point sizes to match shape size (approximate mapping)
-      if (this._scatterplotElement && 'config' in this._scatterplotElement) {
-        // d3.symbol size is area; approximate by multiplying pixel size by the same multiplier used in legend
-        const baseSize = Math.max(
-          10,
-          Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier)
-        );
-        // @ts-ignore config is a public prop on the scatterplot element
-        const currentConfig = (this._scatterplotElement as any).config || {};
-        // @ts-ignore assign merged config to trigger update
-        (this._scatterplotElement as any).config = {
-          ...currentConfig,
-          pointSize: baseSize,
-        };
-      }
-    };
-
-    const onClose = () => {
-      this.showSettingsDialog = false;
-    };
-
-    // Build list of features and initialize temp settings map
-    const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
-    if (featureNames.length && Object.keys(this.settingsFeatureSortModes).length === 0) {
-      const initial: Record<string, 'size' | 'alpha'> = {};
-      for (const fname of featureNames) {
-        initial[fname] =
-          this.featureSortModes[fname] ??
-          (FIRST_NUMBER_SORT_FEATURES.has(fname) ? 'alpha' : 'size');
-      }
-      this.settingsFeatureSortModes = initial;
+    // Initialize temp settings for the currently selected feature
+    if (this.selectedFeature && !this.settingsFeatureSortModes[this.selectedFeature]) {
+      this.settingsFeatureSortModes = {
+        ...this.settingsFeatureSortModes,
+        [this.selectedFeature]:
+          (this.featureSortModes[this.selectedFeature] === 'alpha-desc'
+            ? 'alpha'
+            : this.featureSortModes[this.selectedFeature] === 'size-asc'
+              ? 'size'
+              : this.featureSortModes[this.selectedFeature]) ??
+          (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size'),
+      };
     }
 
     return html`
@@ -1015,49 +1092,77 @@ export class ProtspaceLegend extends LitElement {
                   Disabled for multilabel features
                 </div>`
               : ''}
+            <label class="other-items-list-label">
+              <input
+                class="other-items-list-label-input"
+                type="checkbox"
+                .checked=${this.settingsEnableDuplicateStackUI}
+                @change=${(e: Event) => {
+                  const t = e.target as HTMLInputElement;
+                  this.settingsEnableDuplicateStackUI = t.checked;
+                }}
+              />
+              Show duplicate counts (badges + spiderfy)
+            </label>
             <div class="other-items-list-item-sorting">
               <div class="other-items-list-item-sorting-title">Sorting</div>
               <div class="other-items-list-item-sorting-container">
-                ${featureNames.map(
-                  (fname) => html`
-                    <div class="other-items-list-item-sorting-container-item">
-                      <span class="other-items-list-item-sorting-container-item-name"
-                        >${fname}</span
-                      >
-                      <span class="other-items-list-item-sorting-container-item-container">
-                        <label class="other-items-list-item-sorting-container-item-container-label">
-                          <input
-                            class="other-items-list-item-sorting-container-item-container-input"
-                            type="radio"
-                            name=${`sort-${fname}`}
-                            .checked=${this.settingsFeatureSortModes[fname] === 'size'}
-                            @change=${() => {
-                              this.settingsFeatureSortModes = {
-                                ...this.settingsFeatureSortModes,
-                                [fname]: 'size',
-                              };
-                            }}
-                          />
-                          by feature size
-                        </label>
-                        <label>
-                          <input
-                            type="radio"
-                            name=${`sort-${fname}`}
-                            .checked=${this.settingsFeatureSortModes[fname] === 'alpha'}
-                            @change=${() => {
-                              this.settingsFeatureSortModes = {
-                                ...this.settingsFeatureSortModes,
-                                [fname]: 'alpha',
-                              };
-                            }}
-                          />
-                          by number
-                        </label>
-                      </span>
-                    </div>
-                  `
-                )}
+                ${this.selectedFeature
+                  ? (() => {
+                      const fname = this.selectedFeature;
+                      const currentMode = this.settingsFeatureSortModes[fname] || 'size';
+                      const normalizedMode: LegendSortMode =
+                        currentMode === 'alpha-desc'
+                          ? 'alpha'
+                          : currentMode === 'size-asc'
+                            ? 'size'
+                            : currentMode;
+                      const isAlphabetic = normalizedMode === 'alpha';
+
+                      return html`
+                        <div class="other-items-list-item-sorting-container-item">
+                          <span class="other-items-list-item-sorting-container-item-name"
+                            >${fname}</span
+                          >
+                          <span class="other-items-list-item-sorting-container-item-container">
+                            <label
+                              class="other-items-list-item-sorting-container-item-container-label"
+                            >
+                              <input
+                                class="other-items-list-item-sorting-container-item-container-input"
+                                type="radio"
+                                name=${`sort-${fname}`}
+                                .checked=${!isAlphabetic}
+                                @change=${() => {
+                                  const newMode: LegendSortMode = 'size';
+                                  this.settingsFeatureSortModes = {
+                                    ...this.settingsFeatureSortModes,
+                                    [fname]: newMode,
+                                  };
+                                }}
+                              />
+                              by category size
+                            </label>
+                            <label>
+                              <input
+                                type="radio"
+                                name=${`sort-${fname}`}
+                                .checked=${isAlphabetic}
+                                @change=${() => {
+                                  const newMode: LegendSortMode = 'alpha';
+                                  this.settingsFeatureSortModes = {
+                                    ...this.settingsFeatureSortModes,
+                                    [fname]: newMode,
+                                  };
+                                }}
+                              />
+                              alphanumerically
+                            </label>
+                          </span>
+                        </div>
+                      `;
+                    })()
+                  : ''}
               </div>
             </div>
           </div>

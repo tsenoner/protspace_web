@@ -37,6 +37,7 @@ export const scatterplotStyles = css`
     /* Brush */
     --protspace-brush-stroke: #0072b5;
     --protspace-brush-fill: rgba(0, 114, 181, 0.15);
+    --protspace-brush-stroke-width: 1px;
 
     display: block;
     width: var(--protspace-width);
@@ -73,6 +74,25 @@ export const scatterplotStyles = css`
   canvas {
     z-index: 5;
     pointer-events: none;
+  }
+
+  /* D3 brush (drag-to-select rectangle) */
+  .brush-container rect.selection {
+    fill: var(--protspace-brush-fill);
+    stroke: var(--protspace-brush-stroke);
+    stroke-width: var(--protspace-brush-stroke-width);
+    /* Keep the outline thin even when the brush group is scaled by zoom transforms */
+    vector-effect: non-scaling-stroke;
+    shape-rendering: crispEdges;
+  }
+
+  .brush-container rect.overlay {
+    cursor: crosshair;
+  }
+
+  .brush-container .handle {
+    /* If anything renders, hide it — selection should be just a simple rectangle. */
+    display: none;
   }
 
   .loading-overlay {
@@ -155,5 +175,98 @@ export const scatterplotStyles = css`
     display: flex;
     align-items: center;
     gap: 0.25rem;
+  }
+
+  /* Duplicate stack spiderfy UI (SVG overlay) */
+
+  .dup-spiderfy {
+    pointer-events: all;
+  }
+
+  .dup-spiderfy-line {
+    stroke: rgba(15, 23, 42, 0.35);
+    stroke-width: 1px;
+    pointer-events: none;
+  }
+
+  .dup-spiderfy-node {
+    cursor: pointer;
+    pointer-events: all;
+  }
+
+  .dup-spiderfy-node-circle {
+    stroke: rgba(255, 255, 255, 0.95);
+    stroke-width: 1.5px;
+    pointer-events: all;
+    cursor: pointer;
+  }
+
+  .projection-metadata {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid var(--protspace-tooltip-border);
+    border-radius: 0.375rem;
+    box-shadow: var(--protspace-tooltip-shadow);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .projection-metadata-label {
+    padding: 0.375rem 0.625rem;
+    font-weight: 500;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    white-space: nowrap;
+  }
+
+  .projection-metadata-content {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      max-height 0.3s ease-in-out,
+      opacity 0.2s ease-in-out,
+      padding 0.3s ease-in-out;
+    padding: 0 0.75rem;
+  }
+
+  .projection-metadata:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  .projection-metadata:hover .projection-metadata-content {
+    max-height: 500px;
+    opacity: 1;
+    padding: 0.5rem 0.75rem 0.625rem;
+  }
+
+  .projection-metadata-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
+    color: #5b6b7a;
+    line-height: 1.4;
+  }
+
+  .projection-metadata-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .projection-metadata-key {
+    font-weight: 500;
+    color: #475569;
+  }
+
+  .projection-metadata-value {
+    color: #64748b;
+    text-align: right;
+    word-break: break-word;
   }
 `;

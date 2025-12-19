@@ -41,25 +41,15 @@ export interface ScatterplotConfig {
   baseOpacity?: number;
   selectedOpacity?: number;
   fadedOpacity?: number;
-
-  // Performance options
-  transitionDuration?: number;
-  largeDatasetThreshold?: number;
-  fastRenderingThreshold?: number;
-  enableTransitions?: boolean;
-  useSimpleShapes?: boolean;
-  maxPointsForComplexShapes?: number;
-  zoomSizeScaleExponent?: number;
+  /**
+   * Enable duplicate-stack UI for points that share the exact same coordinates.
+   * When enabled, the scatterplot will compute duplicate stacks and render an SVG overlay:
+   * - numeric count badges
+   * - spiderfy expansion on click
+   *
+   * Default: false (kept off to avoid O(n) duplicate stack computation on large datasets).
+   */
+  enableDuplicateStackUI?: boolean;
 }
 
-export type PointShape =
-  | 'asterisk'
-  | 'circle'
-  | 'cross'
-  | 'diamond'
-  | 'plus'
-  | 'square'
-  | 'star'
-  | 'triangle'
-  | 'wye'
-  | 'times';
+export type PointShape = 'circle' | 'square' | 'diamond' | 'triangle-up' | 'triangle-down' | 'plus';

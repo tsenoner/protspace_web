@@ -12,21 +12,28 @@ export class DataProcessor {
     if (!data.projections[projectionIndex]) return [];
 
     const processedData: PlotDataPoint[] = data.protein_ids.map((id, index) => {
-      const coordinates = data.projections[projectionIndex].data[index] as
+      const coordinates = (data.projections[projectionIndex].data[index] ?? [0, 0]) as
         | [number, number]
         | [number, number, number];
 
       // Map feature values for this protein
       const featureValues: Record<string, string[]> = {};
       Object.keys(data.features).forEach((featureKey) => {
-        const featureIndicesData = data.feature_data[featureKey][index];
-        // Handle both array and single value cases
-        const featureIndices = Array.isArray(featureIndicesData)
+        const featureRows = data.feature_data?.[featureKey];
+        const featureIndicesData = featureRows ? featureRows[index] : undefined;
+
+        // Handle array/single/undefined cases
+        const featureIndices: unknown[] = Array.isArray(featureIndicesData)
           ? featureIndicesData
-          : [featureIndicesData];
+          : featureIndicesData == null
+            ? []
+            : [featureIndicesData];
 
         featureValues[featureKey] = Array.isArray(data.features[featureKey].values)
-          ? featureIndices.map((i) => data.features[featureKey].values[i]).filter((v) => v != null)
+          ? featureIndices
+              .filter((i): i is number => typeof i === 'number' && Number.isFinite(i))
+              .map((i) => data.features[featureKey].values[i])
+              .filter((v) => v != null)
           : [];
       });
 

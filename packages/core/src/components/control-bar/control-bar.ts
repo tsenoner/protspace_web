@@ -673,6 +673,22 @@ export class ProtspaceControlBar extends LitElement {
     if (!data) return;
 
     this._updateOptionsFromData(data);
+
+    // // Sync projection index and feature to scatterplot after updating options
+    // // This ensures the scatterplot uses the correct index/feature for the new data
+    // if (this.autoSync && this._scatterplotElement) {
+    //   if ('selectedProjectionIndex' in this._scatterplotElement) {
+    //     const projectionIndex = this.projections.findIndex((p) => p === this.selectedProjection);
+    //     if (projectionIndex !== -1) {
+    //       (this._scatterplotElement as any).selectedProjectionIndex = projectionIndex;
+    //     }
+    //   }
+
+    //   if ('selectedFeature' in this._scatterplotElement) {
+    //     (this._scatterplotElement as any).selectedFeature = this.selectedFeature;
+    //   }
+    // }
+
     // Update protein ids for search
     try {
       const ids = (data as any).protein_ids as string[] | undefined;

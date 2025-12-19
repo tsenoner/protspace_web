@@ -3,7 +3,10 @@ import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
 import type { Rows } from './types';
 
-export function convertParquetToVisualizationData(rows: Rows): VisualizationData {
+export function convertParquetToVisualizationData(
+  rows: Rows,
+  projectionsMetadata?: Rows
+): VisualizationData {
   validateRowsBasic(rows);
 
   const columnNames = Object.keys(rows[0]);
@@ -11,31 +14,41 @@ export function convertParquetToVisualizationData(rows: Rows): VisualizationData
   const hasXY = columnNames.includes('x') && columnNames.includes('y');
 
   if (hasProjectionName && hasXY) {
-    return convertBundleFormatData(rows, columnNames);
+    return convertBundleFormatData(rows, columnNames, projectionsMetadata);
   }
   return convertLegacyFormatData(rows, columnNames);
 }
 
-export function convertParquetToVisualizationDataOptimized(rows: Rows): Promise<VisualizationData> {
+export function convertParquetToVisualizationDataOptimized(
+  rows: Rows,
+  projectionsMetadata?: Rows
+): Promise<VisualizationData> {
   validateRowsBasic(rows);
   const dataSize = rows.length;
   if (dataSize < 10000) {
-    return Promise.resolve(convertParquetToVisualizationData(rows));
+    return Promise.resolve(convertParquetToVisualizationData(rows, projectionsMetadata));
   }
-  return convertLargeDatasetOptimized(rows);
+  return convertLargeDatasetOptimized(rows, projectionsMetadata);
 }
 
-async function convertLargeDatasetOptimized(rows: Rows): Promise<VisualizationData> {
+async function convertLargeDatasetOptimized(
+  rows: Rows,
+  projectionsMetadata?: Rows
+): Promise<VisualizationData> {
   const columnNames = Object.keys(rows[0]);
   const hasProjectionName = columnNames.includes('projection_name');
   const hasXY = columnNames.includes('x') && columnNames.includes('y');
   if (hasProjectionName && hasXY) {
-    return convertBundleFormatDataOptimized(rows, columnNames);
+    return convertBundleFormatDataOptimized(rows, columnNames, projectionsMetadata);
   }
   return convertLegacyFormatData(rows, columnNames);
 }
 
-function convertBundleFormatData(rows: Rows, columnNames: string[]): VisualizationData {
+function convertBundleFormatData(
+  rows: Rows,
+  columnNames: string[],
+  projectionsMetadata?: Rows
+): VisualizationData {
   const proteinIdCol =
     findColumn(columnNames, ['identifier', 'protein_id', 'id', 'protein', 'uniprot']) ||
     columnNames[0];
@@ -60,6 +73,24 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
     )
   );
 
+  // Build metadata map from projectionsMetadata
+  const metadataMap = new Map<string, Record<string, unknown>>();
+  if (projectionsMetadata && projectionsMetadata.length > 0) {
+    for (const metaRow of projectionsMetadata) {
+      const projName = metaRow.projection_name || metaRow.name;
+      if (projName) {
+        // Extract all metadata fields except projection_name/name
+        const metadata: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(metaRow)) {
+          if (key !== 'projection_name' && key !== 'name') {
+            metadata[key] = value;
+          }
+        }
+        metadataMap.set(String(projName), metadata);
+      }
+    }
+  }
+
   const projections = [] as VisualizationData['projections'];
   for (const [projectionName, projectionRows] of projectionGroups.entries()) {
     const coordMap = new Map<string, [number, number] | [number, number, number]>();
@@ -77,10 +108,18 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
     }
     const projectionData = uniqueProteinIds.map((proteinId) => coordMap.get(proteinId) || [0, 0]);
     const has3D = projectionData.some((p) => p.length === 3);
+
+    // Merge dimension with existing metadata from projectionsMetadata
+    const existingMetadata = metadataMap.get(projectionName) || {};
+    const metadata = {
+      ...existingMetadata,
+      dimension: (has3D ? 3 : 2) as 2 | 3,
+    };
+
     projections.push({
       name: formatProjectionName(projectionName),
       data: projectionData as Array<[number, number] | [number, number, number]>,
-      metadata: has3D ? { dimension: 3 } : { dimension: 2 },
+      metadata,
     });
   }
 
@@ -139,7 +178,8 @@ function convertBundleFormatData(rows: Rows, columnNames: string[]): Visualizati
 
 async function convertBundleFormatDataOptimized(
   rows: Rows,
-  columnNames: string[]
+  columnNames: string[],
+  projectionsMetadata?: Rows
 ): Promise<VisualizationData> {
   const chunkSize = 5000;
   const proteinIdCol =
@@ -169,6 +209,24 @@ async function convertBundleFormatDataOptimized(
 
   const uniqueProteinIds = Array.from(uniqueProteinIdsSet);
 
+  // Build metadata map from projectionsMetadata
+  const metadataMap = new Map<string, Record<string, unknown>>();
+  if (projectionsMetadata && projectionsMetadata.length > 0) {
+    for (const metaRow of projectionsMetadata) {
+      const projName = metaRow.projection_name || metaRow.name;
+      if (projName) {
+        // Extract all metadata fields except projection_name/name
+        const metadata: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(metaRow)) {
+          if (key !== 'projection_name' && key !== 'name') {
+            metadata[key] = value;
+          }
+        }
+        metadataMap.set(String(projName), metadata);
+      }
+    }
+  }
+
   const projections = [] as VisualizationData['projections'];
   for (const [projectionName, projectionRows] of projectionGroups.entries()) {
     const coordMap = new Map<string, [number, number] | [number, number, number]>();
@@ -191,10 +249,18 @@ async function convertBundleFormatDataOptimized(
       projectionData[i] = coordMap.get(uniqueProteinIds[i]) || [0, 0];
     }
     const has3D = projectionData.some((p) => p.length === 3);
+
+    // Merge dimension with existing metadata from projectionsMetadata
+    const existingMetadata = metadataMap.get(projectionName) || {};
+    const metadata = {
+      ...existingMetadata,
+      dimension: (has3D ? 3 : 2) as 2 | 3,
+    };
+
     projections.push({
       name: formatProjectionName(projectionName),
       data: projectionData,
-      metadata: has3D ? { dimension: 3 } : { dimension: 2 },
+      metadata,
     });
     // yield
 

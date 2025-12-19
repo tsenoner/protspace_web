@@ -91,3 +91,12 @@ export interface LegendSettings {
   includeOthers: boolean;
   includeShapes: boolean;
 }
+
+/**
+ * Sort mode for legend items
+ * - 'size': Sort by feature size (number of proteins) descending
+ * - 'size-asc': Sort by feature size ascending
+ * - 'alpha': Sort alphabetically/numerically ascending
+ * - 'alpha-desc': Sort alphabetically/numerically descending
+ */
+export type LegendSortMode = 'size' | 'size-asc' | 'alpha' | 'alpha-desc';

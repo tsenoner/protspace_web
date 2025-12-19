@@ -197,14 +197,17 @@ export const controlBarStyles = css`
     list-style: none;
     margin: 0;
     display: flex;
-    padding: 0.45rem 0.25rem 0.25rem;
+    padding: 1rem 0.25rem 0.5rem;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     box-sizing: border-box;
     cursor: auto;
     row-gap: 17px;
     width: 100%;
+    max-height: 50vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
 
   .filter-menu-list-item {
@@ -225,7 +228,7 @@ export const controlBarStyles = css`
     font-weight: 400;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: space-between;
     width: 100%;
     column-gap: 8px;
   }
@@ -240,19 +243,19 @@ export const controlBarStyles = css`
   }
 
   .filter-menu-list-item-options {
-    position: absolute;
-    right: 0;
-    top: calc(100% - 28px);
-    width: max-content;
+    position: relative;
+    width: 100%;
+    margin-top: 5px;
     background: var(--up-surface);
     border: 1px solid var(--up-border);
     border-radius: 0.25rem;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
     display: flex;
-    z-index: 50;
+    z-index: 10;
     flex-direction: column;
     row-gap: 14px;
     padding: 9px 10px 14px;
+    box-sizing: border-box;
   }
 
   .filter-menu-list-item-options-selection {

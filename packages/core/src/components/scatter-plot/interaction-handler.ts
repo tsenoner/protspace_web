@@ -62,6 +62,8 @@ export class InteractionHandler {
 
     this.brush = d3
       .brush()
+      // Keep the UX simple: no resize handles, just drag a rectangle.
+      .handleSize(0)
       .extent(extent)
       .on('end', (event) => {
         if (!event.selection) {

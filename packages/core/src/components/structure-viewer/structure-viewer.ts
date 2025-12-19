@@ -92,7 +92,7 @@ export class ProtspaceStructureViewer extends LitElement {
     const { proteinId, modifierKeys } = customEvent.detail;
 
     // Only respond to single clicks (not multi-selection)
-    if (!modifierKeys.ctrl && !modifierKeys.shift && this.autoShow) {
+    if (!modifierKeys.ctrl && !modifierKeys.meta && !modifierKeys.shift && this.autoShow) {
       // Show structure viewer and load protein
       this.proteinId = proteinId;
       this.style.display = 'flex';
@@ -111,7 +111,7 @@ export class ProtspaceStructureViewer extends LitElement {
 
   public show(proteinId?: string) {
     if (this.autoShow) {
-      this.style.display = 'block';
+      this.style.display = 'flex';
       if (proteinId) {
         this.proteinId = proteinId;
       }
@@ -132,7 +132,7 @@ export class ProtspaceStructureViewer extends LitElement {
     // Public method to load a specific protein
     this.proteinId = proteinId;
     if (this.autoShow) {
-      this.style.display = 'block';
+      this.style.display = 'flex';
     }
   }
 
