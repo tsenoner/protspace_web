@@ -186,9 +186,15 @@ export class LegendRenderer {
   /**
    * Render the item text label
    */
-  static renderItemText(item: LegendItem): TemplateResult {
+  static renderItemText(item: LegendItem, otherItemsCount?: number): TemplateResult {
     const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
-    const displayText = item.value === null || isEmptyString ? 'N/A' : item.value;
+    let displayText = item.value === null || isEmptyString ? 'N/A' : item.value;
+
+    // For "Other" items, append the number of categories if provided
+    if (item.value === 'Other' && otherItemsCount !== undefined && otherItemsCount > 0) {
+      displayText = `${displayText} (${otherItemsCount} categories)`;
+    }
+
     return html`<span class="legend-text">${displayText}</span>`;
   }
 
@@ -225,6 +231,7 @@ export class LegendRenderer {
     },
     includeShapes: boolean = true,
     symbolSize: number = LEGEND_DEFAULTS.symbolSize,
+    otherItemsCount?: number,
   ): TemplateResult {
     return html`
       <div
@@ -240,7 +247,8 @@ export class LegendRenderer {
         <div class="legend-item-content">
           ${this.renderDragHandle()}
           ${this.renderItemSymbol(item, isItemSelected, includeShapes, symbolSize)}
-          ${this.renderItemText(item)} ${this.renderItemActions(item, eventHandlers.onViewOther)}
+          ${this.renderItemText(item, otherItemsCount)}
+          ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>
         <span class="legend-count">${item.count}</span>
       </div>

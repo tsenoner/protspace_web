@@ -957,6 +957,9 @@ export class ProtspaceLegend extends LitElement {
     const isMultilabel = this._isMultilabelFeature();
     const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
 
+    // Calculate the number of categories in "Other" for display
+    const otherItemsCount = item.value === 'Other' ? this.otherItems.length : undefined;
+
     return LegendRenderer.renderLegendItem(
       item,
       itemClasses,
@@ -975,6 +978,7 @@ export class ProtspaceLegend extends LitElement {
       },
       effectiveIncludeShapes,
       LEGEND_STYLES.legendDisplaySize,
+      otherItemsCount,
     );
   }
 
