@@ -51,6 +51,44 @@ When proteins have multiple values (e.g., multiple EC numbers):
 - Each slice represents a different value
 - All unique values appear in the legend
 
+## Colors and Shapes
+
+### Color Assignment
+
+Colors are assigned based on category frequency:
+
+- **Most frequent categories** get the most visually distinct colors
+- Uses [Kelly's 22 colors of maximum contrast](https://eleanormaclure.files.wordpress.com/2011/03/colour-coding.pdf)
+- Colors **persist** when you change sort order, switch projections, or toggle shapes
+
+### Special Categories
+
+| Category   | Color     | Shape  |
+| ---------- | --------- | ------ |
+| **Others** | `#999999` | Circle |
+| **N/A**    | `#DDDDDD` | Circle |
+
+### Shapes
+
+When shapes are enabled (via settings), categories cycle through:
+
+1. Circle
+2. Square
+3. Diamond
+4. Plus
+5. Triangle-up
+6. Triangle-down
+
+Shapes are disabled for multi-label annotations (pie charts use circles only).
+
+### Color Recycling
+
+When you move a category to "Others":
+
+- Its color slot becomes available
+- Extracting a category from "Others" reuses the lowest available slot
+- This keeps the most distinct colors assigned to visible categories
+
 ## Next Steps
 
 - [Control Bar Features](/explore/control-bar) - Projections and export

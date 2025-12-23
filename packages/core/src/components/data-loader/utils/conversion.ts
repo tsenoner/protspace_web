@@ -146,6 +146,8 @@ function convertBundleFormatData(
 
   for (const featureCol of featureColumns) {
     const featureMap = new Map<string, string[]>();
+    const valueCountMap = new Map<string, number>();
+
     for (const row of baseProjectionData) {
       const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
       const value = row[featureCol];
@@ -153,12 +155,21 @@ function convertBundleFormatData(
       if (value == null) {
         featureMap.set(proteinId, []);
       } else {
-        featureMap.set(proteinId, String(value).split(';'));
+        const valueArray = String(value).split(';');
+        featureMap.set(proteinId, valueArray);
+        // Count occurrences for frequency-based sorting
+        for (const v of valueArray) {
+          valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
+        }
       }
     }
 
-    const allValues = Array.from(featureMap.values());
-    const uniqueValues = Array.from(new Set(allValues.flat()));
+    // Sort unique values by frequency (most frequent first)
+    // This ensures the most common categories get the most distinct colors (slots 0, 1, 2...)
+    const uniqueValues = Array.from(valueCountMap.keys()).sort(
+      (a, b) => (valueCountMap.get(b) || 0) - (valueCountMap.get(a) || 0),
+    );
+
     const valueToIndex = new Map<string | null, number>();
     uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
 
@@ -434,9 +445,12 @@ export function inferProjectionName(xCol: string, yCol: string): string {
 }
 
 /**
- * Generates colors optimized for maximum contrast between categories.
- * Uses Kelly's 22 colors of maximum contrast for the first 22 categories,
- * then generates additional colors with high contrast for remaining categories.
+ * Generates colors for categories using Kelly's palette.
+ * Simply cycles through Kelly's 20 colors of maximum contrast.
+ *
+ * Note: This is a fallback for when no legend is present.
+ * When a legend is used, it provides frequency-sorted colors
+ * via the colorMapping event, which takes precedence.
  *
  * @param count - Number of colors to generate
  * @returns Array of hex color strings
@@ -444,116 +458,13 @@ export function inferProjectionName(xCol: string, yCol: string): string {
 export function generateColors(count: number): string[] {
   if (count <= 0) return [];
 
-  // Use Kelly's colors from COLOR_SCHEMES
   const kellysPalette = COLOR_SCHEMES.kellys as readonly string[];
 
   const colors: string[] = [];
   for (let i = 0; i < count; i++) {
-    if (i < kellysPalette.length) {
-      colors.push(kellysPalette[i]);
-    } else {
-      // For categories beyond 22, generate colors with maximum contrast
-      // Use hue rotation with varied saturation/lightness to maintain distinction
-      const baseIndex = i % kellysPalette.length;
-      const baseColor = kellysPalette[baseIndex];
-
-      // Extract RGB components
-      const r = parseInt(baseColor.slice(1, 3), 16);
-      const g = parseInt(baseColor.slice(3, 5), 16);
-      const b = parseInt(baseColor.slice(5, 7), 16);
-
-      // Apply variation to maintain contrast
-      const variation = Math.floor(i / kellysPalette.length);
-      const hueShift = (variation * 30) % 360;
-      const saturation = Math.min(100, 70 + (variation % 3) * 10);
-      const lightness = Math.max(20, Math.min(80, 50 + (variation % 2) * 15));
-
-      // Convert RGB to HSL, shift hue, convert back to hex
-      const hsl = rgbToHsl(r, g, b);
-      hsl[0] = (hsl[0] + hueShift) % 360;
-      hsl[1] = saturation;
-      hsl[2] = lightness;
-
-      colors.push(hslToHex(hsl[0], hsl[1], hsl[2]));
-    }
+    colors.push(kellysPalette[i % kellysPalette.length]);
   }
   return colors;
-}
-
-/**
- * Converts RGB values to HSL color space.
- *
- * @param r - Red component (0-255)
- * @param g - Green component (0-255)
- * @param b - Blue component (0-255)
- * @returns HSL tuple [hue (0-360), saturation (0-100), lightness (0-100)]
- */
-function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-  r /= 255;
-  g /= 255;
-  b /= 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h = 0;
-  let s = 0;
-  const l = (max + min) / 2;
-
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r:
-        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-        break;
-      case g:
-        h = ((b - r) / d + 2) / 6;
-        break;
-      case b:
-        h = ((r - g) / d + 4) / 6;
-        break;
-    }
-  }
-  return [h * 360, s * 100, l * 100];
-}
-
-/**
- * Converts HSL values to hex color string.
- *
- * @param h - Hue (0-360)
- * @param s - Saturation (0-100)
- * @param l - Lightness (0-100)
- * @returns Hex color string (e.g., "#FF0000")
- */
-function hslToHex(h: number, s: number, l: number): string {
-  h /= 360;
-  s /= 100;
-  l /= 100;
-  let r: number, g: number, b: number;
-
-  if (s === 0) {
-    r = g = b = l;
-  } else {
-    const hue2rgb = (p: number, q: number, t: number) => {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
-      if (t < 1 / 6) return p + (q - p) * 6 * t;
-      if (t < 1 / 2) return q;
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-      return p;
-    };
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1 / 3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1 / 3);
-  }
-
-  const toHex = (x: number) => {
-    const hex = Math.round(x * 255).toString(16);
-    return hex.length === 1 ? '0' + hex : hex;
-  };
-
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 /**
@@ -570,16 +481,17 @@ export function generateShapes(count: number): string[] {
   if (count <= 0) return [];
 
   // Shapes ordered by visual distinctness for optimal category separation
+  // Order must match visual-encoding.ts SHAPES array for legend consistency
   // These are the only shapes supported by the WebGL renderer
   const supportedShapes: Array<
-    'circle' | 'square' | 'diamond' | 'triangle-up' | 'triangle-down' | 'plus'
+    'circle' | 'square' | 'diamond' | 'plus' | 'triangle-up' | 'triangle-down'
   > = [
     'circle', // Most common, good baseline
     'square', // High contrast with circle (angular vs round)
     'diamond', // Distinct angular shape, rotated square
+    'plus', // Cross shape, very distinct from others
     'triangle-up', // Pointed shape, easy to distinguish
     'triangle-down', // Inverted triangle, contrasts with triangle-up
-    'plus', // Cross shape, very distinct from others
   ];
 
   const shapes: string[] = [];

@@ -6,6 +6,7 @@ import { LEGEND_DEFAULTS, LEGEND_STYLES, FIRST_NUMBER_SORT_FEATURES } from './co
 import { legendStyles } from './legend.styles';
 import { LegendDataProcessor } from './legend-data-processor';
 import { LegendRenderer } from './legend-renderer';
+import { LegendUtils } from './legend-utils';
 import type {
   LegendDataInput,
   LegendFeatureData,
@@ -24,8 +25,6 @@ export class ProtspaceLegend extends LitElement {
   @property({ type: Object }) featureData: LegendFeatureData = {
     name: '',
     values: [] as (string | null)[],
-    colors: [] as string[],
-    shapes: [] as string[],
   };
   @property({ type: Array }) featureValues: (string | null)[] = [];
   @property({ type: Array }) proteinIds: string[] = [];
@@ -286,8 +285,6 @@ export class ProtspaceLegend extends LitElement {
     this.featureData = {
       name: selectedFeature,
       values: currentData.features[selectedFeature].values,
-      colors: currentData.features[selectedFeature].colors,
-      shapes: currentData.features[selectedFeature].shapes,
     };
   }
 
@@ -351,25 +348,11 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _updateFeatureDataFromData() {
-    // Update featureData from data property when available
     const featureInfo = this.data?.features?.[this.selectedFeature] ?? null;
 
-    if (featureInfo) {
-      this.featureData = {
-        name: this.selectedFeature,
-        values: featureInfo.values,
-        colors: featureInfo.colors,
-        shapes: featureInfo.shapes,
-      };
-    } else {
-      // Clear featureData if data has no features or selectedFeature doesn't exist
-      this.featureData = {
-        name: '',
-        values: [],
-        colors: [],
-        shapes: [],
-      };
-    }
+    this.featureData = featureInfo
+      ? { name: this.selectedFeature, values: featureInfo.values }
+      : { name: '', values: [] };
   }
 
   private _ensureSortModeDefaults() {
@@ -443,8 +426,10 @@ export class ProtspaceLegend extends LitElement {
     const sortMode: LegendSortMode =
       this.featureSortModes[this.selectedFeature] ??
       (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size');
+    const isMultilabel = this._isMultilabelFeature();
+    const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
     const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
-      this.featureData,
+      this.featureData.name || this.selectedFeature,
       this.featureValues,
       this.proteinIds,
       this.maxVisibleValues,
@@ -454,6 +439,7 @@ export class ProtspaceLegend extends LitElement {
       this.includeOthers,
       this.manualOtherValues,
       sortMode,
+      effectiveIncludeShapes,
     );
 
     // Set items state
@@ -462,6 +448,9 @@ export class ProtspaceLegend extends LitElement {
 
     // Dispatch z-order change to update scatterplot rendering order
     this._dispatchZOrderChange();
+
+    // Dispatch color/shape mapping to scatterplot for consistent rendering
+    this._dispatchColorMappingChange();
 
     // Update scatterplot with current Other bucket value list for consistent coloring
     if (this._scatterplotElement && 'otherFeatureValues' in this._scatterplotElement) {
@@ -728,6 +717,35 @@ export class ProtspaceLegend extends LitElement {
     }
   }
 
+  private _dispatchColorMappingChange(): void {
+    const colorMap: Record<string, string> = {};
+    const shapeMap: Record<string, string> = {};
+
+    this.legendItems.forEach((legendItem) => {
+      const key = legendItem.value === null ? 'null' : legendItem.value;
+      colorMap[key] = legendItem.color;
+      shapeMap[key] = legendItem.shape;
+    });
+
+    // Dispatch event directly to scatterplot element if available
+    if (this._scatterplotElement) {
+      this._scatterplotElement.dispatchEvent(
+        new CustomEvent('legend-colormapping-change', {
+          detail: { colorMapping: colorMap, shapeMapping: shapeMap },
+          bubbles: false,
+        }),
+      );
+    } else {
+      // Fallback to bubbling event
+      this.dispatchEvent(
+        new CustomEvent('legend-colormapping-change', {
+          detail: { colorMapping: colorMap, shapeMapping: shapeMap },
+          bubbles: true,
+        }),
+      );
+    }
+  }
+
   /**
    * Reverse the CURRENTLY DISPLAYED legend z-order, without re-bucketing items into "Other".
    * Keeps the synthetic "Other" item (if present) at the end.
@@ -768,19 +786,15 @@ export class ProtspaceLegend extends LitElement {
       this.manualOtherValues = this.manualOtherValues.filter((v) => v !== value);
     }
 
-    // Find the valueIndex for color and shape
-    const valueIndex = this.featureData.values.indexOf(value);
-
-    // Create a new legend item
-    const newItem: LegendItem = {
+    // Create a new legend item using visual encoding
+    const isMultilabel = this._isMultilabelFeature();
+    const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
+    const newItem = LegendUtils.createExtractedItem(
       value,
-      color: valueIndex !== -1 ? this.featureData.colors[valueIndex] : '#888',
-      shape: valueIndex !== -1 ? this.featureData.shapes[valueIndex] : 'circle',
-      count: itemToExtract.count,
-      isVisible: true,
-      zOrder: this.legendItems.length,
-      extractedFromOther: true,
-    };
+      itemToExtract.count,
+      this.legendItems.length,
+      effectiveIncludeShapes,
+    );
 
     // Add to the legend items
     this.legendItems = [...this.legendItems, newItem];

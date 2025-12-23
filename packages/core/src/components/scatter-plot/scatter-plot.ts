@@ -60,6 +60,8 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _isolationHistory: string[][] = [];
   @state() private _isolationMode = false;
   @state() private _zOrderMapping: Record<string, number> | null = null;
+  @state() private _colorMapping: Record<string, string> | null = null;
+  @state() private _shapeMapping: Record<string, string> | null = null;
 
   // Queries
   @query('canvas') private _canvas?: HTMLCanvasElement;
@@ -173,6 +175,7 @@ export class ProtspaceScatterplot extends LitElement {
     this.resizeObserver.observe(this);
 
     this.addEventListener('legend-zorder-change', this._handleZOrderChange);
+    this.addEventListener('legend-colormapping-change', this._handleColorMappingChange);
     this.addEventListener('dragover', this.handleDragOver);
     this.addEventListener('dragenter', this.handleDragEnter);
     this.addEventListener('dragleave', this.handleDragLeave);
@@ -195,6 +198,7 @@ export class ProtspaceScatterplot extends LitElement {
 
     super.disconnectedCallback();
     this.removeEventListener('legend-zorder-change', this._handleZOrderChange);
+    this.removeEventListener('legend-colormapping-change', this._handleColorMappingChange);
     this.removeEventListener('dragover', this.handleDragOver);
     this.removeEventListener('dragenter', this.handleDragEnter);
     this.removeEventListener('dragleave', this.handleDragLeave);
@@ -237,6 +241,14 @@ export class ProtspaceScatterplot extends LitElement {
     this._zOrderMapping = customEvent.detail.zOrderMapping;
     // z-order affects GPU depth; force a fresh style getter cache so getDepth sees the new mapping
     this._styleGettersCache = null;
+  };
+
+  private _handleColorMappingChange = (event: Event) => {
+    const customEvent = event as CustomEvent;
+    this._colorMapping = customEvent.detail.colorMapping;
+    this._shapeMapping = customEvent.detail.shapeMapping;
+    // Force fresh style getters to use new color/shape mapping
+    this._styleGettersCache = null;
 
     // Trigger render (z-order is handled in WebGL depth; avoid CPU-sorting on every zoom/pan)
     if (this._plotData.length > 0) {
@@ -278,6 +290,8 @@ export class ProtspaceScatterplot extends LitElement {
         // Reset filters when the active feature changes due to a data swap
         this.hiddenFeatureValues = [];
         this.otherFeatureValues = [];
+        this._colorMapping = null;
+        this._shapeMapping = null;
       }
     }
 
@@ -359,6 +373,8 @@ export class ProtspaceScatterplot extends LitElement {
         otherFeatureValues: this.otherFeatureValues,
         useShapes: this.useShapes,
         zOrderMapping: this._zOrderMapping,
+        colorMapping: this._colorMapping,
+        shapeMapping: this._shapeMapping,
         sizes: {
           base: this._mergedConfig.pointSize,
         },
@@ -1238,6 +1254,8 @@ export class ProtspaceScatterplot extends LitElement {
         otherFeatureValues: this.otherFeatureValues,
         useShapes: this.useShapes,
         zOrderMapping: this._zOrderMapping,
+        colorMapping: this._colorMapping,
+        shapeMapping: this._shapeMapping,
         sizes: {
           base: this._mergedConfig.pointSize,
         },
