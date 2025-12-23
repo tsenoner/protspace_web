@@ -1,36 +1,58 @@
-import * as d3 from 'd3';
-import { NEUTRAL_VALUE_COLOR, DEFAULT_CONFIG } from '../scatter-plot/config';
+import { DEFAULT_CONFIG } from '../scatter-plot/config';
 
 /**
- * Legend configuration constants
+ * Custom SVG path generators that match WebGL shader geometry exactly.
+ * These replicate the fragment shader math from webgl-renderer.ts for visual consistency.
+ *
+ * All paths are centered at origin and sized to fit within the given size.
  */
-
-// Define the same SHAPE_MAPPING as in shapes.ts for consistency
-export const SHAPE_MAPPING = {
-  circle: d3.symbolCircle,
-  square: d3.symbolSquare,
-  diamond: d3.symbolDiamond,
-  'triangle-up': d3.symbolTriangle,
-  'triangle-down': d3.symbolTriangle2, // D3's triangle2 points down
-  plus: d3.symbolPlus,
-} as const;
-
-// Default styles for special cases
-export const DEFAULT_STYLES = {
-  other: {
-    color: NEUTRAL_VALUE_COLOR,
-    shape: 'circle',
+export const SHAPE_PATH_GENERATORS: Record<string, (size: number) => string> = {
+  circle: (size: number) => {
+    const r = size / 2;
+    return `M ${r},0 A ${r},${r} 0 1,1 ${-r},0 A ${r},${r} 0 1,1 ${r},0`;
   },
-  null: {
-    color: NEUTRAL_VALUE_COLOR,
-    shape: 'circle',
-  },
-} as const;
 
-/**
- * Legend component default configuration
- */
-const SYMBOL_SIZE_MULTIPLIER = 8; // For D3 symbol size calculation
+  square: (size: number) => {
+    const s = size / 2;
+    return `M ${-s},${-s} L ${s},${-s} L ${s},${s} L ${-s},${s} Z`;
+  },
+
+  diamond: (size: number) => {
+    // Match WebGL: abs(x)*SQRT3 + abs(y) <= 1
+    // This creates a taller, narrower diamond than D3's default
+    const h = size / 2;
+    const w = h / Math.sqrt(3);
+    return `M 0,${-h} L ${w},0 L 0,${h} L ${-w},0 Z`;
+  },
+
+  plus: (size: number) => {
+    // Match WebGL: thickness = 0.35 (relative to -1..1 range)
+    const s = size / 2;
+    const t = s * 0.35; // arm thickness matches shader
+    return `M ${-t},${-s} L ${t},${-s} L ${t},${-t} L ${s},${-t} L ${s},${t} L ${t},${t} L ${t},${s} L ${-t},${s} L ${-t},${t} L ${-s},${t} L ${-s},${-t} L ${-t},${-t} Z`;
+  },
+
+  'triangle-up': (size: number) => {
+    // Match WebGL: y >= -0.5 && abs(x)*SQRT3 <= 1 + y
+    const h = size * 0.75;
+    const halfW = h / Math.sqrt(3);
+    const top = -h / 2;
+    const bottom = h / 2;
+    return `M 0,${top} L ${halfW},${bottom} L ${-halfW},${bottom} Z`;
+  },
+
+  'triangle-down': (size: number) => {
+    // Match WebGL: y <= 0.5 && abs(x)*SQRT3 <= 1 - y
+    // Flipped version of triangle-up
+    const h = size * 0.75;
+    const halfW = h / Math.sqrt(3);
+    const top = -h / 2;
+    const bottom = h / 2;
+    return `M 0,${bottom} L ${halfW},${top} L ${-halfW},${top} Z`;
+  },
+};
+
+const SYMBOL_SIZE_MULTIPLIER = 8;
 
 export const LEGEND_DEFAULTS = {
   maxVisibleValues: 10,
@@ -43,9 +65,6 @@ export const LEGEND_DEFAULTS = {
   includeShapes: false,
 } as const;
 
-/**
- * Legend styling constants
- */
 export const LEGEND_STYLES = {
   strokeWidth: {
     default: 1,
@@ -55,14 +74,9 @@ export const LEGEND_STYLES = {
   colors: {
     defaultStroke: '#394150',
     selectedStroke: '#00A3E0',
-    fallback: NEUTRAL_VALUE_COLOR,
   },
-  outlineShapes: new Set(['plus']),
-  legendDisplaySize: 16, // legend symbols size (independent of canvas point size)
+  outlineShapes: new Set<string>([]),
+  legendDisplaySize: 16,
 } as const;
 
-/**
- * Features that should be sorted by the first number present in the label
- * instead of by feature size (count).
- */
 export const FIRST_NUMBER_SORT_FEATURES = new Set<string>(['length_fixed', 'length_quantile']);

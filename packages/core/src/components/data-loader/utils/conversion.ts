@@ -1,4 +1,5 @@
 import type { Feature, VisualizationData } from '@protspace/utils';
+import { COLOR_SCHEMES } from '@protspace/utils';
 import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
 import type { Rows } from './types';
@@ -145,6 +146,8 @@ function convertBundleFormatData(
 
   for (const featureCol of featureColumns) {
     const featureMap = new Map<string, string[]>();
+    const valueCountMap = new Map<string, number>();
+
     for (const row of baseProjectionData) {
       const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
       const value = row[featureCol];
@@ -152,12 +155,21 @@ function convertBundleFormatData(
       if (value == null) {
         featureMap.set(proteinId, []);
       } else {
-        featureMap.set(proteinId, String(value).split(';'));
+        const valueArray = String(value).split(';');
+        featureMap.set(proteinId, valueArray);
+        // Count occurrences for frequency-based sorting
+        for (const v of valueArray) {
+          valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
+        }
       }
     }
 
-    const allValues = Array.from(featureMap.values());
-    const uniqueValues = Array.from(new Set(allValues.flat()));
+    // Sort unique values by frequency (most frequent first)
+    // This ensures the most common categories get the most distinct colors (slots 0, 1, 2...)
+    const uniqueValues = Array.from(valueCountMap.keys()).sort(
+      (a, b) => (valueCountMap.get(b) || 0) - (valueCountMap.get(a) || 0),
+    );
+
     const valueToIndex = new Map<string | null, number>();
     uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
 
@@ -432,59 +444,61 @@ export function inferProjectionName(xCol: string, yCol: string): string {
   return 'Projection';
 }
 
+/**
+ * Generates colors for categories using Kelly's palette.
+ * Simply cycles through Kelly's 20 colors of maximum contrast.
+ *
+ * Note: This is a fallback for when no legend is present.
+ * When a legend is used, it provides frequency-sorted colors
+ * via the colorMapping event, which takes precedence.
+ *
+ * @param count - Number of colors to generate
+ * @returns Array of hex color strings
+ */
 export function generateColors(count: number): string[] {
   if (count <= 0) return [];
-  const palette = [
-    '#1f77b4',
-    '#ff7f0e',
-    '#2ca02c',
-    '#d62728',
-    '#9467bd',
-    '#8c564b',
-    '#e377c2',
-    '#7f7f7f',
-    '#bcbd22',
-    '#17becf',
-    '#aec7e8',
-    '#ffbb78',
-    '#98df8a',
-    '#ff9896',
-    '#c5b0d5',
-    '#c49c94',
-    '#f7b6d3',
-    '#c7c7c7',
-    '#dbdb8d',
-    '#9edae5',
-  ];
+
+  const kellysPalette = COLOR_SCHEMES.kellys as readonly string[];
+
   const colors: string[] = [];
   for (let i = 0; i < count; i++) {
-    if (i < palette.length) colors.push(palette[i]);
-    else {
-      const hue = ((i * 360) / count) % 360;
-      const saturation = 70 + (i % 3) * 10;
-      const lightness = 50 + (i % 2) * 15;
-      colors.push(`hsla(${hue}, ${saturation}%, ${lightness}%, 0.8)`);
-    }
+    colors.push(kellysPalette[i % kellysPalette.length]);
   }
   return colors;
 }
 
+/**
+ * Generates shapes optimized for visible categories.
+ * Prioritizes the most distinct shapes for early categories (most visible).
+ * Only includes shapes supported by the WebGL renderer.
+ *
+ * Supported shapes: circle, square, diamond, triangle-up, triangle-down, plus
+ *
+ * @param count - Number of shapes to generate
+ * @returns Array of shape names
+ */
 export function generateShapes(count: number): string[] {
   if (count <= 0) return [];
-  const options = [
-    'circle',
-    'square',
-    'triangle',
-    'diamond',
-    'cross',
-    'star',
-    'plus',
-    'times',
-    'wye',
-    'asterisk',
+
+  // Shapes ordered by visual distinctness for optimal category separation
+  // Order must match visual-encoding.ts SHAPES array for legend consistency
+  // These are the only shapes supported by the WebGL renderer
+  const supportedShapes: Array<
+    'circle' | 'square' | 'diamond' | 'plus' | 'triangle-up' | 'triangle-down'
+  > = [
+    'circle', // Most common, good baseline
+    'square', // High contrast with circle (angular vs round)
+    'diamond', // Distinct angular shape, rotated square
+    'plus', // Cross shape, very distinct from others
+    'triangle-up', // Pointed shape, easy to distinguish
+    'triangle-down', // Inverted triangle, contrasts with triangle-up
   ];
+
   const shapes: string[] = [];
-  for (let i = 0; i < count; i++) shapes.push(options[i % options.length]);
+  for (let i = 0; i < count; i++) {
+    // Use distinct shapes for first 6 categories, then cycle
+    shapes.push(supportedShapes[i % supportedShapes.length]);
+  }
   return shapes;
 }
 

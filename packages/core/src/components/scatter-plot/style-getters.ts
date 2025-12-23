@@ -15,6 +15,18 @@ export interface StyleConfig {
    * Used to break overlap ties deterministically without CPU-sorting.
    */
   zOrderMapping?: Record<string, number> | null;
+  /**
+   * Optional legend-driven color mapping: feature value key -> hex color.
+   * When provided, colors are determined by the legend (frequency-sorted).
+   * When null, falls back to feature.colors from the data.
+   */
+  colorMapping?: Record<string, string> | null;
+  /**
+   * Optional legend-driven shape mapping: feature value key -> shape name.
+   * When provided, shapes are determined by the legend (frequency-sorted).
+   * When null, falls back to feature.shapes from the data.
+   */
+  shapeMapping?: Record<string, string> | null;
   sizes: {
     base: number;
   };
@@ -46,17 +58,43 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   const valueToShape = new Map<string, d3.SymbolType>();
   let nullishConfiguredColor: string | null = null;
 
-  if (feature && Array.isArray(feature.values)) {
+  // Priority: legend colorMapping > feature.colors from data
+  const colorMap = styleConfig.colorMapping;
+  const shapeMap = styleConfig.shapeMapping;
+
+  if (colorMap) {
+    // Use legend-provided color mapping (frequency-sorted)
+    for (const [key, color] of Object.entries(colorMap)) {
+      valueToColor.set(key, color);
+      if (key === 'null' || key === '') {
+        nullishConfiguredColor = color;
+      }
+    }
+  } else if (feature && Array.isArray(feature.values)) {
+    // Fallback to feature.colors from data
     for (let i = 0; i < feature.values.length; i++) {
       const v = feature.values[i];
       const k = normalizeToKey(v);
       const color = feature.colors?.[i];
       if (color) valueToColor.set(k, color);
-      if (styleConfig.useShapes && feature.shapes && feature.shapes[i]) {
-        valueToShape.set(k, getSymbolType(feature.shapes[i]));
-      }
       if ((v === null || (typeof v === 'string' && v.trim() === '')) && color) {
         nullishConfiguredColor = color;
+      }
+    }
+  }
+
+  if (shapeMap && styleConfig.useShapes) {
+    // Use legend-provided shape mapping (frequency-sorted)
+    for (const [key, shape] of Object.entries(shapeMap)) {
+      valueToShape.set(key, getSymbolType(shape));
+    }
+  } else if (feature && Array.isArray(feature.values) && styleConfig.useShapes) {
+    // Fallback to feature.shapes from data
+    for (let i = 0; i < feature.values.length; i++) {
+      const v = feature.values[i];
+      const k = normalizeToKey(v);
+      if (feature.shapes && feature.shapes[i]) {
+        valueToShape.set(k, getSymbolType(feature.shapes[i]));
       }
     }
   }
