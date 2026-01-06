@@ -244,7 +244,7 @@ export class ProtspaceControlBar extends LitElement {
     const syntheticEvent = {
       target: { value: name },
     } as Event & { target: HTMLSelectElement };
-    
+
     this.handleProjectionChange(syntheticEvent);
     this.showProjectionMenu = false;
   }
