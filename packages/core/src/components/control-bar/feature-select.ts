@@ -74,7 +74,8 @@ export class ProtspaceFeatureSelect extends LitElement {
   private handleDocumentClick(event: Event) {
     // Check if click is outside the component
     // For shadow DOM, we need to check if the click path includes this element
-    const path = (event as any).composedPath?.() || [];
+    const eventWithPath = event as Event & { composedPath?: () => EventTarget[] };
+    const path = eventWithPath.composedPath?.() || [];
     const clickedInside = path.includes(this) || this.contains(event.target as Node);
 
     if (!clickedInside) {
@@ -204,8 +205,8 @@ export class ProtspaceFeatureSelect extends LitElement {
     categorized.Other.sort((a, b) => a.localeCompare(b));
     // Taxonomy uses predefined order
     categorized.Taxonomy.sort((a, b) => {
-      const aIndex = TAXONOMY_ORDER.indexOf(a as any);
-      const bIndex = TAXONOMY_ORDER.indexOf(b as any);
+      const aIndex = TAXONOMY_ORDER.indexOf(a as (typeof TAXONOMY_ORDER)[number]);
+      const bIndex = TAXONOMY_ORDER.indexOf(b as (typeof TAXONOMY_ORDER)[number]);
       if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
       if (aIndex === -1) return 1;
       if (bIndex === -1) return -1;
