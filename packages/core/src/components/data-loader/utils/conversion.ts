@@ -14,16 +14,7 @@ import type { Rows } from './types';
  * @returns Filtered array with nullish tokens removed. Returns empty array if all tokens are nullish.
  */
 function normalizeNullishTokens(tokens: string[]): string[] {
-  const nullishPatterns = new Set([
-    '',
-    'none',
-    'n/a',
-    'n\\a',
-    'na',
-    'nan',
-    'null',
-    'undefined',
-  ]);
+  const nullishPatterns = new Set(['', 'none', 'n/a', 'n\\a', 'na', 'nan', 'null', 'undefined']);
 
   return tokens
     .map((token) => token.trim().toLowerCase())
