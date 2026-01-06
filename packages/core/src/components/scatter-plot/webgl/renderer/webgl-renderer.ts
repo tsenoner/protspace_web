@@ -10,6 +10,7 @@
 
 import * as d3 from 'd3';
 import type { PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
+import { OTHER_GRAY } from '@protspace/utils';
 import {
   type WebGLStyleGetters,
   type ScalePair,
@@ -982,7 +983,7 @@ export class WebGLRenderer {
         this.dataPositions[idx * 2 + 1] = scales.y(point.y);
 
         const pointColors = this.style.getColors(point);
-        const [r, g, b] = resolveColor(pointColors[0] ?? '#888888');
+        const [r, g, b] = resolveColor(pointColors[0] ?? OTHER_GRAY);
         const size = Math.sqrt(this.style.getPointSize(point)) / POINT_SIZE_DIVISOR;
         const shapeType = this.style.getShape(point);
         const shapeIndex = getShapeIndex(shapeType);

@@ -4,6 +4,32 @@ import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
 import type { Rows } from './types';
 
+/**
+ * Normalizes nullish feature value tokens to empty arrays.
+ * Treats various representations of missing/null values as nullish:
+ * - Empty strings, whitespace-only strings
+ * - Case-insensitive: "none", "n/a", "n\\a", "na", "nan", "null", "undefined"
+ *
+ * @param tokens - Array of string tokens from a feature value (may be multilabel)
+ * @returns Filtered array with nullish tokens removed. Returns empty array if all tokens are nullish.
+ */
+function normalizeNullishTokens(tokens: string[]): string[] {
+  const nullishPatterns = new Set([
+    '',
+    'none',
+    'n/a',
+    'n\\a',
+    'na',
+    'nan',
+    'null',
+    'undefined',
+  ]);
+
+  return tokens
+    .map((token) => token.trim().toLowerCase())
+    .filter((token) => token.length > 0 && !nullishPatterns.has(token));
+}
+
 export function convertParquetToVisualizationData(
   rows: Rows,
   projectionsMetadata?: Rows,
@@ -155,10 +181,11 @@ function convertBundleFormatData(
       if (value == null) {
         featureMap.set(proteinId, []);
       } else {
-        const valueArray = String(value).split(';');
-        featureMap.set(proteinId, valueArray);
-        // Count occurrences for frequency-based sorting
-        for (const v of valueArray) {
+        const rawValueArray = String(value).split(';');
+        const normalizedArray = normalizeNullishTokens(rawValueArray);
+        featureMap.set(proteinId, normalizedArray);
+        // Count occurrences for frequency-based sorting (only non-nullish values)
+        for (const v of normalizedArray) {
           valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
         }
       }
@@ -336,7 +363,9 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
   for (const featureCol of featureColumns) {
     const rawValues: string[][] = rows.map((row) => {
       const v = row[featureCol];
-      return v == null ? [] : String(v).split(';');
+      if (v == null) return [];
+      const rawValueArray = String(v).split(';');
+      return normalizeNullishTokens(rawValueArray);
     });
     const uniqueValues = Array.from(new Set(rawValues.flat()));
     const valueToIndex = new Map<string, number>();
@@ -543,11 +572,12 @@ export async function extractFeaturesOptimized(
           continue;
         }
 
-        const valueArray = String(value).split(';');
+        const rawValueArray = String(value).split(';');
+        const normalizedArray = normalizeNullishTokens(rawValueArray);
 
-        featureMap.set(proteinId, valueArray);
+        featureMap.set(proteinId, normalizedArray);
 
-        for (const v of valueArray) {
+        for (const v of normalizedArray) {
           valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
         }
       }

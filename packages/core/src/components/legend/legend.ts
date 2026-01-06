@@ -7,6 +7,7 @@ import { legendStyles } from './legend.styles';
 import { LegendDataProcessor } from './legend-data-processor';
 import { LegendRenderer } from './legend-renderer';
 import { LegendUtils } from './legend-utils';
+import { OTHER_GRAY } from '@protspace/utils';
 import type {
   LegendDataInput,
   LegendFeatureData,
@@ -294,11 +295,20 @@ export class ProtspaceLegend extends LitElement {
       const featureIdxData = currentData.feature_data[selectedFeature][index];
       // Handle both array and single value cases
       const featureIdxArray = Array.isArray(featureIdxData) ? featureIdxData : [featureIdxData];
-      return featureIdxArray
+      const mappedValues = featureIdxArray
         .map((featureIdx: number) => {
+          // -1 indicates missing/invalid index
+          if (featureIdx === -1) return null;
           return currentData.features[selectedFeature].values[featureIdx];
         })
         .filter((v) => v != null);
+
+      // If protein has no valid categories (empty array or all -1), emit [null] for N/A
+      if (mappedValues.length === 0) {
+        return [null];
+      }
+
+      return mappedValues;
     });
 
     this.featureValues = featureValues;
@@ -1099,7 +1109,7 @@ export class ProtspaceLegend extends LitElement {
             </label>
             <label
               class="other-items-list-label"
-              style="${this._isMultilabelFeature() ? 'color: #888;' : ''}"
+              style="${this._isMultilabelFeature() ? `color: ${OTHER_GRAY};` : ''}"
             >
               <input
                 class="other-items-list-label-input"
@@ -1115,7 +1125,7 @@ export class ProtspaceLegend extends LitElement {
             </label>
             ${this._isMultilabelFeature()
               ? html`<div
-                  style="color: #888; font-size: 0.85em; margin-left: 24px; margin-top: -4px;"
+                  style="color: ${OTHER_GRAY}; font-size: 0.85em; margin-left: 24px; margin-top: -4px;"
                 >
                   Disabled for multilabel features
                 </div>`
