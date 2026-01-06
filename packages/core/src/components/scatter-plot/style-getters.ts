@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import { NEUTRAL_VALUE_COLOR } from './config';
 import type { PlotDataPoint, VisualizationData } from '@protspace/utils';
-import { getSymbolType, OTHER_GRAY } from '@protspace/utils';
+import { getSymbolType } from '@protspace/utils';
 
 export interface StyleConfig {
   selectedProteinIds: string[];
