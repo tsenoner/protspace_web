@@ -39,7 +39,7 @@ export class LegendUtils {
 
     const newItems = [...legendItems];
     const [movedItem] = newItems.splice(draggedItemIndex, 1);
-    
+
     // Adjust target index if dragging forward (target is after dragged item)
     // After removing the dragged item, items after it shift down by 1
     const adjustedTargetIdx = targetIdx > draggedItemIndex ? targetIdx - 1 : targetIdx;

@@ -595,7 +595,7 @@ export class ProtspaceLegend extends LitElement {
     event.preventDefault();
 
     if (this.draggedItemIndex === -1) return;
-    
+
     const targetIndex = this.legendItems.findIndex((i) => i.value === item.value);
     if (this.draggedItemIndex === targetIndex) return;
 
@@ -680,7 +680,7 @@ export class ProtspaceLegend extends LitElement {
     // Create a new array with the item moved
     const newItems = [...this.legendItems];
     const [movedItem] = newItems.splice(this.draggedItemIndex, 1);
-    
+
     // Adjust target index if dragging forward (target is after dragged item)
     // After removing the dragged item, items after it shift down by 1
     const adjustedTargetIdx = targetIdx > this.draggedItemIndex ? targetIdx - 1 : targetIdx;
@@ -1006,7 +1006,8 @@ export class ProtspaceLegend extends LitElement {
 
     if (!item.isVisible) classes.push('hidden');
     const itemIndex = this.legendItems.findIndex((i) => i.value === item.value);
-    if (this.draggedItemIndex === itemIndex && this.draggedItemIndex !== -1) classes.push('dragging');
+    if (this.draggedItemIndex === itemIndex && this.draggedItemIndex !== -1)
+      classes.push('dragging');
     if (isItemSelected) classes.push('selected');
     if (item.extractedFromOther) classes.push('extracted');
 
