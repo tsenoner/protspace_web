@@ -9,6 +9,7 @@ import type {
   StructureViewerElement,
 } from './types';
 import './search';
+import './feature-select';
 
 @customElement('protspace-control-bar')
 export class ProtspaceControlBar extends LitElement {
@@ -116,18 +117,18 @@ export class ProtspaceControlBar extends LitElement {
     this.dispatchEvent(customEvent);
   }
 
-  private handleFeatureChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
+  private handleFeatureSelected(event: CustomEvent<{ feature: string }>) {
+    const feature = event.detail.feature;
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
       if ('selectedFeature' in this._scatterplotElement) {
-        (this._scatterplotElement as ScatterplotElementLike).selectedFeature = target.value;
-        this.selectedFeature = target.value;
+        (this._scatterplotElement as ScatterplotElementLike).selectedFeature = feature;
+        this.selectedFeature = feature;
       }
     }
 
     const customEvent = new CustomEvent('feature-change', {
-      detail: { feature: target.value },
+      detail: { feature },
       bubbles: true,
       composed: true,
     });
@@ -280,13 +281,12 @@ export class ProtspaceControlBar extends LitElement {
           <!-- Feature selection -->
           <div class="control-group">
             <label for="feature-select">Color by:</label>
-            <select
+            <protspace-feature-select
               id="feature-select"
-              .value=${this.selectedFeature}
-              @change=${this.handleFeatureChange}
-            >
-              ${this.features.map((feature) => html`<option value=${feature}>${feature}</option>`)}
-            </select>
+              .features=${this.features}
+              .selectedFeature=${this.selectedFeature}
+              @feature-select=${this.handleFeatureSelected}
+            ></protspace-feature-select>
           </div>
         </div>
 
@@ -1214,14 +1214,7 @@ export class ProtspaceControlBar extends LitElement {
       ...this.featureValuesMap,
       [customName]: newFeatures[customName].values,
     };
-    this.updateComplete.then(() => {
-      const featureSelect = this.renderRoot?.querySelector(
-        '#feature-select',
-      ) as HTMLSelectElement | null;
-      if (featureSelect && featureSelect.value !== customName) {
-        featureSelect.value = customName;
-      }
-    });
+    // Feature select component will automatically update via selectedFeature property binding
 
     // Let listeners know the feature changed to Custom
     this.dispatchEvent(
