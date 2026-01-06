@@ -43,6 +43,7 @@ export class ProtspaceControlBar extends LitElement {
 
   @state() private showExportMenu: boolean = false;
   @state() private showFilterMenu: boolean = false;
+  @state() private showProjectionMenu: boolean = false;
   @state() private featureValuesMap: Record<string, (string | null)[]> = {};
   @state() private filterConfig: Record<string, { enabled: boolean; values: (string | null)[] }> =
     {};
@@ -229,6 +230,25 @@ export class ProtspaceControlBar extends LitElement {
     this.showExportMenu = !this.showExportMenu;
   }
 
+  private toggleProjectionMenu() {
+    this.showProjectionMenu = !this.showProjectionMenu;
+    // Close other menus when opening projection menu
+    if (this.showProjectionMenu) {
+      this.showExportMenu = false;
+      this.showFilterMenu = false;
+    }
+  }
+
+  private selectProjection(name: string) {
+    // Create a synthetic event to reuse existing handleProjectionChange logic
+    const syntheticEvent = {
+      target: { value: name },
+    } as Event & { target: HTMLSelectElement };
+    
+    this.handleProjectionChange(syntheticEvent);
+    this.showProjectionMenu = false;
+  }
+
   private openFileDialog() {
     const loader = document.querySelector('protspace-data-loader') as DataLoaderElement;
     const fileInput = loader?.shadowRoot?.querySelector(
@@ -243,17 +263,45 @@ export class ProtspaceControlBar extends LitElement {
         <!-- Left side controls -->
         <div class="left-controls">
           <!-- Projection selection -->
-          <div class="control-group">
-            <label for="projection-select">Projection:</label>
-            <select
-              id="projection-select"
-              .value=${this.selectedProjection}
-              @change=${this.handleProjectionChange}
+          <div class="control-group projection-container">
+            <label for="projection-trigger">Projection:</label>
+            <button
+              id="projection-trigger"
+              class="projection-trigger ${this.showProjectionMenu ? 'active' : ''}"
+              @click=${this.toggleProjectionMenu}
+              aria-haspopup="listbox"
+              aria-expanded=${this.showProjectionMenu}
             >
-              ${this.projections.map(
-                (projection) => html`<option value=${projection}>${projection}</option>`,
-              )}
-            </select>
+              ${this.selectedProjection || 'Select projection'}
+              <svg class="chevron-down" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            ${this.showProjectionMenu
+              ? html`
+                  <div class="projection-menu" role="listbox">
+                    <ul class="projection-menu-list">
+                      ${this.projections.map(
+                        (projection) => html`
+                          <li class="projection-menu-list-item">
+                            <button
+                              class="projection-option ${projection === this.selectedProjection
+                                ? 'active'
+                                : ''}"
+                              role="option"
+                              aria-selected=${projection === this.selectedProjection}
+                              @click=${() => this.selectProjection(projection)}
+                            >
+                              ${projection}
+                            </button>
+                          </li>
+                        `,
+                      )}
+                    </ul>
+                  </div>
+                `
+              : ''}
           </div>
 
           ${(() => {
@@ -626,6 +674,7 @@ export class ProtspaceControlBar extends LitElement {
     if (!this.contains(event.target as Node)) {
       this.showExportMenu = false;
       this.showFilterMenu = false;
+      this.showProjectionMenu = false;
       this.openValueMenus = {};
     }
   }

@@ -146,7 +146,8 @@ export const controlBarStyles = css`
   }
 
   .export-container,
-  .filter-container {
+  .filter-container,
+  .projection-container {
     display: flex;
     position: relative;
     align-items: center;
@@ -175,6 +176,110 @@ export const controlBarStyles = css`
   }
   .export-container {
     position: relative;
+  }
+
+  .projection-container {
+    position: relative;
+  }
+
+  .projection-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 30px 6px 9px;
+    border: 1px solid var(--up-border);
+    border-radius: 0.25rem;
+    background-color: var(--up-surface);
+    background-image: url('data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"%3E%3Cpath d="M6 9L12 15L18 9" stroke="%23000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/%3E%3C/svg%3E');
+    background-repeat: no-repeat;
+    background-position: right 4px center;
+    font-size: 0.875rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    width: max-content;
+    min-width: 120px;
+  }
+
+  .projection-trigger:hover {
+    background: #f6f8fb;
+  }
+
+  .projection-trigger.active {
+    border-color: var(--up-primary);
+    box-shadow: 0 0 0 2px rgba(0, 114, 181, 0.15);
+  }
+
+  .projection-trigger:focus {
+    outline: none;
+    border-color: var(--up-primary);
+    box-shadow: 0 0 0 2px rgba(0, 114, 181, 0.15);
+  }
+
+  .projection-menu {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 5px);
+    width: max-content;
+    min-width: 100%;
+    background: var(--up-surface);
+    border: 1px solid var(--up-border);
+    border-radius: 0.25rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    display: flex;
+    z-index: 50;
+    flex-direction: column;
+    max-height: 50vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .projection-menu-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    row-gap: 2px;
+  }
+
+  .projection-menu-list-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .projection-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: var(--up-muted);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+  }
+
+  .projection-option:hover {
+    background: #f6f8fb;
+  }
+
+  .projection-option.active {
+    background: var(--up-primary);
+    color: #ffffff;
+  }
+
+  .projection-option.active:hover {
+    background: var(--up-primary-hover);
   }
 
   .filter-menu {
@@ -483,6 +588,11 @@ export const controlBarStyles = css`
 
     /* Make selects expand to available width inside a row */
     .control-group select {
+      width: 100%;
+    }
+
+    /* Make projection trigger expand to available width inside a row */
+    .projection-trigger {
       width: 100%;
     }
   }
