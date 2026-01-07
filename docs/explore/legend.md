@@ -17,7 +17,7 @@ Click any label to toggle its visibility:
 
 ## Reordering Labels
 
-Drag labels up or down to reorder them. This changes the **z-order** in the canvas - labels at the top are drawn on top of others.
+Drag labels up or down to reorder them. This changes the **drawing order** in the scatterplot - labels at the top are drawn on top of others.
 
 ![Reorder labels](./images/legend-reorder.gif)
 

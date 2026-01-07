@@ -1,5 +1,5 @@
 import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import {
   generateDatasetHash,
   buildStorageKey,
@@ -49,7 +49,7 @@ export class ProtspaceLegend extends LitElement {
   @state() private otherItems: OtherItem[] = [];
   @state() private showOtherDialog = false;
   @state() private showSettingsDialog = false;
-  @state() private draggedItem: string | null = null;
+  @state() private draggedItemIndex: number = -1;
   @state() private dragTimeout: number | null = null;
   @state() private settingsMaxVisibleValues: number = LEGEND_DEFAULTS.maxVisibleValues;
   @property({ type: Boolean }) includeOthers: boolean = LEGEND_DEFAULTS.includeOthers;
@@ -62,9 +62,6 @@ export class ProtspaceLegend extends LitElement {
   @state() private manualOtherValues: string[] = [];
   @state() private featureSortModes: Record<string, LegendSortMode> = {};
   @state() private settingsFeatureSortModes: Record<string, LegendSortMode> = {};
-
-  // Keyboard event listener for settings dialog
-  private _settingsDialogKeydownHandler?: (e: KeyboardEvent) => void;
 
   // Auto-sync properties
   @property({ type: String, attribute: 'scatterplot-selector' })
@@ -79,7 +76,28 @@ export class ProtspaceLegend extends LitElement {
   @state() private _datasetHash: string = '';
   @state() private _settingsLoaded: boolean = false;
 
+  @query('#legend-settings-dialog')
+  private _settingsDialogEl?: HTMLDivElement;
+
+  private _onWindowKeydownCapture = (e: KeyboardEvent) => {
+    if (!this.showSettingsDialog) return;
+
+    if (e.key === 'Escape') {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      this._handleSettingsClose();
+    }
+  };
+
   updated(changedProperties: Map<string, unknown>) {
+    if (changedProperties.has('showSettingsDialog')) {
+      if (this.showSettingsDialog) {
+        window.addEventListener('keydown', this._onWindowKeydownCapture, true);
+      } else {
+        window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
+      }
+    }
+
     // Update dataset hash when protein IDs change
     if (changedProperties.has('proteinIds') && this.proteinIds.length > 0) {
       this._updateDatasetHash(this.proteinIds);
@@ -172,6 +190,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   disconnectedCallback() {
+    window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
     super.disconnectedCallback();
 
     if (this._scatterplotElement) {
@@ -183,36 +202,6 @@ export class ProtspaceLegend extends LitElement {
         'feature-change',
         this._handleFeatureChange.bind(this),
       );
-    }
-
-    // Clean up keyboard listener if component is disconnected while dialog is open
-    this._removeGlobalKeyboardListener();
-  }
-
-  private _addGlobalKeyboardListener() {
-    if (this._settingsDialogKeydownHandler) {
-      this._removeGlobalKeyboardListener();
-    }
-
-    this._settingsDialogKeydownHandler = (e: KeyboardEvent) => {
-      if (!this.showSettingsDialog) return;
-
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        this._handleSettingsSave();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        this._handleSettingsClose();
-      }
-    };
-
-    document.addEventListener('keydown', this._settingsDialogKeydownHandler);
-  }
-
-  private _removeGlobalKeyboardListener() {
-    if (this._settingsDialogKeydownHandler) {
-      document.removeEventListener('keydown', this._settingsDialogKeydownHandler);
-      this._settingsDialogKeydownHandler = undefined;
     }
   }
 
@@ -229,9 +218,13 @@ export class ProtspaceLegend extends LitElement {
     // Only clear legendItems to force recalculation with new settings
     this.legendItems = [];
 
-    this._removeGlobalKeyboardListener();
-
-    // Recalculate legend items (will reapply hidden values)
+    if (
+      this.autoHide &&
+      this._scatterplotElement &&
+      'hiddenFeatureValues' in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
+    }
     this.updateLegendItems();
     this.requestUpdate();
 
@@ -259,7 +252,14 @@ export class ProtspaceLegend extends LitElement {
 
   private _handleSettingsClose() {
     this.showSettingsDialog = false;
-    this._removeGlobalKeyboardListener();
+  }
+
+  private _handleDialogKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      this._handleSettingsSave();
+    }
   }
 
   private _handleSettingsReset() {
@@ -290,7 +290,6 @@ export class ProtspaceLegend extends LitElement {
 
     // Close dialog
     this.showSettingsDialog = false;
-    this._removeGlobalKeyboardListener();
 
     // Clear scatterplot hidden values
     if (
@@ -847,7 +846,8 @@ export class ProtspaceLegend extends LitElement {
 
   // Simple drag and drop implementation
   private handleDragStart(item: LegendItem) {
-    this.draggedItem = item.value;
+    const index = this.legendItems.findIndex((i) => i.value === item.value);
+    this.draggedItemIndex = index !== -1 ? index : -1;
 
     // Clear any existing timeout
     if (this.dragTimeout) {
@@ -859,7 +859,10 @@ export class ProtspaceLegend extends LitElement {
   private handleDragOver(event: DragEvent, item: LegendItem) {
     event.preventDefault();
 
-    if (!this.draggedItem || this.draggedItem === item.value) return;
+    if (this.draggedItemIndex === -1) return;
+
+    const targetIndex = this.legendItems.findIndex((i) => i.value === item.value);
+    if (this.draggedItemIndex === targetIndex) return;
 
     // Provide move hint to the browser
     if (event.dataTransfer) {
@@ -881,8 +884,8 @@ export class ProtspaceLegend extends LitElement {
     event.preventDefault();
 
     // Only handle special case when dropping onto "Other"
-    if (targetItem.value === 'Other' && this.draggedItem) {
-      const draggedItem = this.legendItems.find((i) => i.value === this.draggedItem);
+    if (targetItem.value === 'Other' && this.draggedItemIndex !== -1) {
+      const draggedItem = this.legendItems[this.draggedItemIndex];
 
       if (!draggedItem) {
         this.handleDragEnd();
@@ -940,22 +943,28 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _performDragReorder(targetItem: LegendItem): void {
-    // Find the indices
-    const draggedIdx = this.legendItems.findIndex((i) => i.value === this.draggedItem);
+    // Find the target index
     const targetIdx = this.legendItems.findIndex((i) => i.value === targetItem.value);
 
-    if (draggedIdx === -1 || targetIdx === -1) return;
+    if (this.draggedItemIndex === -1 || targetIdx === -1) return;
 
     // Create a new array with the item moved
     const newItems = [...this.legendItems];
-    const [movedItem] = newItems.splice(draggedIdx, 1);
-    newItems.splice(targetIdx, 0, movedItem);
+    const [movedItem] = newItems.splice(this.draggedItemIndex, 1);
+
+    // Adjust target index if dragging forward (target is after dragged item)
+    // After removing the dragged item, items after it shift down by 1
+    const adjustedTargetIdx = targetIdx > this.draggedItemIndex ? targetIdx - 1 : targetIdx;
+    newItems.splice(adjustedTargetIdx, 0, movedItem);
 
     // Update z-order
     this.legendItems = newItems.map((item, idx) => ({
       ...item,
       zOrder: idx,
     }));
+
+    // Update dragged index to reflect new position
+    this.draggedItemIndex = adjustedTargetIdx;
 
     // Notify parent of z-order change
     this._dispatchZOrderChange();
@@ -1046,7 +1055,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private handleDragEnd() {
-    this.draggedItem = null;
+    this.draggedItemIndex = -1;
 
     // Clear timeout if any
     if (this.dragTimeout) {
@@ -1111,7 +1120,7 @@ export class ProtspaceLegend extends LitElement {
     return values;
   }
 
-  private handleCustomize() {
+  private async handleCustomize() {
     // Initialize settings value from current maxVisibleValues
     this.settingsMaxVisibleValues = this.maxVisibleValues;
     this.settingsIncludeOthers = this.includeOthers;
@@ -1130,15 +1139,16 @@ export class ProtspaceLegend extends LitElement {
     this.settingsEnableDuplicateStackUI = !!scatterplot?.config?.enableDuplicateStackUI;
     this.showSettingsDialog = true;
 
-    // Add global keyboard listener for Enter/Escape when dialog opens
-    this._addGlobalKeyboardListener();
-
     // Keep event for backward compatibility
     this.dispatchEvent(
       new CustomEvent('legend-customize', {
         bubbles: true,
       }),
     );
+
+    this.requestUpdate();
+    await this.updateComplete;
+    this._settingsDialogEl?.focus();
   }
 
   private renderOtherDialog() {
@@ -1278,7 +1288,9 @@ export class ProtspaceLegend extends LitElement {
     const classes = ['legend-item'];
 
     if (!item.isVisible) classes.push('hidden');
-    if (this.draggedItem === item.value && item.value !== null) classes.push('dragging');
+    const itemIndex = this.legendItems.findIndex((i) => i.value === item.value);
+    if (this.draggedItemIndex === itemIndex && this.draggedItemIndex !== -1)
+      classes.push('dragging');
     if (isItemSelected) classes.push('selected');
     if (item.extractedFromOther) classes.push('extracted');
 
@@ -1319,8 +1331,15 @@ export class ProtspaceLegend extends LitElement {
     }
 
     return html`
-      <div class="modal-overlay" @click=${onClose}>
-        <div class="modal-content" @click=${(e: Event) => e.stopPropagation()}>
+      <div class="modal-overlay" @click=${onClose} @keydown=${this._handleDialogKeydown}>
+        <div
+          id="legend-settings-dialog"
+          class="modal-content"
+          tabindex="-1"
+          @click=${(e: Event) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+        >
           <div class="modal-header">
             <h3 class="modal-title">Legend settings</h3>
             <button class="close-button" @click=${onClose}>

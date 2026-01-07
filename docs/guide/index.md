@@ -24,17 +24,16 @@ Protein language models (like ProtT5, ESM2, Ankh) create embeddings that capture
 
 ## How It Works
 
-1. **Prepare your data**: Use our [Google Colab notebook](/guide/data-preparation) or [Python CLI](/guide/python-cli) to generate a `.parquetbundle` file from your protein embeddings
-2. **Load into ProtSpace**: Drag & drop the file onto the [Explore page](https://protspace.app/explore)
-3. **Explore**: Navigate the visualization, filter categories, switch projections, and discover patterns
+1. **Prepare data**: Generate a `.parquetbundle` file using our [Google Colab notebook](/guide/data-preparation) or [Python CLI](/guide/python-cli)
+2. **Load file**: Drag & drop onto the [Explore page](https://protspace.app/explore)
+3. **Explore**: Navigate, filter, and discover patterns in your protein data
 
 ## Privacy and Security
 
 ProtSpace processes everything locally in your browser:
 
-- **No uploads**: Files are never sent to any server
-- **No tracking**: We don't collect usage data
-- **Offline capable**: Works without internet (except for 3D structures)
+- **No uploads**: Files never leave your computer
+- **No tracking**: We don't collect any usage data
 - **Open source**: Fully transparent [codebase on GitHub](https://github.com/tsenoner/protspace_web)
 
 ## Use Cases
