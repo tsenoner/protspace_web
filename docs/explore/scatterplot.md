@@ -10,7 +10,7 @@ The scatterplot is the main visualization area where proteins appear as points. 
 | Pan                 | Click + drag on background           |
 | Reset view          | Double-click on background           |
 | Select one          | Click a point                        |
-| Add to selection    | **⌘** (Mac) / **Ctrl** (Win) + click |
+| Add to selection    | **⌘/Ctrl** + click another point     |
 | Box select          | Click **Select** button, then drag   |
 | Clear selection     | Press **Escape** or click **Clear**  |
 | Exit selection mode | Press **Escape** (when no selection) |
@@ -22,7 +22,7 @@ The scatterplot is the main visualization area where proteins appear as points. 
 
 - **Zoom**: Scroll wheel or pinch gesture
 - **Pan**: Click and drag on the background
-- **Reset**: Double-click the canvas to fit all proteins
+- **Reset**: Double-click the scatterplot to fit all proteins
 
 ## Selection
 
