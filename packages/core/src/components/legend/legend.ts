@@ -41,7 +41,7 @@ export class ProtspaceLegend extends LitElement {
   @state() private otherItems: OtherItem[] = [];
   @state() private showOtherDialog = false;
   @state() private showSettingsDialog = false;
-  @state() private draggedItem: string | null = null;
+  @state() private draggedItemIndex: number = -1;
   @state() private dragTimeout: number | null = null;
   @state() private settingsMaxVisibleValues: number = LEGEND_DEFAULTS.maxVisibleValues;
   @property({ type: Boolean }) includeOthers: boolean = LEGEND_DEFAULTS.includeOthers;
@@ -581,7 +581,8 @@ export class ProtspaceLegend extends LitElement {
 
   // Simple drag and drop implementation
   private handleDragStart(item: LegendItem) {
-    this.draggedItem = item.value;
+    const index = this.legendItems.findIndex((i) => i.value === item.value);
+    this.draggedItemIndex = index !== -1 ? index : -1;
 
     // Clear any existing timeout
     if (this.dragTimeout) {
@@ -593,7 +594,10 @@ export class ProtspaceLegend extends LitElement {
   private handleDragOver(event: DragEvent, item: LegendItem) {
     event.preventDefault();
 
-    if (!this.draggedItem || this.draggedItem === item.value) return;
+    if (this.draggedItemIndex === -1) return;
+
+    const targetIndex = this.legendItems.findIndex((i) => i.value === item.value);
+    if (this.draggedItemIndex === targetIndex) return;
 
     // Provide move hint to the browser
     if (event.dataTransfer) {
@@ -615,8 +619,8 @@ export class ProtspaceLegend extends LitElement {
     event.preventDefault();
 
     // Only handle special case when dropping onto "Other"
-    if (targetItem.value === 'Other' && this.draggedItem) {
-      const draggedItem = this.legendItems.find((i) => i.value === this.draggedItem);
+    if (targetItem.value === 'Other' && this.draggedItemIndex !== -1) {
+      const draggedItem = this.legendItems[this.draggedItemIndex];
 
       if (!draggedItem) {
         this.handleDragEnd();
@@ -668,22 +672,28 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _performDragReorder(targetItem: LegendItem): void {
-    // Find the indices
-    const draggedIdx = this.legendItems.findIndex((i) => i.value === this.draggedItem);
+    // Find the target index
     const targetIdx = this.legendItems.findIndex((i) => i.value === targetItem.value);
 
-    if (draggedIdx === -1 || targetIdx === -1) return;
+    if (this.draggedItemIndex === -1 || targetIdx === -1) return;
 
     // Create a new array with the item moved
     const newItems = [...this.legendItems];
-    const [movedItem] = newItems.splice(draggedIdx, 1);
-    newItems.splice(targetIdx, 0, movedItem);
+    const [movedItem] = newItems.splice(this.draggedItemIndex, 1);
+
+    // Adjust target index if dragging forward (target is after dragged item)
+    // After removing the dragged item, items after it shift down by 1
+    const adjustedTargetIdx = targetIdx > this.draggedItemIndex ? targetIdx - 1 : targetIdx;
+    newItems.splice(adjustedTargetIdx, 0, movedItem);
 
     // Update z-order
     this.legendItems = newItems.map((item, idx) => ({
       ...item,
       zOrder: idx,
     }));
+
+    // Update dragged index to reflect new position
+    this.draggedItemIndex = adjustedTargetIdx;
 
     // Notify parent of z-order change
     this._dispatchZOrderChange();
@@ -766,7 +776,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private handleDragEnd() {
-    this.draggedItem = null;
+    this.draggedItemIndex = -1;
 
     // Clear timeout if any
     if (this.dragTimeout) {
@@ -995,7 +1005,9 @@ export class ProtspaceLegend extends LitElement {
     const classes = ['legend-item'];
 
     if (!item.isVisible) classes.push('hidden');
-    if (this.draggedItem === item.value && item.value !== null) classes.push('dragging');
+    const itemIndex = this.legendItems.findIndex((i) => i.value === item.value);
+    if (this.draggedItemIndex === itemIndex && this.draggedItemIndex !== -1)
+      classes.push('dragging');
     if (isItemSelected) classes.push('selected');
     if (item.extractedFromOther) classes.push('extracted');
 

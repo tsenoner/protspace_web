@@ -16,11 +16,13 @@ export class LegendUtils {
   static getItemClasses(
     item: LegendItem,
     isItemSelected: boolean,
-    draggedItem: string | null,
+    draggedItemIndex: number,
+    legendItems: LegendItem[],
   ): string {
     const classes = ['legend-item'];
     if (!item.isVisible) classes.push('hidden');
-    if (draggedItem === item.value && item.value !== null) classes.push('dragging');
+    const itemIndex = legendItems.findIndex((i) => i.value === item.value);
+    if (draggedItemIndex === itemIndex && draggedItemIndex !== -1) classes.push('dragging');
     if (isItemSelected) classes.push('selected');
     if (item.extractedFromOther) classes.push('extracted');
     return classes.join(' ');
@@ -28,19 +30,23 @@ export class LegendUtils {
 
   static performDragReorder(
     legendItems: LegendItem[],
-    draggedItem: string | null,
+    draggedItemIndex: number,
     targetItem: LegendItem,
-  ): LegendItem[] | null {
-    const draggedIdx = legendItems.findIndex((i) => i.value === draggedItem);
+  ): { reorderedItems: LegendItem[]; newDraggedIndex: number } | null {
     const targetIdx = legendItems.findIndex((i) => i.value === targetItem.value);
 
-    if (draggedIdx === -1 || targetIdx === -1) return null;
+    if (draggedItemIndex === -1 || targetIdx === -1) return null;
 
     const newItems = [...legendItems];
-    const [movedItem] = newItems.splice(draggedIdx, 1);
-    newItems.splice(targetIdx, 0, movedItem);
+    const [movedItem] = newItems.splice(draggedItemIndex, 1);
 
-    return newItems.map((item, idx) => ({ ...item, zOrder: idx }));
+    // Adjust target index if dragging forward (target is after dragged item)
+    // After removing the dragged item, items after it shift down by 1
+    const adjustedTargetIdx = targetIdx > draggedItemIndex ? targetIdx - 1 : targetIdx;
+    newItems.splice(adjustedTargetIdx, 0, movedItem);
+
+    const reorderedItems = newItems.map((item, idx) => ({ ...item, zOrder: idx }));
+    return { reorderedItems, newDraggedIndex: adjustedTargetIdx };
   }
 
   static createZOrderMapping(legendItems: LegendItem[]): Record<string, number> {
