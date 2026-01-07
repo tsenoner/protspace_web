@@ -3,9 +3,6 @@
  * Used to scope persisted settings to specific datasets.
  */
 
-/**
- * djb2 hash algorithm - fast and produces good distribution
- */
 export function djb2Hash(str: string): number {
   let hash = 5381;
   for (let i = 0; i < str.length; i++) {
@@ -14,11 +11,6 @@ export function djb2Hash(str: string): number {
   return hash >>> 0; // Convert to unsigned 32-bit integer
 }
 
-/**
- * Generates a deterministic hash from an array of protein IDs.
- * The same set of proteins will always produce the same hash,
- * allowing settings to be restored when the same dataset is loaded.`
- */
 export function generateDatasetHash(proteinIds: string[]): string {
   if (!proteinIds || proteinIds.length === 0) {
     return '00000000';

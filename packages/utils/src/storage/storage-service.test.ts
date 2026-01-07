@@ -6,7 +6,6 @@ import {
   removeStorageItem,
 } from './storage-service';
 
-// Mock localStorage
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
@@ -27,7 +26,6 @@ const localStorageMock = (() => {
   };
 })();
 
-// Replace global localStorage with mock
 vi.stubGlobal('localStorage', localStorageMock);
 
 describe('buildStorageKey', () => {
