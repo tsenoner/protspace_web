@@ -42,6 +42,8 @@ The main visualization shows your proteins as points in 2D space. Points close t
 - **Click** a point to select it
 - **⌘/Ctrl + click** to add to selection
 - **Double-click** canvas to reset view
+- **Escape** to clear selection / exit selection mode
+- **⌘/Ctrl + K** to focus search
 
 ## Legend
 

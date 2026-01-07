@@ -32,7 +32,7 @@ Available annotations depend on your dataset (taxonomy, family, function, etc.).
 
 Find specific proteins by ID:
 
-1. Type a protein ID or partial match
+1. Type a protein ID or partial match (or press **⌘/Ctrl + K** to focus the search box)
 2. Select from suggestions
 3. Protein is selected in the scatterplot
 
@@ -46,7 +46,7 @@ Enable **box selection mode** to select multiple proteins at once. See the [Box 
 
 ## 5. Clear Button
 
-Click **Clear** to remove all current selections.
+Click **Clear** (or press **Escape**) to remove all current selections. Pressing **Escape** again will exit selection mode.
 
 ## 6. Isolate Button
 
