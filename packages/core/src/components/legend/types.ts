@@ -48,4 +48,5 @@ export interface LegendPersistedSettings {
   hiddenValues: string[];
   manualOtherValues: string[];
   zOrderMapping: Record<string, number>;
+  enableDuplicateStackUI?: boolean;
 }

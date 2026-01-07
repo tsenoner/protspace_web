@@ -212,7 +212,7 @@ export class ProtspaceLegend extends LitElement {
     this.includeShapes = this.settingsIncludeShapes;
     this.shapeSize = this.settingsShapeSize;
     // apply sorting preferences
-    this.featureSortModes = { ...this.settingsFeatureSortModes };
+    this.featureSortModes = this.settingsFeatureSortModes;
     this.showSettingsDialog = false;
     // Note: We preserve _hiddenValues and manualOtherValues across settings changes
     // Only clear legendItems to force recalculation with new settings
@@ -300,7 +300,7 @@ export class ProtspaceLegend extends LitElement {
       (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
     }
 
-    // Update scatterplot point size to default
+    // Update scatterplot config to defaults
     if (this._scatterplotElement && 'config' in this._scatterplotElement) {
       const baseSize = Math.max(
         10,
@@ -313,6 +313,7 @@ export class ProtspaceLegend extends LitElement {
       scatterplot.config = {
         ...currentConfig,
         pointSize: baseSize,
+        enableDuplicateStackUI: false,
       };
     }
 
@@ -498,6 +499,7 @@ export class ProtspaceLegend extends LitElement {
       hiddenValues: [],
       manualOtherValues: [],
       zOrderMapping: {},
+      enableDuplicateStackUI: LEGEND_DEFAULTS.enableDuplicateStackUI,
     };
 
     const saved = getStorageItem<LegendPersistedSettings>(key, defaultSettings);
@@ -520,7 +522,7 @@ export class ProtspaceLegend extends LitElement {
     this._pendingZOrderMapping = saved.zOrderMapping;
     this._settingsLoaded = true;
 
-    // Update scatterplot point size if element exists
+    // Update scatterplot config if element exists
     if (this._scatterplotElement && 'config' in this._scatterplotElement) {
       const baseSize = Math.max(
         10,
@@ -533,6 +535,7 @@ export class ProtspaceLegend extends LitElement {
       scatterplot.config = {
         ...currentConfig,
         pointSize: baseSize,
+        enableDuplicateStackUI: saved.enableDuplicateStackUI ?? false,
       };
     }
   }
@@ -583,6 +586,12 @@ export class ProtspaceLegend extends LitElement {
       }
     });
 
+    // Get current enableDuplicateStackUI from scatterplot config
+    const scatterplot = this._scatterplotElement as ScatterplotElement & {
+      config?: Record<string, unknown>;
+    };
+    const enableDuplicateStackUI = Boolean(scatterplot?.config?.enableDuplicateStackUI);
+
     const settings: LegendPersistedSettings = {
       maxVisibleValues: this.maxVisibleValues,
       includeOthers: this.includeOthers,
@@ -592,6 +601,7 @@ export class ProtspaceLegend extends LitElement {
       hiddenValues: this._hiddenValues,
       manualOtherValues: this.manualOtherValues,
       zOrderMapping,
+      enableDuplicateStackUI,
     };
 
     setStorageItem(key, settings);
