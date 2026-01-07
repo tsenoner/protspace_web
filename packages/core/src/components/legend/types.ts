@@ -1,7 +1,3 @@
-/**
- * Legend-related type definitions
- */
-
 export interface LegendItem {
   value: string | null;
   color: string;
@@ -37,34 +33,19 @@ export interface ScatterplotElement extends Element {
   useShapes?: boolean;
 }
 
-export interface LegendItemClickEvent extends CustomEvent {
-  detail: {
-    value: string | null;
-    action: 'toggle' | 'isolate' | 'extract' | 'merge-into-other';
-  };
-}
-
-export interface LegendZOrderChangeEvent extends CustomEvent {
-  detail: {
-    zOrderMapping: Record<string, number>;
-  };
-}
-
-export interface LegendCustomizeEvent extends CustomEvent {
-  detail: {};
-}
-
-export interface LegendDownloadEvent extends CustomEvent {
-  detail: {};
-}
-
-export interface LegendSettings {
-  includeOthers: boolean;
-  includeShapes: boolean;
-}
-
 export interface LegendDataInput {
   features?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
 }
 
 export type LegendSortMode = 'size' | 'size-asc' | 'alpha' | 'alpha-desc';
+
+export interface LegendPersistedSettings {
+  maxVisibleValues: number;
+  includeOthers: boolean;
+  includeShapes: boolean;
+  shapeSize: number;
+  sortMode: LegendSortMode;
+  hiddenValues: string[];
+  manualOtherValues: string[];
+  zOrderMapping: Record<string, number>;
+}

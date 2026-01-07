@@ -1,5 +1,12 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import {
+  generateDatasetHash,
+  buildStorageKey,
+  getStorageItem,
+  setStorageItem,
+  removeStorageItem,
+} from '@protspace/utils';
 
 // Import types and configuration
 import { LEGEND_DEFAULTS, LEGEND_STYLES, FIRST_NUMBER_SORT_FEATURES } from './config';
@@ -15,6 +22,7 @@ import type {
   OtherItem,
   ScatterplotElement,
   ScatterplotData,
+  LegendPersistedSettings,
 } from './types';
 
 @customElement('protspace-legend')
@@ -68,13 +76,32 @@ export class ProtspaceLegend extends LitElement {
 
   @state() private _hiddenValues: string[] = [];
   @state() private _scatterplotElement: Element | null = null;
+  @state() private _datasetHash: string = '';
+  @state() private _settingsLoaded: boolean = false;
 
   updated(changedProperties: Map<string, unknown>) {
-    // If data or selectedFeature changed, update featureData
+    // Update dataset hash when protein IDs change
+    if (changedProperties.has('proteinIds') && this.proteinIds.length > 0) {
+      this._updateDatasetHash(this.proteinIds);
+    }
+
+    // If data or selectedFeature changed, update featureData and load persisted settings
     if (changedProperties.has('data') || changedProperties.has('selectedFeature')) {
       this._updateFeatureDataFromData();
-      this.manualOtherValues = [];
       this._ensureSortModeDefaults();
+
+      // Load persisted settings for this dataset+feature combination
+      // Only load if we have a dataset hash and haven't loaded settings yet for this feature
+      if (this._datasetHash && this.selectedFeature && !this._settingsLoaded) {
+        this._loadPersistedSettings();
+      } else if (changedProperties.has('selectedFeature') && this._datasetHash) {
+        // Feature changed - reset settings loaded flag and load new settings
+        this._settingsLoaded = false;
+        this._loadPersistedSettings();
+      } else {
+        // No persisted settings - reset to defaults
+        this.manualOtherValues = [];
+      }
     }
 
     if (
@@ -87,6 +114,11 @@ export class ProtspaceLegend extends LitElement {
       changedProperties.has('includeShapes')
     ) {
       this.updateLegendItems();
+
+      // Apply pending z-order after legend items are created
+      if (Object.keys(this._pendingZOrderMapping).length > 0) {
+        this._applyPendingZOrder();
+      }
     }
   }
 
@@ -193,19 +225,13 @@ export class ProtspaceLegend extends LitElement {
     // apply sorting preferences
     this.featureSortModes = { ...this.settingsFeatureSortModes };
     this.showSettingsDialog = false;
-    this.manualOtherValues = [];
-    this._hiddenValues = [];
+    // Note: We preserve _hiddenValues and manualOtherValues across settings changes
+    // Only clear legendItems to force recalculation with new settings
     this.legendItems = [];
 
     this._removeGlobalKeyboardListener();
 
-    if (
-      this.autoHide &&
-      this._scatterplotElement &&
-      'hiddenFeatureValues' in this._scatterplotElement
-    ) {
-      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
-    }
+    // Recalculate legend items (will reapply hidden values)
     this.updateLegendItems();
     this.requestUpdate();
 
@@ -226,11 +252,74 @@ export class ProtspaceLegend extends LitElement {
         enableDuplicateStackUI: this.settingsEnableDuplicateStackUI,
       };
     }
+
+    // Persist settings to localStorage
+    this._persistSettings();
   }
 
   private _handleSettingsClose() {
     this.showSettingsDialog = false;
     this._removeGlobalKeyboardListener();
+  }
+
+  private _handleSettingsReset() {
+    // Remove persisted settings from localStorage
+    const key = this._getStorageKey();
+    if (key) {
+      removeStorageItem(key);
+    }
+
+    // Reset all settings to defaults
+    this.maxVisibleValues = LEGEND_DEFAULTS.maxVisibleValues;
+    this.includeOthers = LEGEND_DEFAULTS.includeOthers;
+    this.includeShapes = LEGEND_DEFAULTS.includeShapes;
+    this.shapeSize = LEGEND_DEFAULTS.symbolSize;
+
+    // Reset sort mode for current feature
+    const defaultSortMode = FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size';
+    this.featureSortModes = {
+      ...this.featureSortModes,
+      [this.selectedFeature]: defaultSortMode,
+    };
+
+    // Clear customizations
+    this._hiddenValues = [];
+    this.manualOtherValues = [];
+    this._pendingZOrderMapping = {};
+    this.legendItems = [];
+
+    // Close dialog
+    this.showSettingsDialog = false;
+    this._removeGlobalKeyboardListener();
+
+    // Clear scatterplot hidden values
+    if (
+      this.autoHide &&
+      this._scatterplotElement &&
+      'hiddenFeatureValues' in this._scatterplotElement
+    ) {
+      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
+    }
+
+    // Update scatterplot point size to default
+    if (this._scatterplotElement && 'config' in this._scatterplotElement) {
+      const baseSize = Math.max(
+        10,
+        Math.round(LEGEND_DEFAULTS.symbolSize * LEGEND_DEFAULTS.symbolSizeMultiplier),
+      );
+      const scatterplot = this._scatterplotElement as ScatterplotElement & {
+        config: Record<string, unknown>;
+      };
+      const currentConfig = scatterplot.config || {};
+      scatterplot.config = {
+        ...currentConfig,
+        pointSize: baseSize,
+      };
+    }
+
+    // Recalculate legend items with default settings
+    this.updateLegendItems();
+    this.requestUpdate();
   }
 
   private _setupAutoSync() {
@@ -369,6 +458,146 @@ export class ProtspaceLegend extends LitElement {
     this.featureSortModes = updated;
   }
 
+  /**
+   * Generates a storage key for the current dataset and feature.
+   */
+  private _getStorageKey(): string | null {
+    if (!this._datasetHash || !this.selectedFeature) {
+      return null;
+    }
+    return buildStorageKey('legend', this._datasetHash, this.selectedFeature);
+  }
+
+  /**
+   * Computes the dataset hash from protein IDs.
+   * Should be called when protein IDs change (new dataset loaded).
+   */
+  private _updateDatasetHash(proteinIds: string[]): void {
+    const newHash = generateDatasetHash(proteinIds);
+    if (newHash !== this._datasetHash) {
+      this._datasetHash = newHash;
+      this._settingsLoaded = false; // Reset so settings are loaded for new dataset
+    }
+  }
+
+  /**
+   * Loads persisted settings for the current dataset and feature.
+   * Returns default settings if none are found.
+   */
+  private _loadPersistedSettings(): void {
+    const key = this._getStorageKey();
+    if (!key) {
+      return;
+    }
+
+    const defaultSettings: LegendPersistedSettings = {
+      maxVisibleValues: LEGEND_DEFAULTS.maxVisibleValues,
+      includeOthers: LEGEND_DEFAULTS.includeOthers,
+      includeShapes: LEGEND_DEFAULTS.includeShapes,
+      shapeSize: LEGEND_DEFAULTS.symbolSize,
+      sortMode: FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size',
+      hiddenValues: [],
+      manualOtherValues: [],
+      zOrderMapping: {},
+    };
+
+    const saved = getStorageItem<LegendPersistedSettings>(key, defaultSettings);
+
+    // Apply persisted settings
+    this.maxVisibleValues = saved.maxVisibleValues;
+    this.includeOthers = saved.includeOthers;
+    this.includeShapes = saved.includeShapes;
+    this.shapeSize = saved.shapeSize;
+    this._hiddenValues = saved.hiddenValues;
+    this.manualOtherValues = saved.manualOtherValues;
+
+    // Apply sort mode for current feature
+    this.featureSortModes = {
+      ...this.featureSortModes,
+      [this.selectedFeature]: saved.sortMode,
+    };
+
+    // Store z-order mapping to apply after legend items are created
+    this._pendingZOrderMapping = saved.zOrderMapping;
+    this._settingsLoaded = true;
+
+    // Update scatterplot point size if element exists
+    if (this._scatterplotElement && 'config' in this._scatterplotElement) {
+      const baseSize = Math.max(
+        10,
+        Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier),
+      );
+      const scatterplot = this._scatterplotElement as ScatterplotElement & {
+        config: Record<string, unknown>;
+      };
+      const currentConfig = scatterplot.config || {};
+      scatterplot.config = {
+        ...currentConfig,
+        pointSize: baseSize,
+      };
+    }
+  }
+
+  // Temporary storage for z-order mapping to apply after legend items are created
+  private _pendingZOrderMapping: Record<string, number> = {};
+
+  /**
+   * Applies pending z-order mapping to legend items after they are created.
+   */
+  private _applyPendingZOrder(): void {
+    if (Object.keys(this._pendingZOrderMapping).length === 0 || this.legendItems.length === 0) {
+      return;
+    }
+
+    // Apply z-order from persisted mapping
+    const hasMapping = this.legendItems.some(
+      (item) => item.value !== null && this._pendingZOrderMapping[item.value] !== undefined,
+    );
+
+    if (hasMapping) {
+      this.legendItems = this.legendItems.map((item) => {
+        if (item.value !== null && this._pendingZOrderMapping[item.value] !== undefined) {
+          return { ...item, zOrder: this._pendingZOrderMapping[item.value] };
+        }
+        return item;
+      });
+    }
+
+    // Clear pending mapping after applying
+    this._pendingZOrderMapping = {};
+  }
+
+  /**
+   * Persists current settings to localStorage.
+   */
+  private _persistSettings(): void {
+    const key = this._getStorageKey();
+    if (!key) {
+      return;
+    }
+
+    // Build z-order mapping from current legend items
+    const zOrderMapping: Record<string, number> = {};
+    this.legendItems.forEach((item) => {
+      if (item.value !== null) {
+        zOrderMapping[item.value] = item.zOrder;
+      }
+    });
+
+    const settings: LegendPersistedSettings = {
+      maxVisibleValues: this.maxVisibleValues,
+      includeOthers: this.includeOthers,
+      includeShapes: this.includeShapes,
+      shapeSize: this.shapeSize,
+      sortMode: this.featureSortModes[this.selectedFeature] ?? 'size',
+      hiddenValues: this._hiddenValues,
+      manualOtherValues: this.manualOtherValues,
+      zOrderMapping,
+    };
+
+    setStorageItem(key, settings);
+  }
+
   private _syncWithScatterplot() {
     if (!this._scatterplotElement || !('getCurrentData' in this._scatterplotElement)) {
       return;
@@ -442,8 +671,15 @@ export class ProtspaceLegend extends LitElement {
       effectiveIncludeShapes,
     );
 
-    // Set items state
-    this.legendItems = legendItems;
+    // Apply persisted hidden values to legend items' visibility
+    if (this._hiddenValues.length > 0) {
+      this.legendItems = legendItems.map((item) => ({
+        ...item,
+        isVisible: !this._hiddenValues.includes(item.value === null ? 'null' : item.value!),
+      }));
+    } else {
+      this.legendItems = legendItems;
+    }
     this.otherItems = otherItems;
 
     // Dispatch z-order change to update scatterplot rendering order
@@ -464,6 +700,30 @@ export class ProtspaceLegend extends LitElement {
       const isMultilabel = this._isMultilabelFeature();
       const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
       (this._scatterplotElement as ScatterplotElement).useShapes = effectiveIncludeShapes;
+    }
+
+    // Sync hidden values to scatterplot
+    this._syncHiddenValuesToScatterplot();
+  }
+
+  /**
+   * Syncs the current hidden values to the scatterplot element.
+   */
+  private _syncHiddenValuesToScatterplot(): void {
+    if (
+      !this.autoHide ||
+      !this._scatterplotElement ||
+      !('hiddenFeatureValues' in this._scatterplotElement)
+    ) {
+      return;
+    }
+
+    const expandedHidden = this._expandHiddenValues(this._hiddenValues);
+    (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [...expandedHidden];
+
+    if ('otherFeatureValues' in this._scatterplotElement) {
+      (this._scatterplotElement as ScatterplotElement).otherFeatureValues =
+        this._computeOtherConcreteValues();
     }
   }
 
@@ -517,6 +777,9 @@ export class ProtspaceLegend extends LitElement {
         composed: true,
       }),
     );
+
+    // Persist visibility changes
+    this._persistSettings();
 
     this.requestUpdate();
   }
@@ -575,6 +838,9 @@ export class ProtspaceLegend extends LitElement {
         composed: true,
       }),
     );
+
+    // Persist visibility changes
+    this._persistSettings();
 
     this.requestUpdate();
   }
@@ -642,6 +908,9 @@ export class ProtspaceLegend extends LitElement {
             composed: true,
           }),
         );
+
+        // Persist manual other values
+        this._persistSettings();
       }
     }
 
@@ -663,6 +932,9 @@ export class ProtspaceLegend extends LitElement {
         composed: true,
       }),
     );
+
+    // Persist changes
+    this._persistSettings();
 
     this.requestUpdate();
   }
@@ -687,6 +959,10 @@ export class ProtspaceLegend extends LitElement {
 
     // Notify parent of z-order change
     this._dispatchZOrderChange();
+
+    // Persist z-order changes
+    this._persistSettings();
+
     this.requestUpdate();
   }
 
@@ -762,6 +1038,10 @@ export class ProtspaceLegend extends LitElement {
 
     this.legendItems = reordered.map((item, idx) => ({ ...item, zOrder: idx }));
     this._dispatchZOrderChange();
+
+    // Persist z-order changes
+    this._persistSettings();
+
     this.requestUpdate();
   }
 
@@ -812,6 +1092,9 @@ export class ProtspaceLegend extends LitElement {
         bubbles: true,
       }),
     );
+
+    // Persist extracted values
+    this._persistSettings();
 
     this.requestUpdate();
   }
@@ -1196,6 +1479,13 @@ export class ProtspaceLegend extends LitElement {
           </div>
 
           <div class="modal-footer">
+            <button
+              class="modal-reset-button"
+              @click=${() => this._handleSettingsReset()}
+              title="Reset all settings to defaults and clear saved preferences"
+            >
+              Reset
+            </button>
             <button class="modal-close-button" @click=${onClose}>Cancel</button>
             <button class="extract-button" @click=${onSave}>Save</button>
           </div>

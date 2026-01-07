@@ -516,19 +516,11 @@ export const legendStyles = css`
     padding-left: 2rem;
   }
 
-  @media (prefers-color-scheme: dark) {
-  }
-
   .other-items-list {
     border: 1px solid var(--legend-border);
     border-radius: 0.375rem;
     margin-bottom: 1rem;
     overflow-y: auto;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .other-items-list {
-    }
   }
 
   .other-item {
@@ -546,13 +538,6 @@ export const legendStyles = css`
 
   .other-item:hover {
     background: var(--legend-hover-bg);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .other-item {
-    }
-    .other-item:hover {
-    }
   }
 
   .other-item-info {
@@ -593,6 +578,25 @@ export const legendStyles = css`
     padding-top: 12px;
     border-top: 1px solid var(--legend-border);
     margin-top: 8px;
+  }
+
+  .modal-reset-button {
+    background: transparent;
+    border: 1px solid #dc2626;
+    color: #dc2626;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+    margin-inline-end: auto;
+  }
+
+  .modal-reset-button:hover {
+    background: #dc2626;
+    color: white;
+    box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
   }
 
   .modal-close-button {
