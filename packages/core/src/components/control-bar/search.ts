@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { searchStyles } from './search.styles';
+import { isMacOrIos } from '@protspace/utils';
 
 /**
  * Protein search component with autocomplete suggestions and multi-select state (no chips UI)
@@ -33,7 +34,12 @@ export class ProtspaceProteinSearch extends LitElement {
             @focus=${this._onInputFocus}
             @paste=${this._onPaste}
           />
+
+          <div class="search-keyboard-shortcut-hint">
+            <kbd> ${isMacOrIos() ? html`⌘K` : html`^K`} </kbd>
+          </div>
         </div>
+
         ${this.searchSuggestions.length > 0 && (this.searchQuery || this.isInputFocused)
           ? html`
               <div class="search-suggestions">
@@ -65,6 +71,23 @@ export class ProtspaceProteinSearch extends LitElement {
       </div>
     `;
   }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener('keydown', this._handleBodyKeydown);
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    window.removeEventListener('keydown', this._handleBodyKeydown);
+  }
+
+  private _handleBodyKeydown = (event: KeyboardEvent) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+      event.preventDefault();
+      this._focusSearchInput();
+    }
+  };
 
   private _focusSearchInput() {
     const input = this.shadowRoot?.querySelector(
@@ -116,6 +139,8 @@ export class ProtspaceProteinSearch extends LitElement {
         this.highlightedSuggestionIndex = prev;
       }
     } else if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
       this.searchSuggestions = [];
       this.highlightedSuggestionIndex = -1;
       this.searchQuery = '';
