@@ -63,6 +63,7 @@ export const LEGEND_DEFAULTS = {
   autoSyncDelay: 100,
   includeOthers: true,
   includeShapes: false,
+  enableDuplicateStackUI: false,
 } as const;
 
 export const LEGEND_STYLES = {
