@@ -404,15 +404,13 @@ export class ProtSpaceExporter {
     const baseHeaderHeight = 50;
     const baseItemHeight = 44;
     const baseSymbolSize = 18;
-    const baseRightPadding = 8;
-    const baseHeaderFont = 16;
-    const baseItemFont = 14;
+    const baseHeaderFont = 20;
+    const baseItemFont = 18;
 
     const padding = basePadding * scaleFactor;
     const headerHeight = baseHeaderHeight * scaleFactor;
     const itemHeight = baseItemHeight * scaleFactor;
     const symbolSize = baseSymbolSize * scaleFactor;
-    const rightPaddingForCount = baseRightPadding * scaleFactor;
     const headerFontSize = baseHeaderFont * scaleFactor;
     const itemFontSize = baseItemFont * scaleFactor;
     const bg = options.backgroundColor || '#ffffff';
@@ -465,10 +463,11 @@ export class ProtSpaceExporter {
       ctx.fillText(it.value, padding + symbolSize + textOffset, cy);
 
       const countStr = String(it.count);
-      const countTextWidth = ctx.measureText(countStr).width;
-      ctx.fillStyle = '#4b5563';
       ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
-      ctx.fillText(countStr, canvas.width / scaleX - rightPaddingForCount - countTextWidth, cy);
+      ctx.fillStyle = '#4b5563';
+      const countX =
+        padding + symbolSize + textOffset + ctx.measureText(it.value).width + 12 * scaleFactor;
+      ctx.fillText(countStr, countX, cy);
 
       y += itemHeight;
     }
@@ -698,10 +697,8 @@ export class ProtSpaceExporter {
       format: 'a4',
     });
 
-    const exportTitle = options.exportName || 'ProtSpace Visualization';
-    const exportDate = new Date().toISOString().replace('T', ' ').replace(/\..+$/, '');
     pdf.setProperties({
-      title: exportTitle,
+      title: 'ProtSpace Visualization',
       subject: 'ProtSpace export',
       author: 'ProtSpace',
       creator: 'ProtSpace',
@@ -710,25 +707,11 @@ export class ProtSpaceExporter {
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
     const margin = 20;
-    const headerHeight = 15;
-    const footerHeight = 12;
     const contentLeft = margin;
-    const contentTop = margin + headerHeight;
+    const contentTop = margin;
     const contentWidth = pdfWidth - 2 * margin;
-    const contentHeight = pdfHeight - 2 * margin - headerHeight - footerHeight;
+    const contentHeight = pdfHeight - 2 * margin;
     const gap = 12;
-
-    pdf.setFontSize(16);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(30, 30, 30);
-    pdf.text(exportTitle, contentLeft, margin + 10);
-    pdf.setFontSize(9);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(120, 120, 120);
-    const origin = (typeof window !== 'undefined' && window?.location?.origin) || '';
-    pdf.text(`${exportDate}${origin ? `  •  ${origin}` : ''}`, pdfWidth - margin, margin + 10, {
-      align: 'right',
-    });
 
     const legendTargetWidth = (contentWidth - gap) * legendWidthRatio;
     const scatterTargetWidth = contentWidth - gap - legendTargetWidth;
@@ -750,12 +733,6 @@ export class ProtSpaceExporter {
     const xLegend = xScatter + sW + gap;
     pdf.addImage(scatterImg, 'PNG', xScatter, y, sW, sH);
     pdf.addImage(legendImg, 'PNG', xLegend, y, lW, lH);
-
-    pdf.setFontSize(9);
-    pdf.setTextColor(120, 120, 120);
-    pdf.text('Page 1 of 1', pdfWidth - margin, pdfHeight - margin, {
-      align: 'right',
-    });
 
     const dateForFile = new Date().toISOString().replace(/[:T]/g, '-').replace(/\..+$/, '');
     const fileName = options.exportName
