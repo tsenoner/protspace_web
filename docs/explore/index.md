@@ -19,15 +19,15 @@ The ProtSpace Explore page provides an interactive environment for visualizing a
 
 The control bar contains:
 
-1. **Projection dropdown** - Switch between PCA, UMAP, t-SNE, etc.
-2. **Color By dropdown** - Change how points are colored by annotation
-3. **Search box** - Find specific proteins by ID
-4. **Select button** - Enable box selection mode
-5. **Clear button** - Clear current selection
-6. **Isolate button** - Isolate current selection
-7. **Filter button** - Filter data by annotation values
+1. **Projection dropdown** - Switch between PCA, UMAP, t-SNE
+2. **Color By dropdown** - Color points by annotation
+3. **Search box** - Find proteins by ID
+4. **Select button** - Box selection mode
+5. **Clear button** - Clear selection
+6. **Isolate button** - Hide unselected proteins
+7. **Filter button** - Filter by annotation values
 8. **Export button** - Save images or data
-9. **Import button** - Load a `.parquetbundle` file
+9. **Import button** - Load `.parquetbundle` file
 
 ## Scatterplot
 
@@ -41,7 +41,9 @@ The main visualization shows your proteins as points in 2D space. Points close t
 - **Drag** to pan around
 - **Click** a point to select it
 - **⌘/Ctrl + click** to add to selection
-- **Double-click** canvas to reset view
+- **Double-click** background to reset view
+- **Escape** to clear selection / exit selection mode
+- **⌘/Ctrl + K** to focus search
 
 ## Legend
 
@@ -50,7 +52,7 @@ The main visualization shows your proteins as points in 2D space. Points close t
 The legend shows the current coloring scheme:
 
 - Click labels to hide/show categories
-- Drag labels to reorder (changes z-order in canvas)
+- Drag labels to reorder (changes drawing order in the scatterplot)
 - Use the settings cog for advanced options
 
 ## Structure Viewer

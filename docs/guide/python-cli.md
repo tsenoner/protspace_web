@@ -64,8 +64,8 @@ The `identifier` column must match protein IDs in your embeddings file.
 
 Methods require a dimension suffix: `2` for 2D, `3` for 3D.
 
-::: warning
-`pca` alone throws an error. Use `pca2` or `pca3`.
+::: warning Dimension Suffix Required
+Specify `pca2` or `pca3`, not `pca` alone - the dimension suffix is mandatory.
 :::
 
 | Method | 2D        | 3D        | Description                            |
@@ -76,7 +76,9 @@ Methods require a dimension suffix: `2` for 2D, `3` for 3D.
 | PaCMAP | `pacmap2` | `pacmap3` | Pairwise Controlled Manifold Approx.   |
 | MDS    | `mds2`    | `mds3`    | Multidimensional Scaling               |
 
-**Use 2D projections** - ProtSpace is optimized for 2D visualization.
+::: tip
+ProtSpace is optimized for 2D visualization - prefer `*2` methods over `*3`.
+:::
 
 ## More Info
 

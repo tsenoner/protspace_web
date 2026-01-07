@@ -1,5 +1,5 @@
 import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property, query, state } from 'lit/decorators.js';
 
 // Import types and configuration
 import { LEGEND_DEFAULTS, LEGEND_STYLES, FIRST_NUMBER_SORT_FEATURES } from './config';
@@ -55,9 +55,6 @@ export class ProtspaceLegend extends LitElement {
   @state() private featureSortModes: Record<string, LegendSortMode> = {};
   @state() private settingsFeatureSortModes: Record<string, LegendSortMode> = {};
 
-  // Keyboard event listener for settings dialog
-  private _settingsDialogKeydownHandler?: (e: KeyboardEvent) => void;
-
   // Auto-sync properties
   @property({ type: String, attribute: 'scatterplot-selector' })
   scatterplotSelector: string = LEGEND_DEFAULTS.scatterplotSelector;
@@ -69,7 +66,28 @@ export class ProtspaceLegend extends LitElement {
   @state() private _hiddenValues: string[] = [];
   @state() private _scatterplotElement: Element | null = null;
 
+  @query('#legend-settings-dialog')
+  private _settingsDialogEl?: HTMLDivElement;
+
+  private _onWindowKeydownCapture = (e: KeyboardEvent) => {
+    if (!this.showSettingsDialog) return;
+
+    if (e.key === 'Escape') {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      this._handleSettingsClose();
+    }
+  };
+
   updated(changedProperties: Map<string, unknown>) {
+    if (changedProperties.has('showSettingsDialog')) {
+      if (this.showSettingsDialog) {
+        window.addEventListener('keydown', this._onWindowKeydownCapture, true);
+      } else {
+        window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
+      }
+    }
+
     // If data or selectedFeature changed, update featureData
     if (changedProperties.has('data') || changedProperties.has('selectedFeature')) {
       this._updateFeatureDataFromData();
@@ -140,6 +158,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   disconnectedCallback() {
+    window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
     super.disconnectedCallback();
 
     if (this._scatterplotElement) {
@@ -151,36 +170,6 @@ export class ProtspaceLegend extends LitElement {
         'feature-change',
         this._handleFeatureChange.bind(this),
       );
-    }
-
-    // Clean up keyboard listener if component is disconnected while dialog is open
-    this._removeGlobalKeyboardListener();
-  }
-
-  private _addGlobalKeyboardListener() {
-    if (this._settingsDialogKeydownHandler) {
-      this._removeGlobalKeyboardListener();
-    }
-
-    this._settingsDialogKeydownHandler = (e: KeyboardEvent) => {
-      if (!this.showSettingsDialog) return;
-
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        this._handleSettingsSave();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        this._handleSettingsClose();
-      }
-    };
-
-    document.addEventListener('keydown', this._settingsDialogKeydownHandler);
-  }
-
-  private _removeGlobalKeyboardListener() {
-    if (this._settingsDialogKeydownHandler) {
-      document.removeEventListener('keydown', this._settingsDialogKeydownHandler);
-      this._settingsDialogKeydownHandler = undefined;
     }
   }
 
@@ -196,8 +185,6 @@ export class ProtspaceLegend extends LitElement {
     this.manualOtherValues = [];
     this._hiddenValues = [];
     this.legendItems = [];
-
-    this._removeGlobalKeyboardListener();
 
     if (
       this.autoHide &&
@@ -230,7 +217,14 @@ export class ProtspaceLegend extends LitElement {
 
   private _handleSettingsClose() {
     this.showSettingsDialog = false;
-    this._removeGlobalKeyboardListener();
+  }
+
+  private _handleDialogKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      this._handleSettingsSave();
+    }
   }
 
   private _setupAutoSync() {
@@ -838,7 +832,7 @@ export class ProtspaceLegend extends LitElement {
     return values;
   }
 
-  private handleCustomize() {
+  private async handleCustomize() {
     // Initialize settings value from current maxVisibleValues
     this.settingsMaxVisibleValues = this.maxVisibleValues;
     this.settingsIncludeOthers = this.includeOthers;
@@ -857,15 +851,16 @@ export class ProtspaceLegend extends LitElement {
     this.settingsEnableDuplicateStackUI = !!scatterplot?.config?.enableDuplicateStackUI;
     this.showSettingsDialog = true;
 
-    // Add global keyboard listener for Enter/Escape when dialog opens
-    this._addGlobalKeyboardListener();
-
     // Keep event for backward compatibility
     this.dispatchEvent(
       new CustomEvent('legend-customize', {
         bubbles: true,
       }),
     );
+
+    this.requestUpdate();
+    await this.updateComplete;
+    this._settingsDialogEl?.focus();
   }
 
   private renderOtherDialog() {
@@ -1048,8 +1043,15 @@ export class ProtspaceLegend extends LitElement {
     }
 
     return html`
-      <div class="modal-overlay" @click=${onClose}>
-        <div class="modal-content" @click=${(e: Event) => e.stopPropagation()}>
+      <div class="modal-overlay" @click=${onClose} @keydown=${this._handleDialogKeydown}>
+        <div
+          id="legend-settings-dialog"
+          class="modal-content"
+          tabindex="-1"
+          @click=${(e: Event) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+        >
           <div class="modal-header">
             <h3 class="modal-title">Legend settings</h3>
             <button class="close-button" @click=${onClose}>
