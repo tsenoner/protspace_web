@@ -143,7 +143,9 @@ export class ProtSpaceExporter {
     const legendExportState = this.readLegendExportState();
     const featureNameFromLegend = legendExportState?.feature;
 
-    const targetLegendWidth = Math.round(scatterCanvas.width * ProtSpaceExporter.LEGEND_WIDTH_RATIO);
+    const targetLegendWidth = Math.round(
+      scatterCanvas.width * ProtSpaceExporter.LEGEND_WIDTH_RATIO,
+    );
 
     // Calculate minimum required width for legend content
     const minRequiredWidth = this.calculateLegendMinWidth(
