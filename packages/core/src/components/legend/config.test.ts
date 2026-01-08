@@ -76,7 +76,7 @@ describe('config', () => {
     });
 
     it('all generators produce strings', () => {
-      for (const [name, generator] of Object.entries(SHAPE_PATH_GENERATORS)) {
+      for (const [, generator] of Object.entries(SHAPE_PATH_GENERATORS)) {
         const path = generator(testSize);
         expect(typeof path).toBe('string');
         expect(path.length).toBeGreaterThan(0);

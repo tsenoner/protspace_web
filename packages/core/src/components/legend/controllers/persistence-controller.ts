@@ -141,6 +141,15 @@ export class PersistenceController implements ReactiveController {
   }
 
   /**
+   * Check if there are persisted settings for current dataset/feature
+   */
+  hasPersistedSettings(): boolean {
+    const key = this._getStorageKey();
+    if (!key) return false;
+    return localStorage.getItem(key) !== null;
+  }
+
+  /**
    * Remove persisted settings for current dataset/feature
    */
   removeSettings(): void {

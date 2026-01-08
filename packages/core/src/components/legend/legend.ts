@@ -823,6 +823,7 @@ export class ProtspaceLegend extends LitElement {
       selectedFeature: this.selectedFeature,
       featureSortModes: this._dialogSettings.featureSortModes,
       isMultilabelFeature: this._isMultilabelFeature(),
+      hasPersistedSettings: this._persistenceController.hasPersistedSettings(),
     };
 
     const callbacks: SettingsDialogCallbacks = {

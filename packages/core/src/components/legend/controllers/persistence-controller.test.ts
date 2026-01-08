@@ -1,6 +1,21 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ReactiveControllerHost } from 'lit';
 import { PersistenceController, type PersistenceCallbacks } from './persistence-controller';
+import type { LegendItem } from '../types';
+
+/**
+ * Creates a test legend item with required properties
+ */
+function createTestItem(value: string | null, zOrder: number): LegendItem {
+  return {
+    value,
+    zOrder,
+    color: '#000000',
+    shape: 'circle',
+    count: 1,
+    isVisible: true,
+  };
+}
 
 // Mock the @protspace/utils module
 vi.mock('@protspace/utils', () => ({
@@ -311,6 +326,64 @@ describe('PersistenceController', () => {
     });
   });
 
+  describe('hasPersistedSettings', () => {
+    const mockGetItem = vi.fn();
+    const originalLocalStorage = global.localStorage;
+
+    beforeEach(() => {
+      // Mock localStorage for this test suite
+      Object.defineProperty(global, 'localStorage', {
+        value: {
+          getItem: mockGetItem,
+          setItem: vi.fn(),
+          removeItem: vi.fn(),
+          clear: vi.fn(),
+          length: 0,
+          key: vi.fn(),
+        },
+        configurable: true,
+      });
+      mockGetItem.mockReset();
+    });
+
+    afterEach(() => {
+      Object.defineProperty(global, 'localStorage', {
+        value: originalLocalStorage,
+        configurable: true,
+      });
+    });
+
+    it('returns false without storage key', () => {
+      expect(controller.hasPersistedSettings()).toBe(false);
+    });
+
+    it('returns false when no item in localStorage', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      mockGetItem.mockReturnValue(null);
+
+      expect(controller.hasPersistedSettings()).toBe(false);
+    });
+
+    it('returns true when item exists in localStorage', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      mockGetItem.mockReturnValue('{"some": "data"}');
+
+      expect(controller.hasPersistedSettings()).toBe(true);
+    });
+
+    it('checks the correct storage key', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      mockGetItem.mockReturnValue(null);
+
+      controller.hasPersistedSettings();
+
+      expect(mockGetItem).toHaveBeenCalledWith('legend_hash_protein1_feature1');
+    });
+  });
+
   describe('pendingZOrderMapping', () => {
     it('starts empty', () => {
       expect(controller.pendingZOrderMapping).toEqual({});
@@ -366,10 +439,7 @@ describe('PersistenceController', () => {
 
   describe('applyPendingZOrder', () => {
     it('returns items unchanged when no pending mapping', () => {
-      const items = [
-        { value: 'cat1', zOrder: 0 },
-        { value: 'cat2', zOrder: 1 },
-      ] as any[];
+      const items: LegendItem[] = [createTestItem('cat1', 0), createTestItem('cat2', 1)];
 
       const result = controller.applyPendingZOrder(items);
       expect(result).toBe(items);
@@ -411,11 +481,11 @@ describe('PersistenceController', () => {
       });
       controller.loadSettings();
 
-      const items = [
-        { value: 'cat1', zOrder: 0 },
-        { value: 'cat2', zOrder: 1 },
-        { value: 'cat3', zOrder: 2 },
-      ] as any[];
+      const items: LegendItem[] = [
+        createTestItem('cat1', 0),
+        createTestItem('cat2', 1),
+        createTestItem('cat3', 2),
+      ];
 
       const result = controller.applyPendingZOrder(items);
 
@@ -440,7 +510,7 @@ describe('PersistenceController', () => {
       });
       controller.loadSettings();
 
-      const items = [{ value: 'cat1', zOrder: 0 }] as any[];
+      const items: LegendItem[] = [createTestItem('cat1', 0)];
       controller.applyPendingZOrder(items);
 
       expect(controller.hasPendingZOrder()).toBe(false);
@@ -462,7 +532,7 @@ describe('PersistenceController', () => {
       });
       controller.loadSettings();
 
-      const items = [{ value: 'differentCat', zOrder: 0 }] as any[];
+      const items: LegendItem[] = [createTestItem('differentCat', 0)];
       const result = controller.applyPendingZOrder(items);
 
       expect(result).toBe(items); // Returns original array
@@ -485,10 +555,7 @@ describe('PersistenceController', () => {
       });
       controller.loadSettings();
 
-      const items = [
-        { value: null, zOrder: 0 },
-        { value: 'cat1', zOrder: 1 },
-      ] as any[];
+      const items: LegendItem[] = [createTestItem(null, 0), createTestItem('cat1', 1)];
 
       const result = controller.applyPendingZOrder(items);
 

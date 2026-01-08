@@ -15,6 +15,7 @@ export interface SettingsDialogState {
   selectedFeature: string;
   featureSortModes: Record<string, LegendSortMode>;
   isMultilabelFeature: boolean;
+  hasPersistedSettings: boolean;
 }
 
 /**
@@ -222,16 +223,21 @@ function renderDialogHeader(callbacks: SettingsDialogCallbacks): TemplateResult 
 /**
  * Renders the dialog footer with action buttons
  */
-function renderDialogFooter(callbacks: SettingsDialogCallbacks): TemplateResult {
+function renderDialogFooter(
+  callbacks: SettingsDialogCallbacks,
+  hasPersistedSettings: boolean,
+): TemplateResult {
   return html`
     <div class="modal-footer">
-      <button
-        class="modal-reset-button"
-        @click=${callbacks.onReset}
-        title="Reset all settings to defaults and clear saved preferences"
-      >
-        Reset
-      </button>
+      ${hasPersistedSettings
+        ? html`<button
+            class="modal-reset-button"
+            @click=${callbacks.onReset}
+            title="Reset all settings to defaults and clear saved preferences"
+          >
+            Reset
+          </button>`
+        : nothing}
       <button class="modal-close-button" @click=${callbacks.onClose}>Cancel</button>
       <button class="extract-button" @click=${callbacks.onSave}>Save</button>
     </div>
@@ -295,7 +301,7 @@ export function renderSettingsDialog(
           ${renderCheckboxOptions(state, callbacks)} ${renderSortingSection(state, callbacks)}
         </div>
 
-        ${renderDialogFooter(callbacks)}
+        ${renderDialogFooter(callbacks, state.hasPersistedSettings)}
       </div>
     </div>
   `;
