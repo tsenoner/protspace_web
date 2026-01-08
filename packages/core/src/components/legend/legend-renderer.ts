@@ -1,7 +1,8 @@
 import type { TemplateResult } from 'lit';
 import { html } from 'lit';
 import type { LegendItem } from './types';
-import { SHAPE_PATH_GENERATORS, LEGEND_DEFAULTS, LEGEND_STYLES } from './config';
+import { LEGEND_DEFAULTS, LEGEND_STYLES } from './config';
+import { SHAPE_PATH_GENERATORS } from '@protspace/utils';
 
 /**
  * Utility class for rendering legend components

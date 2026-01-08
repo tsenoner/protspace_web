@@ -2,6 +2,8 @@
  * Export utilities for ProtSpace visualizations
  */
 
+import { SHAPE_PATH_GENERATORS, renderPathOnCanvas } from './shapes';
+
 // PDF generation libraries are imported dynamically for better browser compatibility
 declare const window: Window & typeof globalThis;
 
@@ -572,17 +574,20 @@ export class ProtSpaceExporter {
         ctx.restore();
       }
 
+      // Draw label (left-aligned)
       ctx.fillStyle = '#1f2937';
       ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
       ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
       const textOffset = 8 * scaleFactor;
       ctx.fillText(it.value, padding + symbolSize + textOffset, cy);
 
+      // Draw count (right-aligned)
       const countStr = String(it.count);
       ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
       ctx.fillStyle = '#4b5563';
-      const countX =
-        padding + symbolSize + textOffset + ctx.measureText(it.value).width + 12 * scaleFactor;
+      ctx.textAlign = 'right';
+      const countX = canvas.width - padding;
       ctx.fillText(countStr, countX, cy);
 
       y += itemHeight;
@@ -622,6 +627,9 @@ export class ProtSpaceExporter {
     }
   }
 
+  /**
+   * Draw a symbol on canvas using the same custom shapes as the legend component and WebGL renderer
+   */
   private drawCanvasSymbol(
     ctx: CanvasRenderingContext2D,
     shape: string,
@@ -630,70 +638,12 @@ export class ProtSpaceExporter {
     cy: number,
     size: number,
   ) {
-    const half = size / 2;
-    ctx.save();
-    switch ((shape || 'circle').toLowerCase()) {
-      case 'square': {
-        ctx.fillStyle = color || '#888';
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.rect(cx - half, cy - half, size, size);
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-      case 'triangle': {
-        ctx.fillStyle = color || '#888';
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - half);
-        ctx.lineTo(cx + half, cy + half);
-        ctx.lineTo(cx - half, cy + half);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-      case 'diamond': {
-        ctx.fillStyle = color || '#888';
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - half);
-        ctx.lineTo(cx + half, cy);
-        ctx.lineTo(cx, cy + half);
-        ctx.lineTo(cx - half, cy);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-      case 'cross':
-      case 'plus': {
-        ctx.strokeStyle = color || '#888';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - half * 0.8);
-        ctx.lineTo(cx, cy + half * 0.8);
-        ctx.moveTo(cx - half * 0.8, cy);
-        ctx.lineTo(cx + half * 0.8, cy);
-        ctx.stroke();
-        break;
-      }
-      default: {
-        ctx.fillStyle = color || '#888';
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(cx, cy, half, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-    }
-    ctx.restore();
+    const shapeKey = (shape || 'circle').toLowerCase();
+    const pathGenerator = SHAPE_PATH_GENERATORS[shapeKey] || SHAPE_PATH_GENERATORS.circle;
+    const pathString = pathGenerator(size);
+
+    // All shapes use the same rendering: filled with color, stroked with default stroke color
+    renderPathOnCanvas(ctx, pathString, cx, cy, color || '#888', '#394150', 1);
   }
 
   /**

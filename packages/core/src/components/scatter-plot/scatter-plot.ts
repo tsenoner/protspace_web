@@ -1209,7 +1209,7 @@ export class ProtspaceScatterplot extends LitElement {
     this._updateDuplicateOverlays();
   }
 
-  private _getPointShape(point: PlotDataPoint): d3.SymbolType {
+  private _getPointShape(point: PlotDataPoint): string {
     const getters = this._getStyleGetters();
     return getters.getPointShape(point);
   }
