@@ -59,6 +59,18 @@ export const legendStyles = css`
     flex-shrink: 1;
   }
 
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   .legend-header {
     display: flex;
     justify-content: space-between;
@@ -155,6 +167,16 @@ export const legendStyles = css`
     box-shadow: 0 0 0 2px var(--legend-selected-ring);
   }
 
+  .legend-item:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--legend-selected-ring);
+  }
+
+  .legend-item:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--legend-selected-ring);
+  }
+
   /* Drag-and-drop visual hints */
   .legend-item.dragging {
     opacity: 0.8;
@@ -187,6 +209,14 @@ export const legendStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .mr-2 {
+    margin-right: 0.5rem;
+  }
+
+  .legend-item.extracted {
+    border-left: 3px solid var(--legend-extracted-border);
   }
 
   .legend-text {

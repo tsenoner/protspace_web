@@ -1,7 +1,7 @@
 import type { TemplateResult } from 'lit';
 import { html } from 'lit';
 import type { LegendItem } from './types';
-import { SHAPE_PATH_GENERATORS, LEGEND_DEFAULTS, LEGEND_STYLES } from './config';
+import { SHAPE_PATH_GENERATORS, LEGEND_DEFAULTS, LEGEND_STYLES, LEGEND_VALUES } from './config';
 
 /**
  * Utility class for rendering legend components
@@ -71,7 +71,7 @@ export class LegendRenderer {
     },
   ): TemplateResult {
     return html`
-      <div class="legend-header">
+      <div class="legend-header" part="header">
         <h3 class="legend-title">${title}</h3>
         <div class="legend-header-actions">
           ${actions.onReverse
@@ -124,14 +124,16 @@ export class LegendRenderer {
    */
   static renderLegendContent(
     sortedLegendItems: LegendItem[],
-    renderItemCallback: (item: LegendItem) => TemplateResult,
+    renderItemCallback: (item: LegendItem, index: number) => TemplateResult,
   ): TemplateResult {
     if (sortedLegendItems.length === 0) {
-      return html`<div class="legend-empty">No data available</div>`;
+      return html`<div class="legend-empty" part="empty">No data available</div>`;
     }
 
     return html`
-      <div class="legend-items">${sortedLegendItems.map((item) => renderItemCallback(item))}</div>
+      <div class="legend-items" part="items" role="listbox" aria-label="Legend items">
+        ${sortedLegendItems.map((item, index) => renderItemCallback(item, index))}
+      </div>
     `;
   }
 
@@ -170,8 +172,8 @@ export class LegendRenderer {
     size: number = LEGEND_DEFAULTS.symbolSize,
   ): TemplateResult {
     return html`
-      <div class="mr-2">
-        ${item.value === 'Other'
+      <div class="mr-2" part="symbol">
+        ${item.value === LEGEND_VALUES.OTHER
           ? this.renderSymbol('circle', '#888', size)
           : this.renderSymbol(
               includeShapes ? item.shape : 'circle',
@@ -188,21 +190,25 @@ export class LegendRenderer {
    */
   static renderItemText(item: LegendItem, otherItemsCount?: number): TemplateResult {
     const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
-    let displayText = item.value === null || isEmptyString ? 'N/A' : item.value;
+    let displayText = item.value === null || isEmptyString ? LEGEND_VALUES.NA_DISPLAY : item.value;
 
     // For "Other" items, append the number of categories if provided
-    if (item.value === 'Other' && otherItemsCount !== undefined && otherItemsCount > 0) {
+    if (
+      item.value === LEGEND_VALUES.OTHER &&
+      otherItemsCount !== undefined &&
+      otherItemsCount > 0
+    ) {
       displayText = `${displayText} (${otherItemsCount} categories)`;
     }
 
-    return html`<span class="legend-text">${displayText}</span>`;
+    return html`<span class="legend-text" part="text">${displayText}</span>`;
   }
 
   /**
    * Render item actions (like "view" button for "Other" category)
    */
   static renderItemActions(item: LegendItem, onViewOther: (e: Event) => void): TemplateResult {
-    if (item.value !== 'Other') {
+    if (item.value !== LEGEND_VALUES.OTHER) {
       return html``;
     }
 
@@ -228,16 +234,28 @@ export class LegendRenderer {
       onDrop: (e: DragEvent) => void;
       onDragEnd: () => void;
       onViewOther: (e: Event) => void;
+      onKeyDown?: (e: KeyboardEvent) => void;
     },
     includeShapes: boolean = true,
     symbolSize: number = LEGEND_DEFAULTS.symbolSize,
     otherItemsCount?: number,
+    itemIndex?: number,
   ): TemplateResult {
+    const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
+    const displayLabel =
+      item.value === null || isEmptyString ? LEGEND_VALUES.NA_DISPLAY : item.value;
+
     return html`
       <div
         class="${itemClasses}"
+        part="item"
+        role="option"
+        aria-selected="${item.isVisible}"
+        aria-label="${displayLabel}: ${item.count} items${!item.isVisible ? ' (hidden)' : ''}"
+        tabindex="${itemIndex === 0 ? '0' : '-1'}"
         @click=${eventHandlers.onClick}
         @dblclick=${eventHandlers.onDoubleClick}
+        @keydown=${eventHandlers.onKeyDown}
         draggable="true"
         @dragstart=${eventHandlers.onDragStart}
         @dragover=${eventHandlers.onDragOver}
@@ -250,7 +268,7 @@ export class LegendRenderer {
           ${this.renderItemText(item, otherItemsCount)}
           ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>
-        <span class="legend-count">${item.count}</span>
+        <span class="legend-count" part="count">${item.count}</span>
       </div>
     `;
   }

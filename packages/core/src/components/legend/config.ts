@@ -81,3 +81,25 @@ export const LEGEND_STYLES = {
 } as const;
 
 export const FIRST_NUMBER_SORT_FEATURES = new Set<string>(['length_fixed', 'length_quantile']);
+
+/** Magic string constants for legend values */
+export const LEGEND_VALUES = {
+  OTHER: 'Other',
+  /** Used for visual encoding special color lookup */
+  OTHERS: 'Others',
+  NULL_STRING: 'null',
+  NA_DISPLAY: 'N/A',
+} as const;
+
+/** Event name constants for legend component */
+export const LEGEND_EVENTS = {
+  ITEM_CLICK: 'legend-item-click',
+  ZORDER_CHANGE: 'legend-zorder-change',
+  COLORMAPPING_CHANGE: 'legend-colormapping-change',
+  CUSTOMIZE: 'legend-customize',
+  DOWNLOAD: 'legend-download',
+  ERROR: 'legend-error',
+  // External events the legend listens to
+  DATA_CHANGE: 'data-change',
+  FEATURE_CHANGE: 'feature-change',
+} as const;

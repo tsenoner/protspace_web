@@ -1,5 +1,26 @@
 import type { LegendItem, OtherItem, LegendSortMode } from './types';
 import { getVisualEncoding, SlotTracker } from './visual-encoding';
+import { LEGEND_VALUES } from './config';
+
+/**
+ * Context object for legend data processing.
+ * Each legend component should have its own context to avoid state conflicts.
+ */
+export interface LegendProcessorContext {
+  slotTracker: SlotTracker;
+  currentFeature: string | null;
+}
+
+/**
+ * Creates a new processor context for a legend instance.
+ * Each legend component should create its own context.
+ */
+export function createProcessorContext(): LegendProcessorContext {
+  return {
+    slotTracker: new SlotTracker(),
+    currentFeature: null,
+  };
+}
 
 /**
  * Processes legend data with slot-based visual encoding.
@@ -8,23 +29,41 @@ import { getVisualEncoding, SlotTracker } from './visual-encoding';
  * - Initial: slots 0, 1, 2, ... assigned by frequency (most frequent = slot 0)
  * - Subsequent: existing slots persist; only freed when items move to "Other"
  * - Extracted items reuse freed slots or get the next available
+ *
+ * Note: All methods that need slot tracking now require a context parameter
+ * to support multiple legend instances on the same page.
  */
 export class LegendDataProcessor {
-  private static slotTracker = new SlotTracker();
-  private static currentFeature: string | null = null;
-
-  private static resetIfFeatureChanged(featureName: string): void {
-    if (this.currentFeature !== featureName) {
-      this.slotTracker.reset();
-      this.currentFeature = featureName;
+  private static resetIfFeatureChanged(ctx: LegendProcessorContext, featureName: string): void {
+    if (ctx.currentFeature !== featureName) {
+      ctx.slotTracker.reset();
+      ctx.currentFeature = featureName;
     }
   }
 
   /**
-   * Get the slot tracker instance (for external access if needed).
+   * Creates a legend item extracted from the "Other" bucket.
+   * Uses the context's slot tracker to ensure consistent visual encoding.
    */
-  static getSlotTracker(): SlotTracker {
-    return this.slotTracker;
+  static createExtractedItem(
+    ctx: LegendProcessorContext,
+    value: string,
+    count: number,
+    zOrder: number,
+    shapesEnabled: boolean = false,
+  ): LegendItem {
+    const slot = ctx.slotTracker.getSlot(value);
+    const encoding = getVisualEncoding(slot, shapesEnabled, value);
+
+    return {
+      value,
+      color: encoding.color,
+      shape: encoding.shape,
+      count,
+      isVisible: true,
+      zOrder,
+      extractedFromOther: true,
+    };
   }
 
   static getFilteredIndices(
@@ -152,6 +191,7 @@ export class LegendDataProcessor {
   }
 
   static createLegendItems(
+    ctx: LegendProcessorContext,
     topItems: Array<[string | null, number]>,
     otherCount: number,
     isolationMode: boolean,
@@ -161,35 +201,37 @@ export class LegendDataProcessor {
   ): LegendItem[] {
     const existingZOrders = new Map<string | null, number>();
     existingLegendItems.forEach((item) => {
-      if (item.value !== 'Other' || item.extractedFromOther) {
+      if (item.value !== LEGEND_VALUES.OTHER || item.extractedFromOther) {
         existingZOrders.set(item.value, item.zOrder);
       }
     });
 
     // Get current visible category names
-    const visibleCategoryNames = topItems.map(([value]) => (value === null ? 'N/A' : value));
+    const visibleCategoryNames = topItems.map(([value]) =>
+      value === null ? LEGEND_VALUES.NA_DISPLAY : value,
+    );
 
-    if (this.slotTracker.isEmpty()) {
+    if (ctx.slotTracker.isEmpty()) {
       // Initial: assign slots by frequency order
-      this.slotTracker.reassignSlots(visibleCategoryNames);
+      ctx.slotTracker.reassignSlots(visibleCategoryNames);
     } else {
       // Subsequent: preserve slots, only free those that moved to Others
       const currentVisibleSet = new Set(visibleCategoryNames);
       const previousVisible = existingLegendItems
-        .filter((i) => i.value !== 'Other' && !i.extractedFromOther)
-        .map((i) => (i.value === null ? 'N/A' : i.value));
+        .filter((i) => i.value !== LEGEND_VALUES.OTHER && !i.extractedFromOther)
+        .map((i) => (i.value === null ? LEGEND_VALUES.NA_DISPLAY : i.value));
 
       for (const category of previousVisible) {
         if (!currentVisibleSet.has(category)) {
-          this.slotTracker.freeSlot(category);
+          ctx.slotTracker.freeSlot(category);
         }
       }
     }
 
     const items: LegendItem[] = topItems.map(([value, count], index) => {
-      const categoryName = value === null ? 'N/A' : value;
+      const categoryName = value === null ? LEGEND_VALUES.NA_DISPLAY : value;
       const zOrder = existingZOrders.get(value) ?? index;
-      const slot = this.slotTracker.getSlot(categoryName);
+      const slot = ctx.slotTracker.getSlot(categoryName);
       const encoding = getVisualEncoding(slot, shapesEnabled, categoryName);
 
       return {
@@ -203,11 +245,11 @@ export class LegendDataProcessor {
     });
 
     if (otherCount > 0 && includeOthers && !isolationMode) {
-      const existingOther = existingLegendItems.find((i) => i.value === 'Other');
-      const encoding = getVisualEncoding(-1, shapesEnabled, 'Others');
+      const existingOther = existingLegendItems.find((i) => i.value === LEGEND_VALUES.OTHER);
+      const encoding = getVisualEncoding(-1, shapesEnabled, LEGEND_VALUES.OTHERS);
 
       items.push({
-        value: 'Other',
+        value: LEGEND_VALUES.OTHER,
         color: encoding.color,
         shape: encoding.shape,
         count: otherCount,
@@ -230,7 +272,7 @@ export class LegendDataProcessor {
 
     if (nullEntry && !topItems.some(([v]) => v === null)) {
       const existingNull = existingLegendItems.find((i) => i.value === null);
-      const encoding = getVisualEncoding(-2, shapesEnabled, 'N/A');
+      const encoding = getVisualEncoding(-2, shapesEnabled, LEGEND_VALUES.NA_DISPLAY);
 
       items.push({
         value: null,
@@ -244,6 +286,7 @@ export class LegendDataProcessor {
   }
 
   static addExtractedItems(
+    ctx: LegendProcessorContext,
     items: LegendItem[],
     frequencyMap: Map<string | null, number>,
     existingLegendItems: LegendItem[],
@@ -258,7 +301,7 @@ export class LegendDataProcessor {
         frequencyMap.has(extractedItem.value)
       ) {
         const count = frequencyMap.get(extractedItem.value)!;
-        const slot = this.slotTracker.getSlot(extractedItem.value);
+        const slot = ctx.slotTracker.getSlot(extractedItem.value);
         const encoding = getVisualEncoding(slot, shapesEnabled, extractedItem.value);
 
         items.push({
@@ -275,6 +318,7 @@ export class LegendDataProcessor {
   }
 
   static processLegendItems(
+    ctx: LegendProcessorContext,
     featureName: string,
     featureValues: (string | null)[],
     proteinIds: string[],
@@ -287,7 +331,7 @@ export class LegendDataProcessor {
     sortMode: LegendSortMode = 'size',
     shapesEnabled: boolean = false,
   ): { legendItems: LegendItem[]; otherItems: OtherItem[] } {
-    this.resetIfFeatureChanged(featureName);
+    this.resetIfFeatureChanged(ctx, featureName);
 
     const manualOtherSet = new Set(manuallyOtherValues);
     const filteredIndices = this.getFilteredIndices(isolationMode, isolationHistory, proteinIds);
@@ -308,6 +352,7 @@ export class LegendDataProcessor {
     );
 
     const items = this.createLegendItems(
+      ctx,
       topItems,
       otherCount,
       isolationMode,
@@ -317,18 +362,20 @@ export class LegendDataProcessor {
     );
 
     this.addNullEntry(items, frequencyMap, topItems, existingLegendItems, shapesEnabled);
-    this.addExtractedItems(items, frequencyMap, existingLegendItems, shapesEnabled);
+    this.addExtractedItems(ctx, items, frequencyMap, existingLegendItems, shapesEnabled);
 
     if (includeOthers && !isolationMode) {
       const shownValues = new Set(
-        items.map((i) => i.value).filter((v): v is string => v !== null && v !== 'Other'),
+        items
+          .map((i) => i.value)
+          .filter((v): v is string => v !== null && v !== LEGEND_VALUES.OTHER),
       );
       const filteredOther = otherItems
         .filter((oi) => oi.value !== null)
         .filter((oi) => !shownValues.has(oi.value!));
       const newOtherCount = filteredOther.reduce((sum, oi) => sum + oi.count, 0);
 
-      const otherIdx = items.findIndex((i) => i.value === 'Other');
+      const otherIdx = items.findIndex((i) => i.value === LEGEND_VALUES.OTHER);
       if (otherIdx !== -1) {
         if (newOtherCount > 0) {
           items[otherIdx] = { ...items[otherIdx], count: newOtherCount };

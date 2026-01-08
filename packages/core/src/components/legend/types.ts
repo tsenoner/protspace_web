@@ -25,12 +25,45 @@ export interface LegendFeatureData {
   values: (string | null)[];
 }
 
-export interface ScatterplotElement extends Element {
-  getCurrentData(): ScatterplotData | null;
-  selectedFeature: string;
-  hiddenFeatureValues: string[];
-  otherFeatureValues?: string[];
-  useShapes?: boolean;
+// Note: IScatterplotElement in scatterplot-interface.ts is the canonical interface
+// for scatterplot element interactions with type guards.
+
+// ─────────────────────────────────────────────────────────────────
+// Custom Event Detail Types
+// ─────────────────────────────────────────────────────────────────
+
+/** Detail for legend-item-click event */
+export interface LegendItemClickEventDetail {
+  value: string | null;
+  action: 'toggle' | 'isolate' | 'extract' | 'merge-into-other';
+}
+
+/** Detail for legend-zorder-change event */
+export interface LegendZOrderChangeEventDetail {
+  zOrderMapping: Record<string, number>;
+}
+
+/** Detail for legend-colormapping-change event */
+export interface LegendColorMappingChangeEventDetail {
+  colorMapping: Record<string, string>;
+  shapeMapping: Record<string, string>;
+}
+
+/** Detail for legend-error event */
+export interface LegendErrorEventDetail {
+  message: string;
+  source: 'data-processing' | 'persistence' | 'scatterplot-sync' | 'rendering';
+  originalError?: Error;
+}
+
+/** Typed custom events for the legend component */
+export interface LegendEventMap {
+  'legend-item-click': CustomEvent<LegendItemClickEventDetail>;
+  'legend-zorder-change': CustomEvent<LegendZOrderChangeEventDetail>;
+  'legend-colormapping-change': CustomEvent<LegendColorMappingChangeEventDetail>;
+  'legend-customize': CustomEvent<void>;
+  'legend-download': CustomEvent<void>;
+  'legend-error': CustomEvent<LegendErrorEventDetail>;
 }
 
 export interface LegendDataInput {

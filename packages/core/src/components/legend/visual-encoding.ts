@@ -10,6 +10,7 @@
  */
 
 import { COLOR_SCHEMES } from '@protspace/utils';
+import { LEGEND_VALUES } from './config';
 
 const KELLYS_COLORS = COLOR_SCHEMES.kellys;
 const SHAPES = ['circle', 'square', 'diamond', 'plus', 'triangle-up', 'triangle-down'] as const;
@@ -22,8 +23,8 @@ export const SPECIAL_SLOTS = {
 
 /** Special colors for reserved categories */
 const SPECIAL_COLORS: Record<string, string> = {
-  Others: '#999999',
-  'N/A': '#DDDDDD',
+  [LEGEND_VALUES.OTHERS]: '#999999',
+  [LEGEND_VALUES.NA_DISPLAY]: '#DDDDDD',
 };
 
 export interface VisualEncoding {
@@ -85,10 +86,10 @@ export class SlotTracker {
    */
   getSlot(categoryName: string): number {
     // Special categories get fixed slots
-    if (categoryName === 'Others') {
+    if (categoryName === LEGEND_VALUES.OTHERS) {
       return SPECIAL_SLOTS.OTHERS;
     }
-    if (categoryName === 'N/A') {
+    if (categoryName === LEGEND_VALUES.NA_DISPLAY) {
       return SPECIAL_SLOTS.NA;
     }
 
@@ -114,7 +115,7 @@ export class SlotTracker {
    * The slot will be recycled for future use.
    */
   freeSlot(categoryName: string): void {
-    if (categoryName === 'Others' || categoryName === 'N/A') {
+    if (categoryName === LEGEND_VALUES.OTHERS || categoryName === LEGEND_VALUES.NA_DISPLAY) {
       return; // Special categories don't have freeable slots
     }
 
@@ -144,7 +145,11 @@ export class SlotTracker {
 
     // Assign slots 0, 1, 2, ... to visible items in order
     visibleCategories.forEach((category, index) => {
-      if (category !== 'Others' && category !== 'N/A' && category !== 'Other') {
+      if (
+        category !== LEGEND_VALUES.OTHERS &&
+        category !== LEGEND_VALUES.NA_DISPLAY &&
+        category !== LEGEND_VALUES.OTHER
+      ) {
         newSlots.set(category, index);
       }
     });
@@ -160,7 +165,8 @@ export class SlotTracker {
     // Update state
     this.slots = newSlots;
     this.nextSlot = visibleCategories.filter(
-      (c) => c !== 'Others' && c !== 'N/A' && c !== 'Other',
+      (c) =>
+        c !== LEGEND_VALUES.OTHERS && c !== LEGEND_VALUES.NA_DISPLAY && c !== LEGEND_VALUES.OTHER,
     ).length;
 
     // Freed slots are those beyond the visible count

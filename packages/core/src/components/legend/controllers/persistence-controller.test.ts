@@ -1,0 +1,499 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { ReactiveControllerHost } from 'lit';
+import { PersistenceController, type PersistenceCallbacks } from './persistence-controller';
+
+// Mock the @protspace/utils module
+vi.mock('@protspace/utils', () => ({
+  generateDatasetHash: vi.fn((ids: string[]) => `hash_${ids.join('_')}`),
+  buildStorageKey: vi.fn(
+    (prefix: string, hash: string, feature: string) => `${prefix}_${hash}_${feature}`,
+  ),
+  getStorageItem: vi.fn(),
+  setStorageItem: vi.fn(),
+  removeStorageItem: vi.fn(),
+}));
+
+import {
+  generateDatasetHash,
+  buildStorageKey,
+  getStorageItem,
+  setStorageItem,
+  removeStorageItem,
+} from '@protspace/utils';
+
+describe('PersistenceController', () => {
+  let controller: PersistenceController;
+  let mockHost: ReactiveControllerHost;
+  let mockCallbacks: PersistenceCallbacks;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    mockHost = {
+      addController: vi.fn(),
+      removeController: vi.fn(),
+      requestUpdate: vi.fn(),
+      updateComplete: Promise.resolve(true),
+    };
+
+    mockCallbacks = {
+      onSettingsLoaded: vi.fn(),
+      getLegendItems: vi.fn().mockReturnValue([]),
+      getHiddenValues: vi.fn().mockReturnValue([]),
+      getManualOtherValues: vi.fn().mockReturnValue([]),
+      getCurrentSettings: vi.fn().mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size' as const,
+        enableDuplicateStackUI: false,
+      }),
+    };
+
+    controller = new PersistenceController(mockHost, mockCallbacks);
+  });
+
+  describe('constructor', () => {
+    it('adds itself to the host controller', () => {
+      expect(mockHost.addController).toHaveBeenCalledWith(controller);
+    });
+  });
+
+  describe('hostConnected/hostDisconnected', () => {
+    it('hostConnected does not throw', () => {
+      expect(() => controller.hostConnected()).not.toThrow();
+    });
+
+    it('hostDisconnected does not throw', () => {
+      expect(() => controller.hostDisconnected()).not.toThrow();
+    });
+  });
+
+  describe('updateDatasetHash', () => {
+    it('returns true when hash changes', () => {
+      const result = controller.updateDatasetHash(['protein1', 'protein2']);
+      expect(result).toBe(true);
+      expect(generateDatasetHash).toHaveBeenCalledWith(['protein1', 'protein2']);
+    });
+
+    it('returns false when hash is the same', () => {
+      controller.updateDatasetHash(['protein1']);
+      // Same input should produce same hash, returning false
+      const result = controller.updateDatasetHash(['protein1']);
+      expect(result).toBe(false);
+    });
+
+    it('resets settingsLoaded when hash changes', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping: {},
+        enableDuplicateStackUI: false,
+      });
+      controller.loadSettings();
+      expect(controller.settingsLoaded).toBe(true);
+
+      controller.updateDatasetHash(['protein2']);
+      expect(controller.settingsLoaded).toBe(false);
+    });
+  });
+
+  describe('updateSelectedFeature', () => {
+    it('returns true when feature changes', () => {
+      const result = controller.updateSelectedFeature('feature1');
+      expect(result).toBe(true);
+    });
+
+    it('returns false when feature is the same', () => {
+      controller.updateSelectedFeature('feature1');
+      const result = controller.updateSelectedFeature('feature1');
+      expect(result).toBe(false);
+    });
+
+    it('resets settingsLoaded when feature changes', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping: {},
+        enableDuplicateStackUI: false,
+      });
+      controller.loadSettings();
+      expect(controller.settingsLoaded).toBe(true);
+
+      controller.updateSelectedFeature('feature2');
+      expect(controller.settingsLoaded).toBe(false);
+    });
+  });
+
+  describe('loadSettings', () => {
+    it('does nothing without dataset hash', () => {
+      controller.updateSelectedFeature('feature1');
+      controller.loadSettings();
+      expect(getStorageItem).not.toHaveBeenCalled();
+    });
+
+    it('does nothing without selected feature', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.loadSettings();
+      expect(getStorageItem).not.toHaveBeenCalled();
+    });
+
+    it('loads settings with correct key', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 15,
+        includeOthers: false,
+        includeShapes: true,
+        shapeSize: 20,
+        sortMode: 'alpha',
+        hiddenValues: ['hidden1'],
+        manualOtherValues: ['other1'],
+        zOrderMapping: { cat1: 0, cat2: 1 },
+        enableDuplicateStackUI: true,
+      });
+
+      controller.loadSettings();
+
+      expect(buildStorageKey).toHaveBeenCalledWith('legend', 'hash_protein1', 'feature1');
+      expect(getStorageItem).toHaveBeenCalled();
+    });
+
+    it('calls onSettingsLoaded callback with loaded settings', () => {
+      const savedSettings = {
+        maxVisibleValues: 15,
+        includeOthers: false,
+        includeShapes: true,
+        shapeSize: 20,
+        sortMode: 'alpha' as const,
+        hiddenValues: ['hidden1'],
+        manualOtherValues: ['other1'],
+        zOrderMapping: { cat1: 0, cat2: 1 },
+        enableDuplicateStackUI: true,
+      };
+
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue(savedSettings);
+
+      controller.loadSettings();
+
+      expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith(savedSettings);
+    });
+
+    it('stores pending z-order mapping', () => {
+      const zOrderMapping = { cat1: 2, cat2: 1, cat3: 0 };
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping,
+        enableDuplicateStackUI: false,
+      });
+
+      controller.loadSettings();
+
+      expect(controller.pendingZOrderMapping).toEqual(zOrderMapping);
+    });
+
+    it('sets settingsLoaded to true', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping: {},
+        enableDuplicateStackUI: false,
+      });
+
+      expect(controller.settingsLoaded).toBe(false);
+      controller.loadSettings();
+      expect(controller.settingsLoaded).toBe(true);
+    });
+  });
+
+  describe('saveSettings', () => {
+    it('does nothing without storage key', () => {
+      controller.saveSettings();
+      expect(setStorageItem).not.toHaveBeenCalled();
+    });
+
+    it('saves settings with correct key and values', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+
+      mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
+        { value: 'cat1', zOrder: 0 },
+        { value: 'cat2', zOrder: 1 },
+        { value: null, zOrder: 2 }, // Others item
+      ]);
+      mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['hidden1']);
+      mockCallbacks.getManualOtherValues = vi.fn().mockReturnValue(['other1']);
+      mockCallbacks.getCurrentSettings = vi.fn().mockReturnValue({
+        maxVisibleValues: 15,
+        includeOthers: true,
+        includeShapes: true,
+        shapeSize: 20,
+        sortMode: 'alpha' as const,
+        enableDuplicateStackUI: true,
+      });
+
+      controller.saveSettings();
+
+      expect(setStorageItem).toHaveBeenCalledWith('legend_hash_protein1_feature1', {
+        maxVisibleValues: 15,
+        includeOthers: true,
+        includeShapes: true,
+        shapeSize: 20,
+        sortMode: 'alpha',
+        hiddenValues: ['hidden1'],
+        manualOtherValues: ['other1'],
+        zOrderMapping: { cat1: 0, cat2: 1 },
+        enableDuplicateStackUI: true,
+      });
+    });
+
+    it('excludes null values from z-order mapping', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+
+      mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
+        { value: 'cat1', zOrder: 0 },
+        { value: null, zOrder: 1 },
+      ]);
+
+      controller.saveSettings();
+
+      const savedSettings = vi.mocked(setStorageItem).mock.calls[0][1];
+      expect(savedSettings.zOrderMapping).toEqual({ cat1: 0 });
+    });
+  });
+
+  describe('removeSettings', () => {
+    it('does nothing without storage key', () => {
+      controller.removeSettings();
+      expect(removeStorageItem).not.toHaveBeenCalled();
+    });
+
+    it('removes settings with correct key', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+
+      controller.removeSettings();
+
+      expect(removeStorageItem).toHaveBeenCalledWith('legend_hash_protein1_feature1');
+    });
+  });
+
+  describe('pendingZOrderMapping', () => {
+    it('starts empty', () => {
+      expect(controller.pendingZOrderMapping).toEqual({});
+    });
+
+    it('clearPendingZOrder clears the mapping', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping: { cat1: 0 },
+        enableDuplicateStackUI: false,
+      });
+
+      controller.loadSettings();
+      expect(controller.pendingZOrderMapping).toEqual({ cat1: 0 });
+
+      controller.clearPendingZOrder();
+      expect(controller.pendingZOrderMapping).toEqual({});
+    });
+  });
+
+  describe('hasPendingZOrder', () => {
+    it('returns false when empty', () => {
+      expect(controller.hasPendingZOrder()).toBe(false);
+    });
+
+    it('returns true when has pending mapping', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping: { cat1: 0 },
+        enableDuplicateStackUI: false,
+      });
+
+      controller.loadSettings();
+      expect(controller.hasPendingZOrder()).toBe(true);
+    });
+  });
+
+  describe('applyPendingZOrder', () => {
+    it('returns items unchanged when no pending mapping', () => {
+      const items = [
+        { value: 'cat1', zOrder: 0 },
+        { value: 'cat2', zOrder: 1 },
+      ] as any[];
+
+      const result = controller.applyPendingZOrder(items);
+      expect(result).toBe(items);
+    });
+
+    it('returns items unchanged when items array is empty', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping: { cat1: 0 },
+        enableDuplicateStackUI: false,
+      });
+      controller.loadSettings();
+
+      const result = controller.applyPendingZOrder([]);
+      expect(result).toEqual([]);
+    });
+
+    it('applies z-order mapping to matching items', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping: { cat1: 2, cat2: 0 },
+        enableDuplicateStackUI: false,
+      });
+      controller.loadSettings();
+
+      const items = [
+        { value: 'cat1', zOrder: 0 },
+        { value: 'cat2', zOrder: 1 },
+        { value: 'cat3', zOrder: 2 },
+      ] as any[];
+
+      const result = controller.applyPendingZOrder(items);
+
+      expect(result[0].zOrder).toBe(2); // cat1: 0 -> 2
+      expect(result[1].zOrder).toBe(0); // cat2: 1 -> 0
+      expect(result[2].zOrder).toBe(2); // cat3: unchanged
+    });
+
+    it('clears pending mapping after applying', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping: { cat1: 2 },
+        enableDuplicateStackUI: false,
+      });
+      controller.loadSettings();
+
+      const items = [{ value: 'cat1', zOrder: 0 }] as any[];
+      controller.applyPendingZOrder(items);
+
+      expect(controller.hasPendingZOrder()).toBe(false);
+    });
+
+    it('clears mapping when no items match', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping: { cat1: 2 },
+        enableDuplicateStackUI: false,
+      });
+      controller.loadSettings();
+
+      const items = [{ value: 'differentCat', zOrder: 0 }] as any[];
+      const result = controller.applyPendingZOrder(items);
+
+      expect(result).toBe(items); // Returns original array
+      expect(controller.hasPendingZOrder()).toBe(false);
+    });
+
+    it('skips items with null value', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedFeature('feature1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeOthers: true,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size',
+        hiddenValues: [],
+        manualOtherValues: [],
+        zOrderMapping: { cat1: 2 },
+        enableDuplicateStackUI: false,
+      });
+      controller.loadSettings();
+
+      const items = [
+        { value: null, zOrder: 0 },
+        { value: 'cat1', zOrder: 1 },
+      ] as any[];
+
+      const result = controller.applyPendingZOrder(items);
+
+      expect(result[0].zOrder).toBe(0); // null value unchanged
+      expect(result[1].zOrder).toBe(2); // cat1 updated
+    });
+  });
+});

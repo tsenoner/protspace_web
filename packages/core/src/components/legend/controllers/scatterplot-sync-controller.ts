@@ -1,0 +1,346 @@
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ScatterplotData, OtherItem } from '../types';
+import {
+  isScatterplotElement,
+  supportsHiddenValues,
+  supportsOtherValues,
+  supportsShapes,
+  supportsConfig,
+  supportsIsolationMode,
+  supportsIsolationHistory,
+  type IScatterplotElement,
+} from '../scatterplot-interface';
+import { LEGEND_EVENTS } from '../config';
+import { expandHiddenValues, buildZOrderMapping, buildColorShapeMappings } from '../legend-helpers';
+import type { LegendItem } from '../types';
+
+/** Maximum number of retries when looking for scatterplot element */
+const MAX_DISCOVERY_RETRIES = 10;
+/** Delay between retries in ms */
+const DISCOVERY_RETRY_DELAY = 100;
+
+/**
+ * Callback interface for scatterplot sync events
+ */
+export interface ScatterplotSyncCallbacks {
+  onDataChange: (data: ScatterplotData, selectedFeature: string) => void;
+  onFeatureChange: (feature: string) => void;
+  getHiddenValues: () => string[];
+  getOtherItems: () => OtherItem[];
+  getLegendItems: () => LegendItem[];
+  getIncludeOthers: () => boolean;
+  getEffectiveIncludeShapes: () => boolean;
+  getOtherConcreteValues: () => string[];
+}
+
+/**
+ * Reactive controller for managing scatterplot synchronization.
+ * Handles all communication between the legend and scatterplot components.
+ */
+export class ScatterplotSyncController implements ReactiveController {
+  private host: ReactiveControllerHost & Element;
+  private callbacks: ScatterplotSyncCallbacks;
+
+  private _scatterplotElement: IScatterplotElement | null = null;
+  private _controlBarElement: Element | null = null;
+  private _boundHandleDataChange: (e: Event) => void;
+  private _boundHandleFeatureChange: (e: Event) => void;
+  private _discoveryRetryCount = 0;
+  private _discoveryTimeoutId: number | null = null;
+  private _mutationObserver: MutationObserver | null = null;
+
+  scatterplotSelector: string = 'protspace-scatterplot';
+  autoSync: boolean = true;
+  autoHide: boolean = true;
+
+  constructor(host: ReactiveControllerHost & Element, callbacks: ScatterplotSyncCallbacks) {
+    this.host = host;
+    this.callbacks = callbacks;
+    host.addController(this);
+
+    this._boundHandleDataChange = this._handleDataChange.bind(this);
+    this._boundHandleFeatureChange = this._handleFeatureChange.bind(this);
+  }
+
+  hostConnected(): void {
+    if (this.autoSync) {
+      this._setupAutoSync();
+    }
+  }
+
+  hostDisconnected(): void {
+    this._cleanup();
+  }
+
+  /**
+   * Get the current scatterplot element
+   */
+  get scatterplot(): IScatterplotElement | null {
+    return this._scatterplotElement;
+  }
+
+  /**
+   * Check if the current feature is multilabel
+   */
+  isMultilabelFeature(selectedFeature: string): boolean {
+    const currentData = this._scatterplotElement?.getCurrentData?.();
+    const featureData = currentData?.feature_data?.[selectedFeature];
+
+    return (
+      Array.isArray(featureData) &&
+      featureData.some((data) => Array.isArray(data) && data.length > 1)
+    );
+  }
+
+  /**
+   * Force synchronization with scatterplot
+   */
+  forceSync(): void {
+    this._syncWithScatterplot();
+  }
+
+  /**
+   * Sync hidden values to scatterplot
+   */
+  syncHiddenValues(): void {
+    if (!this.autoHide || !this._scatterplotElement) return;
+
+    if (supportsHiddenValues(this._scatterplotElement)) {
+      const expandedHidden = expandHiddenValues(
+        this.callbacks.getHiddenValues(),
+        this.callbacks.getOtherItems(),
+      );
+      this._scatterplotElement.hiddenFeatureValues = [...expandedHidden];
+    }
+
+    if (supportsOtherValues(this._scatterplotElement)) {
+      this._scatterplotElement.otherFeatureValues = this.callbacks.getOtherConcreteValues();
+    }
+  }
+
+  /**
+   * Sync other feature values to scatterplot
+   */
+  syncOtherValues(): void {
+    if (!this._scatterplotElement || !supportsOtherValues(this._scatterplotElement)) return;
+
+    this._scatterplotElement.otherFeatureValues = this.callbacks.getIncludeOthers()
+      ? this.callbacks.getOtherConcreteValues()
+      : [];
+  }
+
+  /**
+   * Sync shapes setting to scatterplot
+   */
+  syncShapes(): void {
+    if (!this._scatterplotElement || !supportsShapes(this._scatterplotElement)) return;
+
+    this._scatterplotElement.useShapes = this.callbacks.getEffectiveIncludeShapes();
+  }
+
+  /**
+   * Update scatterplot config
+   */
+  updateConfig(updates: Record<string, unknown>): void {
+    if (!this._scatterplotElement || !supportsConfig(this._scatterplotElement)) return;
+
+    const currentConfig = this._scatterplotElement.config || {};
+    this._scatterplotElement.config = { ...currentConfig, ...updates };
+  }
+
+  /**
+   * Dispatch z-order change event
+   */
+  dispatchZOrderChange(): void {
+    const zOrderMapping = buildZOrderMapping(this.callbacks.getLegendItems());
+
+    const event = new CustomEvent(LEGEND_EVENTS.ZORDER_CHANGE, {
+      detail: { zOrderMapping },
+      bubbles: !this._scatterplotElement,
+    });
+
+    if (this._scatterplotElement) {
+      this._scatterplotElement.dispatchEvent(event);
+    } else {
+      this.host.dispatchEvent(event);
+    }
+  }
+
+  /**
+   * Dispatch color/shape mapping change event
+   */
+  dispatchColorMappingChange(): void {
+    const { colorMapping, shapeMapping } = buildColorShapeMappings(this.callbacks.getLegendItems());
+
+    const event = new CustomEvent(LEGEND_EVENTS.COLORMAPPING_CHANGE, {
+      detail: { colorMapping, shapeMapping },
+      bubbles: !this._scatterplotElement,
+    });
+
+    if (this._scatterplotElement) {
+      this._scatterplotElement.dispatchEvent(event);
+    } else {
+      this.host.dispatchEvent(event);
+    }
+  }
+
+  /**
+   * Get isolation mode state from scatterplot
+   */
+  getIsolationState(): { isolationMode: boolean; isolationHistory: string[][] } {
+    if (!this._scatterplotElement) {
+      return { isolationMode: false, isolationHistory: [] };
+    }
+
+    const isolationMode = supportsIsolationMode(this._scatterplotElement)
+      ? this._scatterplotElement.isIsolationMode()
+      : false;
+
+    const isolationHistory = supportsIsolationHistory(this._scatterplotElement)
+      ? this._scatterplotElement.getIsolationHistory()
+      : [];
+
+    return { isolationMode, isolationHistory };
+  }
+
+  private _setupAutoSync(): void {
+    // Try to find element immediately
+    if (this._tryDiscoverScatterplot()) {
+      return;
+    }
+
+    // If not found, set up retry mechanism with MutationObserver as backup
+    this._setupDiscoveryObserver();
+    this._scheduleDiscoveryRetry();
+  }
+
+  private _tryDiscoverScatterplot(): boolean {
+    const element = document.querySelector(this.scatterplotSelector);
+    if (element && isScatterplotElement(element)) {
+      this._onScatterplotDiscovered(element);
+      return true;
+    }
+    return false;
+  }
+
+  private _onScatterplotDiscovered(element: IScatterplotElement): void {
+    // Clean up discovery mechanisms
+    this._cleanupDiscovery();
+
+    this._scatterplotElement = element;
+    element.addEventListener(LEGEND_EVENTS.DATA_CHANGE, this._boundHandleDataChange);
+
+    this._controlBarElement = document.querySelector('protspace-control-bar');
+    if (this._controlBarElement) {
+      this._controlBarElement.addEventListener(
+        LEGEND_EVENTS.FEATURE_CHANGE,
+        this._boundHandleFeatureChange,
+      );
+    }
+
+    this._syncWithScatterplot();
+  }
+
+  private _setupDiscoveryObserver(): void {
+    // Use MutationObserver to detect when scatterplot is added to DOM
+    this._mutationObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof Element) {
+            // Check if the added node is the scatterplot or contains it
+            if (node.matches(this.scatterplotSelector) && isScatterplotElement(node)) {
+              this._onScatterplotDiscovered(node);
+              return;
+            }
+            const found = node.querySelector(this.scatterplotSelector);
+            if (found && isScatterplotElement(found)) {
+              this._onScatterplotDiscovered(found);
+              return;
+            }
+          }
+        }
+      }
+    });
+
+    this._mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  private _scheduleDiscoveryRetry(): void {
+    if (this._discoveryRetryCount >= MAX_DISCOVERY_RETRIES) {
+      this._cleanupDiscovery();
+      return;
+    }
+
+    this._discoveryTimeoutId = window.setTimeout(() => {
+      this._discoveryRetryCount++;
+      if (!this._tryDiscoverScatterplot()) {
+        this._scheduleDiscoveryRetry();
+      }
+    }, DISCOVERY_RETRY_DELAY);
+  }
+
+  private _cleanupDiscovery(): void {
+    if (this._discoveryTimeoutId !== null) {
+      clearTimeout(this._discoveryTimeoutId);
+      this._discoveryTimeoutId = null;
+    }
+    if (this._mutationObserver) {
+      this._mutationObserver.disconnect();
+      this._mutationObserver = null;
+    }
+    this._discoveryRetryCount = 0;
+  }
+
+  private _handleDataChange(event: Event): void {
+    const customEvent = event as CustomEvent;
+    const { data } = customEvent.detail;
+
+    if (data && this._scatterplotElement) {
+      const currentData = this._scatterplotElement.getCurrentData();
+      const selectedFeature = this._scatterplotElement.selectedFeature;
+
+      if (currentData && selectedFeature) {
+        this.callbacks.onDataChange(currentData, selectedFeature);
+      }
+    }
+  }
+
+  private _handleFeatureChange(event: Event): void {
+    const customEvent = event as CustomEvent;
+    const { feature } = customEvent.detail;
+    this.callbacks.onFeatureChange(feature);
+  }
+
+  private _syncWithScatterplot(): void {
+    if (!this._scatterplotElement) return;
+
+    const currentData = this._scatterplotElement.getCurrentData();
+    const selectedFeature = this._scatterplotElement.selectedFeature;
+
+    if (!currentData || !selectedFeature) return;
+
+    this.callbacks.onDataChange(currentData, selectedFeature);
+  }
+
+  private _cleanup(): void {
+    // Clean up discovery mechanisms
+    this._cleanupDiscovery();
+
+    // Clean up event listeners
+    if (this._scatterplotElement) {
+      this._scatterplotElement.removeEventListener(
+        LEGEND_EVENTS.DATA_CHANGE,
+        this._boundHandleDataChange,
+      );
+    }
+    if (this._controlBarElement) {
+      this._controlBarElement.removeEventListener(
+        LEGEND_EVENTS.FEATURE_CHANGE,
+        this._boundHandleFeatureChange,
+      );
+    }
+  }
+}
