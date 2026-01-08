@@ -2,7 +2,7 @@ import type { TemplateResult } from 'lit';
 import { html } from 'lit';
 import type { LegendItem } from './types';
 import { LEGEND_DEFAULTS, LEGEND_STYLES } from './config';
-import { SHAPE_PATH_GENERATORS } from '@protspace/utils';
+import { SHAPE_PATH_GENERATORS, getLegendDisplayText } from '@protspace/utils';
 
 /**
  * Utility class for rendering legend components
@@ -188,14 +188,7 @@ export class LegendRenderer {
    * Render the item text label
    */
   static renderItemText(item: LegendItem, otherItemsCount?: number): TemplateResult {
-    const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
-    let displayText = item.value === null || isEmptyString ? 'N/A' : item.value;
-
-    // For "Other" items, append the number of categories if provided
-    if (item.value === 'Other' && otherItemsCount !== undefined && otherItemsCount > 0) {
-      displayText = `${displayText} (${otherItemsCount} categories)`;
-    }
-
+    const displayText = getLegendDisplayText(item.value, otherItemsCount);
     return html`<span class="legend-text">${displayText}</span>`;
   }
 

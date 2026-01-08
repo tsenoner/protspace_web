@@ -130,6 +130,7 @@ export class ProtspaceLegend extends LitElement {
   public getLegendExportData(): {
     feature: string;
     includeShapes: boolean;
+    otherItemsCount: number;
     items: Array<{
       value: string | null | 'Other';
       color: string;
@@ -145,6 +146,7 @@ export class ProtspaceLegend extends LitElement {
     return {
       feature: this.featureData.name || this.featureName || 'Legend',
       includeShapes: isMultilabel ? false : this.includeShapes,
+      otherItemsCount: this.otherItems.length,
       items: sorted.map((i) => ({ ...i })),
     };
   }

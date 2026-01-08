@@ -7,6 +7,31 @@ import type { PointShape } from '../types.js';
  */
 
 // ============================================================================
+// Legend Display Text Utilities
+// ============================================================================
+
+/**
+ * Convert a legend item value to its display text.
+ * Handles null, empty strings, and "Other" category formatting.
+ * Used by both legend renderer and export utilities for consistency.
+ */
+export function getLegendDisplayText(
+  value: string | null | 'Other',
+  otherItemsCount?: number,
+): string {
+  // Handle null and empty string
+  const isEmptyString = typeof value === 'string' && value.trim() === '';
+  let displayText = value === null || isEmptyString ? 'N/A' : String(value);
+
+  // For "Other" items, append the number of categories if provided
+  if (value === 'Other' && otherItemsCount !== undefined && otherItemsCount > 0) {
+    displayText = `${displayText} (${otherItemsCount} categories)`;
+  }
+
+  return displayText;
+}
+
+// ============================================================================
 // Shape Index Mapping (for WebGL shaders)
 // ============================================================================
 
