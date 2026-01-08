@@ -444,6 +444,13 @@ export const controlBarStyles = css`
     background-color: #fff;
   }
 
+  /* Feature select component styling */
+  .control-group protspace-feature-select {
+    display: inline-block;
+    width: max-content;
+    min-width: 10rem;
+  }
+
   .right-controls-data > button {
     color: #0b0f19;
     font-weight: 400;
@@ -483,6 +490,11 @@ export const controlBarStyles = css`
 
     /* Make selects expand to available width inside a row */
     .control-group select {
+      width: 100%;
+    }
+
+    /* Feature select should also expand on small screens */
+    .control-group protspace-feature-select {
       width: 100%;
     }
   }

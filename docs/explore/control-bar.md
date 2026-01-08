@@ -26,6 +26,12 @@ Choose which annotation to use for coloring points:
 
 ![Color By dropdown](./images/control-bar-colorby.png)
 
+The Color By dropdown features:
+
+- **Grouped categories**: Features are organized into sections (UniProt, InterPro, Taxonomy, Other)
+- **Search**: Type to filter features by name (case-insensitive)
+- **Keyboard navigation**: Use arrow keys to navigate, Enter to select, Escape to close
+
 Available annotations depend on your dataset (taxonomy, family, function, etc.).
 
 ## 3. Search
