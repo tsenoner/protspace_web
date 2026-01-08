@@ -75,63 +75,117 @@ export class ProtSpaceExporter {
     this.isolationMode = isolationMode;
   }
 
-  private removeScatterplotBorders(element: HTMLElement): {
-    border: string;
-    boxShadow: string;
-    borderRadius: string;
-  } {
-    const original = {
-      border: element.style.border,
-      boxShadow: element.style.boxShadow,
-      borderRadius: element.style.borderRadius,
-    };
-    element.style.border = 'none';
-    element.style.boxShadow = 'none';
-    element.style.borderRadius = '0';
-    return original;
+  /**
+   * Check if an element should be ignored during export (UI overlays, tooltips, etc.)
+   */
+  private shouldIgnoreElement(element: Element): boolean {
+    const ignoredClasses = [
+      'projection-metadata',
+      'mode-indicator',
+      'isolation-indicator',
+      'tooltip',
+      'duplicate-spiderfy-layer',
+      'dup-spiderfy',
+      'overlay-container',
+      'brush-container',
+    ];
+    return ignoredClasses.some((className) => element.classList?.contains(className));
   }
 
-  private restoreScatterplotBorders(
-    element: HTMLElement,
-    original: { border: string; boxShadow: string; borderRadius: string },
-  ): void {
-    element.style.border = original.border;
-    element.style.boxShadow = original.boxShadow;
-    element.style.borderRadius = original.borderRadius;
+  /**
+   * Capture scatterplot element as canvas with borders cropped out
+   */
+  private async captureScatterplotCanvas(
+    scatterplotElement: HTMLElement,
+    scale: number,
+    backgroundColor: string,
+  ): Promise<HTMLCanvasElement> {
+    const { default: html2canvas } = await import('html2canvas-pro');
+
+    // Capture WITH the border - don't modify live element to avoid triggering ResizeObserver
+    const rawCanvas = await html2canvas(scatterplotElement, {
+      backgroundColor,
+      scale,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      width: scatterplotElement.clientWidth,
+      height: scatterplotElement.clientHeight,
+      scrollX: -window.scrollX,
+      scrollY: -window.scrollY,
+      ignoreElements: (element) => this.shouldIgnoreElement(element),
+    });
+
+    // Crop the 1px border from all sides
+    const borderWidth = 1 * scale;
+    return this.cropCanvas(
+      rawCanvas,
+      borderWidth,
+      borderWidth,
+      rawCanvas.width - borderWidth * 2,
+      rawCanvas.height - borderWidth * 2,
+    );
   }
 
-  private createBorderRemovalOnClone(): (clonedDoc: Document) => void {
-    return (clonedDoc: Document) => {
-      const clonedElement = clonedDoc.querySelector('protspace-scatterplot') as HTMLElement;
-      if (clonedElement) {
-        clonedElement.style.border = 'none';
-        clonedElement.style.boxShadow = 'none';
-        clonedElement.style.borderRadius = '0';
-        if (clonedElement.shadowRoot) {
-          const style = clonedDoc.createElement('style');
-          style.textContent = `
-            protspace-scatterplot {
-              border: none !important;
-              box-shadow: none !important;
-            }
-            protspace-scatterplot::before,
-            protspace-scatterplot::after {
-              border: none !important;
-            }
-          `;
-          clonedElement.shadowRoot.appendChild(style);
-        }
-      }
-      const style = clonedDoc.createElement('style');
-      style.textContent = `
-        protspace-scatterplot {
-          border: none !important;
-          box-shadow: none !important;
-          border-radius: 0 !important;
-        }
-      `;
-      clonedDoc.head.appendChild(style);
-    };
+  /**
+   * Crop a canvas to remove borders
+   */
+  private cropCanvas(
+    sourceCanvas: HTMLCanvasElement,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): HTMLCanvasElement {
+    const croppedCanvas = document.createElement('canvas');
+    croppedCanvas.width = width;
+    croppedCanvas.height = height;
+    const ctx = croppedCanvas.getContext('2d');
+    if (!ctx) {
+      console.error('Could not get 2D context for cropped canvas');
+      return sourceCanvas;
+    }
+    ctx.drawImage(sourceCanvas, x, y, width, height, 0, 0, width, height);
+    return croppedCanvas;
+  }
+
+  /**
+   * Build legend items for export from live legend state or computed data
+   */
+  private buildLegendItems(options: ExportOptions): Array<{
+    value: string;
+    color: string;
+    shape: string;
+    count: number;
+    feature: string;
+  }> {
+    const currentData = this.element.getCurrentData();
+    if (!currentData) return [];
+
+    const legendExportState = this.readLegendExportState();
+    const featureNameFromLegend = legendExportState?.feature;
+    const hiddenSet = this.readHiddenFeatureValueKeys();
+
+    if (legendExportState) {
+      return legendExportState.items
+        .filter((it) => it.isVisible)
+        .map((it) => ({
+          value: it.value === null ? 'N/A' : String(it.value),
+          color: it.color,
+          shape: it.shape,
+          count: it.count,
+          feature: featureNameFromLegend || this.element.selectedFeature,
+        }));
+    }
+
+    return this.computeLegendFromData(
+      currentData,
+      this.element.selectedFeature,
+      options.includeSelection === true ? this.selectedProteins : undefined,
+    ).filter((it) => {
+      const key = it.value === 'N/A' ? 'null' : it.value;
+      return !hiddenSet.has(key);
+    });
   }
 
   /**
@@ -223,54 +277,17 @@ export class ProtSpaceExporter {
       return;
     }
 
-    const originalStyles = this.removeScatterplotBorders(scatterplotElement);
+    // Capture scatterplot with border removed
+    const scatterCanvas = await this.captureScatterplotCanvas(
+      scatterplotElement,
+      options.scaleForExport ?? 2,
+      options.backgroundColor || '#ffffff',
+    );
 
-    const { default: html2canvas } = await import('html2canvas-pro');
-    const scatterCanvas = await html2canvas(scatterplotElement, {
-      backgroundColor: options.backgroundColor || '#ffffff',
-      scale: options.scaleForExport ?? 2,
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      width: scatterplotElement.clientWidth,
-      height: scatterplotElement.clientHeight,
-      scrollX: 0,
-      scrollY: 0,
-      ignoreElements: (element: Element) => {
-        return element.classList?.contains('projection-metadata') === true;
-      },
-      onclone: this.createBorderRemovalOnClone(),
-    });
-
-    this.restoreScatterplotBorders(scatterplotElement, originalStyles);
-
-    // Build legend data – prefer live legend component state for exact parity (includes "Other")
-    const currentData = this.element.getCurrentData();
-    if (!currentData) {
-      console.error('No data available for legend generation');
-      return;
-    }
+    // Build legend data
+    const legendItems = this.buildLegendItems(options);
     const legendExportState = this.readLegendExportState();
     const featureNameFromLegend = legendExportState?.feature;
-    const hiddenSet = this.readHiddenFeatureValueKeys();
-    const legendItems = legendExportState
-      ? legendExportState.items
-          .filter((it) => it.isVisible)
-          .map((it) => ({
-            value: it.value === null ? 'N/A' : String(it.value),
-            color: it.color,
-            shape: it.shape,
-            count: it.count,
-            feature: featureNameFromLegend || this.element.selectedFeature,
-          }))
-      : this.computeLegendFromData(
-          currentData,
-          this.element.selectedFeature,
-          options.includeSelection === true ? this.selectedProteins : undefined,
-        ).filter((it) => {
-          const key = it.value === 'N/A' ? 'null' : it.value;
-          return !hiddenSet.has(key);
-        });
 
     const legendWidthRatio = 0.3;
     const combinedWidth = Math.round(scatterCanvas.width * (1 + legendWidthRatio));
@@ -621,59 +638,22 @@ export class ProtSpaceExporter {
       return;
     }
 
-    const originalStyles = this.removeScatterplotBorders(scatterplotElement);
+    const { default: jsPDF } = await import('jspdf');
 
-    const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-      import('jspdf'),
-      import('html2canvas-pro'),
-    ]);
-
-    const scatterCanvas = await html2canvas(scatterplotElement, {
-      backgroundColor: options.backgroundColor || '#ffffff',
-      scale: options.scaleForExport ?? 3,
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      width: scatterplotElement.clientWidth,
-      height: scatterplotElement.clientHeight,
-      scrollX: 0,
-      scrollY: 0,
-      ignoreElements: (element: Element) => {
-        return element.classList?.contains('projection-metadata') === true;
-      },
-      onclone: this.createBorderRemovalOnClone(),
-    });
-
-    this.restoreScatterplotBorders(scatterplotElement, originalStyles);
+    // Capture scatterplot with border removed
+    const scatterCanvas = await this.captureScatterplotCanvas(
+      scatterplotElement,
+      options.scaleForExport ?? 3,
+      options.backgroundColor || '#ffffff',
+    );
 
     const scatterImg = scatterCanvas.toDataURL('image/png', 1.0);
     const scatterRatio = scatterCanvas.width / scatterCanvas.height;
 
-    // Build programmatic legend items and render to canvas (prefer live legend state)
-    const data = this.element.getCurrentData();
+    // Build legend data
+    const legendItems = this.buildLegendItems(options);
     const legendExportState = this.readLegendExportState();
     const featureNameFromLegend = legendExportState?.feature;
-    const hiddenSet = this.readHiddenFeatureValueKeys();
-    const legendItems = data
-      ? legendExportState
-        ? legendExportState.items
-            .filter((it) => it.isVisible)
-            .map((it) => ({
-              value: it.value === null ? 'N/A' : String(it.value),
-              color: it.color,
-              shape: it.shape,
-              count: it.count,
-              feature: featureNameFromLegend || this.element.selectedFeature,
-            }))
-        : this.computeLegendFromData(
-            data,
-            this.element.selectedFeature,
-            options.includeSelection === true ? this.selectedProteins : undefined,
-          ).filter((it) => {
-            const key = it.value === 'N/A' ? 'null' : it.value;
-            return !hiddenSet.has(key);
-          })
-      : [];
     const legendWidthRatio = 0.2;
     const legendScaleFactor = options.legendScaleFactor ?? 1.2;
     const legendCanvas = this.renderLegendToCanvas(
