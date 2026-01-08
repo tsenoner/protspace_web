@@ -8,8 +8,8 @@
  * Falls back to direct rendering if gamma pipeline is unavailable.
  */
 
-import * as d3 from 'd3';
 import type { PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
+import { getShapeIndex } from '@protspace/utils';
 import {
   type WebGLStyleGetters,
   type ScalePair,
@@ -31,18 +31,6 @@ const MIN_CAPACITY = 1024;
 const MAX_LABELS = 8;
 const LABEL_TEXTURE_WIDTH = 2048;
 const DIAMOND_SIZE_SCALE = 1.25;
-
-// Shape type to index mapping (matches shader logic)
-// 0=circle, 1=square, 2=diamond, 3=triangle-up, 4=triangle-down, 5=plus
-function getShapeIndex(symbolType: d3.SymbolType): number {
-  if (symbolType === d3.symbolCircle) return 0;
-  if (symbolType === d3.symbolSquare) return 1;
-  if (symbolType === d3.symbolDiamond) return 2;
-  if (symbolType === d3.symbolTriangle) return 3;
-  if (symbolType === d3.symbolTriangle2) return 4;
-  if (symbolType === d3.symbolPlus) return 5;
-  return 0; // Default to circle
-}
 
 const POINT_VERTEX_SHADER = `#version 300 es
 precision highp float;

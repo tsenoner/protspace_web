@@ -2,6 +2,8 @@
  * Export utilities for ProtSpace visualizations
  */
 
+import { SHAPE_PATH_GENERATORS, renderPathOnCanvas, getLegendDisplayText } from './shapes';
+
 // PDF generation libraries are imported dynamically for better browser compatibility
 declare const window: Window & typeof globalThis;
 
@@ -39,6 +41,7 @@ type LegendExportItem = {
 type LegendExportState = {
   feature: string;
   includeShapes: boolean;
+  otherItemsCount: number;
   items: LegendExportItem[];
 };
 
@@ -53,9 +56,24 @@ export interface ExportOptions {
    * If omitted, we will mirror the current scatterplot setting (`protspace-scatterplot.useShapes`).
    */
   includeShapes?: boolean;
+  /**
+   * Scale factor for legend elements (fonts, symbols, spacing) in exports.
+   * Defaults to 1.0. Use larger values (e.g., 1.3-1.5) for better readability.
+   */
+  legendScaleFactor?: number;
 }
 
 export class ProtSpaceExporter {
+  // Export configuration constants
+  private static readonly LEGEND_WIDTH_RATIO = 0.25;
+  private static readonly LEGEND_SCALE_FACTOR = 1.4;
+  private static readonly PNG_SCALE = 2;
+  private static readonly PDF_SCALE = 3;
+  private static readonly DEFAULT_BACKGROUND = '#ffffff';
+  private static readonly PDF_MARGIN = 2; // mm
+  private static readonly PDF_GAP = 4; // mm
+  private static readonly PDF_MAX_WIDTH = 210; // A4 width in mm
+
   private element: ExportableElement;
   private selectedProteins: string[];
   private isolationMode: boolean;
@@ -68,6 +86,228 @@ export class ProtSpaceExporter {
     this.element = element;
     this.selectedProteins = selectedProteins;
     this.isolationMode = isolationMode;
+  }
+
+  /**
+   * Get the scatterplot element from the DOM
+   */
+  private getScatterplotElement(): HTMLElement | null {
+    const element = document.querySelector('protspace-scatterplot') as HTMLElement;
+    if (!element) {
+      console.error('Could not find protspace-scatterplot element');
+    }
+    return element;
+  }
+
+  /**
+   * Get export options with defaults applied
+   */
+  private getOptionsWithDefaults(options: ExportOptions = {}) {
+    return {
+      backgroundColor: options.backgroundColor || ProtSpaceExporter.DEFAULT_BACKGROUND,
+      scaleForExport: options.scaleForExport,
+      legendScaleFactor: options.legendScaleFactor ?? ProtSpaceExporter.LEGEND_SCALE_FACTOR,
+      exportName: options.exportName,
+      includeSelection: options.includeSelection,
+      includeShapes: options.includeShapes,
+      maxLegendItems: options.maxLegendItems,
+    };
+  }
+
+  /**
+   * Check if an element should be ignored during export (UI overlays, tooltips, etc.)
+   */
+  private shouldIgnoreElement(element: Element): boolean {
+    const ignoredClasses = [
+      'projection-metadata',
+      'mode-indicator',
+      'isolation-indicator',
+      'tooltip',
+      'duplicate-spiderfy-layer',
+      'dup-spiderfy',
+      'overlay-container',
+      'brush-container',
+    ];
+    return ignoredClasses.some((className) => element.classList?.contains(className));
+  }
+
+  /**
+   * Generate legend canvas for export
+   * Returns an object with the canvas and whether width was increased
+   */
+  private generateLegendCanvas(
+    scatterCanvas: HTMLCanvasElement,
+    options: ReturnType<typeof this.getOptionsWithDefaults>,
+  ): { canvas: HTMLCanvasElement; widthIncreased: boolean } {
+    const legendItems = this.buildLegendItems(options);
+    const legendExportState = this.readLegendExportState();
+    const featureNameFromLegend = legendExportState?.feature;
+
+    const targetLegendWidth = Math.round(
+      scatterCanvas.width * ProtSpaceExporter.LEGEND_WIDTH_RATIO,
+    );
+
+    // Calculate minimum required width for legend content
+    const minRequiredWidth = this.calculateLegendMinWidth(
+      legendItems,
+      featureNameFromLegend || this.element.selectedFeature,
+      options.legendScaleFactor,
+    );
+
+    // Use larger of target width or required width to prevent squishing
+    const legendWidth = Math.max(targetLegendWidth, minRequiredWidth);
+
+    const canvas = this.renderLegendToCanvas(
+      legendItems,
+      legendWidth,
+      scatterCanvas.height,
+      options,
+      featureNameFromLegend || this.element.selectedFeature,
+      options.legendScaleFactor,
+    );
+
+    return {
+      canvas,
+      widthIncreased: legendWidth > targetLegendWidth,
+    };
+  }
+
+  /**
+   * Calculate minimum width required for legend content to be readable
+   */
+  private calculateLegendMinWidth(
+    items: Array<{ value: string; count: number; feature: string }>,
+    featureName: string,
+    scaleFactor: number,
+  ): number {
+    // Create temporary canvas for text measurement
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+    if (!ctx) return 300; // Fallback
+
+    const basePadding = 24;
+    const baseSymbolSize = 28;
+    const baseHeaderFont = 28;
+    const baseItemFont = 24;
+
+    const padding = basePadding * scaleFactor;
+    const symbolSize = baseSymbolSize * scaleFactor;
+    const headerFontSize = baseHeaderFont * scaleFactor;
+    const itemFontSize = baseItemFont * scaleFactor;
+    const textOffset = 8 * scaleFactor;
+    const countGap = 12 * scaleFactor;
+
+    // Measure header
+    ctx.font = `600 ${headerFontSize}px Arial, sans-serif`;
+    let maxWidth = ctx.measureText(featureName || 'Legend').width;
+
+    // Measure items
+    ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
+    for (const item of items) {
+      const valueWidth = ctx.measureText(item.value).width;
+      const countWidth = ctx.measureText(String(item.count)).width;
+      const itemWidth = padding + symbolSize + textOffset + valueWidth + countGap + countWidth;
+      maxWidth = Math.max(maxWidth, itemWidth);
+    }
+
+    return Math.ceil(maxWidth + padding);
+  }
+
+  /**
+   * Capture scatterplot element as canvas with borders cropped out
+   */
+  private async captureScatterplotCanvas(
+    scatterplotElement: HTMLElement,
+    scale: number,
+    backgroundColor: string,
+  ): Promise<HTMLCanvasElement> {
+    const { default: html2canvas } = await import('html2canvas-pro');
+
+    // Capture WITH the border - don't modify live element to avoid triggering ResizeObserver
+    const rawCanvas = await html2canvas(scatterplotElement, {
+      backgroundColor,
+      scale,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      width: scatterplotElement.clientWidth,
+      height: scatterplotElement.clientHeight,
+      scrollX: -window.scrollX,
+      scrollY: -window.scrollY,
+      ignoreElements: (element) => this.shouldIgnoreElement(element),
+    });
+
+    // Crop the 1px border from all sides
+    const borderWidth = 1 * scale;
+    return this.cropCanvas(
+      rawCanvas,
+      borderWidth,
+      borderWidth,
+      rawCanvas.width - borderWidth * 2,
+      rawCanvas.height - borderWidth * 2,
+    );
+  }
+
+  /**
+   * Crop a canvas to remove borders
+   */
+  private cropCanvas(
+    sourceCanvas: HTMLCanvasElement,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): HTMLCanvasElement {
+    const croppedCanvas = document.createElement('canvas');
+    croppedCanvas.width = width;
+    croppedCanvas.height = height;
+    const ctx = croppedCanvas.getContext('2d');
+    if (!ctx) {
+      console.error('Could not get 2D context for cropped canvas');
+      return sourceCanvas;
+    }
+    ctx.drawImage(sourceCanvas, x, y, width, height, 0, 0, width, height);
+    return croppedCanvas;
+  }
+
+  /**
+   * Build legend items for export from live legend state or computed data
+   */
+  private buildLegendItems(options: ExportOptions): Array<{
+    value: string;
+    color: string;
+    shape: string;
+    count: number;
+    feature: string;
+  }> {
+    const currentData = this.element.getCurrentData();
+    if (!currentData) return [];
+
+    const legendExportState = this.readLegendExportState();
+    const featureNameFromLegend = legendExportState?.feature;
+    const hiddenSet = this.readHiddenFeatureValueKeys();
+
+    if (legendExportState) {
+      const otherItemsCount = legendExportState.otherItemsCount;
+      return legendExportState.items
+        .filter((it) => it.isVisible)
+        .map((it) => ({
+          value: getLegendDisplayText(it.value, otherItemsCount),
+          color: it.color,
+          shape: it.shape,
+          count: it.count,
+          feature: featureNameFromLegend || this.element.selectedFeature,
+        }));
+    }
+
+    return this.computeLegendFromData(
+      currentData,
+      this.element.selectedFeature,
+      options.includeSelection === true ? this.selectedProteins : undefined,
+    ).filter((it) => {
+      const key = it.value === 'N/A' ? 'null' : it.value;
+      return !hiddenSet.has(key);
+    });
   }
 
   /**
@@ -150,74 +390,29 @@ export class ProtSpaceExporter {
 
   /**
    * Create a combined PNG by compositing the scatterplot on the left and a generated legend on the right
-   * Legend takes exactly 1/5 of the final width
+   * Legend takes 30% of the final width with improved sizing for readability
    */
   private async exportCombinedPNG(options: ExportOptions = {}): Promise<void> {
-    // Capture scatterplot
-    const scatterplotElement = document.querySelector('protspace-scatterplot');
-    if (!scatterplotElement) {
-      console.error('Could not find protspace-scatterplot element');
-      return;
-    }
+    const scatterplotElement = this.getScatterplotElement();
+    if (!scatterplotElement) return;
 
-    const { default: html2canvas } = await import('html2canvas-pro');
-    const canvasOptions = {
-      backgroundColor: options.backgroundColor || '#ffffff',
-      scale: options.scaleForExport ?? 2,
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      width: (scatterplotElement as HTMLElement).clientWidth,
-      height: (scatterplotElement as HTMLElement).clientHeight,
-      scrollX: 0,
-      scrollY: 0,
-    };
+    const opts = this.getOptionsWithDefaults(options);
 
-    const scatterCanvas = await html2canvas(scatterplotElement as HTMLElement, canvasOptions);
-
-    // Build legend data – prefer live legend component state for exact parity (includes "Other")
-    const currentData = this.element.getCurrentData();
-    if (!currentData) {
-      console.error('No data available for legend generation');
-      return;
-    }
-    const legendExportState = this.readLegendExportState();
-    const featureNameFromLegend = legendExportState?.feature;
-    const hiddenSet = this.readHiddenFeatureValueKeys();
-    const legendItems = legendExportState
-      ? legendExportState.items
-          .filter((it) => it.isVisible)
-          .map((it) => ({
-            value: it.value === null ? 'N/A' : String(it.value),
-            color: it.color,
-            shape: it.shape,
-            count: it.count,
-            feature: featureNameFromLegend || this.element.selectedFeature,
-          }))
-      : this.computeLegendFromData(
-          currentData,
-          this.element.selectedFeature,
-          options.includeSelection === true ? this.selectedProteins : undefined,
-        ).filter((it) => {
-          const key = it.value === 'N/A' ? 'null' : it.value;
-          return !hiddenSet.has(key);
-        });
-
-    // Compose final image with legend = 1/5 width
-    const combinedWidth = Math.round(scatterCanvas.width * 1.1);
-    const combinedHeight = scatterCanvas.height;
-    const legendWidth = combinedWidth - scatterCanvas.width; // 20%
-
-    // Render legend to its own canvas sized to the reserved area
-    const legendCanvas = this.renderLegendToCanvas(
-      legendItems,
-      legendWidth,
-      combinedHeight,
-      options,
-      featureNameFromLegend || this.element.selectedFeature,
+    // Capture scatterplot with border removed
+    const scatterCanvas = await this.captureScatterplotCanvas(
+      scatterplotElement,
+      opts.scaleForExport ?? ProtSpaceExporter.PNG_SCALE,
+      opts.backgroundColor,
     );
 
-    // Composite
+    // Generate legend canvas
+    const legendResult = this.generateLegendCanvas(scatterCanvas, opts);
+    const legendCanvas = legendResult.canvas;
+
+    // Composite scatterplot and legend
+    // Use actual legend width to ensure it's not cut off
+    const combinedWidth = scatterCanvas.width + legendCanvas.width;
+    const combinedHeight = Math.max(scatterCanvas.height, legendCanvas.height);
     const outCanvas = document.createElement('canvas');
     outCanvas.width = combinedWidth;
     outCanvas.height = combinedHeight;
@@ -226,19 +421,15 @@ export class ProtSpaceExporter {
       console.error('Could not get 2D context for output canvas');
       return;
     }
-    // Fill background
-    ctx.fillStyle = options.backgroundColor || '#ffffff';
+
+    ctx.fillStyle = opts.backgroundColor;
     ctx.fillRect(0, 0, combinedWidth, combinedHeight);
-    // Draw scatterplot left
     ctx.drawImage(scatterCanvas, 0, 0);
-    // Draw legend at right
     ctx.drawImage(legendCanvas, scatterCanvas.width, 0);
 
     // Download
     const dataUrl = outCanvas.toDataURL('image/png');
-    const fileName = options.exportName
-      ? `${options.exportName}_combined.png`
-      : 'protspace_combined.png';
+    const fileName = opts.exportName ? `${opts.exportName}_combined.png` : 'protspace_combined.png';
     this.downloadFile(dataUrl, fileName);
   }
 
@@ -323,39 +514,41 @@ export class ProtSpaceExporter {
     height: number,
     options: ExportOptions,
     overrideFeatureName?: string,
+    scaleFactor: number = 1.0,
   ): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(100, Math.floor(width));
     canvas.height = Math.max(100, Math.floor(height));
     const ctx = canvas.getContext('2d')!;
 
-    // Layout constants (will scale if content would overflow)
-    const padding = 16;
-    const headerHeight = 50;
-    const itemHeight = 44;
-    const symbolSize = 18;
-    const rightPaddingForCount = 8;
+    const basePadding = 24;
+    const baseHeaderHeight = 60;
+    const baseItemHeight = 56;
+    const baseSymbolSize = 28;
+    const baseHeaderFont = 28;
+    const baseItemFont = 24;
+
+    const padding = basePadding * scaleFactor;
+    const headerHeight = baseHeaderHeight * scaleFactor;
+    const itemHeight = baseItemHeight * scaleFactor;
+    const symbolSize = baseSymbolSize * scaleFactor;
+    const headerFontSize = baseHeaderFont * scaleFactor;
+    const itemFontSize = baseItemFont * scaleFactor;
     const bg = options.backgroundColor || '#ffffff';
 
-    // Compute required height
-    const required = padding + headerHeight + items.length * itemHeight + padding;
-    const scaleY = Math.min(1, canvas.height / required);
-    const scaleX = 1; // keep width as-is for readability
+    // Compute required height and scale vertically if needed
+    const requiredHeight = padding + headerHeight + items.length * itemHeight + padding;
+    const scaleY = Math.min(1, canvas.height / requiredHeight);
+
+    // No horizontal scaling - canvas width is already sized correctly
     ctx.save();
-    ctx.scale(scaleX, scaleY);
+    ctx.scale(1, scaleY);
 
-    // Background
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, canvas.width / scaleX, canvas.height / scaleY);
+    ctx.fillRect(0, 0, canvas.width, canvas.height / scaleY);
 
-    // Border
-    ctx.strokeStyle = '#e1e5e9';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0.5, 0.5, canvas.width / scaleX - 1, canvas.height / scaleY - 1);
-
-    // Header (slightly larger for better readability in exports)
-    ctx.fillStyle = '#374151';
-    ctx.font = '500 16px Arial, sans-serif';
+    ctx.fillStyle = '#1f2937';
+    ctx.font = `600 ${headerFontSize}px Arial, sans-serif`;
     ctx.textBaseline = 'middle';
     const headerLabel = overrideFeatureName || items[0]?.feature || 'Legend';
     ctx.fillText(`${headerLabel}`, padding, padding + headerHeight / 2);
@@ -385,17 +578,21 @@ export class ProtSpaceExporter {
         ctx.restore();
       }
 
-      ctx.fillStyle = '#374151';
-      // Slightly larger item font for export clarity
-      ctx.font = '14px Arial, sans-serif';
+      // Draw label (left-aligned)
+      ctx.fillStyle = '#1f2937';
+      ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
       ctx.textBaseline = 'middle';
-      ctx.fillText(it.value, padding + symbolSize + 8, cy);
+      ctx.textAlign = 'left';
+      const textOffset = 8 * scaleFactor;
+      ctx.fillText(it.value, padding + symbolSize + textOffset, cy);
 
-      // Count on the right
+      // Draw count (right-aligned)
       const countStr = String(it.count);
-      const textWidth = ctx.measureText(countStr).width;
-      ctx.fillStyle = '#6b7280';
-      ctx.fillText(countStr, canvas.width / scaleX - rightPaddingForCount - textWidth, cy);
+      ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
+      ctx.fillStyle = '#4b5563';
+      ctx.textAlign = 'right';
+      const countX = canvas.width - padding;
+      ctx.fillText(countStr, countX, cy);
 
       y += itemHeight;
     }
@@ -434,6 +631,9 @@ export class ProtSpaceExporter {
     }
   }
 
+  /**
+   * Draw a symbol on canvas using the same custom shapes as the legend component and WebGL renderer
+   */
   private drawCanvasSymbol(
     ctx: CanvasRenderingContext2D,
     shape: string,
@@ -442,70 +642,12 @@ export class ProtSpaceExporter {
     cy: number,
     size: number,
   ) {
-    const half = size / 2;
-    ctx.save();
-    switch ((shape || 'circle').toLowerCase()) {
-      case 'square': {
-        ctx.fillStyle = color || '#888';
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.rect(cx - half, cy - half, size, size);
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-      case 'triangle': {
-        ctx.fillStyle = color || '#888';
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - half);
-        ctx.lineTo(cx + half, cy + half);
-        ctx.lineTo(cx - half, cy + half);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-      case 'diamond': {
-        ctx.fillStyle = color || '#888';
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - half);
-        ctx.lineTo(cx + half, cy);
-        ctx.lineTo(cx, cy + half);
-        ctx.lineTo(cx - half, cy);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-      case 'cross':
-      case 'plus': {
-        ctx.strokeStyle = color || '#888';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - half * 0.8);
-        ctx.lineTo(cx, cy + half * 0.8);
-        ctx.moveTo(cx - half * 0.8, cy);
-        ctx.lineTo(cx + half * 0.8, cy);
-        ctx.stroke();
-        break;
-      }
-      default: {
-        ctx.fillStyle = color || '#888';
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(cx, cy, half, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-    }
-    ctx.restore();
+    const shapeKey = (shape || 'circle').toLowerCase();
+    const pathGenerator = SHAPE_PATH_GENERATORS[shapeKey] || SHAPE_PATH_GENERATORS.circle;
+    const pathString = pathGenerator(size);
+
+    // All shapes use the same rendering: filled with color, stroked with default stroke color
+    renderPathOnCanvas(ctx, pathString, cx, cy, color || '#888', '#394150', 1);
   }
 
   /**
@@ -539,143 +681,76 @@ export class ProtSpaceExporter {
   }
 
   /**
-   * Create a single multi-page PDF that includes the scatterplot and (optionally) the legend
+   * Create a single-page PDF with scatterplot and legend side-by-side
+   * Legend takes 20% of content width with improved typography and formatting
    */
   private async exportCombinedPDF(options: ExportOptions = {}): Promise<void> {
-    // Find scatterplot element
-    const scatterplotElement = document.querySelector('protspace-scatterplot');
-    if (!scatterplotElement) {
-      console.error('Could not find protspace-scatterplot element');
-      return;
-    }
+    const scatterplotElement = this.getScatterplotElement();
+    if (!scatterplotElement) return;
 
-    // Import libs
-    const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-      import('jspdf'),
-      import('html2canvas-pro'),
-    ]);
+    const opts = this.getOptionsWithDefaults(options);
+    const { default: jsPDF } = await import('jspdf');
 
-    // Render scatterplot canvas
-    const scatterCanvas = await html2canvas(scatterplotElement as HTMLElement, {
-      backgroundColor: options.backgroundColor || '#ffffff',
-      scale: options.scaleForExport ?? 3,
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      width: (scatterplotElement as HTMLElement).clientWidth,
-      height: (scatterplotElement as HTMLElement).clientHeight,
-      scrollX: 0,
-      scrollY: 0,
-    });
-    const scatterImg = scatterCanvas.toDataURL('image/png', 1.0);
-    const scatterRatio = scatterCanvas.width / scatterCanvas.height;
-
-    // Build programmatic legend items and render to canvas (prefer live legend state)
-    const data = this.element.getCurrentData();
-    const legendExportState = this.readLegendExportState();
-    const featureNameFromLegend = legendExportState?.feature;
-    const hiddenSet = this.readHiddenFeatureValueKeys();
-    const legendItems = data
-      ? legendExportState
-        ? legendExportState.items
-            .filter((it) => it.isVisible)
-            .map((it) => ({
-              value: it.value === null ? 'N/A' : String(it.value),
-              color: it.color,
-              shape: it.shape,
-              count: it.count,
-              feature: featureNameFromLegend || this.element.selectedFeature,
-            }))
-        : this.computeLegendFromData(
-            data,
-            this.element.selectedFeature,
-            options.includeSelection === true ? this.selectedProteins : undefined,
-          ).filter((it) => {
-            const key = it.value === 'N/A' ? 'null' : it.value;
-            return !hiddenSet.has(key);
-          })
-      : [];
-    const legendCanvas = this.renderLegendToCanvas(
-      legendItems,
-      Math.max(100, Math.round(scatterCanvas.width * 0.1)),
-      scatterCanvas.height,
-      options,
-      featureNameFromLegend || this.element.selectedFeature,
+    // Capture scatterplot with border removed
+    const scatterCanvas = await this.captureScatterplotCanvas(
+      scatterplotElement,
+      opts.scaleForExport ?? ProtSpaceExporter.PDF_SCALE,
+      opts.backgroundColor,
     );
+
+    // Generate legend canvas
+    const legendResult = this.generateLegendCanvas(scatterCanvas, opts);
+    const legendCanvas = legendResult.canvas;
+
+    // Convert to images
+    const scatterImg = scatterCanvas.toDataURL('image/png', 1.0);
     const legendImg = legendCanvas.toDataURL('image/png', 1.0);
+    const scatterRatio = scatterCanvas.width / scatterCanvas.height;
     const legendRatio = legendCanvas.width / legendCanvas.height;
 
-    // Prepare PDF
-    const orientation = scatterRatio > 1 ? 'landscape' : 'portrait';
+    // Calculate PDF dimensions
+    const margin = ProtSpaceExporter.PDF_MARGIN;
+    const gap = ProtSpaceExporter.PDF_GAP;
+    const maxWidth = ProtSpaceExporter.PDF_MAX_WIDTH - 2 * margin;
+    const availableWidth = maxWidth - gap;
+
+    // Distribute width proportionally based on aspect ratios
+    const totalRatioWidth = scatterRatio + legendRatio;
+    const scatterTargetW = availableWidth * (scatterRatio / totalRatioWidth);
+    const legendTargetW = availableWidth * (legendRatio / totalRatioWidth);
+
+    // Calculate heights maintaining aspect ratios
+    const scatterTargetH = scatterTargetW / scatterRatio;
+    const legendTargetH = legendTargetW / legendRatio;
+    const contentHeight = Math.max(scatterTargetH, legendTargetH);
+
+    // Create custom page size that fits content exactly
+    const pdfWidth = maxWidth + 2 * margin;
+    const pdfHeight = contentHeight + 2 * margin;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdf: any = new (jsPDF as any)({
-      orientation,
+      orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
       unit: 'mm',
-      format: 'a4',
+      format: [pdfWidth, pdfHeight],
     });
 
-    const exportTitle = options.exportName || 'ProtSpace Visualization';
-    const exportDate = new Date().toISOString().replace('T', ' ').replace(/\..+$/, '');
     pdf.setProperties({
-      title: exportTitle,
+      title: 'ProtSpace Visualization',
       subject: 'ProtSpace export',
       author: 'ProtSpace',
       creator: 'ProtSpace',
     });
 
-    // Layout (single page, side-by-side; legend ~10% width)
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const margin = 15;
-    const headerHeight = 10;
-    const footerHeight = 8;
-    const contentLeft = margin;
-    const contentTop = margin + headerHeight;
-    const contentWidth = pdfWidth - 2 * margin;
-    const contentHeight = pdfHeight - 2 * margin - headerHeight - footerHeight;
-    const gap = 6;
-
-    // Header
-    pdf.setFontSize(12);
-    pdf.text(exportTitle, contentLeft, margin + 6);
-    pdf.setFontSize(9);
-    const origin = (typeof window !== 'undefined' && window?.location?.origin) || '';
-    pdf.text(`${exportDate}${origin ? `  •  ${origin}` : ''}`, pdfWidth - margin, margin + 6, {
-      align: 'right',
-    });
-
-    // Desired widths
-    const legendTargetWidth = (contentWidth - gap) * 0.1; // ~10%
-    const scatterTargetWidth = contentWidth - gap - legendTargetWidth; // ~90%
-    let sW = scatterTargetWidth;
-    let sH = sW / scatterRatio;
-    let lW = legendTargetWidth;
-    let lH = lW / legendRatio;
-    const maxH = Math.max(sH, lH);
-    if (maxH > contentHeight) {
-      const scale = contentHeight / maxH;
-      sW *= scale;
-      sH *= scale;
-      lW *= scale;
-      lH *= scale;
-    }
-
-    const y = contentTop + (contentHeight - Math.max(sH, lH)) / 2;
-    const xScatter = contentLeft;
-    const xLegend = xScatter + sW + gap;
-    pdf.addImage(scatterImg, 'PNG', xScatter, y, sW, sH);
-    pdf.addImage(legendImg, 'PNG', xLegend, y, lW, lH);
-
-    // Footer
-    pdf.setFontSize(9);
-    pdf.text('Page 1 of 1', pdfWidth - margin, pdfHeight - margin, {
-      align: 'right',
-    });
+    // Place images
+    const xScatter = margin;
+    const xLegend = xScatter + scatterTargetW + gap;
+    pdf.addImage(scatterImg, 'PNG', xScatter, margin, scatterTargetW, scatterTargetH);
+    pdf.addImage(legendImg, 'PNG', xLegend, margin, legendTargetW, legendTargetH);
 
     const dateForFile = new Date().toISOString().replace(/[:T]/g, '-').replace(/\..+$/, '');
-    const fileName = options.exportName
-      ? `${options.exportName}_${dateForFile}.pdf`
+    const fileName = opts.exportName
+      ? `${opts.exportName}_${dateForFile}.pdf`
       : `protspace_visualization_${dateForFile}.pdf`;
     pdf.save(fileName);
   }

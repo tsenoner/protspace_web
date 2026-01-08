@@ -1,7 +1,6 @@
-import * as d3 from 'd3';
 import { NEUTRAL_VALUE_COLOR } from './config';
 import type { PlotDataPoint, VisualizationData } from '@protspace/utils';
-import { getSymbolType } from '@protspace/utils';
+import { normalizeShapeName } from '@protspace/utils';
 
 export interface StyleConfig {
   selectedProteinIds: string[];
@@ -55,7 +54,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   const feature =
     data && styleConfig.selectedFeature ? data.features[styleConfig.selectedFeature] : undefined;
   const valueToColor = new Map<string, string>();
-  const valueToShape = new Map<string, d3.SymbolType>();
+  const valueToShape = new Map<string, string>();
   let nullishConfiguredColor: string | null = null;
 
   // Priority: legend colorMapping > feature.colors from data
@@ -86,7 +85,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   if (shapeMap && styleConfig.useShapes) {
     // Use legend-provided shape mapping (frequency-sorted)
     for (const [key, shape] of Object.entries(shapeMap)) {
-      valueToShape.set(key, getSymbolType(shape));
+      valueToShape.set(key, normalizeShapeName(shape));
     }
   } else if (feature && Array.isArray(feature.values) && styleConfig.useShapes) {
     // Fallback to feature.shapes from data
@@ -94,7 +93,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       const v = feature.values[i];
       const k = normalizeToKey(v);
       if (feature.shapes && feature.shapes[i]) {
-        valueToShape.set(k, getSymbolType(feature.shapes[i]));
+        valueToShape.set(k, normalizeShapeName(feature.shapes[i]));
       }
     }
   }
@@ -118,23 +117,23 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     return styleConfig.sizes.base;
   };
 
-  const getPointShape = (point: PlotDataPoint): d3.SymbolType => {
-    if (styleConfig.useShapes === false) return d3.symbolCircle;
-    if (!data || !styleConfig.selectedFeature) return d3.symbolCircle;
+  const getPointShape = (point: PlotDataPoint): string => {
+    if (styleConfig.useShapes === false) return 'circle';
+    if (!data || !styleConfig.selectedFeature) return 'circle';
 
     const featureValueArray = point.featureValues[styleConfig.selectedFeature];
 
-    // multilabel points only suppor circle for now
-    if (featureValueArray.length > 1) return d3.symbolCircle;
+    // multilabel points only support circle for now
+    if (featureValueArray.length > 1) return 'circle';
 
     // default to circle for points with no feature
-    if (featureValueArray.length === 0) return d3.symbolCircle;
+    if (featureValueArray.length === 0) return 'circle';
 
     const featureValue = featureValueArray[0];
-    if (featureValue && otherValuesSet.has(featureValue)) return d3.symbolCircle;
+    if (featureValue && otherValuesSet.has(featureValue)) return 'circle';
 
     const k = normalizeToKey(featureValue);
-    return valueToShape.get(k) ?? d3.symbolCircle;
+    return valueToShape.get(k) ?? 'circle';
   };
 
   const getColors = (point: PlotDataPoint): string[] => {
