@@ -130,18 +130,29 @@ export class ProtSpaceExporter {
 
   /**
    * Generate legend canvas for export
+   * Returns an object with the canvas and whether width was increased
    */
   private generateLegendCanvas(
     scatterCanvas: HTMLCanvasElement,
     options: ReturnType<typeof this.getOptionsWithDefaults>,
-  ): HTMLCanvasElement {
+  ): { canvas: HTMLCanvasElement; widthIncreased: boolean } {
     const legendItems = this.buildLegendItems(options);
     const legendExportState = this.readLegendExportState();
     const featureNameFromLegend = legendExportState?.feature;
 
-    const legendWidth = Math.round(scatterCanvas.width * ProtSpaceExporter.LEGEND_WIDTH_RATIO);
+    const targetLegendWidth = Math.round(scatterCanvas.width * ProtSpaceExporter.LEGEND_WIDTH_RATIO);
 
-    return this.renderLegendToCanvas(
+    // Calculate minimum required width for legend content
+    const minRequiredWidth = this.calculateLegendMinWidth(
+      legendItems,
+      featureNameFromLegend || this.element.selectedFeature,
+      options.legendScaleFactor,
+    );
+
+    // Use larger of target width or required width to prevent squishing
+    const legendWidth = Math.max(targetLegendWidth, minRequiredWidth);
+
+    const canvas = this.renderLegendToCanvas(
       legendItems,
       legendWidth,
       scatterCanvas.height,
@@ -149,6 +160,52 @@ export class ProtSpaceExporter {
       featureNameFromLegend || this.element.selectedFeature,
       options.legendScaleFactor,
     );
+
+    return {
+      canvas,
+      widthIncreased: legendWidth > targetLegendWidth,
+    };
+  }
+
+  /**
+   * Calculate minimum width required for legend content to be readable
+   */
+  private calculateLegendMinWidth(
+    items: Array<{ value: string; count: number; feature: string }>,
+    featureName: string,
+    scaleFactor: number,
+  ): number {
+    // Create temporary canvas for text measurement
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+    if (!ctx) return 300; // Fallback
+
+    const basePadding = 24;
+    const baseSymbolSize = 28;
+    const baseHeaderFont = 28;
+    const baseItemFont = 24;
+
+    const padding = basePadding * scaleFactor;
+    const symbolSize = baseSymbolSize * scaleFactor;
+    const headerFontSize = baseHeaderFont * scaleFactor;
+    const itemFontSize = baseItemFont * scaleFactor;
+    const textOffset = 8 * scaleFactor;
+    const countGap = 12 * scaleFactor;
+
+    // Measure header
+    ctx.font = `600 ${headerFontSize}px Arial, sans-serif`;
+    let maxWidth = ctx.measureText(featureName || 'Legend').width;
+
+    // Measure items
+    ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
+    for (const item of items) {
+      const valueWidth = ctx.measureText(item.value).width;
+      const countWidth = ctx.measureText(String(item.count)).width;
+      const itemWidth = padding + symbolSize + textOffset + valueWidth + countGap + countWidth;
+      maxWidth = Math.max(maxWidth, itemWidth);
+    }
+
+    return Math.ceil(maxWidth + padding);
   }
 
   /**
@@ -343,15 +400,16 @@ export class ProtSpaceExporter {
     );
 
     // Generate legend canvas
-    const legendCanvas = this.generateLegendCanvas(scatterCanvas, opts);
+    const legendResult = this.generateLegendCanvas(scatterCanvas, opts);
+    const legendCanvas = legendResult.canvas;
 
     // Composite scatterplot and legend
-    const combinedWidth = Math.round(
-      scatterCanvas.width * (1 + ProtSpaceExporter.LEGEND_WIDTH_RATIO),
-    );
+    // Use actual legend width to ensure it's not cut off
+    const combinedWidth = scatterCanvas.width + legendCanvas.width;
+    const combinedHeight = Math.max(scatterCanvas.height, legendCanvas.height);
     const outCanvas = document.createElement('canvas');
     outCanvas.width = combinedWidth;
-    outCanvas.height = scatterCanvas.height;
+    outCanvas.height = combinedHeight;
     const ctx = outCanvas.getContext('2d');
     if (!ctx) {
       console.error('Could not get 2D context for output canvas');
@@ -359,7 +417,7 @@ export class ProtSpaceExporter {
     }
 
     ctx.fillStyle = opts.backgroundColor;
-    ctx.fillRect(0, 0, combinedWidth, scatterCanvas.height);
+    ctx.fillRect(0, 0, combinedWidth, combinedHeight);
     ctx.drawImage(scatterCanvas, 0, 0);
     ctx.drawImage(legendCanvas, scatterCanvas.width, 0);
 
@@ -472,15 +530,16 @@ export class ProtSpaceExporter {
     const itemFontSize = baseItemFont * scaleFactor;
     const bg = options.backgroundColor || '#ffffff';
 
-    // Compute required height
-    const required = padding + headerHeight + items.length * itemHeight + padding;
-    const scaleY = Math.min(1, canvas.height / required);
-    const scaleX = 1; // keep width as-is for readability
+    // Compute required height and scale vertically if needed
+    const requiredHeight = padding + headerHeight + items.length * itemHeight + padding;
+    const scaleY = Math.min(1, canvas.height / requiredHeight);
+
+    // No horizontal scaling - canvas width is already sized correctly
     ctx.save();
-    ctx.scale(scaleX, scaleY);
+    ctx.scale(1, scaleY);
 
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, canvas.width / scaleX, canvas.height / scaleY);
+    ctx.fillRect(0, 0, canvas.width, canvas.height / scaleY);
 
     ctx.fillStyle = '#1f2937';
     ctx.font = `600 ${headerFontSize}px Arial, sans-serif`;
@@ -686,7 +745,8 @@ export class ProtSpaceExporter {
     );
 
     // Generate legend canvas
-    const legendCanvas = this.generateLegendCanvas(scatterCanvas, opts);
+    const legendResult = this.generateLegendCanvas(scatterCanvas, opts);
+    const legendCanvas = legendResult.canvas;
 
     // Convert to images
     const scatterImg = scatterCanvas.toDataURL('image/png', 1.0);
