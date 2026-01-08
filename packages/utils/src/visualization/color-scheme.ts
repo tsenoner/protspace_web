@@ -39,3 +39,15 @@ export const KELLYS_COLORS = [
 export const COLOR_SCHEMES = {
   kellys: KELLYS_COLORS,
 } as const;
+
+/**
+ * Reserved medium gray (#848482) for N/A (missing/nullish) categories.
+ * This color is excluded from Kelly's palette to ensure it's only used for special categories.
+ */
+export const NA_GRAY = '#848482';
+
+/**
+ * Gray color for the "Other" bucket category.
+ * Distinct from NA_GRAY to differentiate between missing values and grouped low-frequency categories.
+ */
+export const OTHER_GRAY = '#999999';

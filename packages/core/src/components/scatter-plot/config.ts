@@ -1,4 +1,5 @@
 import type { ScatterplotConfig } from '@protspace/utils';
+import { OTHER_GRAY } from '@protspace/utils';
 
 /**
  * Duplicate stack UI threshold:
@@ -20,4 +21,8 @@ export const DEFAULT_CONFIG: Required<ScatterplotConfig> = {
   enableDuplicateStackUI: false,
 };
 
-export const NEUTRAL_VALUE_COLOR = '#888888';
+/**
+ * @deprecated Use OTHER_GRAY from @protspace/utils instead.
+ * Kept for backward compatibility but will be removed in a future version.
+ */
+export const NEUTRAL_VALUE_COLOR = OTHER_GRAY;

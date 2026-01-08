@@ -9,7 +9,7 @@
  * - Slot recycling ensures extracted items get available slots
  */
 
-import { COLOR_SCHEMES } from '@protspace/utils';
+import { COLOR_SCHEMES, NA_GRAY, OTHER_GRAY } from '@protspace/utils';
 
 const KELLYS_COLORS = COLOR_SCHEMES.kellys;
 const SHAPES = ['circle', 'square', 'diamond', 'plus', 'triangle-up', 'triangle-down'] as const;
@@ -22,8 +22,8 @@ export const SPECIAL_SLOTS = {
 
 /** Special colors for reserved categories */
 const SPECIAL_COLORS: Record<string, string> = {
-  Others: '#999999',
-  'N/A': '#DDDDDD',
+  Others: OTHER_GRAY,
+  'N/A': NA_GRAY,
 };
 
 export interface VisualEncoding {
@@ -50,7 +50,7 @@ export function getVisualEncoding(
   // Handle negative slots (special categories) - shouldn't normally reach here
   if (slot < 0) {
     return {
-      color: '#999999',
+      color: OTHER_GRAY,
       shape: 'circle',
     };
   }

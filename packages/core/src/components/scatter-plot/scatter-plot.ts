@@ -2,7 +2,7 @@ import { LitElement, html } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import * as d3 from 'd3';
 import type { VisualizationData, PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
-import { DataProcessor } from '@protspace/utils';
+import { DataProcessor, OTHER_GRAY } from '@protspace/utils';
 import { scatterplotStyles } from './scatter-plot.styles';
 import { DEFAULT_CONFIG } from './config';
 import { createStyleGetters } from './style-getters';
@@ -1144,7 +1144,7 @@ export class ProtspaceScatterplot extends LitElement {
       .append('circle')
       .attr('class', 'dup-spiderfy-node-circle')
       .attr('r', nodeRadius)
-      .attr('fill', (d) => this._getColors(d.point)[0] ?? '#888888')
+      .attr('fill', (d) => this._getColors(d.point)[0] ?? OTHER_GRAY)
       .style('pointer-events', 'all')
       .style('cursor', 'pointer')
       .on('pointerdown', (event) => {

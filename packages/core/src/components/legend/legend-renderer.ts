@@ -1,6 +1,7 @@
 import type { TemplateResult } from 'lit';
 import { html } from 'lit';
 import type { LegendItem } from './types';
+import { OTHER_GRAY } from '@protspace/utils';
 import { SHAPE_PATH_GENERATORS, LEGEND_DEFAULTS, LEGEND_STYLES } from './config';
 
 /**
@@ -44,7 +45,7 @@ export class LegendRenderer {
       : LEGEND_STYLES.colors.defaultStroke;
 
     // Ensure we have a valid color
-    const validColor = color || '#888888';
+    const validColor = color || OTHER_GRAY;
 
     return html`
       <svg width="${canvasSize}" height="${canvasSize}" class="legend-symbol">
@@ -172,7 +173,7 @@ export class LegendRenderer {
     return html`
       <div class="mr-2">
         ${item.value === 'Other'
-          ? this.renderSymbol('circle', '#888', size)
+          ? this.renderSymbol('circle', OTHER_GRAY, size)
           : this.renderSymbol(
               includeShapes ? item.shape : 'circle',
               item.color,
