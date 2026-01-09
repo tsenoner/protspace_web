@@ -227,12 +227,9 @@ export class LegendDataProcessor {
       }
     }
 
-    // Check if we're in a manual sort mode
-    const isManualMode = sortMode === 'manual' || sortMode === 'manual-reverse';
-
-    // In manual mode, when extracting new items, shift existing zOrders to make room
+    // In 'manual' mode (not 'manual-reverse'), when extracting new items, shift existing zOrders to make room
     // Only apply when zOrders are consecutive (0, 1, 2, ...) - typical during normal operation
-    if (isManualMode && existingZOrders.size > 0) {
+    if (sortMode === 'manual' && existingZOrders.size > 0) {
       const existingZOrderValues = Array.from(existingZOrders.values()).sort((a, b) => a - b);
       const isConsecutive =
         existingZOrderValues[0] === 0 && existingZOrderValues.every((v, i) => v === i);
@@ -265,8 +262,10 @@ export class LegendDataProcessor {
 
     const items: LegendItem[] = topItems.map(([value, count], index) => {
       const categoryName = value === null ? LEGEND_VALUES.NA_DISPLAY : value;
-      // Only preserve existing zOrders in manual mode; otherwise use sorted index
-      const zOrder = isManualMode ? (existingZOrders.get(value) ?? index) : index;
+      // In 'manual' mode, preserve existing zOrders
+      // In 'manual-reverse' mode, use the sorted index (items are already sorted in reverse)
+      // In other modes, use sorted index
+      const zOrder = sortMode === 'manual' ? (existingZOrders.get(value) ?? index) : index;
       const slot = ctx.slotTracker.getSlot(categoryName);
       const encoding = getVisualEncoding(slot, shapesEnabled, categoryName);
 
@@ -283,8 +282,9 @@ export class LegendDataProcessor {
     // Always include "Other" when there are items beyond the cap and not in isolation mode
     if (otherCount > 0 && !isolationMode) {
       const encoding = getVisualEncoding(-1, shapesEnabled, LEGEND_VALUES.OTHERS);
-      // Only preserve existing "Other" zOrder in manual mode; otherwise put at end
-      const otherZOrder = isManualMode ? (existingOtherZOrder ?? items.length) : items.length;
+      // Only preserve existing "Other" zOrder in 'manual' mode; otherwise put at end
+      const otherZOrder =
+        sortMode === 'manual' ? (existingOtherZOrder ?? items.length) : items.length;
 
       items.push({
         value: LEGEND_VALUES.OTHER,

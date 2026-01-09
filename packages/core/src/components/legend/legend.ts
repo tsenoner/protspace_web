@@ -708,13 +708,31 @@ export class ProtspaceLegend extends LitElement {
       newMode = currentMode.replace('-desc', '-asc') as LegendSortMode;
     }
 
-    // Update sort mode and re-process legend items
+    // Update sort mode
     this._annotationSortModes = {
       ...this._annotationSortModes,
       [this.selectedAnnotation]: newMode,
     };
 
-    this._updateLegendItems();
+    // For manual modes, directly reverse the current zOrders to ensure
+    // toggling between manual/manual-reverse always reverses the order
+    if (currentMode === 'manual' || currentMode === 'manual-reverse') {
+      // Sort by current zOrder, separate "Other" item
+      const sorted = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
+      const otherItem = sorted.find((i) => i.value === LEGEND_VALUES.OTHER);
+      const nonOther = sorted.filter((i) => i.value !== LEGEND_VALUES.OTHER);
+
+      // Reverse non-Other items
+      const reversed = nonOther.reverse();
+      const reordered = otherItem ? [...reversed, otherItem] : reversed;
+
+      // Reassign zOrders
+      this._legendItems = reordered.map((item, idx) => ({ ...item, zOrder: idx }));
+    } else {
+      // For non-manual modes, re-process legend items with new sort mode
+      this._updateLegendItems();
+    }
+
     this._scatterplotController.dispatchZOrderChange();
     this._persistenceController.saveSettings();
     this.requestUpdate();

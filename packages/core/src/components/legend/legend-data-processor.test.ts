@@ -242,6 +242,46 @@ describe('legend-data-processor', () => {
       expect(cat2?.zOrder).toBe(1); // Second in sorted order
     });
 
+    it('reassigns z-order based on reversed position in manual-reverse mode', () => {
+      // Items are passed in reverse order (as sortAndLimitItems would sort them)
+      const topItems: Array<[string | null, number]> = [
+        ['category2', 5], // Was at zOrder 1, now first
+        ['category1', 10], // Was at zOrder 0, now second
+      ];
+      const existing: LegendItem[] = [
+        {
+          value: 'category1',
+          color: '#000',
+          shape: 'circle',
+          count: 10,
+          isVisible: true,
+          zOrder: 0,
+        },
+        {
+          value: 'category2',
+          color: '#000',
+          shape: 'circle',
+          count: 5,
+          isVisible: true,
+          zOrder: 1,
+        },
+      ];
+      // In manual-reverse mode, zOrder should be based on sorted index (reversed position)
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        existing,
+        false,
+        'manual-reverse',
+      );
+      const cat1 = items.find((i) => i.value === 'category1');
+      const cat2 = items.find((i) => i.value === 'category2');
+      expect(cat2?.zOrder).toBe(0); // First in reversed order
+      expect(cat1?.zOrder).toBe(1); // Second in reversed order
+    });
+
     it('includes shapes when shapesEnabled', () => {
       const topItems: Array<[string | null, number]> = [
         ['category1', 10],
