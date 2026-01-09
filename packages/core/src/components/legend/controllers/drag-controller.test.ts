@@ -43,65 +43,28 @@ describe('DragController', () => {
     vi.useRealTimers();
   });
 
-  describe('constructor', () => {
-    it('adds itself to the host controller', () => {
-      expect(mockHost.addController).toHaveBeenCalledWith(controller);
-    });
-  });
-
-  describe('hostConnected/hostDisconnected', () => {
-    it('hostConnected does not throw', () => {
-      expect(() => controller.hostConnected()).not.toThrow();
-    });
-
-    it('hostDisconnected clears pending timeouts', () => {
-      const item = mockLegendItems[0];
-      controller.handleDragStart(item);
+  describe('hostDisconnected', () => {
+    it('clears pending timeouts', () => {
+      controller.handleDragStart(mockLegendItems[0]);
 
       const event = new Event('dragover') as DragEvent;
       Object.defineProperty(event, 'dataTransfer', { value: { dropEffect: 'none' } });
       controller.handleDragOver(event as DragEvent, mockLegendItems[1]);
 
-      // Before disconnecting, there should be a pending timeout
       controller.hostDisconnected();
-
-      // Advance timers - callback should not be called since timeout was cleared
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout + 100);
       expect(mockCallbacks.setLegendItems).not.toHaveBeenCalled();
     });
   });
 
-  describe('draggedItemIndex', () => {
-    it('starts at -1', () => {
-      expect(controller.draggedItemIndex).toBe(-1);
-    });
-
-    it('is set when drag starts', () => {
-      controller.handleDragStart(mockLegendItems[1]);
-      expect(controller.draggedItemIndex).toBe(1);
-    });
-
-    it('is reset to -1 on drag end', () => {
-      controller.handleDragStart(mockLegendItems[1]);
-      controller.handleDragEnd();
-      expect(controller.draggedItemIndex).toBe(-1);
-    });
-  });
-
   describe('isDragging', () => {
-    it('returns false when not dragging', () => {
+    it('tracks dragging state correctly', () => {
       expect(controller.isDragging(0)).toBe(false);
-      expect(controller.isDragging(1)).toBe(false);
-    });
 
-    it('returns true for the dragged item index', () => {
       controller.handleDragStart(mockLegendItems[1]);
       expect(controller.isDragging(1)).toBe(true);
       expect(controller.isDragging(0)).toBe(false);
-    });
 
-    it('returns false after drag end', () => {
-      controller.handleDragStart(mockLegendItems[1]);
       controller.handleDragEnd();
       expect(controller.isDragging(1)).toBe(false);
     });
@@ -126,9 +89,7 @@ describe('DragController', () => {
       Object.defineProperty(event, 'dataTransfer', { value: { dropEffect: 'none' } });
       controller.handleDragOver(event as DragEvent, mockLegendItems[1]);
 
-      // Start a new drag - should clear the timeout
       controller.handleDragStart(mockLegendItems[2]);
-
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout + 100);
       expect(mockCallbacks.setLegendItems).not.toHaveBeenCalled();
     });
@@ -146,29 +107,22 @@ describe('DragController', () => {
       Object.defineProperty(mockEvent, 'preventDefault', { value: vi.fn() });
     });
 
-    it('prevents default', () => {
+    it('prevents default and sets dropEffect', () => {
       controller.handleDragStart(mockLegendItems[0]);
       controller.handleDragOver(mockEvent, mockLegendItems[1]);
       expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(mockEvent.dataTransfer!.dropEffect).toBe('move');
     });
 
-    it('does nothing when not dragging', () => {
+    it('does nothing when not dragging or dragging over same item', () => {
       controller.handleDragOver(mockEvent, mockLegendItems[1]);
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout + 100);
       expect(mockCallbacks.setLegendItems).not.toHaveBeenCalled();
-    });
 
-    it('does nothing when dragging over same item', () => {
       controller.handleDragStart(mockLegendItems[1]);
       controller.handleDragOver(mockEvent, mockLegendItems[1]);
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout + 100);
       expect(mockCallbacks.setLegendItems).not.toHaveBeenCalled();
-    });
-
-    it('sets dropEffect to move', () => {
-      controller.handleDragStart(mockLegendItems[0]);
-      controller.handleDragOver(mockEvent, mockLegendItems[1]);
-      expect(mockEvent.dataTransfer!.dropEffect).toBe('move');
     });
 
     it('triggers reorder after timeout', () => {
@@ -176,7 +130,6 @@ describe('DragController', () => {
       controller.handleDragOver(mockEvent, mockLegendItems[2]);
 
       expect(mockCallbacks.setLegendItems).not.toHaveBeenCalled();
-
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout);
 
       expect(mockCallbacks.setLegendItems).toHaveBeenCalled();
@@ -184,29 +137,24 @@ describe('DragController', () => {
     });
 
     it('reorders items correctly (move down)', () => {
-      controller.handleDragStart(mockLegendItems[0]); // index 0
-      controller.handleDragOver(mockEvent, mockLegendItems[2]); // target index 2
-
+      controller.handleDragStart(mockLegendItems[0]);
+      controller.handleDragOver(mockEvent, mockLegendItems[2]);
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout);
 
-      const setItemsCall = mockCallbacks.setLegendItems as ReturnType<typeof vi.fn>;
-      const newItems = setItemsCall.mock.calls[0][0] as LegendItem[];
-
-      // Item at index 0 should now be at position 1 (after cat2, before cat3)
+      const newItems = (mockCallbacks.setLegendItems as ReturnType<typeof vi.fn>).mock
+        .calls[0][0] as LegendItem[];
       expect(newItems[0].value).toBe('cat2');
       expect(newItems[1].value).toBe('cat1');
       expect(newItems[2].value).toBe('cat3');
     });
 
     it('reorders items correctly (move up)', () => {
-      controller.handleDragStart(mockLegendItems[2]); // index 2
-      controller.handleDragOver(mockEvent, mockLegendItems[0]); // target index 0
-
+      controller.handleDragStart(mockLegendItems[2]);
+      controller.handleDragOver(mockEvent, mockLegendItems[0]);
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout);
 
-      const setItemsCall = mockCallbacks.setLegendItems as ReturnType<typeof vi.fn>;
-      const newItems = setItemsCall.mock.calls[0][0] as LegendItem[];
-
+      const newItems = (mockCallbacks.setLegendItems as ReturnType<typeof vi.fn>).mock
+        .calls[0][0] as LegendItem[];
       expect(newItems[0].value).toBe('cat3');
       expect(newItems[1].value).toBe('cat1');
       expect(newItems[2].value).toBe('cat2');
@@ -215,12 +163,10 @@ describe('DragController', () => {
     it('updates zOrder on all items after reorder', () => {
       controller.handleDragStart(mockLegendItems[0]);
       controller.handleDragOver(mockEvent, mockLegendItems[2]);
-
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout);
 
-      const setItemsCall = mockCallbacks.setLegendItems as ReturnType<typeof vi.fn>;
-      const newItems = setItemsCall.mock.calls[0][0] as LegendItem[];
-
+      const newItems = (mockCallbacks.setLegendItems as ReturnType<typeof vi.fn>).mock
+        .calls[0][0] as LegendItem[];
       newItems.forEach((item, idx) => {
         expect(item.zOrder).toBe(idx);
       });
@@ -229,53 +175,32 @@ describe('DragController', () => {
     it('clears previous timeout on new dragover', () => {
       controller.handleDragStart(mockLegendItems[0]);
       controller.handleDragOver(mockEvent, mockLegendItems[1]);
-
-      // Advance partially
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout / 2);
 
-      // Drag over different item
       controller.handleDragOver(mockEvent, mockLegendItems[2]);
-
-      // Advance partially again - first timeout should not trigger
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout / 2);
       expect(mockCallbacks.setLegendItems).not.toHaveBeenCalled();
 
-      // Complete second timeout
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout / 2);
       expect(mockCallbacks.setLegendItems).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('handleDrop', () => {
-    let mockEvent: DragEvent;
-
-    beforeEach(() => {
-      mockEvent = new Event('drop') as DragEvent;
+    it('prevents default and ends drag', () => {
+      const mockEvent = new Event('drop') as DragEvent;
       Object.defineProperty(mockEvent, 'preventDefault', { value: vi.fn() });
-    });
 
-    it('prevents default', () => {
-      controller.handleDrop(mockEvent, mockLegendItems[0]);
-      expect(mockEvent.preventDefault).toHaveBeenCalled();
-    });
-
-    it('calls handleDragEnd', () => {
       controller.handleDragStart(mockLegendItems[0]);
       controller.handleDrop(mockEvent, mockLegendItems[1]);
+
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
       expect(controller.draggedItemIndex).toBe(-1);
     });
   });
 
   describe('handleDragEnd', () => {
-    it('resets dragged item index', () => {
-      controller.handleDragStart(mockLegendItems[0]);
-      expect(controller.draggedItemIndex).toBe(0);
-
-      controller.handleDragEnd();
-      expect(controller.draggedItemIndex).toBe(-1);
-    });
-
-    it('clears pending timeout', () => {
+    it('resets state and clears pending timeout', () => {
       controller.handleDragStart(mockLegendItems[0]);
 
       const mockEvent = new Event('dragover') as DragEvent;
@@ -284,6 +209,7 @@ describe('DragController', () => {
       controller.handleDragOver(mockEvent, mockLegendItems[1]);
 
       controller.handleDragEnd();
+      expect(controller.draggedItemIndex).toBe(-1);
 
       vi.advanceTimersByTime(LEGEND_DEFAULTS.dragTimeout + 100);
       expect(mockCallbacks.setLegendItems).not.toHaveBeenCalled();

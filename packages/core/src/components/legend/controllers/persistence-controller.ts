@@ -6,7 +6,13 @@ import {
   setStorageItem,
   removeStorageItem,
 } from '@protspace/utils';
-import type { LegendPersistedSettings, LegendItem, LegendSortMode } from '../types';
+import type {
+  LegendPersistedSettings,
+  LegendItem,
+  LegendSortMode,
+  PersistedCategoryData,
+} from '../types';
+import { LEGEND_VALUES } from '../config';
 import { createDefaultSettings } from '../legend-helpers';
 
 /**
@@ -35,7 +41,7 @@ export class PersistenceController implements ReactiveController {
   private _datasetHash: string = '';
   private _selectedAnnotation: string = '';
   private _settingsLoaded: boolean = false;
-  private _pendingZOrderMapping: Record<string, number> = {};
+  private _pendingCategories: Record<string, PersistedCategoryData> = {};
 
   constructor(host: ReactiveControllerHost, callbacks: PersistenceCallbacks) {
     this.callbacks = callbacks;
@@ -51,10 +57,10 @@ export class PersistenceController implements ReactiveController {
   }
 
   /**
-   * Get pending z-order mapping (to apply after legend items are created)
+   * Get pending categories (to apply after legend items are created)
    */
-  get pendingZOrderMapping(): Record<string, number> {
-    return this._pendingZOrderMapping;
+  get pendingCategories(): Record<string, PersistedCategoryData> {
+    return this._pendingCategories;
   }
 
   /**
@@ -105,7 +111,7 @@ export class PersistenceController implements ReactiveController {
       ...saved,
     };
 
-    this._pendingZOrderMapping = mergedSettings.zOrderMapping;
+    this._pendingCategories = mergedSettings.categories;
     this._settingsLoaded = true;
 
     this.callbacks.onSettingsLoaded(mergedSettings);
@@ -121,11 +127,15 @@ export class PersistenceController implements ReactiveController {
     const legendItems = this.callbacks.getLegendItems();
     const currentSettings = this.callbacks.getCurrentSettings();
 
-    // Build z-order mapping from current legend items
-    const zOrderMapping: Record<string, number> = {};
+    // Build categories from current legend items
+    const categories: Record<string, PersistedCategoryData> = {};
     legendItems.forEach((item) => {
-      if (item.value !== null) {
-        zOrderMapping[item.value] = item.zOrder;
+      if (item.value !== null && item.value !== LEGEND_VALUES.OTHER) {
+        categories[item.value] = {
+          zOrder: item.zOrder,
+          color: item.color,
+          shape: item.shape,
+        };
       }
     });
 
@@ -135,11 +145,15 @@ export class PersistenceController implements ReactiveController {
       shapeSize: currentSettings.shapeSize,
       sortMode: currentSettings.sortMode,
       hiddenValues: this.callbacks.getHiddenValues(),
-      zOrderMapping,
+      categories,
       enableDuplicateStackUI: currentSettings.enableDuplicateStackUI,
     };
 
     setStorageItem(key, settings);
+
+    // Update pending categories to match the saved state
+    // This ensures subsequent _updateLegendItems() calls use the current data
+    this._pendingCategories = categories;
   }
 
   /**
@@ -162,51 +176,52 @@ export class PersistenceController implements ReactiveController {
   }
 
   /**
-   * Set pending z-order mapping (used when extracting items from Other)
+   * Set pending categories (used when extracting items from Other)
    */
-  setPendingZOrder(zOrderMapping: Record<string, number>): void {
-    this._pendingZOrderMapping = zOrderMapping;
+  setPendingCategories(categories: Record<string, PersistedCategoryData>): void {
+    this._pendingCategories = categories;
   }
 
   /**
-   * Clear pending z-order mapping after it's been applied
+   * Clear pending categories after they've been applied
    */
-  clearPendingZOrder(): void {
-    this._pendingZOrderMapping = {};
+  clearPendingCategories(): void {
+    this._pendingCategories = {};
   }
 
   /**
-   * Check if there's a pending z-order mapping to apply
+   * Check if there are pending categories to apply
    */
-  hasPendingZOrder(): boolean {
-    return Object.keys(this._pendingZOrderMapping).length > 0;
+  hasPendingCategories(): boolean {
+    return Object.keys(this._pendingCategories).length > 0;
   }
 
   /**
-   * Apply pending z-order mapping to legend items
+   * Apply pending categories (z-order only) to legend items
+   * Color/shape are applied during legend item creation in the processor
    */
   applyPendingZOrder(legendItems: LegendItem[]): LegendItem[] {
-    if (!this.hasPendingZOrder() || legendItems.length === 0) {
+    if (!this.hasPendingCategories() || legendItems.length === 0) {
       return legendItems;
     }
 
     const hasMapping = legendItems.some(
-      (item) => item.value !== null && this._pendingZOrderMapping[item.value] !== undefined,
+      (item) => item.value !== null && this._pendingCategories[item.value] !== undefined,
     );
 
     if (!hasMapping) {
-      this._pendingZOrderMapping = {};
+      this._pendingCategories = {};
       return legendItems;
     }
 
     const updatedItems = legendItems.map((item) => {
-      if (item.value !== null && this._pendingZOrderMapping[item.value] !== undefined) {
-        return { ...item, zOrder: this._pendingZOrderMapping[item.value] };
+      if (item.value !== null && this._pendingCategories[item.value] !== undefined) {
+        return { ...item, zOrder: this._pendingCategories[item.value].zOrder };
       }
       return item;
     });
 
-    this._pendingZOrderMapping = {};
+    this._pendingCategories = {};
     return updatedItems;
   }
 

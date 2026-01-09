@@ -279,12 +279,12 @@ export class ProtspaceLegend extends LitElement {
   private get _visibleValues(): Set<string> {
     const visible = new Set<string>();
 
-    // When restoring from localStorage, pendingZOrderMapping contains the persisted visible values.
+    // When restoring from localStorage, pendingCategories contains the persisted visible values.
     // Prioritize it over _legendItems since _legendItems may have been populated with defaults
     // before loadSettings() completed.
-    const pendingMapping = this._persistenceController.pendingZOrderMapping;
-    if (Object.keys(pendingMapping).length > 0) {
-      for (const key of Object.keys(pendingMapping)) {
+    const pendingCategories = this._persistenceController.pendingCategories;
+    if (Object.keys(pendingCategories).length > 0) {
+      for (const key of Object.keys(pendingCategories)) {
         if (key !== 'null' && key !== LEGEND_VALUES.OTHER) {
           visible.add(key);
         }
@@ -371,7 +371,12 @@ export class ProtspaceLegend extends LitElement {
 
     // Update dataset hash when protein IDs change
     if (changedProperties.has('proteinIds') && this.proteinIds.length > 0) {
-      this._persistenceController.updateDatasetHash(this.proteinIds);
+      const hashChanged = this._persistenceController.updateDatasetHash(this.proteinIds);
+      // If hash changed and we have an annotation but settings weren't loaded yet,
+      // try loading now (handles case where proteinIds arrives after data/selectedAnnotation)
+      if (hashChanged && this.selectedAnnotation && !this._persistenceController.settingsLoaded) {
+        this._persistenceController.loadSettings();
+      }
     }
 
     // Handle data or annotation changes
@@ -398,7 +403,7 @@ export class ProtspaceLegend extends LitElement {
     ) {
       this._updateLegendItems();
 
-      if (this._persistenceController.hasPendingZOrder()) {
+      if (this._persistenceController.hasPendingCategories()) {
         this._legendItems = this._persistenceController.applyPendingZOrder(this._legendItems);
       }
     }
@@ -516,21 +521,8 @@ export class ProtspaceLegend extends LitElement {
     }
 
     try {
-      // Build zOrderMapping: prioritize pendingZOrderMapping when restoring from localStorage,
-      // since _legendItems may have been populated with defaults before loadSettings() completed.
-      let zOrderMapping: Record<string, number> = {};
-      const pendingMapping = this._persistenceController.pendingZOrderMapping;
-      if (Object.keys(pendingMapping).length > 0) {
-        // Use pending zOrderMapping from persistence controller (restoring from localStorage)
-        zOrderMapping = { ...pendingMapping };
-      } else if (this._legendItems.length > 0) {
-        // Use current legend items
-        this._legendItems.forEach((item) => {
-          if (item.value !== null && item.value !== LEGEND_VALUES.OTHER) {
-            zOrderMapping[item.value] = item.zOrder;
-          }
-        });
-      }
+      // Get persisted categories from persistence controller
+      const persistedCategories = this._persistenceController.pendingCategories;
 
       // Get pending values for extract/merge operations
       const pendingExtract = this._pendingExtractValue ?? undefined;
@@ -553,7 +545,7 @@ export class ProtspaceLegend extends LitElement {
         this._legendItems,
         this._currentSortMode,
         this._effectiveIncludeShapes,
-        zOrderMapping,
+        persistedCategories,
         visibleValues,
         pendingExtract,
         pendingMerge,
@@ -570,11 +562,13 @@ export class ProtspaceLegend extends LitElement {
       }
       this._otherItems = otherItems;
 
-      // Clear pending values after they've been applied
+      // Clear pending extract/merge values after they've been applied
       this._pendingExtractValue = null;
       this._pendingMergeValue = null;
-      // Clear pendingZOrderMapping after restoration so subsequent updates use _legendItems
-      this._persistenceController.clearPendingZOrder();
+      // Note: We do NOT clear pendingCategories here because subsequent update cycles
+      // (triggered by property changes in _applyPersistedSettings) may rebuild legend items
+      // and need the persisted colors/shapes. Categories are cleared when loadSettings()
+      // is called for a new annotation.
 
       // Sync with scatterplot
       this._scatterplotController.dispatchZOrderChange();

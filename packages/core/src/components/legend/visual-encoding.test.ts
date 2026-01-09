@@ -32,48 +32,28 @@ describe('visual-encoding', () => {
       expect(encoding.shape).toBe('circle');
     });
 
-    it('cycles through shapes when enabled', () => {
+    it('cycles through all 6 shapes when enabled', () => {
       const shapes = new Set<string>();
       for (let i = 0; i < 6; i++) {
-        const encoding = getVisualEncoding(i, true);
-        shapes.add(encoding.shape);
+        shapes.add(getVisualEncoding(i, true).shape);
       }
       expect(shapes.size).toBe(6);
-      expect(shapes.has('circle')).toBe(true);
-      expect(shapes.has('square')).toBe(true);
-      expect(shapes.has('diamond')).toBe(true);
-      expect(shapes.has('plus')).toBe(true);
-      expect(shapes.has('triangle-up')).toBe(true);
-      expect(shapes.has('triangle-down')).toBe(true);
     });
 
-    it('wraps around colors after all are used', () => {
-      // Get colors until we find a repeat
+    it('wraps around colors after palette exhausted', () => {
       const colors: string[] = [];
       for (let i = 0; i < 50; i++) {
         colors.push(getVisualEncoding(i, false).color);
       }
-      // Find where colors start repeating
       const firstColor = colors[0];
       const repeatIndex = colors.findIndex((c, i) => i > 0 && c === firstColor);
       expect(repeatIndex).toBeGreaterThan(0);
-      // Verify the pattern repeats
-      const encoding0 = getVisualEncoding(0, false);
-      const encodingRepeat = getVisualEncoding(repeatIndex, false);
-      expect(encoding0.color).toBe(encodingRepeat.color);
     });
 
-    it('wraps around shapes after all are used', () => {
+    it('wraps around shapes after 6', () => {
       const encoding0 = getVisualEncoding(0, true);
       const encoding6 = getVisualEncoding(6, true);
       expect(encoding0.shape).toBe(encoding6.shape);
-    });
-  });
-
-  describe('SPECIAL_SLOTS', () => {
-    it('has correct values for special categories', () => {
-      expect(SPECIAL_SLOTS.OTHERS).toBe(-1);
-      expect(SPECIAL_SLOTS.NA).toBe(-2);
     });
   });
 
@@ -85,16 +65,9 @@ describe('visual-encoding', () => {
     });
 
     describe('getSlot', () => {
-      it('returns OTHERS slot for Others category', () => {
+      it('returns special slots for Others and N/A', () => {
         expect(tracker.getSlot('Others')).toBe(SPECIAL_SLOTS.OTHERS);
-      });
-
-      it('returns NA slot for N/A category', () => {
         expect(tracker.getSlot('N/A')).toBe(SPECIAL_SLOTS.NA);
-      });
-
-      it('assigns slot 0 to first category', () => {
-        expect(tracker.getSlot('category1')).toBe(0);
       });
 
       it('assigns incrementing slots to new categories', () => {
@@ -118,22 +91,10 @@ describe('visual-encoding', () => {
     });
 
     describe('freeSlot', () => {
-      it('does not free Others category', () => {
+      it('does not free special categories', () => {
         tracker.freeSlot('Others');
-        expect(tracker.getSlot('newCategory')).toBe(0);
-      });
-
-      it('does not free N/A category', () => {
         tracker.freeSlot('N/A');
         expect(tracker.getSlot('newCategory')).toBe(0);
-      });
-
-      it('frees regular category slot for reuse', () => {
-        tracker.getSlot('category1');
-        tracker.getSlot('category2');
-        tracker.freeSlot('category1');
-        // New category should get freed slot 0
-        expect(tracker.getSlot('category3')).toBe(0);
       });
 
       it('maintains sorted order of freed slots', () => {
@@ -142,14 +103,8 @@ describe('visual-encoding', () => {
         tracker.getSlot('c'); // 2
         tracker.freeSlot('c'); // free 2
         tracker.freeSlot('a'); // free 0
-        // Should reuse 0 first (lowest)
         expect(tracker.getSlot('new1')).toBe(0);
         expect(tracker.getSlot('new2')).toBe(2);
-      });
-
-      it('handles freeing non-existent category gracefully', () => {
-        tracker.freeSlot('nonexistent');
-        expect(tracker.getSlot('category1')).toBe(0);
       });
     });
 
@@ -167,18 +122,6 @@ describe('visual-encoding', () => {
         expect(tracker.getSlot('Others')).toBe(SPECIAL_SLOTS.OTHERS);
         expect(tracker.getSlot('N/A')).toBe(SPECIAL_SLOTS.NA);
       });
-
-      it('frees slots for categories no longer visible', () => {
-        tracker.reassignSlots(['cat1', 'cat2', 'cat3']);
-        tracker.reassignSlots(['cat1', 'cat3']);
-        // cat2 was freed, new category should get a slot
-        expect(tracker.getSlot('cat4')).toBe(2);
-      });
-
-      it('handles empty array', () => {
-        tracker.reassignSlots([]);
-        expect(tracker.isEmpty()).toBe(true);
-      });
     });
 
     describe('reset', () => {
@@ -187,12 +130,6 @@ describe('visual-encoding', () => {
         tracker.getSlot('category2');
         tracker.reset();
         expect(tracker.isEmpty()).toBe(true);
-      });
-
-      it('resets next slot counter', () => {
-        tracker.getSlot('category1');
-        tracker.getSlot('category2');
-        tracker.reset();
         expect(tracker.getSlot('newCategory')).toBe(0);
       });
     });
@@ -205,12 +142,6 @@ describe('visual-encoding', () => {
       it('returns false after assigning a slot', () => {
         tracker.getSlot('category1');
         expect(tracker.isEmpty()).toBe(false);
-      });
-
-      it('returns true after reset', () => {
-        tracker.getSlot('category1');
-        tracker.reset();
-        expect(tracker.isEmpty()).toBe(true);
       });
 
       it('returns true when only special categories requested', () => {

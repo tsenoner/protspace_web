@@ -116,7 +116,7 @@ export function createDefaultSettings(selectedAnnotation: string): LegendPersist
     shapeSize: LEGEND_DEFAULTS.symbolSize,
     sortMode: FIRST_NUMBER_SORT_ANNOTATIONS.has(selectedAnnotation) ? 'alpha-asc' : 'size-desc',
     hiddenValues: [],
-    zOrderMapping: {},
+    categories: {},
     enableDuplicateStackUI: LEGEND_DEFAULTS.enableDuplicateStackUI,
   };
 }

@@ -80,12 +80,18 @@ export type LegendSortMode =
   | 'manual'
   | 'manual-reverse';
 
+export interface PersistedCategoryData {
+  zOrder: number;
+  color: string;
+  shape: string;
+}
+
 export interface LegendPersistedSettings {
   maxVisibleValues: number;
   includeShapes: boolean;
   shapeSize: number;
   sortMode: LegendSortMode;
   hiddenValues: string[];
-  zOrderMapping: Record<string, number>;
+  categories: Record<string, PersistedCategoryData>;
   enableDuplicateStackUI: boolean;
 }

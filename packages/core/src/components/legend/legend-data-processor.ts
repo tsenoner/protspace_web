@@ -1,4 +1,4 @@
-import type { LegendItem, OtherItem, LegendSortMode } from './types';
+import type { LegendItem, OtherItem, LegendSortMode, PersistedCategoryData } from './types';
 import { getVisualEncoding, SlotTracker } from './visual-encoding';
 import { LEGEND_VALUES } from './config';
 
@@ -97,10 +97,10 @@ export class LegendDataProcessor {
     otherItems: OtherItem[];
     otherCount: number;
   } {
-    const getFirstNumber = (val: string | null): number => {
-      if (val === null) return Number.POSITIVE_INFINITY;
+    const getFirstNumber = (val: string | null): number | null => {
+      if (val === null) return null;
       const match = String(val).match(/-?\d+(?:\.\d+)?/);
-      return match ? parseFloat(match[0]) : Number.POSITIVE_INFINITY;
+      return match ? parseFloat(match[0]) : null;
     };
 
     const getPatternRank = (val: string | null): number => {
@@ -119,13 +119,33 @@ export class LegendDataProcessor {
         const bOrder = existingZOrders.get(b[0]) ?? Number.MAX_SAFE_INTEGER;
         return sortMode === 'manual' ? aOrder - bOrder : bOrder - aOrder;
       } else if (sortMode === 'alpha-asc' || sortMode === 'alpha-desc') {
-        const an = getFirstNumber(a[0]),
-          bn = getFirstNumber(b[0]);
-        if (an !== bn) return sortMode === 'alpha-asc' ? an - bn : bn - an;
-        const ar = getPatternRank(a[0]),
-          br = getPatternRank(b[0]);
-        if (ar !== br) return sortMode === 'alpha-asc' ? ar - br : br - ar;
-        return (b[1] ?? 0) - (a[1] ?? 0); // tie-breaker by size desc
+        const isAsc = sortMode === 'alpha-asc';
+        const an = getFirstNumber(a[0]);
+        const bn = getFirstNumber(b[0]);
+
+        // If both have numbers, compare numerically
+        if (an !== null && bn !== null && an !== bn) {
+          return isAsc ? an - bn : bn - an;
+        }
+
+        // If only one has a number, number comes first in asc, last in desc
+        if (an !== null && bn === null) return isAsc ? -1 : 1;
+        if (an === null && bn !== null) return isAsc ? 1 : -1;
+
+        // Both have same number or no number - check pattern rank
+        const ar = getPatternRank(a[0]);
+        const br = getPatternRank(b[0]);
+        if (ar !== br) return isAsc ? ar - br : br - ar;
+
+        // Finally, compare alphabetically (case-insensitive)
+        const aStr = String(a[0] ?? '').toLowerCase();
+        const bStr = String(b[0] ?? '').toLowerCase();
+        if (aStr !== bStr) {
+          return isAsc ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
+        }
+
+        // Ultimate tie-breaker: size descending
+        return (b[1] ?? 0) - (a[1] ?? 0);
       } else if (sortMode === 'size-asc') {
         return a[1] - b[1];
       }
@@ -146,15 +166,16 @@ export class LegendDataProcessor {
     let topItems: Array<[string | null, number]>;
 
     // If we have existing visible items (from persisted state or current session),
-    // show exactly those items - don't adjust based on maxVisibleValues
+    // filter to those items first, then apply maxVisibleValues limit
     if (workingVisible.size > 0) {
       // Get entries for visible items only (plus null if present)
       const visibleEntries = entries.filter(
         ([v]) => v === null || (typeof v === 'string' && workingVisible.has(v)),
       );
 
-      // Sort visible entries by sort mode
-      topItems = [...visibleEntries].sort(sortFn);
+      // Sort visible entries by sort mode and apply maxVisibleValues limit
+      const sorted = [...visibleEntries].sort(sortFn);
+      topItems = sorted.slice(0, maxVisibleValues);
     } else {
       // Initial load (no persisted state): sort all and take top N based on maxVisibleValues
       const sorted = [...entries].sort(sortFn);
@@ -184,6 +205,7 @@ export class LegendDataProcessor {
     shapesEnabled: boolean,
     sortMode: LegendSortMode = 'size-desc',
     passedZOrders: Map<string | null, number> = new Map(),
+    persistedCategories: Record<string, PersistedCategoryData> = {},
   ): LegendItem[] {
     // Use passed zOrders if available, otherwise extract from existingLegendItems
     // This allows both processLegendItems (which builds a combined map) and direct calls to work
@@ -204,6 +226,15 @@ export class LegendDataProcessor {
         }
       });
     }
+
+    // Build a map of existing colors/shapes from existingLegendItems
+    // This preserves colors/shapes that were set during the session
+    const existingColors = new Map<string | null, { color: string; shape: string }>();
+    existingLegendItems.forEach((item) => {
+      if (item.value !== LEGEND_VALUES.OTHER) {
+        existingColors.set(item.value, { color: item.color, shape: item.shape });
+      }
+    });
 
     // Get current visible category names
     const visibleCategoryNames = topItems.map(([value]) =>
@@ -267,7 +298,22 @@ export class LegendDataProcessor {
       // In other modes, use sorted index
       const zOrder = sortMode === 'manual' ? (existingZOrders.get(value) ?? index) : index;
       const slot = ctx.slotTracker.getSlot(categoryName);
-      const encoding = getVisualEncoding(slot, shapesEnabled, categoryName);
+
+      // Get encoding from slot as default
+      let encoding = getVisualEncoding(slot, shapesEnabled, categoryName);
+
+      // Priority for colors/shapes:
+      // 1. persistedCategories (from localStorage) - for initial load/annotation switch
+      // 2. existingColors (from current _legendItems) - for preserving session state
+      // 3. default encoding from slot
+      const persisted = value !== null ? persistedCategories[value] : undefined;
+      const existing = existingColors.get(value);
+
+      if (persisted?.color) {
+        encoding = { color: persisted.color, shape: persisted.shape || encoding.shape };
+      } else if (existing) {
+        encoding = { color: existing.color, shape: existing.shape };
+      }
 
       return {
         value,
@@ -334,7 +380,7 @@ export class LegendDataProcessor {
     existingLegendItems: LegendItem[],
     sortMode: LegendSortMode = 'size-desc',
     shapesEnabled: boolean = false,
-    zOrderMapping: Record<string, number> = {},
+    persistedCategories: Record<string, PersistedCategoryData> = {},
     visibleValues: Set<string> = new Set(),
     pendingExtract?: string,
     pendingMerge?: string,
@@ -350,11 +396,11 @@ export class LegendDataProcessor {
     );
 
     // Build existing zOrder map for manual sorting
-    // Merge persisted zOrderMapping with existing legend items
+    // Extract zOrders from persisted categories, then override with current legend items
     const existingZOrders = new Map<string | null, number>();
-    // First apply persisted zOrderMapping
-    for (const [key, order] of Object.entries(zOrderMapping)) {
-      existingZOrders.set(key === 'null' ? null : key, order);
+    // First apply persisted categories
+    for (const [key, data] of Object.entries(persistedCategories)) {
+      existingZOrders.set(key === 'null' ? null : key, data.zOrder);
     }
     // Then override with current legend items if they exist
     existingLegendItems.forEach((item) => {
@@ -384,6 +430,7 @@ export class LegendDataProcessor {
       shapesEnabled,
       sortMode,
       new Map(existingZOrders),
+      persistedCategories,
     );
 
     this.addNullEntry(items, frequencyMap, topItems, existingLegendItems, shapesEnabled);

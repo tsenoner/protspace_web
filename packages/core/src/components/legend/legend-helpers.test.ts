@@ -183,7 +183,7 @@ describe('legend-helpers', () => {
       expect(settings.sortMode).toBe('size-desc');
       expect(settings.maxVisibleValues).toBe(10);
       expect(settings.hiddenValues).toEqual([]);
-      expect(settings.zOrderMapping).toEqual({});
+      expect(settings.categories).toEqual({});
     });
 
     it('creates default settings with alpha-asc sort for length annotations', () => {
