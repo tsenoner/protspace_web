@@ -5,7 +5,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import {
   LEGEND_DEFAULTS,
   LEGEND_STYLES,
-  FIRST_NUMBER_SORT_FEATURES,
+  FIRST_NUMBER_SORT_ANNOTATIONS,
   LEGEND_VALUES,
   LEGEND_EVENTS,
 } from './config';
@@ -25,8 +25,6 @@ import { LegendRenderer } from './legend-renderer';
 // Helpers
 import {
   valueToKey,
-  normalizeSortModes,
-  reverseZOrderKeepOtherLast,
   calculatePointSize,
   getDefaultSortMode,
   getItemClasses,
@@ -40,7 +38,7 @@ import {
 // Dialogs
 import {
   renderSettingsDialog,
-  initializeFeatureSortMode,
+  initializeAnnotationSortMode,
   type SettingsDialogState,
   type SettingsDialogCallbacks,
 } from './legend-settings-dialog';
@@ -50,7 +48,7 @@ import { createFocusTrap } from './focus-trap';
 // Types
 import type {
   LegendDataInput,
-  LegendFeatureData,
+  LegendAnnotationData,
   LegendItem,
   LegendSortMode,
   OtherItem,
@@ -60,7 +58,7 @@ import type {
 } from './types';
 
 /**
- * Legend component for displaying and interacting with feature categories.
+ * Legend component for displaying and interacting with annotation categories.
  *
  * @fires legend-item-click - When a legend item is clicked (toggled, isolated, extracted, or merged)
  * @fires legend-zorder-change - When the z-order of legend items changes
@@ -81,9 +79,9 @@ export class ProtspaceLegend extends LitElement {
   // Public Properties (reflected to attributes where appropriate)
   // ─────────────────────────────────────────────────────────────────
 
-  @property({ type: String }) featureName = '';
-  @property({ type: Object }) featureData: LegendFeatureData = { name: '', values: [] };
-  @property({ type: Array }) featureValues: (string | null)[] = [];
+  @property({ type: String }) annotationName = '';
+  @property({ type: Object }) annotationData: LegendAnnotationData = { name: '', values: [] };
+  @property({ type: Array }) annotationValues: (string | null)[] = [];
   @property({ type: Array }) proteinIds: string[] = [];
   @property({ type: Number, reflect: true }) maxVisibleValues: number =
     LEGEND_DEFAULTS.maxVisibleValues;
@@ -91,9 +89,7 @@ export class ProtspaceLegend extends LitElement {
   @property({ type: Boolean, reflect: true }) isolationMode = false;
   @property({ type: Array }) isolationHistory: string[][] = [];
   @property({ type: Object }) data: LegendDataInput | null = null;
-  @property({ type: String, reflect: true }) selectedFeature = '';
-  @property({ type: Boolean, reflect: true }) includeOthers: boolean =
-    LEGEND_DEFAULTS.includeOthers;
+  @property({ type: String, reflect: true }) selectedAnnotation = '';
   @property({ type: Boolean, reflect: true }) includeShapes: boolean =
     LEGEND_DEFAULTS.includeShapes;
   @property({ type: Number, reflect: true }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
@@ -115,27 +111,28 @@ export class ProtspaceLegend extends LitElement {
   @state() private _sortedLegendItems: LegendItem[] = [];
   @state() private _otherItems: OtherItem[] = [];
   @state() private _hiddenValues: string[] = [];
-  @state() private _manualOtherValues: string[] = [];
-  @state() private _featureSortModes: Record<string, LegendSortMode> = {};
+  @state() private _annotationSortModes: Record<string, LegendSortMode> = {};
   @state() private _showOtherDialog = false;
   @state() private _showSettingsDialog = false;
   @state() private _statusMessage = '';
 
+  // Pending extract/merge values for next update cycle
+  private _pendingExtractValue: string | null = null;
+  private _pendingMergeValue: string | null = null;
+
   // Settings dialog temporary state (consolidated into single object)
   @state() private _dialogSettings: {
     maxVisibleValues: number;
-    includeOthers: boolean;
     includeShapes: boolean;
     shapeSize: number;
     enableDuplicateStackUI: boolean;
-    featureSortModes: Record<string, LegendSortMode>;
+    annotationSortModes: Record<string, LegendSortMode>;
   } = {
     maxVisibleValues: LEGEND_DEFAULTS.maxVisibleValues,
-    includeOthers: LEGEND_DEFAULTS.includeOthers,
     includeShapes: LEGEND_DEFAULTS.includeShapes,
     shapeSize: LEGEND_DEFAULTS.symbolSize,
     enableDuplicateStackUI: false,
-    featureSortModes: {},
+    annotationSortModes: {},
   };
 
   @query('#legend-settings-dialog')
@@ -152,12 +149,11 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private _scatterplotController = new ScatterplotSyncController(this, {
-    onDataChange: (data, feature) => this._handleScatterplotDataChange(data, feature),
-    onFeatureChange: (feature) => this._handleFeatureChange(feature),
+    onDataChange: (data, annotation) => this._handleScatterplotDataChange(data, annotation),
+    onAnnotationChange: (annotation) => this._handleAnnotationChange(annotation),
     getHiddenValues: () => this._hiddenValues,
     getOtherItems: () => this._otherItems,
     getLegendItems: () => this._legendItems,
-    getIncludeOthers: () => this.includeOthers,
     getEffectiveIncludeShapes: () => this._effectiveIncludeShapes,
     getOtherConcreteValues: () => computeOtherConcreteValues(this._otherItems),
   });
@@ -166,13 +162,11 @@ export class ProtspaceLegend extends LitElement {
     onSettingsLoaded: (settings) => this._applyPersistedSettings(settings),
     getLegendItems: () => this._legendItems,
     getHiddenValues: () => this._hiddenValues,
-    getManualOtherValues: () => this._manualOtherValues,
     getCurrentSettings: () => ({
       maxVisibleValues: this.maxVisibleValues,
-      includeOthers: this.includeOthers,
       includeShapes: this.includeShapes,
       shapeSize: this.shapeSize,
-      sortMode: this._featureSortModes[this.selectedFeature] ?? 'size',
+      sortMode: this._annotationSortModes[this.selectedAnnotation] ?? 'size-desc',
       enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
     }),
   });
@@ -182,20 +176,19 @@ export class ProtspaceLegend extends LitElement {
     setLegendItems: (items) => {
       this._legendItems = items;
     },
-    getManualOtherValues: () => this._manualOtherValues,
-    setManualOtherValues: (values) => {
-      this._manualOtherValues = values;
-    },
     onReorder: () => {
       this._scatterplotController.dispatchZOrderChange();
       this._persistenceController.saveSettings();
       this.requestUpdate();
     },
-    onMergeToOther: (value) => {
-      this._dispatchItemAction(value, 'merge-into-other');
-      this._persistenceController.saveSettings();
+    onMergeToOther: (value) => this._handleMergeToOther(value),
+    onSortModeChange: (mode) => {
+      this._annotationSortModes = {
+        ...this._annotationSortModes,
+        [this.selectedAnnotation]: mode,
+      };
+      this.requestUpdate();
     },
-    updateLegendItems: () => this._updateLegendItems(),
   });
 
   // ─────────────────────────────────────────────────────────────────
@@ -203,11 +196,21 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private _onWindowKeydownCapture = (e: KeyboardEvent) => {
-    if (!this._showSettingsDialog) return;
     if (e.key === 'Escape') {
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      this._handleSettingsClose();
+      // Close Other dialog first if open
+      if (this._showOtherDialog) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        this._showOtherDialog = false;
+        return;
+      }
+      // Then close Settings dialog if open
+      if (this._showSettingsDialog) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        this._handleSettingsClose();
+        return;
+      }
     }
   };
 
@@ -259,14 +262,46 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private get _effectiveIncludeShapes(): boolean {
-    return this._isMultilabelFeature() ? false : this.includeShapes;
+    return this._isMultilabelAnnotation() ? false : this.includeShapes;
   }
 
   private get _currentSortMode(): LegendSortMode {
     return (
-      this._featureSortModes[this.selectedFeature] ??
-      (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size')
+      this._annotationSortModes[this.selectedAnnotation] ??
+      (FIRST_NUMBER_SORT_ANNOTATIONS.has(this.selectedAnnotation) ? 'alpha-asc' : 'size-desc')
     );
+  }
+
+  /**
+   * Get the set of currently visible values (from legend items, excluding "Other").
+   * Used to preserve membership when sort mode changes.
+   */
+  private get _visibleValues(): Set<string> {
+    const visible = new Set<string>();
+
+    // When restoring from localStorage, pendingZOrderMapping contains the persisted visible values.
+    // Prioritize it over _legendItems since _legendItems may have been populated with defaults
+    // before loadSettings() completed.
+    const pendingMapping = this._persistenceController.pendingZOrderMapping;
+    if (Object.keys(pendingMapping).length > 0) {
+      for (const key of Object.keys(pendingMapping)) {
+        if (key !== 'null' && key !== LEGEND_VALUES.OTHER) {
+          visible.add(key);
+        }
+      }
+      return visible;
+    }
+
+    // Otherwise derive from current legend items
+    if (this._legendItems.length > 0) {
+      this._legendItems.forEach((item) => {
+        if (item.value !== null && item.value !== LEGEND_VALUES.OTHER) {
+          visible.add(item.value);
+        }
+      });
+    }
+
+    return visible;
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -304,13 +339,23 @@ export class ProtspaceLegend extends LitElement {
   }
 
   updated(changedProperties: Map<string, unknown>): void {
-    // Handle settings dialog keyboard events and focus trapping
-    if (changedProperties.has('_showSettingsDialog')) {
-      if (this._showSettingsDialog) {
+    // Handle keyboard events for dialogs
+    const dialogsChanged =
+      changedProperties.has('_showSettingsDialog') || changedProperties.has('_showOtherDialog');
+    if (dialogsChanged) {
+      const anyDialogOpen = this._showSettingsDialog || this._showOtherDialog;
+      if (anyDialogOpen) {
         window.addEventListener('keydown', this._onWindowKeydownCapture, true);
-        this._setupFocusTrap('legend-settings-dialog');
       } else {
         window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
+      }
+    }
+
+    // Handle settings dialog focus trapping
+    if (changedProperties.has('_showSettingsDialog')) {
+      if (this._showSettingsDialog) {
+        this._setupFocusTrap('legend-settings-dialog');
+      } else if (!this._showOtherDialog) {
         this._cleanupFocusTrap();
       }
     }
@@ -319,7 +364,7 @@ export class ProtspaceLegend extends LitElement {
     if (changedProperties.has('_showOtherDialog')) {
       if (this._showOtherDialog) {
         this._setupFocusTrap('legend-other-dialog');
-      } else {
+      } else if (!this._showSettingsDialog) {
         this._cleanupFocusTrap();
       }
     }
@@ -329,15 +374,15 @@ export class ProtspaceLegend extends LitElement {
       this._persistenceController.updateDatasetHash(this.proteinIds);
     }
 
-    // Handle data or feature changes
-    if (changedProperties.has('data') || changedProperties.has('selectedFeature')) {
-      this._updateFeatureDataFromData();
+    // Handle data or annotation changes
+    if (changedProperties.has('data') || changedProperties.has('selectedAnnotation')) {
+      this._updateAnnotationDataFromData();
       this._ensureSortModeDefaults();
 
-      const featureChanged = this._persistenceController.updateSelectedFeature(
-        this.selectedFeature,
+      const annotationChanged = this._persistenceController.updateSelectedAnnotation(
+        this.selectedAnnotation,
       );
-      if (featureChanged || !this._persistenceController.settingsLoaded) {
+      if (annotationChanged || !this._persistenceController.settingsLoaded) {
         this._persistenceController.loadSettings();
       }
     }
@@ -345,11 +390,10 @@ export class ProtspaceLegend extends LitElement {
     // Update legend items when relevant properties change
     if (
       changedProperties.has('data') ||
-      changedProperties.has('selectedFeature') ||
-      changedProperties.has('featureValues') ||
+      changedProperties.has('selectedAnnotation') ||
+      changedProperties.has('annotationValues') ||
       changedProperties.has('proteinIds') ||
       changedProperties.has('maxVisibleValues') ||
-      changedProperties.has('includeOthers') ||
       changedProperties.has('includeShapes')
     ) {
       this._updateLegendItems();
@@ -380,12 +424,12 @@ export class ProtspaceLegend extends LitElement {
    * Get legend data for export (PNG/PDF)
    */
   public getLegendExportData(): {
-    feature: string;
+    annotation: string;
     includeShapes: boolean;
-    items: Array<LegendItem & { extractedFromOther?: boolean }>;
+    items: LegendItem[];
   } {
     return {
-      feature: this.featureData.name || this.featureName || 'Legend',
+      annotation: this.annotationData.name || this.annotationName || 'Legend',
       includeShapes: this._effectiveIncludeShapes,
       items: this._sortedLegendItems.map((i) => ({ ...i })),
     };
@@ -402,14 +446,14 @@ export class ProtspaceLegend extends LitElement {
   // Data Handling
   // ─────────────────────────────────────────────────────────────────
 
-  private _handleScatterplotDataChange(data: ScatterplotData, selectedFeature: string): void {
+  private _handleScatterplotDataChange(data: ScatterplotData, selectedAnnotation: string): void {
     this.data = { features: data.features };
-    this.selectedFeature = selectedFeature;
-    this.featureData = {
-      name: selectedFeature,
-      values: data.features[selectedFeature].values,
+    this.selectedAnnotation = selectedAnnotation;
+    this.annotationData = {
+      name: selectedAnnotation,
+      values: data.features[selectedAnnotation].values,
     };
-    this._updateFeatureValues(data, selectedFeature);
+    this._updateAnnotationValues(data, selectedAnnotation);
     this.proteinIds = data.protein_ids;
 
     // Sync isolation state
@@ -418,46 +462,47 @@ export class ProtspaceLegend extends LitElement {
     this.isolationHistory = isolationHistory;
   }
 
-  private _handleFeatureChange(feature: string): void {
-    this.selectedFeature = feature;
+  private _handleAnnotationChange(annotation: string): void {
+    this.selectedAnnotation = annotation;
     this._hiddenValues = [];
-    this._manualOtherValues = [];
     this._scatterplotController.forceSync();
   }
 
-  private _updateFeatureDataFromData(): void {
-    const featureInfo = this.data?.features?.[this.selectedFeature] ?? null;
-    this.featureData = featureInfo
-      ? { name: this.selectedFeature, values: featureInfo.values }
+  private _updateAnnotationDataFromData(): void {
+    const annotationInfo = this.data?.features?.[this.selectedAnnotation] ?? null;
+    this.annotationData = annotationInfo
+      ? { name: this.selectedAnnotation, values: annotationInfo.values }
       : { name: '', values: [] };
   }
 
-  private _updateFeatureValues(data: ScatterplotData, selectedFeature: string): void {
-    const featureValues = data.protein_ids.flatMap((_: string, index: number) => {
-      const featureIdxData = data.feature_data[selectedFeature][index];
-      const featureIdxArray = Array.isArray(featureIdxData) ? featureIdxData : [featureIdxData];
-      return featureIdxArray
-        .map((featureIdx: number) => data.features[selectedFeature].values[featureIdx])
+  private _updateAnnotationValues(data: ScatterplotData, selectedAnnotation: string): void {
+    const annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
+      const annotationIdxData = data.feature_data[selectedAnnotation][index];
+      const annotationIdxArray = Array.isArray(annotationIdxData)
+        ? annotationIdxData
+        : [annotationIdxData];
+      return annotationIdxArray
+        .map((annotationIdx: number) => data.features[selectedAnnotation].values[annotationIdx])
         .filter((v) => v != null);
     });
-    this.featureValues = featureValues;
+    this.annotationValues = annotationValues;
   }
 
   private _ensureSortModeDefaults(): void {
-    const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
-    if (featureNames.length === 0) return;
+    const annotationNames = this.data?.features ? Object.keys(this.data.features) : [];
+    if (annotationNames.length === 0) return;
 
-    const updated: Record<string, LegendSortMode> = { ...this._featureSortModes };
-    for (const fname of featureNames) {
-      if (!(fname in updated)) {
-        updated[fname] = FIRST_NUMBER_SORT_FEATURES.has(fname) ? 'alpha' : 'size';
+    const updated: Record<string, LegendSortMode> = { ...this._annotationSortModes };
+    for (const aname of annotationNames) {
+      if (!(aname in updated)) {
+        updated[aname] = FIRST_NUMBER_SORT_ANNOTATIONS.has(aname) ? 'alpha-asc' : 'size-desc';
       }
     }
-    this._featureSortModes = updated;
+    this._annotationSortModes = updated;
   }
 
-  private _isMultilabelFeature(): boolean {
-    return this._scatterplotController.isMultilabelFeature(this.selectedFeature);
+  private _isMultilabelAnnotation(): boolean {
+    return this._scatterplotController.isMultilabelAnnotation(this.selectedAnnotation);
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -465,25 +510,53 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private _updateLegendItems(): void {
-    if (!this.featureData?.values?.length || !this.featureValues?.length) {
+    if (!this.annotationData?.values?.length || !this.annotationValues?.length) {
       this._legendItems = [];
       return;
     }
 
     try {
+      // Build zOrderMapping: prioritize pendingZOrderMapping when restoring from localStorage,
+      // since _legendItems may have been populated with defaults before loadSettings() completed.
+      let zOrderMapping: Record<string, number> = {};
+      const pendingMapping = this._persistenceController.pendingZOrderMapping;
+      if (Object.keys(pendingMapping).length > 0) {
+        // Use pending zOrderMapping from persistence controller (restoring from localStorage)
+        zOrderMapping = { ...pendingMapping };
+      } else if (this._legendItems.length > 0) {
+        // Use current legend items
+        this._legendItems.forEach((item) => {
+          if (item.value !== null && item.value !== LEGEND_VALUES.OTHER) {
+            zOrderMapping[item.value] = item.zOrder;
+          }
+        });
+      }
+
+      // Get pending values for extract/merge operations
+      const pendingExtract = this._pendingExtractValue ?? undefined;
+      const pendingMerge = this._pendingMergeValue ?? undefined;
+
+      // Only use visibleValues when there are persisted settings in localStorage.
+      // When no localStorage key exists, use empty set so maxVisibleValues is respected.
+      const visibleValues = this._persistenceController.hasPersistedSettings()
+        ? this._visibleValues
+        : new Set<string>();
+
       const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
         this._processorContext,
-        this.featureData.name || this.selectedFeature,
-        this.featureValues,
+        this.annotationData.name || this.selectedAnnotation,
+        this.annotationValues,
         this.proteinIds,
         this.maxVisibleValues,
         this.isolationMode,
         this.isolationHistory,
         this._legendItems,
-        this.includeOthers,
-        this._manualOtherValues,
         this._currentSortMode,
         this._effectiveIncludeShapes,
+        zOrderMapping,
+        visibleValues,
+        pendingExtract,
+        pendingMerge,
       );
 
       // Apply hidden values
@@ -496,6 +569,12 @@ export class ProtspaceLegend extends LitElement {
         this._legendItems = legendItems;
       }
       this._otherItems = otherItems;
+
+      // Clear pending values after they've been applied
+      this._pendingExtractValue = null;
+      this._pendingMergeValue = null;
+      // Clear pendingZOrderMapping after restoration so subsequent updates use _legendItems
+      this._persistenceController.clearPendingZOrder();
 
       // Sync with scatterplot
       this._scatterplotController.dispatchZOrderChange();
@@ -519,20 +598,18 @@ export class ProtspaceLegend extends LitElement {
   private _applyPersistedSettings(settings: LegendPersistedSettings): void {
     try {
       this.maxVisibleValues = settings.maxVisibleValues;
-      this.includeOthers = settings.includeOthers;
       this.includeShapes = settings.includeShapes;
       this.shapeSize = settings.shapeSize;
       this._hiddenValues = settings.hiddenValues;
-      this._manualOtherValues = settings.manualOtherValues;
 
-      this._featureSortModes = {
-        ...this._featureSortModes,
-        [this.selectedFeature]: settings.sortMode,
+      this._annotationSortModes = {
+        ...this._annotationSortModes,
+        [this.selectedAnnotation]: settings.sortMode,
       };
 
       this._scatterplotController.updateConfig({
         pointSize: calculatePointSize(this.shapeSize),
-        enableDuplicateStackUI: settings.enableDuplicateStackUI ?? false,
+        enableDuplicateStackUI: settings.enableDuplicateStackUI,
       });
     } catch (error) {
       this._dispatchError(
@@ -581,28 +658,35 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handleExtractFromOther(value: string): void {
-    const itemToExtract = this._otherItems.find((item) => item.value === value);
-    if (!itemToExtract) return;
+    // Set pending extract value - will be used by processor to add this item to visible set
+    this._pendingExtractValue = value;
 
-    if (this._manualOtherValues.includes(value)) {
-      this._manualOtherValues = this._manualOtherValues.filter((v) => v !== value);
-    }
+    // Increase maxVisibleValues to accommodate the extracted item
+    this.maxVisibleValues = this.maxVisibleValues + 1;
 
-    const newItem = LegendDataProcessor.createExtractedItem(
-      this._processorContext,
-      value,
-      itemToExtract.count,
-      this._legendItems.length,
-      this._effectiveIncludeShapes,
-    );
-
-    this._legendItems = [...this._legendItems, newItem];
+    // Update legend items - respects current sort mode, item sorted into position
+    // Note: _updateLegendItems() clears pending values after processing
     this._updateLegendItems();
     this._showOtherDialog = false;
 
     this._announceStatus(`Extracted ${value} from Other category`);
-
     this._dispatchItemAction(value, 'extract');
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
+  private _handleMergeToOther(value: string): void {
+    // Set pending merge value - will be used by processor to remove this item from visible set
+    this._pendingMergeValue = value;
+
+    // Decrease maxVisibleValues to remove space for the merged item
+    this.maxVisibleValues = Math.max(1, this.maxVisibleValues - 1);
+
+    // Re-process legend items
+    // Note: _updateLegendItems() clears pending values after processing
+    this._updateLegendItems();
+
+    this._announceStatus(`Moved ${value} to Other category`);
     this._persistenceController.saveSettings();
     this.requestUpdate();
   }
@@ -610,7 +694,27 @@ export class ProtspaceLegend extends LitElement {
   private _reverseZOrder(): void {
     if (this._legendItems.length <= 1) return;
 
-    this._legendItems = reverseZOrderKeepOtherLast(this._legendItems);
+    const currentMode = this._currentSortMode;
+
+    // Toggle direction: asc <-> desc, or manual <-> manual-reverse
+    let newMode: LegendSortMode;
+    if (currentMode === 'manual') {
+      newMode = 'manual-reverse';
+    } else if (currentMode === 'manual-reverse') {
+      newMode = 'manual';
+    } else if (currentMode.endsWith('-asc')) {
+      newMode = currentMode.replace('-asc', '-desc') as LegendSortMode;
+    } else {
+      newMode = currentMode.replace('-desc', '-asc') as LegendSortMode;
+    }
+
+    // Update sort mode and re-process legend items
+    this._annotationSortModes = {
+      ...this._annotationSortModes,
+      [this.selectedAnnotation]: newMode,
+    };
+
+    this._updateLegendItems();
     this._scatterplotController.dispatchZOrderChange();
     this._persistenceController.saveSettings();
     this.requestUpdate();
@@ -618,7 +722,7 @@ export class ProtspaceLegend extends LitElement {
 
   private _dispatchItemAction(
     value: string | null,
-    action: 'toggle' | 'isolate' | 'extract' | 'merge-into-other',
+    action: 'toggle' | 'isolate' | 'extract',
   ): void {
     this.dispatchEvent(createItemActionEvent(LEGEND_EVENTS.ITEM_CLICK, value, action));
   }
@@ -655,10 +759,9 @@ export class ProtspaceLegend extends LitElement {
     const scatterplot = this._scatterplotController.scatterplot;
     this._dialogSettings = {
       maxVisibleValues: this.maxVisibleValues,
-      includeOthers: this.includeOthers,
       includeShapes: this.includeShapes,
       shapeSize: this.shapeSize,
-      featureSortModes: normalizeSortModes(this._featureSortModes),
+      annotationSortModes: this._annotationSortModes,
       enableDuplicateStackUI: Boolean(
         scatterplot &&
           'config' in scatterplot &&
@@ -676,10 +779,9 @@ export class ProtspaceLegend extends LitElement {
 
   private _handleSettingsSave(): void {
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
-    this.includeOthers = this._dialogSettings.includeOthers;
     this.includeShapes = this._dialogSettings.includeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
-    this._featureSortModes = this._dialogSettings.featureSortModes;
+    this._annotationSortModes = this._dialogSettings.annotationSortModes;
     this._showSettingsDialog = false;
     this._legendItems = [];
 
@@ -701,17 +803,15 @@ export class ProtspaceLegend extends LitElement {
     this._persistenceController.removeSettings();
 
     this.maxVisibleValues = LEGEND_DEFAULTS.maxVisibleValues;
-    this.includeOthers = LEGEND_DEFAULTS.includeOthers;
     this.includeShapes = LEGEND_DEFAULTS.includeShapes;
     this.shapeSize = LEGEND_DEFAULTS.symbolSize;
 
-    this._featureSortModes = {
-      ...this._featureSortModes,
-      [this.selectedFeature]: getDefaultSortMode(this.selectedFeature),
+    this._annotationSortModes = {
+      ...this._annotationSortModes,
+      [this.selectedAnnotation]: getDefaultSortMode(this.selectedAnnotation),
     };
 
     this._hiddenValues = [];
-    this._manualOtherValues = [];
     this._legendItems = [];
     this._showSettingsDialog = false;
 
@@ -737,7 +837,7 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   render() {
-    const title = this.featureData.name || this.featureName || 'Legend';
+    const title = this.annotationData.name || this.annotationName || 'Legend';
 
     return html`
       <div class="legend-container" part="container">
@@ -804,25 +904,24 @@ export class ProtspaceLegend extends LitElement {
   private _renderSettingsDialog() {
     if (!this._showSettingsDialog) return html``;
 
-    // Initialize sort mode for current feature if needed
+    // Initialize sort mode for current annotation if needed
     this._dialogSettings = {
       ...this._dialogSettings,
-      featureSortModes: initializeFeatureSortMode(
-        this._dialogSettings.featureSortModes,
-        this.selectedFeature,
-        this._featureSortModes,
+      annotationSortModes: initializeAnnotationSortMode(
+        this._dialogSettings.annotationSortModes,
+        this.selectedAnnotation,
+        this._annotationSortModes,
       ),
     };
 
     const state: SettingsDialogState = {
       maxVisibleValues: this._dialogSettings.maxVisibleValues,
       shapeSize: this._dialogSettings.shapeSize,
-      includeOthers: this._dialogSettings.includeOthers,
       includeShapes: this._dialogSettings.includeShapes,
       enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
-      selectedFeature: this.selectedFeature,
-      featureSortModes: this._dialogSettings.featureSortModes,
-      isMultilabelFeature: this._isMultilabelFeature(),
+      selectedAnnotation: this.selectedAnnotation,
+      annotationSortModes: this._dialogSettings.annotationSortModes,
+      isMultilabelAnnotation: this._isMultilabelAnnotation(),
       hasPersistedSettings: this._persistenceController.hasPersistedSettings(),
     };
 
@@ -833,19 +932,16 @@ export class ProtspaceLegend extends LitElement {
       onShapeSizeChange: (v) => {
         this._dialogSettings = { ...this._dialogSettings, shapeSize: v };
       },
-      onIncludeOthersChange: (v) => {
-        this._dialogSettings = { ...this._dialogSettings, includeOthers: v };
-      },
       onIncludeShapesChange: (v) => {
         this._dialogSettings = { ...this._dialogSettings, includeShapes: v };
       },
       onEnableDuplicateStackUIChange: (v) => {
         this._dialogSettings = { ...this._dialogSettings, enableDuplicateStackUI: v };
       },
-      onSortModeChange: (feature, mode) => {
+      onSortModeChange: (annotation, mode) => {
         this._dialogSettings = {
           ...this._dialogSettings,
-          featureSortModes: { ...this._dialogSettings.featureSortModes, [feature]: mode },
+          annotationSortModes: { ...this._dialogSettings.annotationSortModes, [annotation]: mode },
         };
       },
       onSave: () => this._handleSettingsSave(),

@@ -8,7 +8,7 @@ import { LEGEND_VALUES } from './config';
  */
 export interface LegendProcessorContext {
   slotTracker: SlotTracker;
-  currentFeature: string | null;
+  currentAnnotation: string | null;
 }
 
 /**
@@ -18,7 +18,7 @@ export interface LegendProcessorContext {
 export function createProcessorContext(): LegendProcessorContext {
   return {
     slotTracker: new SlotTracker(),
-    currentFeature: null,
+    currentAnnotation: null,
   };
 }
 
@@ -34,36 +34,14 @@ export function createProcessorContext(): LegendProcessorContext {
  * to support multiple legend instances on the same page.
  */
 export class LegendDataProcessor {
-  private static resetIfFeatureChanged(ctx: LegendProcessorContext, featureName: string): void {
-    if (ctx.currentFeature !== featureName) {
-      ctx.slotTracker.reset();
-      ctx.currentFeature = featureName;
-    }
-  }
-
-  /**
-   * Creates a legend item extracted from the "Other" bucket.
-   * Uses the context's slot tracker to ensure consistent visual encoding.
-   */
-  static createExtractedItem(
+  private static resetIfAnnotationChanged(
     ctx: LegendProcessorContext,
-    value: string,
-    count: number,
-    zOrder: number,
-    shapesEnabled: boolean = false,
-  ): LegendItem {
-    const slot = ctx.slotTracker.getSlot(value);
-    const encoding = getVisualEncoding(slot, shapesEnabled, value);
-
-    return {
-      value,
-      color: encoding.color,
-      shape: encoding.shape,
-      count,
-      isVisible: true,
-      zOrder,
-      extractedFromOther: true,
-    };
+    annotationName: string,
+  ): void {
+    if (ctx.currentAnnotation !== annotationName) {
+      ctx.slotTracker.reset();
+      ctx.currentAnnotation = annotationName;
+    }
   }
 
   static getFilteredIndices(
@@ -82,8 +60,8 @@ export class LegendDataProcessor {
     return filtered;
   }
 
-  static countFeatureFrequencies(
-    featureValues: (string | null)[],
+  static countAnnotationFrequencies(
+    annotationValues: (string | null)[],
     isolationMode: boolean,
     isolationHistory: string[][],
     filteredIndices: Set<number>,
@@ -91,13 +69,13 @@ export class LegendDataProcessor {
     const freq = new Map<string | null, number>();
 
     if (isolationMode && isolationHistory?.length) {
-      featureValues.forEach((value, index) => {
+      annotationValues.forEach((value, index) => {
         if (filteredIndices.has(index)) {
           freq.set(value, (freq.get(value) || 0) + 1);
         }
       });
     } else {
-      featureValues.forEach((value) => {
+      annotationValues.forEach((value) => {
         freq.set(value, (freq.get(value) || 0) + 1);
       });
     }
@@ -109,8 +87,11 @@ export class LegendDataProcessor {
     frequencyMap: Map<string | null, number>,
     maxVisibleValues: number,
     isolationMode: boolean,
-    manuallyOtherValues: Set<string>,
     sortMode: LegendSortMode,
+    existingZOrders: Map<string | null, number> = new Map(),
+    visibleValues: Set<string> = new Set(),
+    pendingExtract?: string,
+    pendingMerge?: string,
   ): {
     topItems: Array<[string | null, number]>;
     otherItems: OtherItem[];
@@ -132,61 +113,65 @@ export class LegendDataProcessor {
     };
 
     const sortFn = (a: [string | null, number], b: [string | null, number]) => {
-      if (sortMode === 'alpha') {
+      if (sortMode === 'manual' || sortMode === 'manual-reverse') {
+        // In manual mode, sort by existing zOrder
+        const aOrder = existingZOrders.get(a[0]) ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = existingZOrders.get(b[0]) ?? Number.MAX_SAFE_INTEGER;
+        return sortMode === 'manual' ? aOrder - bOrder : bOrder - aOrder;
+      } else if (sortMode === 'alpha-asc' || sortMode === 'alpha-desc') {
         const an = getFirstNumber(a[0]),
           bn = getFirstNumber(b[0]);
-        if (an !== bn) return an - bn;
+        if (an !== bn) return sortMode === 'alpha-asc' ? an - bn : bn - an;
         const ar = getPatternRank(a[0]),
           br = getPatternRank(b[0]);
-        if (ar !== br) return ar - br;
-        return (b[1] ?? 0) - (a[1] ?? 0);
-      } else if (sortMode === 'alpha-desc') {
-        const an = getFirstNumber(a[0]),
-          bn = getFirstNumber(b[0]);
-        if (an !== bn) return bn - an;
-        const ar = getPatternRank(a[0]),
-          br = getPatternRank(b[0]);
-        if (ar !== br) return br - ar;
-        return (b[1] ?? 0) - (a[1] ?? 0);
+        if (ar !== br) return sortMode === 'alpha-asc' ? ar - br : br - ar;
+        return (b[1] ?? 0) - (a[1] ?? 0); // tie-breaker by size desc
       } else if (sortMode === 'size-asc') {
         return a[1] - b[1];
       }
-      return b[1] - a[1]; // 'size' default
+      return b[1] - a[1]; // 'size-desc' default
     };
 
     const entries = Array.from(frequencyMap.entries());
-    const sortedItems = [...entries].sort(sortFn);
 
-    const manualCountInTop = [...entries]
-      .sort(sortFn)
-      .slice(0, maxVisibleValues)
-      .filter(([v]) => v !== null && manuallyOtherValues.has(String(v))).length;
+    // Build working set of visible values, applying pending extract/merge
+    const workingVisible = new Set(visibleValues);
+    if (pendingExtract) {
+      workingVisible.add(pendingExtract);
+    }
+    if (pendingMerge) {
+      workingVisible.delete(pendingMerge);
+    }
 
-    const effectiveCap = Math.max(0, maxVisibleValues - manualCountInTop);
+    let topItems: Array<[string | null, number]>;
 
-    const filtered = (
-      isolationMode ? sortedItems.filter(([v]) => frequencyMap.has(v)) : sortedItems
-    ).filter(([v]) => v === null || !manuallyOtherValues.has(String(v)));
+    // If we have existing visible items (from persisted state or current session),
+    // show exactly those items - don't adjust based on maxVisibleValues
+    if (workingVisible.size > 0) {
+      // Get entries for visible items only (plus null if present)
+      const visibleEntries = entries.filter(
+        ([v]) => v === null || (typeof v === 'string' && workingVisible.has(v)),
+      );
 
-    const topItems = filtered.slice(0, effectiveCap);
+      // Sort visible entries by sort mode
+      topItems = [...visibleEntries].sort(sortFn);
+    } else {
+      // Initial load (no persisted state): sort all and take top N based on maxVisibleValues
+      const sorted = [...entries].sort(sortFn);
+      topItems = (isolationMode ? sorted.filter(([v]) => frequencyMap.has(v)) : sorted).slice(
+        0,
+        maxVisibleValues,
+      );
+    }
 
-    const beyondCap = sortedItems.slice(maxVisibleValues).filter(([v]) => v !== null);
-    const manualPairs = sortedItems.filter(
-      ([v]) => v !== null && manuallyOtherValues.has(String(v)),
-    );
-
-    const seen = new Set<string>();
-    const otherItemsArray = [...beyondCap, ...manualPairs].filter(([v]) => {
-      const key = String(v);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    // Items beyond the cap go to "Other"
+    const topValuesSet = new Set(topItems.map(([v]) => v));
+    const beyondCap = entries.filter(([v]) => v !== null && !topValuesSet.has(v));
 
     return {
       topItems,
-      otherItems: otherItemsArray.map(([value, count]) => ({ value, count })),
-      otherCount: otherItemsArray.reduce((sum, [, count]) => sum + count, 0),
+      otherItems: beyondCap.map(([value, count]) => ({ value, count })),
+      otherCount: beyondCap.reduce((sum, [, count]) => sum + count, 0),
     };
   }
 
@@ -195,16 +180,30 @@ export class LegendDataProcessor {
     topItems: Array<[string | null, number]>,
     otherCount: number,
     isolationMode: boolean,
-    includeOthers: boolean,
     existingLegendItems: LegendItem[],
     shapesEnabled: boolean,
+    sortMode: LegendSortMode = 'size-desc',
+    passedZOrders: Map<string | null, number> = new Map(),
   ): LegendItem[] {
-    const existingZOrders = new Map<string | null, number>();
-    existingLegendItems.forEach((item) => {
-      if (item.value !== LEGEND_VALUES.OTHER || item.extractedFromOther) {
-        existingZOrders.set(item.value, item.zOrder);
-      }
-    });
+    // Use passed zOrders if available, otherwise extract from existingLegendItems
+    // This allows both processLegendItems (which builds a combined map) and direct calls to work
+    let existingZOrders: Map<string | null, number>;
+    let existingOtherZOrder: number | null = null;
+
+    if (passedZOrders.size > 0) {
+      existingZOrders = passedZOrders;
+      const existingOther = existingLegendItems.find((i) => i.value === LEGEND_VALUES.OTHER);
+      existingOtherZOrder = existingOther?.zOrder ?? null;
+    } else {
+      existingZOrders = new Map();
+      existingLegendItems.forEach((item) => {
+        if (item.value === LEGEND_VALUES.OTHER) {
+          existingOtherZOrder = item.zOrder;
+        } else {
+          existingZOrders.set(item.value, item.zOrder);
+        }
+      });
+    }
 
     // Get current visible category names
     const visibleCategoryNames = topItems.map(([value]) =>
@@ -218,7 +217,7 @@ export class LegendDataProcessor {
       // Subsequent: preserve slots, only free those that moved to Others
       const currentVisibleSet = new Set(visibleCategoryNames);
       const previousVisible = existingLegendItems
-        .filter((i) => i.value !== LEGEND_VALUES.OTHER && !i.extractedFromOther)
+        .filter((i) => i.value !== LEGEND_VALUES.OTHER)
         .map((i) => (i.value === null ? LEGEND_VALUES.NA_DISPLAY : i.value));
 
       for (const category of previousVisible) {
@@ -228,9 +227,46 @@ export class LegendDataProcessor {
       }
     }
 
+    // Check if we're in a manual sort mode
+    const isManualMode = sortMode === 'manual' || sortMode === 'manual-reverse';
+
+    // In manual mode, when extracting new items, shift existing zOrders to make room
+    // Only apply when zOrders are consecutive (0, 1, 2, ...) - typical during normal operation
+    if (isManualMode && existingZOrders.size > 0) {
+      const existingZOrderValues = Array.from(existingZOrders.values()).sort((a, b) => a - b);
+      const isConsecutive =
+        existingZOrderValues[0] === 0 && existingZOrderValues.every((v, i) => v === i);
+
+      if (isConsecutive) {
+        // Find newly extracted items (items without existing zOrder)
+        const newItems: Array<{ value: string | null; targetIndex: number }> = [];
+        topItems.forEach(([value], index) => {
+          if (!existingZOrders.has(value)) {
+            newItems.push({ value, targetIndex: index });
+          }
+        });
+
+        // For each new item, shift existing zOrders (including Others) that are >= target position
+        // Process in reverse order to avoid double-shifting
+        newItems.sort((a, b) => b.targetIndex - a.targetIndex);
+        for (const newItem of newItems) {
+          existingZOrders.forEach((zOrder, key) => {
+            if (zOrder >= newItem.targetIndex) {
+              existingZOrders.set(key, zOrder + 1);
+            }
+          });
+          // Also shift "Other" zOrder if needed
+          if (existingOtherZOrder !== null && existingOtherZOrder >= newItem.targetIndex) {
+            existingOtherZOrder = existingOtherZOrder + 1;
+          }
+        }
+      }
+    }
+
     const items: LegendItem[] = topItems.map(([value, count], index) => {
       const categoryName = value === null ? LEGEND_VALUES.NA_DISPLAY : value;
-      const zOrder = existingZOrders.get(value) ?? index;
+      // Only preserve existing zOrders in manual mode; otherwise use sorted index
+      const zOrder = isManualMode ? (existingZOrders.get(value) ?? index) : index;
       const slot = ctx.slotTracker.getSlot(categoryName);
       const encoding = getVisualEncoding(slot, shapesEnabled, categoryName);
 
@@ -244,9 +280,11 @@ export class LegendDataProcessor {
       };
     });
 
-    if (otherCount > 0 && includeOthers && !isolationMode) {
-      const existingOther = existingLegendItems.find((i) => i.value === LEGEND_VALUES.OTHER);
+    // Always include "Other" when there are items beyond the cap and not in isolation mode
+    if (otherCount > 0 && !isolationMode) {
       const encoding = getVisualEncoding(-1, shapesEnabled, LEGEND_VALUES.OTHERS);
+      // Only preserve existing "Other" zOrder in manual mode; otherwise put at end
+      const otherZOrder = isManualMode ? (existingOtherZOrder ?? items.length) : items.length;
 
       items.push({
         value: LEGEND_VALUES.OTHER,
@@ -254,7 +292,7 @@ export class LegendDataProcessor {
         shape: encoding.shape,
         count: otherCount,
         isVisible: true,
-        zOrder: existingOther?.zOrder ?? items.length,
+        zOrder: otherZOrder,
       });
     }
 
@@ -285,86 +323,72 @@ export class LegendDataProcessor {
     }
   }
 
-  static addExtractedItems(
-    ctx: LegendProcessorContext,
-    items: LegendItem[],
-    frequencyMap: Map<string | null, number>,
-    existingLegendItems: LegendItem[],
-    shapesEnabled: boolean,
-  ): void {
-    const extracted = existingLegendItems.filter((i) => i.extractedFromOther);
-
-    extracted.forEach((extractedItem) => {
-      if (
-        extractedItem.value !== null &&
-        !items.some((i) => i.value === extractedItem.value) &&
-        frequencyMap.has(extractedItem.value)
-      ) {
-        const count = frequencyMap.get(extractedItem.value)!;
-        const slot = ctx.slotTracker.getSlot(extractedItem.value);
-        const encoding = getVisualEncoding(slot, shapesEnabled, extractedItem.value);
-
-        items.push({
-          value: extractedItem.value,
-          color: encoding.color,
-          shape: encoding.shape,
-          count,
-          isVisible: true,
-          zOrder: extractedItem.zOrder,
-          extractedFromOther: true,
-        });
-      }
-    });
-  }
-
   static processLegendItems(
     ctx: LegendProcessorContext,
-    featureName: string,
-    featureValues: (string | null)[],
+    annotationName: string,
+    annotationValues: (string | null)[],
     proteinIds: string[],
     maxVisibleValues: number,
     isolationMode: boolean,
     isolationHistory: string[][],
     existingLegendItems: LegendItem[],
-    includeOthers: boolean,
-    manuallyOtherValues: string[] = [],
-    sortMode: LegendSortMode = 'size',
+    sortMode: LegendSortMode = 'size-desc',
     shapesEnabled: boolean = false,
+    zOrderMapping: Record<string, number> = {},
+    visibleValues: Set<string> = new Set(),
+    pendingExtract?: string,
+    pendingMerge?: string,
   ): { legendItems: LegendItem[]; otherItems: OtherItem[] } {
-    this.resetIfFeatureChanged(ctx, featureName);
+    this.resetIfAnnotationChanged(ctx, annotationName);
 
-    const manualOtherSet = new Set(manuallyOtherValues);
     const filteredIndices = this.getFilteredIndices(isolationMode, isolationHistory, proteinIds);
-    const frequencyMap = this.countFeatureFrequencies(
-      featureValues,
+    const frequencyMap = this.countAnnotationFrequencies(
+      annotationValues,
       isolationMode,
       isolationHistory,
       filteredIndices,
     );
 
-    const effectiveMax = includeOthers ? maxVisibleValues : Number.MAX_SAFE_INTEGER;
+    // Build existing zOrder map for manual sorting
+    // Merge persisted zOrderMapping with existing legend items
+    const existingZOrders = new Map<string | null, number>();
+    // First apply persisted zOrderMapping
+    for (const [key, order] of Object.entries(zOrderMapping)) {
+      existingZOrders.set(key === 'null' ? null : key, order);
+    }
+    // Then override with current legend items if they exist
+    existingLegendItems.forEach((item) => {
+      if (item.value !== LEGEND_VALUES.OTHER) {
+        existingZOrders.set(item.value, item.zOrder);
+      }
+    });
+
     const { topItems, otherItems, otherCount } = this.sortAndLimitItems(
       frequencyMap,
-      effectiveMax,
+      maxVisibleValues,
       isolationMode,
-      manualOtherSet,
       sortMode,
+      existingZOrders,
+      visibleValues,
+      pendingExtract,
+      pendingMerge,
     );
 
+    // Pass a copy of existingZOrders since createLegendItems may modify it for shifting
     const items = this.createLegendItems(
       ctx,
       topItems,
       otherCount,
       isolationMode,
-      includeOthers,
       existingLegendItems,
       shapesEnabled,
+      sortMode,
+      new Map(existingZOrders),
     );
 
     this.addNullEntry(items, frequencyMap, topItems, existingLegendItems, shapesEnabled);
-    this.addExtractedItems(ctx, items, frequencyMap, existingLegendItems, shapesEnabled);
 
-    if (includeOthers && !isolationMode) {
+    if (!isolationMode) {
       const shownValues = new Set(
         items
           .map((i) => i.value)

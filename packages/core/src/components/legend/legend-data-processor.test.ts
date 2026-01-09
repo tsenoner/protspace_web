@@ -18,7 +18,7 @@ describe('legend-data-processor', () => {
       const context = createProcessorContext();
       expect(context.slotTracker).toBeDefined();
       expect(context.slotTracker.isEmpty()).toBe(true);
-      expect(context.currentFeature).toBeNull();
+      expect(context.currentAnnotation).toBeNull();
     });
   });
 
@@ -64,10 +64,10 @@ describe('legend-data-processor', () => {
     });
   });
 
-  describe('countFeatureFrequencies', () => {
+  describe('countAnnotationFrequencies', () => {
     it('counts all values when not in isolation mode', () => {
       const values = ['a', 'b', 'a', 'c', 'a'];
-      const result = LegendDataProcessor.countFeatureFrequencies(values, false, [], new Set());
+      const result = LegendDataProcessor.countAnnotationFrequencies(values, false, [], new Set());
       expect(result.get('a')).toBe(3);
       expect(result.get('b')).toBe(1);
       expect(result.get('c')).toBe(1);
@@ -75,7 +75,7 @@ describe('legend-data-processor', () => {
 
     it('handles null values', () => {
       const values = ['a', null, 'a', null];
-      const result = LegendDataProcessor.countFeatureFrequencies(values, false, [], new Set());
+      const result = LegendDataProcessor.countAnnotationFrequencies(values, false, [], new Set());
       expect(result.get('a')).toBe(2);
       expect(result.get(null)).toBe(2);
     });
@@ -83,7 +83,12 @@ describe('legend-data-processor', () => {
     it('filters by indices in isolation mode', () => {
       const values = ['a', 'b', 'a', 'c', 'a'];
       const filtered = new Set([0, 2, 4]);
-      const result = LegendDataProcessor.countFeatureFrequencies(values, true, [['id1']], filtered);
+      const result = LegendDataProcessor.countAnnotationFrequencies(
+        values,
+        true,
+        [['id1']],
+        filtered,
+      );
       expect(result.get('a')).toBe(3);
       expect(result.has('b')).toBe(false);
       expect(result.has('c')).toBe(false);
@@ -97,22 +102,10 @@ describe('legend-data-processor', () => {
         ['large', 20],
         ['medium', 10],
       ]);
-      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, new Set(), 'size');
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'size-desc');
       expect(result.topItems[0][0]).toBe('large');
       expect(result.topItems[1][0]).toBe('medium');
       expect(result.topItems[2][0]).toBe('small');
-    });
-
-    it('sorts by size ascending with size-asc', () => {
-      const freq = new Map<string | null, number>([
-        ['small', 5],
-        ['large', 20],
-        ['medium', 10],
-      ]);
-      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, new Set(), 'size-asc');
-      expect(result.topItems[0][0]).toBe('small');
-      expect(result.topItems[1][0]).toBe('medium');
-      expect(result.topItems[2][0]).toBe('large');
     });
 
     it('sorts alphabetically with alpha mode', () => {
@@ -121,7 +114,7 @@ describe('legend-data-processor', () => {
         ['1-5', 10],
         ['5-10', 8],
       ]);
-      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, new Set(), 'alpha');
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
       expect(result.topItems[0][0]).toBe('1-5');
       expect(result.topItems[1][0]).toBe('5-10');
       expect(result.topItems[2][0]).toBe('10-20');
@@ -135,7 +128,7 @@ describe('legend-data-processor', () => {
         ['d', 7],
         ['e', 6],
       ]);
-      const result = LegendDataProcessor.sortAndLimitItems(freq, 3, false, new Set(), 'size');
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 3, false, 'size-desc');
       expect(result.topItems).toHaveLength(3);
       expect(result.otherItems).toHaveLength(2);
     });
@@ -147,20 +140,8 @@ describe('legend-data-processor', () => {
         ['c', 8],
         ['d', 7],
       ]);
-      const result = LegendDataProcessor.sortAndLimitItems(freq, 2, false, new Set(), 'size');
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 2, false, 'size-desc');
       expect(result.otherCount).toBe(15); // 8 + 7
-    });
-
-    it('respects manually set other values', () => {
-      const freq = new Map<string | null, number>([
-        ['keep', 10],
-        ['manual-other', 9],
-        ['also-keep', 8],
-      ]);
-      const manualOther = new Set(['manual-other']);
-      const result = LegendDataProcessor.sortAndLimitItems(freq, 3, false, manualOther, 'size');
-      // manual-other should be in otherItems even though it would fit
-      expect(result.otherItems.some((i) => i.value === 'manual-other')).toBe(true);
     });
 
     it('handles null values in sorting', () => {
@@ -169,7 +150,7 @@ describe('legend-data-processor', () => {
         [null, 5],
         ['b', 8],
       ]);
-      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, new Set(), 'size');
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'size-desc');
       expect(result.topItems.some(([v]) => v === null)).toBe(true);
     });
   });
@@ -180,7 +161,7 @@ describe('legend-data-processor', () => {
         ['category1', 10],
         ['category2', 5],
       ];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, false, true, [], false);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, false, [], false);
       expect(items).toHaveLength(2);
       expect(items[0].value).toBe('category1');
       expect(items[0].count).toBe(10);
@@ -189,33 +170,19 @@ describe('legend-data-processor', () => {
       expect(items[0].shape).toBe('circle');
     });
 
-    it('adds Other item when otherCount > 0 and includeOthers', () => {
+    it('adds Other item when otherCount > 0', () => {
       const topItems: Array<[string | null, number]> = [['category1', 10]];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, false, true, [], false);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, false, [], false);
       expect(items.some((i) => i.value === 'Other')).toBe(true);
-    });
-
-    it('does not add Other item when includeOthers is false', () => {
-      const topItems: Array<[string | null, number]> = [['category1', 10]];
-      const items = LegendDataProcessor.createLegendItems(
-        ctx,
-        topItems,
-        5,
-        false,
-        false,
-        [],
-        false,
-      );
-      expect(items.some((i) => i.value === 'Other')).toBe(false);
     });
 
     it('does not add Other item in isolation mode', () => {
       const topItems: Array<[string | null, number]> = [['category1', 10]];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, true, true, [], false);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, true, [], false);
       expect(items.some((i) => i.value === 'Other')).toBe(false);
     });
 
-    it('preserves existing z-order', () => {
+    it('preserves existing z-order in manual mode', () => {
       const topItems: Array<[string | null, number]> = [
         ['category1', 10],
         ['category2', 5],
@@ -230,17 +197,49 @@ describe('legend-data-processor', () => {
           zOrder: 99,
         },
       ];
+      // In manual mode, existing zOrders should be preserved
       const items = LegendDataProcessor.createLegendItems(
         ctx,
         topItems,
         0,
         false,
-        true,
         existing,
         false,
+        'manual',
       );
       const cat2 = items.find((i) => i.value === 'category2');
       expect(cat2?.zOrder).toBe(99);
+    });
+
+    it('uses sorted index for z-order in non-manual modes', () => {
+      const topItems: Array<[string | null, number]> = [
+        ['category1', 10],
+        ['category2', 5],
+      ];
+      const existing: LegendItem[] = [
+        {
+          value: 'category2',
+          color: '#000',
+          shape: 'circle',
+          count: 5,
+          isVisible: true,
+          zOrder: 99,
+        },
+      ];
+      // In size mode, zOrder should be based on sorted index, not existing
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        existing,
+        false,
+        'size-desc',
+      );
+      const cat1 = items.find((i) => i.value === 'category1');
+      const cat2 = items.find((i) => i.value === 'category2');
+      expect(cat1?.zOrder).toBe(0); // First in sorted order
+      expect(cat2?.zOrder).toBe(1); // Second in sorted order
     });
 
     it('includes shapes when shapesEnabled', () => {
@@ -248,27 +247,9 @@ describe('legend-data-processor', () => {
         ['category1', 10],
         ['category2', 5],
       ];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, false, true, [], true);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, false, [], true);
       const shapes = new Set(items.map((i) => i.shape));
       expect(shapes.size).toBeGreaterThan(1);
-    });
-  });
-
-  describe('createExtractedItem', () => {
-    it('creates an extracted item with correct properties', () => {
-      const item = LegendDataProcessor.createExtractedItem(ctx, 'extracted', 5, 10, false);
-      expect(item.value).toBe('extracted');
-      expect(item.count).toBe(5);
-      expect(item.zOrder).toBe(10);
-      expect(item.isVisible).toBe(true);
-      expect(item.extractedFromOther).toBe(true);
-      expect(item.color).toBeDefined();
-    });
-
-    it('assigns consistent slots for same value', () => {
-      const item1 = LegendDataProcessor.createExtractedItem(ctx, 'same', 5, 10, false);
-      const item2 = LegendDataProcessor.createExtractedItem(ctx, 'same', 5, 11, false);
-      expect(item1.color).toBe(item2.color);
     });
   });
 
@@ -310,140 +291,66 @@ describe('legend-data-processor', () => {
     });
   });
 
-  describe('addExtractedItems', () => {
-    it('re-adds extracted items from existing', () => {
-      const items: LegendItem[] = [];
-      const freq = new Map<string | null, number>([['extracted', 5]]);
-      const existing: LegendItem[] = [
-        {
-          value: 'extracted',
-          color: '#000',
-          shape: 'circle',
-          count: 5,
-          isVisible: true,
-          zOrder: 10,
-          extractedFromOther: true,
-        },
-      ];
-      LegendDataProcessor.addExtractedItems(ctx, items, freq, existing, false);
-      expect(items.some((i) => i.value === 'extracted')).toBe(true);
-      expect(items[0].extractedFromOther).toBe(true);
-    });
-
-    it('does not duplicate items already in the list', () => {
-      const items: LegendItem[] = [
-        {
-          value: 'extracted',
-          color: '#000',
-          shape: 'circle',
-          count: 5,
-          isVisible: true,
-          zOrder: 5,
-        },
-      ];
-      const freq = new Map<string | null, number>([['extracted', 5]]);
-      const existing: LegendItem[] = [
-        {
-          value: 'extracted',
-          color: '#000',
-          shape: 'circle',
-          count: 5,
-          isVisible: true,
-          zOrder: 10,
-          extractedFromOther: true,
-        },
-      ];
-      LegendDataProcessor.addExtractedItems(ctx, items, freq, existing, false);
-      expect(items).toHaveLength(1);
-    });
-
-    it('does not add extracted items not in frequency map', () => {
-      const items: LegendItem[] = [];
-      const freq = new Map<string | null, number>([['other', 5]]);
-      const existing: LegendItem[] = [
-        {
-          value: 'extracted',
-          color: '#000',
-          shape: 'circle',
-          count: 5,
-          isVisible: true,
-          zOrder: 10,
-          extractedFromOther: true,
-        },
-      ];
-      LegendDataProcessor.addExtractedItems(ctx, items, freq, existing, false);
-      expect(items).toHaveLength(0);
-    });
-  });
-
   describe('processLegendItems', () => {
-    it('processes basic feature values', () => {
+    it('processes basic annotation values', () => {
       const result = LegendDataProcessor.processLegendItems(
         ctx,
-        'feature1',
+        'annotation1',
         ['a', 'b', 'a', 'c', 'a', 'b'],
         ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'],
         10,
         false,
         [],
         [],
-        true,
-        [],
-        'size',
+        'size-desc',
         false,
       );
       expect(result.legendItems.length).toBeGreaterThan(0);
       expect(result.legendItems.find((i) => i.value === 'a')?.count).toBe(3);
     });
 
-    it('resets slot tracker on feature change', () => {
+    it('resets slot tracker on annotation change', () => {
       LegendDataProcessor.processLegendItems(
         ctx,
-        'feature1',
+        'annotation1',
         ['a', 'b'],
         ['p1', 'p2'],
         10,
         false,
         [],
         [],
-        true,
-        [],
-        'size',
+        'size-desc',
         false,
       );
-      expect(ctx.currentFeature).toBe('feature1');
+      expect(ctx.currentAnnotation).toBe('annotation1');
 
       LegendDataProcessor.processLegendItems(
         ctx,
-        'feature2',
+        'annotation2',
         ['c', 'd'],
         ['p1', 'p2'],
         10,
         false,
         [],
         [],
-        true,
-        [],
-        'size',
+        'size-desc',
         false,
       );
-      expect(ctx.currentFeature).toBe('feature2');
+      expect(ctx.currentAnnotation).toBe('annotation2');
     });
 
     it('creates Other bucket when exceeding max visible', () => {
       const values = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
       const result = LegendDataProcessor.processLegendItems(
         ctx,
-        'feature1',
+        'annotation1',
         values,
         values.map((_, i) => `p${i}`),
         3,
         false,
         [],
         [],
-        true,
-        [],
-        'size',
+        'size-desc',
         false,
       );
       expect(result.legendItems.some((i) => i.value === 'Other')).toBe(true);
@@ -455,88 +362,77 @@ describe('legend-data-processor', () => {
       const proteinIds = ['p1', 'p2', 'p3', 'p4'];
       const result = LegendDataProcessor.processLegendItems(
         ctx,
-        'feature1',
+        'annotation1',
         values,
         proteinIds,
         10,
         true,
         [['p1', 'p3']],
         [],
-        true,
-        [],
-        'size',
+        'size-desc',
         false,
       );
       // Only p1 and p3 are in isolation, both have value 'a'
       expect(result.legendItems.find((i) => i.value === 'a')?.count).toBe(2);
     });
 
-    it('respects includeOthers setting', () => {
-      const values = ['a', 'b', 'c', 'd', 'e'];
-      const result = LegendDataProcessor.processLegendItems(
-        ctx,
-        'feature1',
-        values,
-        values.map((_, i) => `p${i}`),
-        2,
-        false,
-        [],
-        [],
-        false, // includeOthers = false
-        [],
-        'size',
-        false,
-      );
-      expect(result.legendItems.some((i) => i.value === 'Other')).toBe(false);
-    });
-
-    it('handles manuallyOtherValues', () => {
+    it('preserves existing z-order across processing in manual mode', () => {
       const values = ['a', 'b', 'c'];
+      const existing: LegendItem[] = [
+        {
+          value: 'a',
+          color: '#000',
+          shape: 'circle',
+          count: 1,
+          isVisible: true,
+          zOrder: 99,
+        },
+      ];
+      // In manual mode, existing zOrders should be preserved
       const result = LegendDataProcessor.processLegendItems(
         ctx,
-        'feature1',
+        'annotation1',
         values,
         values.map((_, i) => `p${i}`),
         10,
         false,
         [],
-        [],
-        true,
-        ['b'], // manually put 'b' in Other
-        'size',
+        existing,
+        'manual',
         false,
       );
-      expect(result.otherItems.some((i) => i.value === 'b')).toBe(true);
+      expect(result.legendItems.find((i) => i.value === 'a')?.zOrder).toBe(99);
     });
 
-    it('preserves extracted items across processing', () => {
+    it('uses sorted index for z-order across processing in non-manual modes', () => {
       const values = ['a', 'b', 'c'];
       const existing: LegendItem[] = [
         {
-          value: 'c',
+          value: 'a',
           color: '#000',
           shape: 'circle',
           count: 1,
           isVisible: true,
-          zOrder: 5,
-          extractedFromOther: true,
+          zOrder: 99,
         },
       ];
+      // In size mode, zOrder should be based on sorted position
       const result = LegendDataProcessor.processLegendItems(
         ctx,
-        'feature1',
+        'annotation1',
         values,
         values.map((_, i) => `p${i}`),
-        2,
+        10,
         false,
         [],
         existing,
-        true,
-        [],
-        'size',
+        'size-desc',
         false,
       );
-      expect(result.legendItems.some((i) => i.value === 'c' && i.extractedFromOther)).toBe(true);
+      // All items have count 1, so they're equal in size; order depends on implementation
+      const itemA = result.legendItems.find((i) => i.value === 'a');
+      expect(itemA?.zOrder).toBeGreaterThanOrEqual(0);
+      expect(itemA?.zOrder).toBeLessThan(3);
     });
   });
 });

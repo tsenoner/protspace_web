@@ -1,5 +1,5 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import type { LegendItem } from '../types';
+import type { LegendItem, LegendSortMode } from '../types';
 import { LEGEND_DEFAULTS, LEGEND_VALUES } from '../config';
 
 /**
@@ -8,16 +8,14 @@ import { LEGEND_DEFAULTS, LEGEND_VALUES } from '../config';
 export interface DragCallbacks {
   getLegendItems: () => LegendItem[];
   setLegendItems: (items: LegendItem[]) => void;
-  getManualOtherValues: () => string[];
-  setManualOtherValues: (values: string[]) => void;
   onReorder: () => void;
-  onMergeToOther: (value: string) => void;
-  updateLegendItems: () => void;
+  onMergeToOther?: (value: string) => void;
+  onSortModeChange?: (mode: LegendSortMode) => void;
 }
 
 /**
  * Reactive controller for managing drag and drop functionality.
- * Handles reordering legend items and merging items into the "Other" bucket.
+ * Handles reordering legend items.
  */
 export class DragController implements ReactiveController {
   private callbacks: DragCallbacks;
@@ -90,16 +88,12 @@ export class DragController implements ReactiveController {
   handleDrop(event: DragEvent, targetItem: LegendItem): void {
     event.preventDefault();
 
+    // If dropping on "Other", merge the dragged item into Other
     if (targetItem.value === LEGEND_VALUES.OTHER && this._draggedItemIndex !== -1) {
       const legendItems = this.callbacks.getLegendItems();
       const draggedItem = legendItems[this._draggedItemIndex];
-
-      if (draggedItem) {
-        if (draggedItem.extractedFromOther && draggedItem.value) {
-          this._mergeExtractedBackToOther(draggedItem.value);
-        } else if (draggedItem.value && draggedItem.value !== LEGEND_VALUES.OTHER) {
-          this._mergeToOther(draggedItem.value);
-        }
+      if (draggedItem && draggedItem.value !== null && draggedItem.value !== LEGEND_VALUES.OTHER) {
+        this.callbacks.onMergeToOther?.(draggedItem.value);
       }
     }
 
@@ -120,6 +114,9 @@ export class DragController implements ReactiveController {
 
     if (this._draggedItemIndex === -1 || targetIdx === -1) return;
 
+    // Don't reorder onto "Other" - that's handled by handleDrop for merge
+    if (targetItem.value === LEGEND_VALUES.OTHER) return;
+
     const newItems = [...legendItems];
     const [movedItem] = newItems.splice(this._draggedItemIndex, 1);
 
@@ -133,24 +130,10 @@ export class DragController implements ReactiveController {
 
     this.callbacks.setLegendItems(reorderedItems);
     this._draggedItemIndex = adjustedTargetIdx;
+
+    // Switch to manual sort mode when user manually reorders
+    this.callbacks.onSortModeChange?.('manual');
     this.callbacks.onReorder();
-  }
-
-  private _mergeExtractedBackToOther(value: string): void {
-    const legendItems = this.callbacks.getLegendItems();
-    const filteredItems = legendItems.filter((i) => i.value !== value);
-    this.callbacks.setLegendItems(filteredItems);
-    this.callbacks.updateLegendItems();
-    this.callbacks.onMergeToOther(value);
-  }
-
-  private _mergeToOther(value: string): void {
-    const manualOtherValues = this.callbacks.getManualOtherValues();
-    if (!manualOtherValues.includes(value)) {
-      this.callbacks.setManualOtherValues([...manualOtherValues, value]);
-    }
-    this.callbacks.updateLegendItems();
-    this.callbacks.onMergeToOther(value);
   }
 
   private _clearTimeout(): void {

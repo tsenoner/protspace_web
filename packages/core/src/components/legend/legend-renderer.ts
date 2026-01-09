@@ -163,7 +163,7 @@ export class LegendRenderer {
   }
 
   /**
-   * Render the item symbol (either "Other" default or feature-specific symbol)
+   * Render the item symbol (either "Other" default or annotation-specific symbol)
    */
   static renderItemSymbol(
     item: LegendItem,
@@ -208,15 +208,15 @@ export class LegendRenderer {
    * Render item actions (like "view" button for "Other" category)
    */
   static renderItemActions(item: LegendItem, onViewOther: (e: Event) => void): TemplateResult {
-    if (item.value !== LEGEND_VALUES.OTHER) {
-      return html``;
+    if (item.value === LEGEND_VALUES.OTHER) {
+      return html`
+        <button class="view-button" @click=${onViewOther} title="Extract items from Other">
+          (view)
+        </button>
+      `;
     }
 
-    return html`
-      <button class="view-button" @click=${onViewOther} title="Extract items from Other">
-        (view)
-      </button>
-    `;
+    return html``;
   }
 
   /**

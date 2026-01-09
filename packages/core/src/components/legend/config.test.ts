@@ -3,7 +3,7 @@ import {
   SHAPE_PATH_GENERATORS,
   LEGEND_DEFAULTS,
   LEGEND_STYLES,
-  FIRST_NUMBER_SORT_FEATURES,
+  FIRST_NUMBER_SORT_ANNOTATIONS,
   LEGEND_VALUES,
   LEGEND_EVENTS,
 } from './config';
@@ -98,7 +98,6 @@ describe('config', () => {
       expect(LEGEND_DEFAULTS.dragTimeout).toBe(100);
       expect(LEGEND_DEFAULTS.scatterplotSelector).toBe('protspace-scatterplot');
       expect(LEGEND_DEFAULTS.autoSyncDelay).toBe(100);
-      expect(LEGEND_DEFAULTS.includeOthers).toBe(true);
       expect(LEGEND_DEFAULTS.includeShapes).toBe(false);
       expect(LEGEND_DEFAULTS.enableDuplicateStackUI).toBe(false);
     });
@@ -130,18 +129,18 @@ describe('config', () => {
     });
   });
 
-  describe('FIRST_NUMBER_SORT_FEATURES', () => {
+  describe('FIRST_NUMBER_SORT_ANNOTATIONS', () => {
     it('is a Set', () => {
-      expect(FIRST_NUMBER_SORT_FEATURES).toBeInstanceOf(Set);
+      expect(FIRST_NUMBER_SORT_ANNOTATIONS).toBeInstanceOf(Set);
     });
 
-    it('contains length features', () => {
-      expect(FIRST_NUMBER_SORT_FEATURES.has('length_fixed')).toBe(true);
-      expect(FIRST_NUMBER_SORT_FEATURES.has('length_quantile')).toBe(true);
+    it('contains length annotations', () => {
+      expect(FIRST_NUMBER_SORT_ANNOTATIONS.has('length_fixed')).toBe(true);
+      expect(FIRST_NUMBER_SORT_ANNOTATIONS.has('length_quantile')).toBe(true);
     });
 
     it('has exactly 2 entries', () => {
-      expect(FIRST_NUMBER_SORT_FEATURES.size).toBe(2);
+      expect(FIRST_NUMBER_SORT_ANNOTATIONS.size).toBe(2);
     });
   });
 
@@ -166,7 +165,7 @@ describe('config', () => {
 
     it('has external event names', () => {
       expect(LEGEND_EVENTS.DATA_CHANGE).toBe('data-change');
-      expect(LEGEND_EVENTS.FEATURE_CHANGE).toBe('feature-change');
+      expect(LEGEND_EVENTS.ANNOTATION_CHANGE).toBe('annotation-change');
     });
   });
 });

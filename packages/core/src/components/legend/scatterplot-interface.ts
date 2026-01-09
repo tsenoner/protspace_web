@@ -9,7 +9,7 @@ export interface IScatterplotElement extends Element {
   getCurrentData(): ScatterplotData | null;
   selectedFeature: string;
 
-  // Feature values
+  // Annotation values (using scatterplot's property names)
   hiddenFeatureValues: string[];
   otherFeatureValues: string[];
   useShapes: boolean;
@@ -37,7 +37,7 @@ export function supportsHiddenValues(element: IScatterplotElement): boolean {
 }
 
 /**
- * Type guard to check if scatterplot supports other feature values
+ * Type guard to check if scatterplot supports other annotation values
  */
 export function supportsOtherValues(element: IScatterplotElement): boolean {
   return 'otherFeatureValues' in element;

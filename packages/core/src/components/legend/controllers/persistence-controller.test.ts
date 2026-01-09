@@ -55,13 +55,11 @@ describe('PersistenceController', () => {
       onSettingsLoaded: vi.fn(),
       getLegendItems: vi.fn().mockReturnValue([]),
       getHiddenValues: vi.fn().mockReturnValue([]),
-      getManualOtherValues: vi.fn().mockReturnValue([]),
       getCurrentSettings: vi.fn().mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size' as const,
+        sortMode: 'size-desc' as const,
         enableDuplicateStackUI: false,
       }),
     };
@@ -101,15 +99,13 @@ describe('PersistenceController', () => {
 
     it('resets settingsLoaded when hash changes', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping: {},
         enableDuplicateStackUI: false,
       });
@@ -121,48 +117,46 @@ describe('PersistenceController', () => {
     });
   });
 
-  describe('updateSelectedFeature', () => {
-    it('returns true when feature changes', () => {
-      const result = controller.updateSelectedFeature('feature1');
+  describe('updateSelectedAnnotation', () => {
+    it('returns true when annotation changes', () => {
+      const result = controller.updateSelectedAnnotation('annotation1');
       expect(result).toBe(true);
     });
 
-    it('returns false when feature is the same', () => {
-      controller.updateSelectedFeature('feature1');
-      const result = controller.updateSelectedFeature('feature1');
+    it('returns false when annotation is the same', () => {
+      controller.updateSelectedAnnotation('annotation1');
+      const result = controller.updateSelectedAnnotation('annotation1');
       expect(result).toBe(false);
     });
 
-    it('resets settingsLoaded when feature changes', () => {
+    it('resets settingsLoaded when annotation changes', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping: {},
         enableDuplicateStackUI: false,
       });
       controller.loadSettings();
       expect(controller.settingsLoaded).toBe(true);
 
-      controller.updateSelectedFeature('feature2');
+      controller.updateSelectedAnnotation('annotation2');
       expect(controller.settingsLoaded).toBe(false);
     });
   });
 
   describe('loadSettings', () => {
     it('does nothing without dataset hash', () => {
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       controller.loadSettings();
       expect(getStorageItem).not.toHaveBeenCalled();
     });
 
-    it('does nothing without selected feature', () => {
+    it('does nothing without selected annotation', () => {
       controller.updateDatasetHash(['protein1']);
       controller.loadSettings();
       expect(getStorageItem).not.toHaveBeenCalled();
@@ -170,40 +164,36 @@ describe('PersistenceController', () => {
 
     it('loads settings with correct key', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 15,
-        includeOthers: false,
         includeShapes: true,
         shapeSize: 20,
-        sortMode: 'alpha',
+        sortMode: 'alpha-asc',
         hiddenValues: ['hidden1'],
-        manualOtherValues: ['other1'],
         zOrderMapping: { cat1: 0, cat2: 1 },
         enableDuplicateStackUI: true,
       });
 
       controller.loadSettings();
 
-      expect(buildStorageKey).toHaveBeenCalledWith('legend', 'hash_protein1', 'feature1');
+      expect(buildStorageKey).toHaveBeenCalledWith('legend', 'hash_protein1', 'annotation1');
       expect(getStorageItem).toHaveBeenCalled();
     });
 
     it('calls onSettingsLoaded callback with loaded settings', () => {
       const savedSettings = {
         maxVisibleValues: 15,
-        includeOthers: false,
         includeShapes: true,
         shapeSize: 20,
-        sortMode: 'alpha' as const,
+        sortMode: 'alpha-asc' as const,
         hiddenValues: ['hidden1'],
-        manualOtherValues: ['other1'],
         zOrderMapping: { cat1: 0, cat2: 1 },
         enableDuplicateStackUI: true,
       };
 
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue(savedSettings);
 
       controller.loadSettings();
@@ -214,15 +204,13 @@ describe('PersistenceController', () => {
     it('stores pending z-order mapping', () => {
       const zOrderMapping = { cat1: 2, cat2: 1, cat3: 0 };
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping,
         enableDuplicateStackUI: false,
       });
@@ -234,15 +222,13 @@ describe('PersistenceController', () => {
 
     it('sets settingsLoaded to true', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping: {},
         enableDuplicateStackUI: false,
       });
@@ -261,7 +247,7 @@ describe('PersistenceController', () => {
 
     it('saves settings with correct key and values', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
 
       mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
         { value: 'cat1', zOrder: 0 },
@@ -269,26 +255,22 @@ describe('PersistenceController', () => {
         { value: null, zOrder: 2 }, // Others item
       ]);
       mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['hidden1']);
-      mockCallbacks.getManualOtherValues = vi.fn().mockReturnValue(['other1']);
       mockCallbacks.getCurrentSettings = vi.fn().mockReturnValue({
         maxVisibleValues: 15,
-        includeOthers: true,
         includeShapes: true,
         shapeSize: 20,
-        sortMode: 'alpha' as const,
+        sortMode: 'alpha-asc' as const,
         enableDuplicateStackUI: true,
       });
 
       controller.saveSettings();
 
-      expect(setStorageItem).toHaveBeenCalledWith('legend_hash_protein1_feature1', {
+      expect(setStorageItem).toHaveBeenCalledWith('legend_hash_protein1_annotation1', {
         maxVisibleValues: 15,
-        includeOthers: true,
         includeShapes: true,
         shapeSize: 20,
-        sortMode: 'alpha',
+        sortMode: 'alpha-asc',
         hiddenValues: ['hidden1'],
-        manualOtherValues: ['other1'],
         zOrderMapping: { cat1: 0, cat2: 1 },
         enableDuplicateStackUI: true,
       });
@@ -296,7 +278,7 @@ describe('PersistenceController', () => {
 
     it('excludes null values from z-order mapping', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
 
       mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
         { value: 'cat1', zOrder: 0 },
@@ -318,11 +300,11 @@ describe('PersistenceController', () => {
 
     it('removes settings with correct key', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
 
       controller.removeSettings();
 
-      expect(removeStorageItem).toHaveBeenCalledWith('legend_hash_protein1_feature1');
+      expect(removeStorageItem).toHaveBeenCalledWith('legend_hash_protein1_annotation1');
     });
   });
 
@@ -359,7 +341,7 @@ describe('PersistenceController', () => {
 
     it('returns false when no item in localStorage', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       mockGetItem.mockReturnValue(null);
 
       expect(controller.hasPersistedSettings()).toBe(false);
@@ -367,7 +349,7 @@ describe('PersistenceController', () => {
 
     it('returns true when item exists in localStorage', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       mockGetItem.mockReturnValue('{"some": "data"}');
 
       expect(controller.hasPersistedSettings()).toBe(true);
@@ -375,12 +357,12 @@ describe('PersistenceController', () => {
 
     it('checks the correct storage key', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       mockGetItem.mockReturnValue(null);
 
       controller.hasPersistedSettings();
 
-      expect(mockGetItem).toHaveBeenCalledWith('legend_hash_protein1_feature1');
+      expect(mockGetItem).toHaveBeenCalledWith('legend_hash_protein1_annotation1');
     });
   });
 
@@ -391,15 +373,13 @@ describe('PersistenceController', () => {
 
     it('clearPendingZOrder clears the mapping', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping: { cat1: 0 },
         enableDuplicateStackUI: false,
       });
@@ -419,15 +399,13 @@ describe('PersistenceController', () => {
 
     it('returns true when has pending mapping', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping: { cat1: 0 },
         enableDuplicateStackUI: false,
       });
@@ -447,15 +425,13 @@ describe('PersistenceController', () => {
 
     it('returns items unchanged when items array is empty', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping: { cat1: 0 },
         enableDuplicateStackUI: false,
       });
@@ -467,15 +443,13 @@ describe('PersistenceController', () => {
 
     it('applies z-order mapping to matching items', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping: { cat1: 2, cat2: 0 },
         enableDuplicateStackUI: false,
       });
@@ -496,15 +470,13 @@ describe('PersistenceController', () => {
 
     it('clears pending mapping after applying', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping: { cat1: 2 },
         enableDuplicateStackUI: false,
       });
@@ -518,15 +490,13 @@ describe('PersistenceController', () => {
 
     it('clears mapping when no items match', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping: { cat1: 2 },
         enableDuplicateStackUI: false,
       });
@@ -541,15 +511,13 @@ describe('PersistenceController', () => {
 
     it('skips items with null value', () => {
       controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedFeature('feature1');
+      controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
         maxVisibleValues: 10,
-        includeOthers: true,
         includeShapes: false,
         shapeSize: 16,
-        sortMode: 'size',
+        sortMode: 'size-desc',
         hiddenValues: [],
-        manualOtherValues: [],
         zOrderMapping: { cat1: 2 },
         enableDuplicateStackUI: false,
       });

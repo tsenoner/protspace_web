@@ -16,10 +16,8 @@ export interface PersistenceCallbacks {
   onSettingsLoaded: (settings: LegendPersistedSettings) => void;
   getLegendItems: () => LegendItem[];
   getHiddenValues: () => string[];
-  getManualOtherValues: () => string[];
   getCurrentSettings: () => {
     maxVisibleValues: number;
-    includeOthers: boolean;
     includeShapes: boolean;
     shapeSize: number;
     sortMode: LegendSortMode;
@@ -29,13 +27,13 @@ export interface PersistenceCallbacks {
 
 /**
  * Reactive controller for managing localStorage persistence.
- * Handles saving and loading legend settings per dataset/feature combination.
+ * Handles saving and loading legend settings per dataset/annotation combination.
  */
 export class PersistenceController implements ReactiveController {
   private callbacks: PersistenceCallbacks;
 
   private _datasetHash: string = '';
-  private _selectedFeature: string = '';
+  private _selectedAnnotation: string = '';
   private _settingsLoaded: boolean = false;
   private _pendingZOrderMapping: Record<string, number> = {};
 
@@ -60,7 +58,7 @@ export class PersistenceController implements ReactiveController {
   }
 
   /**
-   * Check if settings have been loaded for current feature
+   * Check if settings have been loaded for current annotation
    */
   get settingsLoaded(): boolean {
     return this._settingsLoaded;
@@ -80,31 +78,37 @@ export class PersistenceController implements ReactiveController {
   }
 
   /**
-   * Update selected feature and reset settings loaded flag if changed
+   * Update selected annotation and reset settings loaded flag if changed
    */
-  updateSelectedFeature(feature: string): boolean {
-    if (feature !== this._selectedFeature) {
-      this._selectedFeature = feature;
+  updateSelectedAnnotation(annotation: string): boolean {
+    if (annotation !== this._selectedAnnotation) {
+      this._selectedAnnotation = annotation;
       this._settingsLoaded = false;
-      return true; // Feature changed
+      return true; // Annotation changed
     }
     return false; // No change
   }
 
   /**
-   * Load persisted settings for current dataset/feature
+   * Load persisted settings for current dataset/annotation
    */
   loadSettings(): void {
     const key = this._getStorageKey();
     if (!key) return;
 
-    const defaultSettings = createDefaultSettings(this._selectedFeature);
-    const saved = getStorageItem<LegendPersistedSettings>(key, defaultSettings);
+    const defaultSettings = createDefaultSettings(this._selectedAnnotation);
+    const saved = getStorageItem<Partial<LegendPersistedSettings>>(key, defaultSettings);
 
-    this._pendingZOrderMapping = saved.zOrderMapping;
+    // Merge with defaults to handle old localStorage data missing new fields
+    const mergedSettings: LegendPersistedSettings = {
+      ...defaultSettings,
+      ...saved,
+    };
+
+    this._pendingZOrderMapping = mergedSettings.zOrderMapping;
     this._settingsLoaded = true;
 
-    this.callbacks.onSettingsLoaded(saved);
+    this.callbacks.onSettingsLoaded(mergedSettings);
   }
 
   /**
@@ -127,12 +131,10 @@ export class PersistenceController implements ReactiveController {
 
     const settings: LegendPersistedSettings = {
       maxVisibleValues: currentSettings.maxVisibleValues,
-      includeOthers: currentSettings.includeOthers,
       includeShapes: currentSettings.includeShapes,
       shapeSize: currentSettings.shapeSize,
       sortMode: currentSettings.sortMode,
       hiddenValues: this.callbacks.getHiddenValues(),
-      manualOtherValues: this.callbacks.getManualOtherValues(),
       zOrderMapping,
       enableDuplicateStackUI: currentSettings.enableDuplicateStackUI,
     };
@@ -141,7 +143,7 @@ export class PersistenceController implements ReactiveController {
   }
 
   /**
-   * Check if there are persisted settings for current dataset/feature
+   * Check if there are persisted settings for current dataset/annotation
    */
   hasPersistedSettings(): boolean {
     const key = this._getStorageKey();
@@ -150,13 +152,20 @@ export class PersistenceController implements ReactiveController {
   }
 
   /**
-   * Remove persisted settings for current dataset/feature
+   * Remove persisted settings for current dataset/annotation
    */
   removeSettings(): void {
     const key = this._getStorageKey();
     if (key) {
       removeStorageItem(key);
     }
+  }
+
+  /**
+   * Set pending z-order mapping (used when extracting items from Other)
+   */
+  setPendingZOrder(zOrderMapping: Record<string, number>): void {
+    this._pendingZOrderMapping = zOrderMapping;
   }
 
   /**
@@ -202,9 +211,9 @@ export class PersistenceController implements ReactiveController {
   }
 
   private _getStorageKey(): string | null {
-    if (!this._datasetHash || !this._selectedFeature) {
+    if (!this._datasetHash || !this._selectedAnnotation) {
       return null;
     }
-    return buildStorageKey('legend', this._datasetHash, this._selectedFeature);
+    return buildStorageKey('legend', this._datasetHash, this._selectedAnnotation);
   }
 }

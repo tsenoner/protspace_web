@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import type { LegendItem, OtherItem } from './types';
 import {
   valueToKey,
-  normalizeSortMode,
-  normalizeSortModes,
   expandHiddenValues,
   computeOtherConcreteValues,
   reverseZOrderKeepOtherLast,
@@ -18,7 +16,7 @@ import {
   updateItemsVisibility,
   isolateItem,
 } from './legend-helpers';
-import { initializeFeatureSortMode } from './legend-settings-dialog';
+import { initializeAnnotationSortMode } from './legend-settings-dialog';
 
 describe('legend-helpers', () => {
   describe('valueToKey', () => {
@@ -30,44 +28,6 @@ describe('legend-helpers', () => {
       expect(valueToKey('test')).toBe('test');
       expect(valueToKey('Other')).toBe('Other');
       expect(valueToKey('')).toBe('');
-    });
-  });
-
-  describe('normalizeSortMode', () => {
-    it('converts alpha-desc to alpha', () => {
-      expect(normalizeSortMode('alpha-desc')).toBe('alpha');
-    });
-
-    it('converts size-asc to size', () => {
-      expect(normalizeSortMode('size-asc')).toBe('size');
-    });
-
-    it('returns alpha unchanged', () => {
-      expect(normalizeSortMode('alpha')).toBe('alpha');
-    });
-
-    it('returns size unchanged', () => {
-      expect(normalizeSortMode('size')).toBe('size');
-    });
-  });
-
-  describe('normalizeSortModes', () => {
-    it('normalizes all modes in a record', () => {
-      const input = {
-        feature1: 'alpha-desc' as const,
-        feature2: 'size-asc' as const,
-        feature3: 'alpha' as const,
-      };
-      const result = normalizeSortModes(input);
-      expect(result).toEqual({
-        feature1: 'alpha',
-        feature2: 'size',
-        feature3: 'alpha',
-      });
-    });
-
-    it('returns empty object for empty input', () => {
-      expect(normalizeSortModes({})).toEqual({});
     });
   });
 
@@ -218,31 +178,31 @@ describe('legend-helpers', () => {
   });
 
   describe('createDefaultSettings', () => {
-    it('creates default settings with size sort for regular features', () => {
-      const settings = createDefaultSettings('some_feature');
-      expect(settings.sortMode).toBe('size');
+    it('creates default settings with size-desc sort for regular annotations', () => {
+      const settings = createDefaultSettings('some_annotation');
+      expect(settings.sortMode).toBe('size-desc');
       expect(settings.maxVisibleValues).toBe(10);
-      expect(settings.includeOthers).toBe(true);
       expect(settings.hiddenValues).toEqual([]);
+      expect(settings.zOrderMapping).toEqual({});
     });
 
-    it('creates default settings with alpha sort for length features', () => {
+    it('creates default settings with alpha-asc sort for length annotations', () => {
       const settings = createDefaultSettings('length_fixed');
-      expect(settings.sortMode).toBe('alpha');
+      expect(settings.sortMode).toBe('alpha-asc');
     });
   });
 
   describe('getDefaultSortMode', () => {
-    it('returns alpha for length_fixed', () => {
-      expect(getDefaultSortMode('length_fixed')).toBe('alpha');
+    it('returns alpha-asc for length_fixed', () => {
+      expect(getDefaultSortMode('length_fixed')).toBe('alpha-asc');
     });
 
-    it('returns alpha for length_quantile', () => {
-      expect(getDefaultSortMode('length_quantile')).toBe('alpha');
+    it('returns alpha-asc for length_quantile', () => {
+      expect(getDefaultSortMode('length_quantile')).toBe('alpha-asc');
     });
 
-    it('returns size for other features', () => {
-      expect(getDefaultSortMode('some_feature')).toBe('size');
+    it('returns size-desc for other annotations', () => {
+      expect(getDefaultSortMode('some_annotation')).toBe('size-desc');
     });
   });
 
@@ -273,16 +233,9 @@ describe('legend-helpers', () => {
       expect(getItemClasses(baseItem, false, true)).toBe('legend-item dragging');
     });
 
-    it('adds extracted class when extractedFromOther', () => {
-      const item = { ...baseItem, extractedFromOther: true };
-      expect(getItemClasses(item, false, false)).toBe('legend-item extracted');
-    });
-
     it('combines multiple classes', () => {
-      const item = { ...baseItem, isVisible: false, extractedFromOther: true };
-      expect(getItemClasses(item, true, true)).toBe(
-        'legend-item hidden dragging selected extracted',
-      );
+      const item = { ...baseItem, isVisible: false };
+      expect(getItemClasses(item, true, true)).toBe('legend-item hidden dragging selected');
     });
   });
 
@@ -348,45 +301,39 @@ describe('legend-helpers', () => {
     });
   });
 
-  describe('initializeFeatureSortMode', () => {
-    it('returns unchanged modes if feature already has a mode', () => {
-      const existing = { feature1: 'alpha' as const };
-      const result = initializeFeatureSortMode(existing, 'feature1', {});
-      expect(result).toEqual({ feature1: 'alpha' });
+  describe('initializeAnnotationSortMode', () => {
+    it('returns unchanged modes if annotation already has a mode', () => {
+      const existing = { annotation1: 'alpha-asc' as const };
+      const result = initializeAnnotationSortMode(existing, 'annotation1', {});
+      expect(result).toEqual({ annotation1: 'alpha-asc' });
     });
 
-    it('returns unchanged modes if no selected feature', () => {
-      const existing = { feature1: 'size' as const };
-      const result = initializeFeatureSortMode(existing, '', {});
-      expect(result).toEqual({ feature1: 'size' });
+    it('returns unchanged modes if no selected annotation', () => {
+      const existing = { annotation1: 'size-desc' as const };
+      const result = initializeAnnotationSortMode(existing, '', {});
+      expect(result).toEqual({ annotation1: 'size-desc' });
     });
 
-    it('adds normalized mode from current modes if exists', () => {
+    it('uses existing mode from current modes if exists', () => {
       const existing = {};
-      const current = { newFeature: 'alpha-desc' as const };
-      const result = initializeFeatureSortMode(existing, 'newFeature', current);
-      expect(result).toEqual({ newFeature: 'alpha' });
+      const current = { newAnnotation: 'alpha-desc' as const };
+      const result = initializeAnnotationSortMode(existing, 'newAnnotation', current);
+      expect(result).toEqual({ newAnnotation: 'alpha-desc' });
     });
 
-    it('defaults to size for regular features', () => {
-      const result = initializeFeatureSortMode({}, 'some_feature', {});
-      expect(result).toEqual({ some_feature: 'size' });
+    it('defaults to size-desc for regular annotations', () => {
+      const result = initializeAnnotationSortMode({}, 'some_annotation', {});
+      expect(result).toEqual({ some_annotation: 'size-desc' });
     });
 
-    it('defaults to alpha for length_fixed feature', () => {
-      const result = initializeFeatureSortMode({}, 'length_fixed', {});
-      expect(result).toEqual({ length_fixed: 'alpha' });
+    it('defaults to alpha-asc for length_fixed annotation', () => {
+      const result = initializeAnnotationSortMode({}, 'length_fixed', {});
+      expect(result).toEqual({ length_fixed: 'alpha-asc' });
     });
 
-    it('defaults to alpha for length_quantile feature', () => {
-      const result = initializeFeatureSortMode({}, 'length_quantile', {});
-      expect(result).toEqual({ length_quantile: 'alpha' });
-    });
-
-    it('normalizes size-asc to size', () => {
-      const current = { feature1: 'size-asc' as const };
-      const result = initializeFeatureSortMode({}, 'feature1', current);
-      expect(result).toEqual({ feature1: 'size' });
+    it('defaults to alpha-asc for length_quantile annotation', () => {
+      const result = initializeAnnotationSortMode({}, 'length_quantile', {});
+      expect(result).toEqual({ length_quantile: 'alpha-asc' });
     });
   });
 
@@ -400,18 +347,13 @@ describe('legend-helpers', () => {
     });
 
     it('creates an isolate action event', () => {
-      const event = createItemActionEvent('legend-item-click', 'feature', 'isolate');
-      expect(event.detail).toEqual({ value: 'feature', action: 'isolate' });
+      const event = createItemActionEvent('legend-item-click', 'category', 'isolate');
+      expect(event.detail).toEqual({ value: 'category', action: 'isolate' });
     });
 
     it('creates an extract action event', () => {
       const event = createItemActionEvent('legend-item-click', 'extracted', 'extract');
       expect(event.detail).toEqual({ value: 'extracted', action: 'extract' });
-    });
-
-    it('creates a merge-into-other action event', () => {
-      const event = createItemActionEvent('legend-item-click', 'merged', 'merge-into-other');
-      expect(event.detail).toEqual({ value: 'merged', action: 'merge-into-other' });
     });
 
     it('handles null value', () => {

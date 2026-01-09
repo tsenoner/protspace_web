@@ -1,5 +1,14 @@
-import type { LegendItem, OtherItem, LegendSortMode, LegendPersistedSettings } from './types';
-import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_FEATURES, LEGEND_VALUES } from './config';
+import type {
+  LegendItem,
+  OtherItem,
+  LegendSortMode,
+  LegendPersistedSettings,
+  ItemAction,
+} from './types';
+import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_ANNOTATIONS, LEGEND_VALUES } from './config';
+
+// Re-export ItemAction for backwards compatibility
+export type { ItemAction };
 
 /**
  * Pure helper functions for legend component.
@@ -12,29 +21,6 @@ import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_FEATURES, LEGEND_VALUES } from './co
  */
 export function valueToKey(value: string | null): string {
   return value === null ? LEGEND_VALUES.NULL_STRING : value;
-}
-
-/**
- * Normalizes deprecated sort modes to their current equivalents.
- * 'alpha-desc' -> 'alpha', 'size-asc' -> 'size'
- */
-export function normalizeSortMode(mode: LegendSortMode): LegendSortMode {
-  if (mode === 'alpha-desc') return 'alpha';
-  if (mode === 'size-asc') return 'size';
-  return mode;
-}
-
-/**
- * Normalizes all sort modes in a record.
- */
-export function normalizeSortModes(
-  modes: Record<string, LegendSortMode>,
-): Record<string, LegendSortMode> {
-  const normalized: Record<string, LegendSortMode> = {};
-  for (const [key, value] of Object.entries(modes)) {
-    normalized[key] = normalizeSortMode(value);
-  }
-  return normalized;
 }
 
 /**
@@ -121,27 +107,25 @@ export function calculatePointSize(shapeSize: number): number {
 }
 
 /**
- * Creates default persisted settings for a feature.
+ * Creates default persisted settings for an annotation.
  */
-export function createDefaultSettings(selectedFeature: string): LegendPersistedSettings {
+export function createDefaultSettings(selectedAnnotation: string): LegendPersistedSettings {
   return {
     maxVisibleValues: LEGEND_DEFAULTS.maxVisibleValues,
-    includeOthers: LEGEND_DEFAULTS.includeOthers,
     includeShapes: LEGEND_DEFAULTS.includeShapes,
     shapeSize: LEGEND_DEFAULTS.symbolSize,
-    sortMode: FIRST_NUMBER_SORT_FEATURES.has(selectedFeature) ? 'alpha' : 'size',
+    sortMode: FIRST_NUMBER_SORT_ANNOTATIONS.has(selectedAnnotation) ? 'alpha-asc' : 'size-desc',
     hiddenValues: [],
-    manualOtherValues: [],
     zOrderMapping: {},
     enableDuplicateStackUI: LEGEND_DEFAULTS.enableDuplicateStackUI,
   };
 }
 
 /**
- * Gets the default sort mode for a feature.
+ * Gets the default sort mode for an annotation.
  */
-export function getDefaultSortMode(featureName: string): LegendSortMode {
-  return FIRST_NUMBER_SORT_FEATURES.has(featureName) ? 'alpha' : 'size';
+export function getDefaultSortMode(annotationName: string): LegendSortMode {
+  return FIRST_NUMBER_SORT_ANNOTATIONS.has(annotationName) ? 'alpha-asc' : 'size-desc';
 }
 
 /**
@@ -153,7 +137,6 @@ export function getItemClasses(item: LegendItem, isSelected: boolean, isDragging
   if (!item.isVisible) classes.push('hidden');
   if (isDragging) classes.push('dragging');
   if (isSelected) classes.push('selected');
-  if (item.extractedFromOther) classes.push('extracted');
 
   return classes.join(' ');
 }
@@ -171,11 +154,6 @@ export function isItemSelected(item: LegendItem, selectedItems: string[]): boole
       selectedItems.includes(item.value))
   );
 }
-
-/**
- * Item action types for legend events
- */
-export type ItemAction = 'toggle' | 'isolate' | 'extract' | 'merge-into-other';
 
 /**
  * Creates a CustomEvent for item actions with consistent options.

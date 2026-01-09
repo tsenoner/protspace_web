@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { ReactiveControllerHost } from 'lit';
 import { DragController, type DragCallbacks } from './drag-controller';
 import type { LegendItem } from '../types';
-import { LEGEND_DEFAULTS, LEGEND_VALUES } from '../config';
+import { LEGEND_DEFAULTS } from '../config';
 
 describe('DragController', () => {
   let controller: DragController;
@@ -17,10 +17,10 @@ describe('DragController', () => {
     vi.useFakeTimers();
 
     mockLegendItems = [
-      { value: 'cat1', zOrder: 0, color: '#ff0000', shape: 'circle', size: 10, visible: true },
-      { value: 'cat2', zOrder: 1, color: '#00ff00', shape: 'circle', size: 8, visible: true },
-      { value: 'cat3', zOrder: 2, color: '#0000ff', shape: 'circle', size: 6, visible: true },
-      { value: 'Other', zOrder: 3, color: '#999999', shape: 'circle', size: 4, visible: true },
+      { value: 'cat1', zOrder: 0, color: '#ff0000', shape: 'circle', count: 10, isVisible: true },
+      { value: 'cat2', zOrder: 1, color: '#00ff00', shape: 'circle', count: 8, isVisible: true },
+      { value: 'cat3', zOrder: 2, color: '#0000ff', shape: 'circle', count: 6, isVisible: true },
+      { value: 'Other', zOrder: 3, color: '#999999', shape: 'circle', count: 4, isVisible: true },
     ] as LegendItem[];
 
     mockHost = {
@@ -33,11 +33,7 @@ describe('DragController', () => {
     mockCallbacks = {
       getLegendItems: vi.fn().mockReturnValue(mockLegendItems),
       setLegendItems: vi.fn(),
-      getManualOtherValues: vi.fn().mockReturnValue([]),
-      setManualOtherValues: vi.fn(),
       onReorder: vi.fn(),
-      onMergeToOther: vi.fn(),
-      updateLegendItems: vi.fn(),
     };
 
     controller = new DragController(mockHost, mockCallbacks);
@@ -267,64 +263,6 @@ describe('DragController', () => {
       controller.handleDragStart(mockLegendItems[0]);
       controller.handleDrop(mockEvent, mockLegendItems[1]);
       expect(controller.draggedItemIndex).toBe(-1);
-    });
-
-    it('merges regular item to Other bucket', () => {
-      const otherItem = { value: LEGEND_VALUES.OTHER, zOrder: 3 } as LegendItem;
-      controller.handleDragStart(mockLegendItems[0]); // cat1
-
-      controller.handleDrop(mockEvent, otherItem);
-
-      expect(mockCallbacks.setManualOtherValues).toHaveBeenCalledWith(['cat1']);
-      expect(mockCallbacks.updateLegendItems).toHaveBeenCalled();
-      expect(mockCallbacks.onMergeToOther).toHaveBeenCalledWith('cat1');
-    });
-
-    it('does not duplicate in manualOtherValues', () => {
-      mockCallbacks.getManualOtherValues = vi.fn().mockReturnValue(['cat1']);
-      const otherItem = { value: LEGEND_VALUES.OTHER, zOrder: 3 } as LegendItem;
-      controller.handleDragStart(mockLegendItems[0]); // cat1
-
-      controller.handleDrop(mockEvent, otherItem);
-
-      expect(mockCallbacks.setManualOtherValues).not.toHaveBeenCalled();
-    });
-
-    it('merges extracted item back to Other', () => {
-      const extractedItem = {
-        value: 'extracted1',
-        zOrder: 0,
-        extractedFromOther: true,
-      } as LegendItem;
-      mockLegendItems = [extractedItem, ...mockLegendItems];
-      mockCallbacks.getLegendItems = vi.fn().mockReturnValue(mockLegendItems);
-
-      const otherItem = { value: LEGEND_VALUES.OTHER, zOrder: 4 } as LegendItem;
-
-      controller.handleDragStart(extractedItem);
-      controller.handleDrop(mockEvent, otherItem);
-
-      expect(mockCallbacks.setLegendItems).toHaveBeenCalled();
-      expect(mockCallbacks.updateLegendItems).toHaveBeenCalled();
-      expect(mockCallbacks.onMergeToOther).toHaveBeenCalledWith('extracted1');
-    });
-
-    it('does not merge Other to itself', () => {
-      const otherItem = mockLegendItems.find((i) => i.value === LEGEND_VALUES.OTHER)!;
-      controller.handleDragStart(otherItem);
-
-      controller.handleDrop(mockEvent, otherItem);
-
-      expect(mockCallbacks.setManualOtherValues).not.toHaveBeenCalled();
-      expect(mockCallbacks.onMergeToOther).not.toHaveBeenCalled();
-    });
-
-    it('does nothing when not dragging', () => {
-      const otherItem = { value: LEGEND_VALUES.OTHER, zOrder: 3 } as LegendItem;
-      controller.handleDrop(mockEvent, otherItem);
-
-      expect(mockCallbacks.setManualOtherValues).not.toHaveBeenCalled();
-      expect(mockCallbacks.onMergeToOther).not.toHaveBeenCalled();
     });
   });
 

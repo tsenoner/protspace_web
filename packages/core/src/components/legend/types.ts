@@ -5,7 +5,6 @@ export interface LegendItem {
   count: number;
   isVisible: boolean;
   zOrder: number;
-  extractedFromOther?: boolean;
 }
 
 export interface OtherItem {
@@ -20,7 +19,7 @@ export interface ScatterplotData {
   projections?: Array<{ name: string }>;
 }
 
-export interface LegendFeatureData {
+export interface LegendAnnotationData {
   name: string;
   values: (string | null)[];
 }
@@ -32,10 +31,13 @@ export interface LegendFeatureData {
 // Custom Event Detail Types
 // ─────────────────────────────────────────────────────────────────
 
+/** Item action types for legend events */
+export type ItemAction = 'toggle' | 'isolate' | 'extract';
+
 /** Detail for legend-item-click event */
 export interface LegendItemClickEventDetail {
   value: string | null;
-  action: 'toggle' | 'isolate' | 'extract' | 'merge-into-other';
+  action: ItemAction;
 }
 
 /** Detail for legend-zorder-change event */
@@ -70,16 +72,20 @@ export interface LegendDataInput {
   features?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
 }
 
-export type LegendSortMode = 'size' | 'size-asc' | 'alpha' | 'alpha-desc';
+export type LegendSortMode =
+  | 'size-asc'
+  | 'size-desc'
+  | 'alpha-asc'
+  | 'alpha-desc'
+  | 'manual'
+  | 'manual-reverse';
 
 export interface LegendPersistedSettings {
   maxVisibleValues: number;
-  includeOthers: boolean;
   includeShapes: boolean;
   shapeSize: number;
   sortMode: LegendSortMode;
   hiddenValues: string[];
-  manualOtherValues: string[];
   zOrderMapping: Record<string, number>;
-  enableDuplicateStackUI?: boolean;
+  enableDuplicateStackUI: boolean;
 }

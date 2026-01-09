@@ -61,7 +61,6 @@ export const LEGEND_DEFAULTS = {
   dragTimeout: 100,
   scatterplotSelector: 'protspace-scatterplot',
   autoSyncDelay: 100,
-  includeOthers: true,
   includeShapes: false,
   enableDuplicateStackUI: false,
 } as const;
@@ -80,7 +79,7 @@ export const LEGEND_STYLES = {
   legendDisplaySize: 16,
 } as const;
 
-export const FIRST_NUMBER_SORT_FEATURES = new Set<string>(['length_fixed', 'length_quantile']);
+export const FIRST_NUMBER_SORT_ANNOTATIONS = new Set<string>(['length_fixed', 'length_quantile']);
 
 /** Magic string constants for legend values */
 export const LEGEND_VALUES = {
@@ -101,5 +100,5 @@ export const LEGEND_EVENTS = {
   ERROR: 'legend-error',
   // External events the legend listens to
   DATA_CHANGE: 'data-change',
-  FEATURE_CHANGE: 'feature-change',
+  ANNOTATION_CHANGE: 'annotation-change',
 } as const;

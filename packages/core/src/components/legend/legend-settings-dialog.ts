@@ -1,7 +1,6 @@
 import { html, nothing, type TemplateResult } from 'lit';
-import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_FEATURES } from './config';
+import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_ANNOTATIONS } from './config';
 import type { LegendSortMode } from './types';
-import { normalizeSortMode } from './legend-helpers';
 
 /**
  * Settings dialog state interface
@@ -9,12 +8,11 @@ import { normalizeSortMode } from './legend-helpers';
 export interface SettingsDialogState {
   maxVisibleValues: number;
   shapeSize: number;
-  includeOthers: boolean;
   includeShapes: boolean;
   enableDuplicateStackUI: boolean;
-  selectedFeature: string;
-  featureSortModes: Record<string, LegendSortMode>;
-  isMultilabelFeature: boolean;
+  selectedAnnotation: string;
+  annotationSortModes: Record<string, LegendSortMode>;
+  isMultilabelAnnotation: boolean;
   hasPersistedSettings: boolean;
 }
 
@@ -24,10 +22,9 @@ export interface SettingsDialogState {
 export interface SettingsDialogCallbacks {
   onMaxVisibleValuesChange: (value: number) => void;
   onShapeSizeChange: (value: number) => void;
-  onIncludeOthersChange: (checked: boolean) => void;
   onIncludeShapesChange: (checked: boolean) => void;
   onEnableDuplicateStackUIChange: (checked: boolean) => void;
-  onSortModeChange: (feature: string, mode: LegendSortMode) => void;
+  onSortModeChange: (annotation: string, mode: LegendSortMode) => void;
   onSave: () => void;
   onClose: () => void;
   onReset: () => void;
@@ -100,42 +97,31 @@ function renderShapeSizeInput(
 }
 
 /**
- * Renders the checkbox options (include others, shapes, duplicate stack)
+ * Renders the checkbox options (shapes, duplicate stack)
  */
 function renderCheckboxOptions(
   state: SettingsDialogState,
   callbacks: SettingsDialogCallbacks,
 ): TemplateResult {
   return html`
-    <label class="other-items-list-label">
-      <input
-        class="other-items-list-label-input"
-        type="checkbox"
-        .checked=${state.includeOthers}
-        @change=${(e: Event) =>
-          callbacks.onIncludeOthersChange((e.target as HTMLInputElement).checked)}
-      />
-      Show "Other" category
-    </label>
-
     <label
       class="other-items-list-label"
-      style="${state.isMultilabelFeature ? 'color: #888;' : ''}"
+      style="${state.isMultilabelAnnotation ? 'color: #888;' : ''}"
     >
       <input
         class="other-items-list-label-input"
         type="checkbox"
         .checked=${state.includeShapes}
-        .disabled=${state.isMultilabelFeature}
+        .disabled=${state.isMultilabelAnnotation}
         @change=${(e: Event) =>
           callbacks.onIncludeShapesChange((e.target as HTMLInputElement).checked)}
       />
       Include shapes
     </label>
 
-    ${state.isMultilabelFeature
+    ${state.isMultilabelAnnotation
       ? html`<div style="color: #888; font-size: 0.85em; margin-left: 24px; margin-top: -4px;">
-          Disabled for multilabel features
+          Disabled for multilabel annotations
         </div>`
       : nothing}
 
@@ -153,44 +139,84 @@ function renderCheckboxOptions(
 }
 
 /**
+ * Checks if sort mode is reversed (desc for size/alpha, reverse for manual)
+ */
+function isSortReversed(mode: LegendSortMode): boolean {
+  return mode === 'manual-reverse' || mode.endsWith('-desc');
+}
+
+/**
+ * Returns the appropriate sort mode for a given category, preserving current direction
+ */
+function getSortModeForCategory(
+  category: 'size' | 'alpha' | 'manual',
+  currentMode: LegendSortMode,
+): LegendSortMode {
+  const reversed = isSortReversed(currentMode);
+  switch (category) {
+    case 'size':
+      return reversed ? 'size-desc' : 'size-asc';
+    case 'alpha':
+      return reversed ? 'alpha-desc' : 'alpha-asc';
+    case 'manual':
+      return reversed ? 'manual-reverse' : 'manual';
+  }
+}
+
+/**
  * Renders the sorting options section
+ * Note: Direction (asc/desc) is toggled via the "Reverse z-order" button in the legend header
  */
 function renderSortingSection(
   state: SettingsDialogState,
   callbacks: SettingsDialogCallbacks,
 ): TemplateResult {
-  if (!state.selectedFeature) return html``;
+  if (!state.selectedAnnotation) return html``;
 
-  const fname = state.selectedFeature;
-  const currentMode = state.featureSortModes[fname] || 'size';
-  const normalizedMode = normalizeSortMode(currentMode);
-  const isAlphabetic = normalizedMode === 'alpha';
+  const aname = state.selectedAnnotation;
+  const currentMode = state.annotationSortModes[aname] || 'size-desc';
+
+  const isSize = currentMode.startsWith('size');
+  const isAlphabetic = currentMode.startsWith('alpha');
+  const isManual = currentMode === 'manual' || currentMode === 'manual-reverse';
+
+  const handleTypeChange = (category: 'size' | 'alpha' | 'manual') => {
+    callbacks.onSortModeChange(aname, getSortModeForCategory(category, currentMode));
+  };
 
   return html`
     <div class="other-items-list-item-sorting">
       <div class="other-items-list-item-sorting-title">Sorting</div>
       <div class="other-items-list-item-sorting-container">
         <div class="other-items-list-item-sorting-container-item">
-          <span class="other-items-list-item-sorting-container-item-name">${fname}</span>
           <span class="other-items-list-item-sorting-container-item-container">
             <label class="other-items-list-item-sorting-container-item-container-label">
               <input
                 class="other-items-list-item-sorting-container-item-container-input"
                 type="radio"
-                name=${`sort-${fname}`}
-                .checked=${!isAlphabetic}
-                @change=${() => callbacks.onSortModeChange(fname, 'size')}
+                name=${`sort-type-${aname}`}
+                .checked=${isSize}
+                @change=${() => handleTypeChange('size')}
               />
               by category size
             </label>
             <label>
               <input
                 type="radio"
-                name=${`sort-${fname}`}
+                name=${`sort-type-${aname}`}
                 .checked=${isAlphabetic}
-                @change=${() => callbacks.onSortModeChange(fname, 'alpha')}
+                @change=${() => handleTypeChange('alpha')}
               />
               alphanumerically
+            </label>
+            <label>
+              <input
+                type="radio"
+                name=${`sort-type-${aname}`}
+                .checked=${isManual}
+                @change=${() => handleTypeChange('manual')}
+              />
+              manual (drag to reorder)
             </label>
           </span>
         </div>
@@ -245,27 +271,25 @@ function renderDialogFooter(
 }
 
 /**
- * Initializes sort mode for a feature if not already set
+ * Initializes sort mode for an annotation if not already set
  */
-export function initializeFeatureSortMode(
-  featureSortModes: Record<string, LegendSortMode>,
-  selectedFeature: string,
-  currentFeatureSortModes: Record<string, LegendSortMode>,
+export function initializeAnnotationSortMode(
+  annotationSortModes: Record<string, LegendSortMode>,
+  selectedAnnotation: string,
+  currentAnnotationSortModes: Record<string, LegendSortMode>,
 ): Record<string, LegendSortMode> {
-  if (!selectedFeature || featureSortModes[selectedFeature]) {
-    return featureSortModes;
+  if (!selectedAnnotation || annotationSortModes[selectedAnnotation]) {
+    return annotationSortModes;
   }
 
-  const existingMode = currentFeatureSortModes[selectedFeature];
-  const normalizedMode = existingMode
-    ? normalizeSortMode(existingMode)
-    : FIRST_NUMBER_SORT_FEATURES.has(selectedFeature)
-      ? 'alpha'
-      : 'size';
+  const existingMode = currentAnnotationSortModes[selectedAnnotation];
+  const mode: LegendSortMode =
+    existingMode ||
+    (FIRST_NUMBER_SORT_ANNOTATIONS.has(selectedAnnotation) ? 'alpha-asc' : 'size-desc');
 
   return {
-    ...featureSortModes,
-    [selectedFeature]: normalizedMode,
+    ...annotationSortModes,
+    [selectedAnnotation]: mode,
   };
 }
 
@@ -293,8 +317,6 @@ export function renderSettingsDialog(
         aria-modal="true"
       >
         ${renderDialogHeader(callbacks)}
-
-        <div class="modal-description">Legend display options</div>
 
         <div class="other-items-list">
           ${renderMaxVisibleInput(state, callbacks)} ${renderShapeSizeInput(state, callbacks)}
