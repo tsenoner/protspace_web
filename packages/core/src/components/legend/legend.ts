@@ -1,225 +1,842 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 
-// Import types and configuration
-import { LEGEND_DEFAULTS, LEGEND_STYLES, FIRST_NUMBER_SORT_FEATURES } from './config';
+// Configuration and styles
+import {
+  LEGEND_DEFAULTS,
+  LEGEND_STYLES,
+  FIRST_NUMBER_SORT_ANNOTATIONS,
+  LEGEND_VALUES,
+  LEGEND_EVENTS,
+} from './config';
 import { legendStyles } from './legend.styles';
-import { LegendDataProcessor } from './legend-data-processor';
+
+// Controllers
+import { ScatterplotSyncController, PersistenceController, DragController } from './controllers';
+
+// Processors and renderers
+import {
+  LegendDataProcessor,
+  createProcessorContext,
+  type LegendProcessorContext,
+} from './legend-data-processor';
 import { LegendRenderer } from './legend-renderer';
-import { LegendUtils } from './legend-utils';
+
+// Helpers
+import {
+  valueToKey,
+  calculatePointSize,
+  getDefaultSortMode,
+  getItemClasses,
+  isItemSelected,
+  createItemActionEvent,
+  updateItemsVisibility,
+  isolateItem,
+  computeOtherConcreteValues,
+} from './legend-helpers';
+
+// Dialogs
+import {
+  renderSettingsDialog,
+  initializeAnnotationSortMode,
+  type SettingsDialogState,
+  type SettingsDialogCallbacks,
+} from './legend-settings-dialog';
+import { renderOtherDialog } from './legend-other-dialog';
+import { createFocusTrap } from './focus-trap';
+
+// Types
 import type {
   LegendDataInput,
-  LegendFeatureData,
+  LegendAnnotationData,
   LegendItem,
   LegendSortMode,
   OtherItem,
-  ScatterplotElement,
   ScatterplotData,
+  LegendPersistedSettings,
+  LegendErrorEventDetail,
 } from './types';
 
+/**
+ * Legend component for displaying and interacting with annotation categories.
+ *
+ * @fires legend-item-click - When a legend item is clicked (toggled, isolated, extracted, or merged)
+ * @fires legend-zorder-change - When the z-order of legend items changes
+ * @fires legend-colormapping-change - When color/shape mappings change
+ * @fires legend-customize - When the customize dialog is opened
+ * @fires legend-download - When download is requested
+ * @fires legend-error - When an error occurs during data processing, persistence, or syncing
+ *
+ * @csspart container - The main legend container
+ *
+ * @slot - Default slot for custom content
+ */
 @customElement('protspace-legend')
 export class ProtspaceLegend extends LitElement {
   static styles = legendStyles;
 
-  @property({ type: String }) featureName = '';
-  @property({ type: Object }) featureData: LegendFeatureData = {
-    name: '',
-    values: [] as (string | null)[],
-  };
-  @property({ type: Array }) featureValues: (string | null)[] = [];
+  // ─────────────────────────────────────────────────────────────────
+  // Public Properties (reflected to attributes where appropriate)
+  // ─────────────────────────────────────────────────────────────────
+
+  @property({ type: String }) annotationName = '';
+  @property({ type: Object }) annotationData: LegendAnnotationData = { name: '', values: [] };
+  @property({ type: Array }) annotationValues: (string | null)[] = [];
   @property({ type: Array }) proteinIds: string[] = [];
-  @property({ type: Number }) maxVisibleValues: number = LEGEND_DEFAULTS.maxVisibleValues;
+  @property({ type: Number, reflect: true }) maxVisibleValues: number =
+    LEGEND_DEFAULTS.maxVisibleValues;
   @property({ type: Array }) selectedItems: string[] = [];
-  @property({ type: Boolean }) isolationMode = false;
+  @property({ type: Boolean, reflect: true }) isolationMode = false;
   @property({ type: Array }) isolationHistory: string[][] = [];
-
-  // Additional properties for wrapper compatibility
   @property({ type: Object }) data: LegendDataInput | null = null;
-  @property({ type: String }) selectedFeature = '';
+  @property({ type: String, reflect: true }) selectedAnnotation = '';
+  @property({ type: Boolean, reflect: true }) includeShapes: boolean =
+    LEGEND_DEFAULTS.includeShapes;
+  @property({ type: Number, reflect: true }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
 
-  @state() private legendItems: LegendItem[] = [];
-  @state() private otherItems: OtherItem[] = [];
-  @state() private showOtherDialog = false;
-  @state() private showSettingsDialog = false;
-  @state() private draggedItemIndex: number = -1;
-  @state() private dragTimeout: number | null = null;
-  @state() private settingsMaxVisibleValues: number = LEGEND_DEFAULTS.maxVisibleValues;
-  @property({ type: Boolean }) includeOthers: boolean = LEGEND_DEFAULTS.includeOthers;
-  @state() private settingsIncludeOthers: boolean = LEGEND_DEFAULTS.includeOthers;
-  @property({ type: Boolean }) includeShapes: boolean = LEGEND_DEFAULTS.includeShapes;
-  @state() private settingsIncludeShapes: boolean = LEGEND_DEFAULTS.includeShapes;
-  @property({ type: Number }) shapeSize: number = LEGEND_DEFAULTS.symbolSize;
-  @state() private settingsShapeSize: number = LEGEND_DEFAULTS.symbolSize;
-  @state() private settingsEnableDuplicateStackUI: boolean = false;
-  @state() private manualOtherValues: string[] = [];
-  @state() private featureSortModes: Record<string, LegendSortMode> = {};
-  @state() private settingsFeatureSortModes: Record<string, LegendSortMode> = {};
-
-  // Auto-sync properties
   @property({ type: String, attribute: 'scatterplot-selector' })
   scatterplotSelector: string = LEGEND_DEFAULTS.scatterplotSelector;
+
   @property({ type: Boolean, attribute: 'auto-sync' })
   autoSync: boolean = true;
-  @property({ type: Boolean, attribute: 'auto-hide' })
-  autoHide: boolean = true; // Automatically hide values in scatterplot
 
+  @property({ type: Boolean, attribute: 'auto-hide' })
+  autoHide: boolean = true;
+
+  // ─────────────────────────────────────────────────────────────────
+  // Internal State
+  // ─────────────────────────────────────────────────────────────────
+
+  @state() private _legendItems: LegendItem[] = [];
+  @state() private _sortedLegendItems: LegendItem[] = [];
+  @state() private _otherItems: OtherItem[] = [];
   @state() private _hiddenValues: string[] = [];
-  @state() private _scatterplotElement: Element | null = null;
+  @state() private _annotationSortModes: Record<string, LegendSortMode> = {};
+  @state() private _showOtherDialog = false;
+  @state() private _showSettingsDialog = false;
+  @state() private _statusMessage = '';
+
+  // Pending extract/merge values for next update cycle
+  private _pendingExtractValue: string | null = null;
+  private _pendingMergeValue: string | null = null;
+
+  // Settings dialog temporary state (consolidated into single object)
+  @state() private _dialogSettings: {
+    maxVisibleValues: number;
+    includeShapes: boolean;
+    shapeSize: number;
+    enableDuplicateStackUI: boolean;
+    annotationSortModes: Record<string, LegendSortMode>;
+  } = {
+    maxVisibleValues: LEGEND_DEFAULTS.maxVisibleValues,
+    includeShapes: LEGEND_DEFAULTS.includeShapes,
+    shapeSize: LEGEND_DEFAULTS.symbolSize,
+    enableDuplicateStackUI: false,
+    annotationSortModes: {},
+  };
 
   @query('#legend-settings-dialog')
   private _settingsDialogEl?: HTMLDivElement;
 
-  private _onWindowKeydownCapture = (e: KeyboardEvent) => {
-    if (!this.showSettingsDialog) return;
+  // Instance-specific processor context (avoids global state conflicts)
+  private _processorContext: LegendProcessorContext = createProcessorContext();
 
+  // Focus trap cleanup function (stored for proper cleanup)
+  private _focusTrapCleanup: (() => void) | null = null;
+
+  // ─────────────────────────────────────────────────────────────────
+  // Controllers
+  // ─────────────────────────────────────────────────────────────────
+
+  private _scatterplotController = new ScatterplotSyncController(this, {
+    onDataChange: (data, annotation) => this._handleScatterplotDataChange(data, annotation),
+    onAnnotationChange: (annotation) => this._handleAnnotationChange(annotation),
+    getHiddenValues: () => this._hiddenValues,
+    getOtherItems: () => this._otherItems,
+    getLegendItems: () => this._legendItems,
+    getEffectiveIncludeShapes: () => this._effectiveIncludeShapes,
+    getOtherConcreteValues: () => computeOtherConcreteValues(this._otherItems),
+  });
+
+  private _persistenceController = new PersistenceController(this, {
+    onSettingsLoaded: (settings) => this._applyPersistedSettings(settings),
+    getLegendItems: () => this._legendItems,
+    getHiddenValues: () => this._hiddenValues,
+    getCurrentSettings: () => ({
+      maxVisibleValues: this.maxVisibleValues,
+      includeShapes: this.includeShapes,
+      shapeSize: this.shapeSize,
+      sortMode: this._annotationSortModes[this.selectedAnnotation] ?? 'size-desc',
+      enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
+    }),
+  });
+
+  private _dragController = new DragController(this, {
+    getLegendItems: () => this._legendItems,
+    setLegendItems: (items) => {
+      this._legendItems = items;
+    },
+    onReorder: () => {
+      this._scatterplotController.dispatchZOrderChange();
+      this._persistenceController.saveSettings();
+      this.requestUpdate();
+    },
+    onMergeToOther: (value) => this._handleMergeToOther(value),
+    onSortModeChange: (mode) => {
+      this._annotationSortModes = {
+        ...this._annotationSortModes,
+        [this.selectedAnnotation]: mode,
+      };
+      this.requestUpdate();
+    },
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // Keyboard Handler
+  // ─────────────────────────────────────────────────────────────────
+
+  private _onWindowKeydownCapture = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      this._handleSettingsClose();
+      // Close Other dialog first if open
+      if (this._showOtherDialog) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        this._showOtherDialog = false;
+        return;
+      }
+      // Then close Settings dialog if open
+      if (this._showSettingsDialog) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        this._handleSettingsClose();
+        return;
+      }
     }
   };
 
-  updated(changedProperties: Map<string, unknown>) {
-    if (changedProperties.has('showSettingsDialog')) {
-      if (this.showSettingsDialog) {
+  private _handleItemKeyDown(e: KeyboardEvent, item: LegendItem, itemIndex: number): void {
+    switch (e.key) {
+      case 'ArrowDown':
+      case 'ArrowRight': {
+        e.preventDefault();
+        const nextIndex = Math.min(itemIndex + 1, this._sortedLegendItems.length - 1);
+        this._focusItem(nextIndex);
+        break;
+      }
+      case 'ArrowUp':
+      case 'ArrowLeft': {
+        e.preventDefault();
+        const prevIndex = Math.max(itemIndex - 1, 0);
+        this._focusItem(prevIndex);
+        break;
+      }
+      case 'Home': {
+        e.preventDefault();
+        this._focusItem(0);
+        break;
+      }
+      case 'End': {
+        e.preventDefault();
+        this._focusItem(this._sortedLegendItems.length - 1);
+        break;
+      }
+      case 'Enter':
+      case ' ': {
+        e.preventDefault();
+        this._handleItemClick(item.value);
+        break;
+      }
+    }
+  }
+
+  private _focusItem(index: number): void {
+    // Focus the item directly
+    const items = this.shadowRoot?.querySelectorAll('.legend-item');
+    if (items?.[index]) {
+      (items[index] as HTMLElement).focus();
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Computed Properties
+  // ─────────────────────────────────────────────────────────────────
+
+  private get _effectiveIncludeShapes(): boolean {
+    return this._isMultilabelAnnotation() ? false : this.includeShapes;
+  }
+
+  private get _currentSortMode(): LegendSortMode {
+    return (
+      this._annotationSortModes[this.selectedAnnotation] ??
+      (FIRST_NUMBER_SORT_ANNOTATIONS.has(this.selectedAnnotation) ? 'alpha-asc' : 'size-desc')
+    );
+  }
+
+  /**
+   * Get the set of currently visible values (from legend items, excluding "Other").
+   * Used to preserve membership when sort mode changes.
+   */
+  private get _visibleValues(): Set<string> {
+    const visible = new Set<string>();
+
+    // When restoring from localStorage, pendingCategories contains the persisted visible values.
+    // Prioritize it over _legendItems since _legendItems may have been populated with defaults
+    // before loadSettings() completed.
+    const pendingCategories = this._persistenceController.pendingCategories;
+    if (Object.keys(pendingCategories).length > 0) {
+      for (const key of Object.keys(pendingCategories)) {
+        if (key !== 'null' && key !== LEGEND_VALUES.OTHER) {
+          visible.add(key);
+        }
+      }
+      return visible;
+    }
+
+    // Otherwise derive from current legend items
+    if (this._legendItems.length > 0) {
+      this._legendItems.forEach((item) => {
+        if (item.value !== null && item.value !== LEGEND_VALUES.OTHER) {
+          visible.add(item.value);
+        }
+      });
+    }
+
+    return visible;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Lifecycle
+  // ─────────────────────────────────────────────────────────────────
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this._scatterplotController.scatterplotSelector = this.scatterplotSelector;
+    this._scatterplotController.autoSync = this.autoSync;
+    this._scatterplotController.autoHide = this.autoHide;
+  }
+
+  disconnectedCallback(): void {
+    window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
+    this._cleanupFocusTrap();
+    super.disconnectedCallback();
+  }
+
+  private _cleanupFocusTrap(): void {
+    if (this._focusTrapCleanup) {
+      this._focusTrapCleanup();
+      this._focusTrapCleanup = null;
+    }
+  }
+
+  private _setupFocusTrap(dialogId: string): void {
+    this._cleanupFocusTrap();
+    requestAnimationFrame(() => {
+      const dialog = this.shadowRoot?.querySelector(`#${dialogId}`) as HTMLElement | null;
+      if (dialog) {
+        this._focusTrapCleanup = createFocusTrap(dialog);
+      }
+    });
+  }
+
+  updated(changedProperties: Map<string, unknown>): void {
+    // Handle keyboard events for dialogs
+    const dialogsChanged =
+      changedProperties.has('_showSettingsDialog') || changedProperties.has('_showOtherDialog');
+    if (dialogsChanged) {
+      const anyDialogOpen = this._showSettingsDialog || this._showOtherDialog;
+      if (anyDialogOpen) {
         window.addEventListener('keydown', this._onWindowKeydownCapture, true);
       } else {
         window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
       }
     }
 
-    // If data or selectedFeature changed, update featureData
-    if (changedProperties.has('data') || changedProperties.has('selectedFeature')) {
-      this._updateFeatureDataFromData();
-      this.manualOtherValues = [];
-      this._ensureSortModeDefaults();
+    // Handle settings dialog focus trapping
+    if (changedProperties.has('_showSettingsDialog')) {
+      if (this._showSettingsDialog) {
+        this._setupFocusTrap('legend-settings-dialog');
+      } else if (!this._showOtherDialog) {
+        this._cleanupFocusTrap();
+      }
     }
 
+    // Handle other dialog focus trapping
+    if (changedProperties.has('_showOtherDialog')) {
+      if (this._showOtherDialog) {
+        this._setupFocusTrap('legend-other-dialog');
+      } else if (!this._showSettingsDialog) {
+        this._cleanupFocusTrap();
+      }
+    }
+
+    // Update dataset hash when protein IDs change
+    if (changedProperties.has('proteinIds') && this.proteinIds.length > 0) {
+      const hashChanged = this._persistenceController.updateDatasetHash(this.proteinIds);
+      // If hash changed and we have an annotation but settings weren't loaded yet,
+      // try loading now (handles case where proteinIds arrives after data/selectedAnnotation)
+      if (hashChanged && this.selectedAnnotation && !this._persistenceController.settingsLoaded) {
+        this._persistenceController.loadSettings();
+      }
+    }
+
+    // Handle data or annotation changes
+    if (changedProperties.has('data') || changedProperties.has('selectedAnnotation')) {
+      this._updateAnnotationDataFromData();
+      this._ensureSortModeDefaults();
+
+      const annotationChanged = this._persistenceController.updateSelectedAnnotation(
+        this.selectedAnnotation,
+      );
+      if (annotationChanged || !this._persistenceController.settingsLoaded) {
+        this._persistenceController.loadSettings();
+      }
+    }
+
+    // Update legend items when relevant properties change
     if (
       changedProperties.has('data') ||
-      changedProperties.has('selectedFeature') ||
-      changedProperties.has('featureValues') ||
+      changedProperties.has('selectedAnnotation') ||
+      changedProperties.has('annotationValues') ||
       changedProperties.has('proteinIds') ||
       changedProperties.has('maxVisibleValues') ||
-      changedProperties.has('includeOthers') ||
       changedProperties.has('includeShapes')
     ) {
-      this.updateLegendItems();
+      this._updateLegendItems();
+
+      if (this._persistenceController.hasPendingCategories()) {
+        this._legendItems = this._persistenceController.applyPendingZOrder(this._legendItems);
+      }
+    }
+
+    // Update sorted items cache when legend items change
+    if (changedProperties.has('_legendItems')) {
+      this._sortedLegendItems = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
     }
   }
 
-  /**
-   * Check if the current feature is multilabel (any protein has multiple values)
-   * Mirrors the scatterplot renderer logic: colors.length > 1 means multilabel
-   */
-  private _isMultilabelFeature(): boolean {
-    const currentData = (this._scatterplotElement as ScatterplotElement)?.getCurrentData?.();
-    const featureData = currentData?.feature_data?.[this.selectedFeature];
+  // ─────────────────────────────────────────────────────────────────
+  // Public API
+  // ─────────────────────────────────────────────────────────────────
 
-    return (
-      Array.isArray(featureData) &&
-      featureData.some((data) => Array.isArray(data) && data.length > 1)
-    );
+  /**
+   * Force synchronization with scatterplot
+   */
+  public forceSync(): void {
+    this._scatterplotController.forceSync();
   }
 
   /**
-   * Public accessor for export consumers (PNG/PDF) to read the exact legend
-   * state as currently rendered, including the synthetic "Other" bucket.
-   * Returned items are sorted by z-order and include visibility flags.
+   * Get legend data for export (PNG/PDF)
    */
   public getLegendExportData(): {
-    feature: string;
+    annotation: string;
     includeShapes: boolean;
-    items: Array<{
-      value: string | null | 'Other';
-      color: string;
-      shape: string;
-      count: number;
-      isVisible: boolean;
-      zOrder: number;
-      extractedFromOther?: boolean;
-    }>;
+    items: LegendItem[];
   } {
-    const sorted = [...this.legendItems].sort((a, b) => a.zOrder - b.zOrder);
-    const isMultilabel = this._isMultilabelFeature();
     return {
-      feature: this.featureData.name || this.featureName || 'Legend',
-      includeShapes: isMultilabel ? false : this.includeShapes,
-      items: sorted.map((i) => ({ ...i })),
+      annotation: this.annotationData.name || this.annotationName || 'Legend',
+      includeShapes: this._effectiveIncludeShapes,
+      items: this._sortedLegendItems.map((i) => ({ ...i })),
     };
   }
 
-  connectedCallback() {
-    super.connectedCallback();
-
-    if (this.autoSync) {
-      this._setupAutoSync();
-    }
+  /**
+   * Download legend as image
+   */
+  public async downloadAsImage(): Promise<void> {
+    this.dispatchEvent(new CustomEvent(LEGEND_EVENTS.DOWNLOAD, { bubbles: true, composed: true }));
   }
 
-  disconnectedCallback() {
-    window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
-    super.disconnectedCallback();
+  // ─────────────────────────────────────────────────────────────────
+  // Data Handling
+  // ─────────────────────────────────────────────────────────────────
 
-    if (this._scatterplotElement) {
-      this._scatterplotElement.removeEventListener(
-        'data-change',
-        this._handleDataChange.bind(this),
-      );
-      this._scatterplotElement.removeEventListener(
-        'feature-change',
-        this._handleFeatureChange.bind(this),
-      );
-    }
+  private _handleScatterplotDataChange(data: ScatterplotData, selectedAnnotation: string): void {
+    this.data = { features: data.features };
+    this.selectedAnnotation = selectedAnnotation;
+    this.annotationData = {
+      name: selectedAnnotation,
+      values: data.features[selectedAnnotation].values,
+    };
+    this._updateAnnotationValues(data, selectedAnnotation);
+    this.proteinIds = data.protein_ids;
+
+    // Sync isolation state
+    const { isolationMode, isolationHistory } = this._scatterplotController.getIsolationState();
+    this.isolationMode = isolationMode;
+    this.isolationHistory = isolationHistory;
   }
 
-  private _handleSettingsSave() {
-    // Apply and close
-    this.maxVisibleValues = this.settingsMaxVisibleValues;
-    this.includeOthers = this.settingsIncludeOthers;
-    this.includeShapes = this.settingsIncludeShapes;
-    this.shapeSize = this.settingsShapeSize;
-    // apply sorting preferences
-    this.featureSortModes = { ...this.settingsFeatureSortModes };
-    this.showSettingsDialog = false;
-    this.manualOtherValues = [];
+  private _handleAnnotationChange(annotation: string): void {
+    this.selectedAnnotation = annotation;
     this._hiddenValues = [];
-    this.legendItems = [];
+    this._scatterplotController.forceSync();
+  }
 
-    if (
-      this.autoHide &&
-      this._scatterplotElement &&
-      'hiddenFeatureValues' in this._scatterplotElement
-    ) {
-      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
+  private _updateAnnotationDataFromData(): void {
+    const annotationInfo = this.data?.features?.[this.selectedAnnotation] ?? null;
+    this.annotationData = annotationInfo
+      ? { name: this.selectedAnnotation, values: annotationInfo.values }
+      : { name: '', values: [] };
+  }
+
+  private _updateAnnotationValues(data: ScatterplotData, selectedAnnotation: string): void {
+    const annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
+      const annotationIdxData = data.feature_data[selectedAnnotation][index];
+      const annotationIdxArray = Array.isArray(annotationIdxData)
+        ? annotationIdxData
+        : [annotationIdxData];
+      return annotationIdxArray
+        .map((annotationIdx: number) => data.features[selectedAnnotation].values[annotationIdx])
+        .filter((v) => v != null);
+    });
+    this.annotationValues = annotationValues;
+  }
+
+  private _ensureSortModeDefaults(): void {
+    const annotationNames = this.data?.features ? Object.keys(this.data.features) : [];
+    if (annotationNames.length === 0) return;
+
+    const updated: Record<string, LegendSortMode> = { ...this._annotationSortModes };
+    for (const aname of annotationNames) {
+      if (!(aname in updated)) {
+        updated[aname] = FIRST_NUMBER_SORT_ANNOTATIONS.has(aname) ? 'alpha-asc' : 'size-desc';
+      }
     }
-    this.updateLegendItems();
-    this.requestUpdate();
+    this._annotationSortModes = updated;
+  }
 
-    // Update scatterplot point sizes to match shape size (approximate mapping)
-    if (this._scatterplotElement && 'config' in this._scatterplotElement) {
-      // d3.symbol size is area; approximate by multiplying pixel size by the same multiplier used in legend
-      const baseSize = Math.max(
-        10,
-        Math.round(this.shapeSize * LEGEND_DEFAULTS.symbolSizeMultiplier),
+  private _isMultilabelAnnotation(): boolean {
+    return this._scatterplotController.isMultilabelAnnotation(this.selectedAnnotation);
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Legend Item Processing
+  // ─────────────────────────────────────────────────────────────────
+
+  private _updateLegendItems(): void {
+    if (!this.annotationData?.values?.length || !this.annotationValues?.length) {
+      this._legendItems = [];
+      return;
+    }
+
+    try {
+      // Get persisted categories from persistence controller
+      const persistedCategories = this._persistenceController.pendingCategories;
+
+      // Get pending values for extract/merge operations
+      const pendingExtract = this._pendingExtractValue ?? undefined;
+      const pendingMerge = this._pendingMergeValue ?? undefined;
+
+      // Only use visibleValues when there are persisted settings in localStorage.
+      // When no localStorage key exists, use empty set so maxVisibleValues is respected.
+      const visibleValues = this._persistenceController.hasPersistedSettings()
+        ? this._visibleValues
+        : new Set<string>();
+
+      const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
+        this._processorContext,
+        this.annotationData.name || this.selectedAnnotation,
+        this.annotationValues,
+        this.proteinIds,
+        this.maxVisibleValues,
+        this.isolationMode,
+        this.isolationHistory,
+        this._legendItems,
+        this._currentSortMode,
+        this._effectiveIncludeShapes,
+        persistedCategories,
+        visibleValues,
+        pendingExtract,
+        pendingMerge,
       );
-      const scatterplot = this._scatterplotElement as ScatterplotElement & {
-        config: Record<string, unknown>;
-      };
-      const currentConfig = scatterplot.config || {};
-      scatterplot.config = {
-        ...currentConfig,
-        pointSize: baseSize,
-        enableDuplicateStackUI: this.settingsEnableDuplicateStackUI,
-      };
+
+      // Apply hidden values
+      if (this._hiddenValues.length > 0) {
+        this._legendItems = legendItems.map((item) => ({
+          ...item,
+          isVisible: !this._hiddenValues.includes(valueToKey(item.value)),
+        }));
+      } else {
+        this._legendItems = legendItems;
+      }
+      this._otherItems = otherItems;
+
+      // Clear pending extract/merge values after they've been applied
+      this._pendingExtractValue = null;
+      this._pendingMergeValue = null;
+      // Note: We do NOT clear pendingCategories here because subsequent update cycles
+      // (triggered by property changes in _applyPersistedSettings) may rebuild legend items
+      // and need the persisted colors/shapes. Categories are cleared when loadSettings()
+      // is called for a new annotation.
+
+      // Sync with scatterplot
+      this._scatterplotController.dispatchZOrderChange();
+      this._scatterplotController.dispatchColorMappingChange();
+      this._scatterplotController.syncOtherValues();
+      this._scatterplotController.syncShapes();
+      this._scatterplotController.syncHiddenValues();
+    } catch (error) {
+      this._dispatchError(
+        'Failed to process legend data',
+        'data-processing',
+        error instanceof Error ? error : new Error(String(error)),
+      );
     }
   }
 
-  private _handleSettingsClose() {
-    this.showSettingsDialog = false;
+  // ─────────────────────────────────────────────────────────────────
+  // Settings Persistence
+  // ─────────────────────────────────────────────────────────────────
+
+  private _applyPersistedSettings(settings: LegendPersistedSettings): void {
+    try {
+      this.maxVisibleValues = settings.maxVisibleValues;
+      this.includeShapes = settings.includeShapes;
+      this.shapeSize = settings.shapeSize;
+      this._hiddenValues = settings.hiddenValues;
+
+      this._annotationSortModes = {
+        ...this._annotationSortModes,
+        [this.selectedAnnotation]: settings.sortMode,
+      };
+
+      this._scatterplotController.updateConfig({
+        pointSize: calculatePointSize(this.shapeSize),
+        enableDuplicateStackUI: settings.enableDuplicateStackUI,
+      });
+    } catch (error) {
+      this._dispatchError(
+        'Failed to apply persisted settings',
+        'persistence',
+        error instanceof Error ? error : new Error(String(error)),
+      );
+    }
   }
 
-  private _handleDialogKeydown(e: KeyboardEvent) {
+  // ─────────────────────────────────────────────────────────────────
+  // Item Interactions
+  // ─────────────────────────────────────────────────────────────────
+
+  private _handleItemClick(value: string | null): void {
+    const valueKey = valueToKey(value);
+    const result = updateItemsVisibility(this._legendItems, this._hiddenValues, valueKey);
+
+    this._legendItems = result.items;
+    this._hiddenValues = result.hiddenValues;
+
+    const item = this._legendItems.find((i) => valueToKey(i.value) === valueKey);
+    const displayName = value ?? 'N/A';
+    this._announceStatus(`${displayName} ${item?.isVisible ? 'shown' : 'hidden'}`);
+
+    this._scatterplotController.syncHiddenValues();
+    this._dispatchItemAction(value, 'toggle');
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
+  private _handleItemDoubleClick(value: string | null): void {
+    const result = isolateItem(this._legendItems, value);
+
+    this._legendItems = result.items;
+    this._hiddenValues = result.hiddenValues;
+
+    const displayName = value ?? 'N/A';
+    const visibleCount = result.items.filter((i) => i.isVisible).length;
+    this._announceStatus(visibleCount === 1 ? `Isolated ${displayName}` : 'All items shown');
+
+    this._scatterplotController.syncHiddenValues();
+    this._dispatchItemAction(value, 'isolate');
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
+  private _handleExtractFromOther(value: string): void {
+    // Set pending extract value - will be used by processor to add this item to visible set
+    this._pendingExtractValue = value;
+
+    // Increase maxVisibleValues to accommodate the extracted item
+    this.maxVisibleValues = this.maxVisibleValues + 1;
+
+    // Update legend items - respects current sort mode, item sorted into position
+    // Note: _updateLegendItems() clears pending values after processing
+    this._updateLegendItems();
+    this._showOtherDialog = false;
+
+    this._announceStatus(`Extracted ${value} from Other category`);
+    this._dispatchItemAction(value, 'extract');
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
+  private _handleMergeToOther(value: string): void {
+    // Set pending merge value - will be used by processor to remove this item from visible set
+    this._pendingMergeValue = value;
+
+    // Decrease maxVisibleValues to remove space for the merged item
+    this.maxVisibleValues = Math.max(1, this.maxVisibleValues - 1);
+
+    // Re-process legend items
+    // Note: _updateLegendItems() clears pending values after processing
+    this._updateLegendItems();
+
+    this._announceStatus(`Moved ${value} to Other category`);
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
+  private _reverseZOrder(): void {
+    if (this._legendItems.length <= 1) return;
+
+    const currentMode = this._currentSortMode;
+
+    // Toggle direction: asc <-> desc, or manual <-> manual-reverse
+    let newMode: LegendSortMode;
+    if (currentMode === 'manual') {
+      newMode = 'manual-reverse';
+    } else if (currentMode === 'manual-reverse') {
+      newMode = 'manual';
+    } else if (currentMode.endsWith('-asc')) {
+      newMode = currentMode.replace('-asc', '-desc') as LegendSortMode;
+    } else {
+      newMode = currentMode.replace('-desc', '-asc') as LegendSortMode;
+    }
+
+    // Update sort mode
+    this._annotationSortModes = {
+      ...this._annotationSortModes,
+      [this.selectedAnnotation]: newMode,
+    };
+
+    // For manual modes, directly reverse the current zOrders to ensure
+    // toggling between manual/manual-reverse always reverses the order
+    if (currentMode === 'manual' || currentMode === 'manual-reverse') {
+      // Sort by current zOrder, separate "Other" item
+      const sorted = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
+      const otherItem = sorted.find((i) => i.value === LEGEND_VALUES.OTHER);
+      const nonOther = sorted.filter((i) => i.value !== LEGEND_VALUES.OTHER);
+
+      // Reverse non-Other items
+      const reversed = nonOther.reverse();
+      const reordered = otherItem ? [...reversed, otherItem] : reversed;
+
+      // Reassign zOrders
+      this._legendItems = reordered.map((item, idx) => ({ ...item, zOrder: idx }));
+    } else {
+      // For non-manual modes, re-process legend items with new sort mode
+      this._updateLegendItems();
+    }
+
+    this._scatterplotController.dispatchZOrderChange();
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
+  private _dispatchItemAction(
+    value: string | null,
+    action: 'toggle' | 'isolate' | 'extract',
+  ): void {
+    this.dispatchEvent(createItemActionEvent(LEGEND_EVENTS.ITEM_CLICK, value, action));
+  }
+
+  private _announceStatus(message: string): void {
+    this._statusMessage = message;
+    // Clear after announcement to allow repeated messages
+    setTimeout(() => {
+      this._statusMessage = '';
+    }, 1000);
+  }
+
+  private _dispatchError(
+    message: string,
+    source: LegendErrorEventDetail['source'],
+    originalError?: Error,
+  ): void {
+    const detail: LegendErrorEventDetail = { message, source, originalError };
+    this.dispatchEvent(
+      new CustomEvent(LEGEND_EVENTS.ERROR, {
+        detail,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    console.error(`[protspace-legend] ${source}: ${message}`, originalError);
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Settings Dialog
+  // ─────────────────────────────────────────────────────────────────
+
+  private async _handleCustomize(): Promise<void> {
+    const scatterplot = this._scatterplotController.scatterplot;
+    this._dialogSettings = {
+      maxVisibleValues: this.maxVisibleValues,
+      includeShapes: this.includeShapes,
+      shapeSize: this.shapeSize,
+      annotationSortModes: this._annotationSortModes,
+      enableDuplicateStackUI: Boolean(
+        scatterplot &&
+          'config' in scatterplot &&
+          (scatterplot as { config?: Record<string, unknown> }).config?.enableDuplicateStackUI,
+      ),
+    };
+
+    this._showSettingsDialog = true;
+    this.dispatchEvent(new CustomEvent(LEGEND_EVENTS.CUSTOMIZE, { bubbles: true, composed: true }));
+
+    this.requestUpdate();
+    await this.updateComplete;
+    this._settingsDialogEl?.focus();
+  }
+
+  private _handleSettingsSave(): void {
+    this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
+    this.includeShapes = this._dialogSettings.includeShapes;
+    this.shapeSize = this._dialogSettings.shapeSize;
+    this._annotationSortModes = this._dialogSettings.annotationSortModes;
+    this._showSettingsDialog = false;
+    this._legendItems = [];
+
+    this._updateLegendItems();
+    this._scatterplotController.syncHiddenValues();
+    this._scatterplotController.updateConfig({
+      pointSize: calculatePointSize(this.shapeSize),
+      enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
+    });
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
+  private _handleSettingsClose(): void {
+    this._showSettingsDialog = false;
+  }
+
+  private _handleSettingsReset(): void {
+    this._persistenceController.removeSettings();
+
+    this.maxVisibleValues = LEGEND_DEFAULTS.maxVisibleValues;
+    this.includeShapes = LEGEND_DEFAULTS.includeShapes;
+    this.shapeSize = LEGEND_DEFAULTS.symbolSize;
+
+    this._annotationSortModes = {
+      ...this._annotationSortModes,
+      [this.selectedAnnotation]: getDefaultSortMode(this.selectedAnnotation),
+    };
+
+    this._hiddenValues = [];
+    this._legendItems = [];
+    this._showSettingsDialog = false;
+
+    this._scatterplotController.updateConfig({
+      pointSize: calculatePointSize(LEGEND_DEFAULTS.symbolSize),
+      enableDuplicateStackUI: false,
+    });
+
+    this._updateLegendItems();
+    this.requestUpdate();
+  }
+
+  private _handleDialogKeydown(e: KeyboardEvent): void {
     if (e.key === 'Enter') {
       e.stopImmediatePropagation();
       e.preventDefault();
@@ -227,995 +844,125 @@ export class ProtspaceLegend extends LitElement {
     }
   }
 
-  private _setupAutoSync() {
-    // Find scatterplot element
-    setTimeout(() => {
-      this._scatterplotElement = document.querySelector(this.scatterplotSelector);
-      if (this._scatterplotElement) {
-        // Listen for data and feature changes
-        this._scatterplotElement.addEventListener('data-change', this._handleDataChange.bind(this));
-
-        // Listen for feature changes from control bar
-        const controlBar = document.querySelector('protspace-control-bar');
-        if (controlBar) {
-          controlBar.addEventListener('feature-change', this._handleFeatureChange.bind(this));
-        }
-
-        // Initial sync
-        this._syncWithScatterplot();
-      }
-    }, LEGEND_DEFAULTS.autoSyncDelay);
-  }
-
-  private _handleDataChange(event: Event) {
-    const customEvent = event as CustomEvent;
-    const { data } = customEvent.detail;
-
-    if (data) {
-      this.data = { features: data.features };
-      this._updateFromScatterplotData();
-    }
-  }
-
-  private _updateFromScatterplotData(): void {
-    if (!this._scatterplotElement || !('getCurrentData' in this._scatterplotElement)) {
-      return;
-    }
-
-    const currentData = (this._scatterplotElement as ScatterplotElement).getCurrentData();
-    const selectedFeature = (this._scatterplotElement as ScatterplotElement).selectedFeature;
-
-    if (!currentData || !selectedFeature) {
-      return;
-    }
-
-    this.selectedFeature = selectedFeature;
-    this._updateFeatureData(currentData, selectedFeature);
-    this._updateFeatureValues(currentData, selectedFeature);
-    this.proteinIds = currentData.protein_ids;
-  }
-
-  private _updateFeatureData(currentData: ScatterplotData, selectedFeature: string): void {
-    this.featureData = {
-      name: selectedFeature,
-      values: currentData.features[selectedFeature].values,
-    };
-  }
-
-  private _updateFeatureValues(currentData: ScatterplotData, selectedFeature: string): void {
-    // Extract feature values for current data
-    const featureValues = currentData.protein_ids.flatMap((_: string, index: number) => {
-      const featureIdxData = currentData.feature_data[selectedFeature][index];
-      // Handle both array and single value cases
-      const featureIdxArray = Array.isArray(featureIdxData) ? featureIdxData : [featureIdxData];
-      return featureIdxArray
-        .map((featureIdx: number) => {
-          return currentData.features[selectedFeature].values[featureIdx];
-        })
-        .filter((v) => v != null);
-    });
-
-    this.featureValues = featureValues;
-  }
-
-  private _expandHiddenValues(hiddenValues: string[]): string[] {
-    const expanded: string[] = [];
-
-    for (const value of hiddenValues) {
-      if (value === 'Other') {
-        // Expand the synthetic Other bucket to its actual values
-        for (const otherItem of this.otherItems) {
-          if (otherItem.value === null) {
-            expanded.push('null');
-          } else {
-            expanded.push(otherItem.value);
-          }
-        }
-      } else {
-        expanded.push(value);
-      }
-    }
-
-    // De-duplicate in case of overlaps
-    return Array.from(new Set(expanded));
-  }
-
-  private _handleFeatureChange(event: Event) {
-    const customEvent = event as CustomEvent;
-    const { feature } = customEvent.detail;
-
-    this.selectedFeature = feature;
-
-    // Clear hidden values when feature changes
-    this._hiddenValues = [];
-    this.manualOtherValues = [];
-    if (
-      this.autoHide &&
-      this._scatterplotElement &&
-      'hiddenFeatureValues' in this._scatterplotElement
-    ) {
-      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [];
-    }
-
-    // Update feature values for new feature
-    this._syncWithScatterplot();
-  }
-
-  private _updateFeatureDataFromData() {
-    const featureInfo = this.data?.features?.[this.selectedFeature] ?? null;
-
-    this.featureData = featureInfo
-      ? { name: this.selectedFeature, values: featureInfo.values }
-      : { name: '', values: [] };
-  }
-
-  private _ensureSortModeDefaults() {
-    const featureNames = this.data?.features ? Object.keys(this.data.features) : [];
-    if (featureNames.length === 0) return;
-    const updated: Record<string, LegendSortMode> = {
-      ...this.featureSortModes,
-    };
-    for (const fname of featureNames) {
-      if (!(fname in updated)) {
-        updated[fname] = FIRST_NUMBER_SORT_FEATURES.has(fname) ? 'alpha' : 'size';
-      }
-    }
-    this.featureSortModes = updated;
-  }
-
-  private _syncWithScatterplot() {
-    if (!this._scatterplotElement || !('getCurrentData' in this._scatterplotElement)) {
-      return;
-    }
-
-    const currentData = (this._scatterplotElement as ScatterplotElement).getCurrentData();
-    const selectedFeature = (this._scatterplotElement as ScatterplotElement).selectedFeature;
-
-    if (!currentData || !selectedFeature) {
-      return;
-    }
-
-    this.data = { features: currentData.features };
-    this.selectedFeature = selectedFeature;
-    this._updateFeatureData(currentData, selectedFeature);
-    this._updateFeatureValues(currentData, selectedFeature);
-    this.proteinIds = currentData.protein_ids;
-
-    // Sync isolation state from scatterplot
-    if ('isIsolationMode' in this._scatterplotElement) {
-      const scatterplot = this._scatterplotElement as ScatterplotElement & {
-        isIsolationMode(): boolean;
-      };
-      this.isolationMode = scatterplot.isIsolationMode();
-    }
-    if ('getIsolationHistory' in this._scatterplotElement) {
-      const scatterplot = this._scatterplotElement as ScatterplotElement & {
-        getIsolationHistory(): string[][];
-      };
-      this.isolationHistory = scatterplot.getIsolationHistory();
-    }
-  }
-
-  /**
-   * Public method to force synchronization with the scatterplot
-   * Useful when you need to ensure the legend is up-to-date after state changes
-   */
-  public forceSync() {
-    this._syncWithScatterplot();
-  }
-
-  private updateLegendItems() {
-    if (
-      !this.featureData ||
-      !this.featureData.values ||
-      this.featureData.values.length === 0 ||
-      !this.featureValues ||
-      this.featureValues.length === 0
-    ) {
-      this.legendItems = [];
-      return;
-    }
-
-    // Use the data processor to handle all legend item processing
-    const sortMode: LegendSortMode =
-      this.featureSortModes[this.selectedFeature] ??
-      (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size');
-    const isMultilabel = this._isMultilabelFeature();
-    const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
-    const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
-      this.featureData.name || this.selectedFeature,
-      this.featureValues,
-      this.proteinIds,
-      this.maxVisibleValues,
-      this.isolationMode,
-      this.isolationHistory,
-      this.legendItems,
-      this.includeOthers,
-      this.manualOtherValues,
-      sortMode,
-      effectiveIncludeShapes,
-    );
-
-    // Set items state
-    this.legendItems = legendItems;
-    this.otherItems = otherItems;
-
-    // Dispatch z-order change to update scatterplot rendering order
-    this._dispatchZOrderChange();
-
-    // Dispatch color/shape mapping to scatterplot for consistent rendering
-    this._dispatchColorMappingChange();
-
-    // Update scatterplot with current Other bucket value list for consistent coloring
-    if (this._scatterplotElement && 'otherFeatureValues' in this._scatterplotElement) {
-      (this._scatterplotElement as ScatterplotElement).otherFeatureValues = this.includeOthers
-        ? this._computeOtherConcreteValues()
-        : [];
-    }
-
-    // Update scatterplot to toggle shapes(except for multilabel features)
-    if (this._scatterplotElement && 'useShapes' in this._scatterplotElement) {
-      const isMultilabel = this._isMultilabelFeature();
-      const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
-      (this._scatterplotElement as ScatterplotElement).useShapes = effectiveIncludeShapes;
-    }
-  }
-
-  private handleItemClick(value: string | null) {
-    const valueKey = value === null ? 'null' : value;
-
-    // Compute proposed hidden values
-    const proposedHiddenValues = this._hiddenValues.includes(valueKey)
-      ? this._hiddenValues.filter((v) => v !== valueKey)
-      : [...this._hiddenValues, valueKey];
-
-    // Compute visibility after the toggle
-    const proposedLegendItems = this.legendItems.map((item) => ({
-      ...item,
-      isVisible: !proposedHiddenValues.includes(item.value === null ? 'null' : item.value!),
-    }));
-
-    // If no items would remain visible, reset to show everything
-    const anyVisible = proposedLegendItems.some((item) => item.isVisible);
-    if (!anyVisible) {
-      this._hiddenValues = [];
-      this.legendItems = this.legendItems.map((item) => ({
-        ...item,
-        isVisible: true,
-      }));
-    } else {
-      this._hiddenValues = proposedHiddenValues;
-      this.legendItems = proposedLegendItems;
-    }
-
-    // Update scatterplot if auto-hide is enabled
-    if (
-      this.autoHide &&
-      this._scatterplotElement &&
-      'hiddenFeatureValues' in this._scatterplotElement
-    ) {
-      const expandedHidden = this._expandHiddenValues(this._hiddenValues);
-      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [...expandedHidden];
-      // Also provide the list of concrete values that are in the Other bucket
-      if ('otherFeatureValues' in this._scatterplotElement) {
-        (this._scatterplotElement as ScatterplotElement).otherFeatureValues =
-          this._computeOtherConcreteValues();
-      }
-    }
-
-    // Dispatch event for external listeners
-    this.dispatchEvent(
-      new CustomEvent('legend-item-click', {
-        detail: { value, action: 'toggle' },
-        bubbles: true,
-        composed: true,
-      }),
-    );
-
-    this.requestUpdate();
-  }
-
-  // Handle item double-click (show only this or show all)
-  private handleItemDoubleClick(value: string | null) {
-    // Get the clicked item
-    const clickedItem = this.legendItems.find((item) => item.value === value);
-    if (!clickedItem) return;
-
-    // Check if it's the only visible item
-    const visibleItems = this.legendItems.filter((item) => item.isVisible);
-    const isOnlyVisible = visibleItems.length === 1 && visibleItems[0].value === value;
-
-    // Case 1: It's the only visible item - show all
-    if (isOnlyVisible) {
-      this.legendItems = this.legendItems.map((item) => ({
-        ...item,
-        isVisible: true,
-      }));
-    }
-    // Case 2: Show only this item
-    else {
-      this.legendItems = this.legendItems.map((item) => ({
-        ...item,
-        isVisible: item.value === value,
-      }));
-    }
-
-    // Update hidden values to reflect current visibility state
-    const newHiddenValues = this.legendItems
-      .filter((item) => !item.isVisible)
-      .map((item) => (item.value === null ? 'null' : item.value!));
-
-    this._hiddenValues = newHiddenValues;
-
-    // Sync hidden values with scatterplot when enabled
-    if (
-      this.autoHide &&
-      this._scatterplotElement &&
-      'hiddenFeatureValues' in this._scatterplotElement
-    ) {
-      const expandedHidden = this._expandHiddenValues(this._hiddenValues);
-      (this._scatterplotElement as ScatterplotElement).hiddenFeatureValues = [...expandedHidden];
-      if ('otherFeatureValues' in this._scatterplotElement) {
-        (this._scatterplotElement as ScatterplotElement).otherFeatureValues =
-          this._computeOtherConcreteValues();
-      }
-    }
-
-    // Dispatch "isolate" action for double click
-    this.dispatchEvent(
-      new CustomEvent('legend-item-click', {
-        detail: { value, action: 'isolate' },
-        bubbles: true,
-        composed: true,
-      }),
-    );
-
-    this.requestUpdate();
-  }
-
-  // Simple drag and drop implementation
-  private handleDragStart(item: LegendItem) {
-    const index = this.legendItems.findIndex((i) => i.value === item.value);
-    this.draggedItemIndex = index !== -1 ? index : -1;
-
-    // Clear any existing timeout
-    if (this.dragTimeout) {
-      clearTimeout(this.dragTimeout);
-    }
-  }
-
-  // Handle element drag over
-  private handleDragOver(event: DragEvent, item: LegendItem) {
-    event.preventDefault();
-
-    if (this.draggedItemIndex === -1) return;
-
-    const targetIndex = this.legendItems.findIndex((i) => i.value === item.value);
-    if (this.draggedItemIndex === targetIndex) return;
-
-    // Provide move hint to the browser
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'move';
-    }
-
-    // Use a debounced approach to prevent too many re-renders
-    if (this.dragTimeout) {
-      clearTimeout(this.dragTimeout);
-    }
-
-    this.dragTimeout = window.setTimeout(() => {
-      this._performDragReorder(item);
-    }, LEGEND_DEFAULTS.dragTimeout);
-  }
-
-  // Handle drop on a legend item (supports merging extracted items back into Other)
-  private handleDrop(event: DragEvent, targetItem: LegendItem) {
-    event.preventDefault();
-
-    // Only handle special case when dropping onto "Other"
-    if (targetItem.value === 'Other' && this.draggedItemIndex !== -1) {
-      const draggedItem = this.legendItems[this.draggedItemIndex];
-
-      if (!draggedItem) {
-        this.handleDragEnd();
-        return;
-      }
-
-      // If the item was previously extracted, use the original merge flow
-      if (draggedItem.extractedFromOther && draggedItem.value) {
-        this._mergeExtractedBackToOther(draggedItem.value);
-      } else if (draggedItem.value && draggedItem.value !== 'Other') {
-        // Manually move any non-null, non-Other value into Other
-        if (!this.manualOtherValues.includes(draggedItem.value)) {
-          this.manualOtherValues = [...this.manualOtherValues, draggedItem.value];
-        }
-        // Recompute legend to reflect manual move
-        this.updateLegendItems();
-
-        // Notify parent with "merge-into-other" action
-        this.dispatchEvent(
-          new CustomEvent('legend-item-click', {
-            detail: { value: draggedItem.value, action: 'merge-into-other' },
-            bubbles: true,
-            composed: true,
-          }),
-        );
-      }
-    }
-
-    // Final reordering is handled by the drag over logic
-
-    this.handleDragEnd();
-  }
-
-  // Merge an extracted value back into the synthetic Other bucket
-  private _mergeExtractedBackToOther(value: string) {
-    this.legendItems = this.legendItems.filter((i) => i.value !== value);
-
-    this.updateLegendItems();
-
-    this.dispatchEvent(
-      new CustomEvent('legend-item-click', {
-        detail: { value, action: 'merge-into-other' },
-        bubbles: true,
-        composed: true,
-      }),
-    );
-
-    this.requestUpdate();
-  }
-
-  private _performDragReorder(targetItem: LegendItem): void {
-    // Find the target index
-    const targetIdx = this.legendItems.findIndex((i) => i.value === targetItem.value);
-
-    if (this.draggedItemIndex === -1 || targetIdx === -1) return;
-
-    // Create a new array with the item moved
-    const newItems = [...this.legendItems];
-    const [movedItem] = newItems.splice(this.draggedItemIndex, 1);
-
-    // Adjust target index if dragging forward (target is after dragged item)
-    // After removing the dragged item, items after it shift down by 1
-    const adjustedTargetIdx = targetIdx > this.draggedItemIndex ? targetIdx - 1 : targetIdx;
-    newItems.splice(adjustedTargetIdx, 0, movedItem);
-
-    // Update z-order
-    this.legendItems = newItems.map((item, idx) => ({
-      ...item,
-      zOrder: idx,
-    }));
-
-    // Update dragged index to reflect new position
-    this.draggedItemIndex = adjustedTargetIdx;
-
-    // Notify parent of z-order change
-    this._dispatchZOrderChange();
-    this.requestUpdate();
-  }
-
-  private _dispatchZOrderChange(): void {
-    const zOrderMap: Record<string, number> = {};
-    this.legendItems.forEach((legendItem) => {
-      if (legendItem.value !== null) {
-        zOrderMap[legendItem.value] = legendItem.zOrder;
-      }
-    });
-
-    // Dispatch event directly to scatterplot element if available
-    if (this._scatterplotElement) {
-      this._scatterplotElement.dispatchEvent(
-        new CustomEvent('legend-zorder-change', {
-          detail: { zOrderMapping: zOrderMap },
-          bubbles: false,
-        }),
-      );
-    } else {
-      // Fallback to bubbling event
-      this.dispatchEvent(
-        new CustomEvent('legend-zorder-change', {
-          detail: { zOrderMapping: zOrderMap },
-          bubbles: true,
-        }),
-      );
-    }
-  }
-
-  private _dispatchColorMappingChange(): void {
-    const colorMap: Record<string, string> = {};
-    const shapeMap: Record<string, string> = {};
-
-    this.legendItems.forEach((legendItem) => {
-      const key = legendItem.value === null ? 'null' : legendItem.value;
-      colorMap[key] = legendItem.color;
-      shapeMap[key] = legendItem.shape;
-    });
-
-    // Dispatch event directly to scatterplot element if available
-    if (this._scatterplotElement) {
-      this._scatterplotElement.dispatchEvent(
-        new CustomEvent('legend-colormapping-change', {
-          detail: { colorMapping: colorMap, shapeMapping: shapeMap },
-          bubbles: false,
-        }),
-      );
-    } else {
-      // Fallback to bubbling event
-      this.dispatchEvent(
-        new CustomEvent('legend-colormapping-change', {
-          detail: { colorMapping: colorMap, shapeMapping: shapeMap },
-          bubbles: true,
-        }),
-      );
-    }
-  }
-
-  /**
-   * Reverse the CURRENTLY DISPLAYED legend z-order, without re-bucketing items into "Other".
-   * Keeps the synthetic "Other" item (if present) at the end.
-   */
-  private _reverseCurrentLegendZOrderKeepOtherLast(): void {
-    if (!this.legendItems || this.legendItems.length <= 1) return;
-
-    // Start from current rendered order (zOrder), not array order.
-    const sorted = [...this.legendItems].sort((a, b) => a.zOrder - b.zOrder);
-    const otherItem = sorted.find((i) => i.value === 'Other') ?? null;
-
-    const reversed = sorted.filter((i) => i.value !== 'Other').reverse();
-    const reordered = otherItem ? [...reversed, otherItem] : reversed;
-
-    this.legendItems = reordered.map((item, idx) => ({ ...item, zOrder: idx }));
-    this._dispatchZOrderChange();
-    this.requestUpdate();
-  }
-
-  private handleDragEnd() {
-    this.draggedItemIndex = -1;
-
-    // Clear timeout if any
-    if (this.dragTimeout) {
-      clearTimeout(this.dragTimeout);
-      this.dragTimeout = null;
-    }
-  }
-
-  // Handle extract from Other
-  private handleExtractFromOther(value: string) {
-    // Find this item in otherItems
-    const itemToExtract = this.otherItems.find((item) => item.value === value);
-    if (!itemToExtract) return;
-
-    // If this value was manually assigned to Other, remove it from the manual list
-    if (this.manualOtherValues.includes(value)) {
-      this.manualOtherValues = this.manualOtherValues.filter((v) => v !== value);
-    }
-
-    // Create a new legend item using visual encoding
-    const isMultilabel = this._isMultilabelFeature();
-    const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
-    const newItem = LegendUtils.createExtractedItem(
-      value,
-      itemToExtract.count,
-      this.legendItems.length,
-      effectiveIncludeShapes,
-    );
-
-    // Add to the legend items
-    this.legendItems = [...this.legendItems, newItem];
-
-    // Recompute legend to remove the extracted value from Other and update counts
-    this.updateLegendItems();
-
-    // Close the dialog
-    this.showOtherDialog = false;
-
-    // Notify parent with "extract" action
-    this.dispatchEvent(
-      new CustomEvent('legend-item-click', {
-        detail: { value, action: 'extract' },
-        bubbles: true,
-      }),
-    );
-
-    this.requestUpdate();
-  }
-
-  /**
-   * Compute list of concrete values that belong to the synthetic "Other" bucket
-   */
-  private _computeOtherConcreteValues(): string[] {
-    const values: string[] = [];
-    for (const item of this.otherItems) {
-      if (item.value === null) values.push('null');
-      else values.push(item.value);
-    }
-    return values;
-  }
-
-  private async handleCustomize() {
-    // Initialize settings value from current maxVisibleValues
-    this.settingsMaxVisibleValues = this.maxVisibleValues;
-    this.settingsIncludeOthers = this.includeOthers;
-    this.settingsIncludeShapes = this.includeShapes;
-    this.settingsShapeSize = this.shapeSize;
-    // Initialize settings sort modes from current modes (normalize away deprecated reverse modes)
-    const normalized: Record<string, LegendSortMode> = {};
-    for (const [k, v] of Object.entries(this.featureSortModes)) {
-      normalized[k] = v === 'alpha-desc' ? 'alpha' : v === 'size-asc' ? 'size' : v;
-    }
-    this.settingsFeatureSortModes = normalized;
-    // Initialize from scatterplot config (default is off)
-    const scatterplot = this._scatterplotElement as ScatterplotElement & {
-      config?: Record<string, unknown>;
-    };
-    this.settingsEnableDuplicateStackUI = !!scatterplot?.config?.enableDuplicateStackUI;
-    this.showSettingsDialog = true;
-
-    // Keep event for backward compatibility
-    this.dispatchEvent(
-      new CustomEvent('legend-customize', {
-        bubbles: true,
-      }),
-    );
-
-    this.requestUpdate();
-    await this.updateComplete;
-    this._settingsDialogEl?.focus();
-  }
-
-  private renderOtherDialog() {
-    if (!this.showOtherDialog) return html``;
-
-    return html`
-      <div class="modal-overlay" @click=${() => (this.showOtherDialog = false)}>
-        <div class="modal-content" @click=${(e: Event) => e.stopPropagation()}>
-          <div class="modal-header">
-            <h3 class="modal-title">Extract from 'Other' category</h3>
-            <button class="close-button" @click=${() => (this.showOtherDialog = false)}>
-              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <div class="modal-description">
-            Select items to extract from the 'Other' category. Extracted items will appear
-            individually in the legend.
-          </div>
-
-          <div class="other-items-list">
-            ${this.otherItems.map(
-              (item) => html`
-                <div class="other-item">
-                  <div class="other-item-info">
-                    <span class="other-item-name">
-                      ${item.value === null ||
-                      (typeof item.value === 'string' && item.value.trim() === '')
-                        ? 'N/A'
-                        : item.value}
-                    </span>
-                    <span class="other-item-count">(${item.count})</span>
-                  </div>
-                  <button
-                    class="extract-button"
-                    @click=${() => {
-                      if (item.value !== null) {
-                        this.handleExtractFromOther(item.value);
-                      }
-                    }}
-                  >
-                    Extract
-                  </button>
-                </div>
-              `,
-            )}
-          </div>
-
-          <div class="modal-footer">
-            <button class="modal-close-button" @click=${() => (this.showOtherDialog = false)}>
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  async downloadAsImage() {
-    // This would need to be implemented with a library like html2canvas
-    // For now, dispatch an event that the parent can handle
-    this.dispatchEvent(
-      new CustomEvent('legend-download', {
-        bubbles: true,
-      }),
-    );
-  }
+  // ─────────────────────────────────────────────────────────────────
+  // Rendering
+  // ─────────────────────────────────────────────────────────────────
 
   render() {
-    const sortedLegendItems = [...this.legendItems].sort((a, b) => a.zOrder - b.zOrder);
-    const title = this.featureData.name || this.featureName || 'Legend';
+    const title = this.annotationData.name || this.annotationName || 'Legend';
 
     return html`
-      <div class="legend-container">
+      <div class="legend-container" part="container">
+        <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          ${this._statusMessage}
+        </div>
         ${LegendRenderer.renderHeader(title, {
-          onReverse: () => this._reverseCurrentLegendZOrderKeepOtherLast(),
-          onCustomize: () => this.handleCustomize(),
+          onReverse: () => this._reverseZOrder(),
+          onCustomize: () => this._handleCustomize(),
         })}
-        ${LegendRenderer.renderLegendContent(sortedLegendItems, (item) =>
-          this._renderLegendItem(item),
+        ${LegendRenderer.renderLegendContent(this._sortedLegendItems, (item, index) =>
+          this._renderLegendItem(item, index),
         )}
       </div>
-      ${this.renderOtherDialog()} ${this.renderSettingsDialog()}
+      ${this._renderOtherDialog()} ${this._renderSettingsDialog()}
     `;
   }
 
-  private _renderLegendItem(item: LegendItem) {
-    const isItemSelected = this._isItemSelected(item);
-    const itemClasses = this._getItemClasses(item, isItemSelected);
-
-    // For multilabel features, always use circles (pie charts with shapes would be too complex)
-    const isMultilabel = this._isMultilabelFeature();
-    const effectiveIncludeShapes = isMultilabel ? false : this.includeShapes;
-
-    // Calculate the number of categories in "Other" for display
-    const otherItemsCount = item.value === 'Other' ? this.otherItems.length : undefined;
+  private _renderLegendItem(item: LegendItem, sortedIndex: number) {
+    const selected = isItemSelected(item, this.selectedItems);
+    const itemIndex = this._legendItems.findIndex((i) => i.value === item.value);
+    const isDragging = this._dragController.isDragging(itemIndex);
+    const classes = getItemClasses(item, selected, isDragging);
+    const otherCount = item.value === LEGEND_VALUES.OTHER ? this._otherItems.length : undefined;
 
     return LegendRenderer.renderLegendItem(
       item,
-      itemClasses,
-      isItemSelected,
+      classes,
+      selected,
       {
-        onClick: () => this.handleItemClick(item.value),
-        onDoubleClick: () => this.handleItemDoubleClick(item.value),
-        onDragStart: () => this.handleDragStart(item),
-        onDragOver: (e: DragEvent) => this.handleDragOver(e, item),
-        onDrop: (e: DragEvent) => this.handleDrop(e, item),
-        onDragEnd: () => this.handleDragEnd(),
+        onClick: () => this._handleItemClick(item.value),
+        onDoubleClick: () => this._handleItemDoubleClick(item.value),
+        onDragStart: () => this._dragController.handleDragStart(item),
+        onDragOver: (e: DragEvent) => this._dragController.handleDragOver(e, item),
+        onDrop: (e: DragEvent) => this._dragController.handleDrop(e, item),
+        onDragEnd: () => this._dragController.handleDragEnd(),
         onViewOther: (e: Event) => {
           e.stopPropagation();
-          this.showOtherDialog = true;
+          this._showOtherDialog = true;
+        },
+        onKeyDown: (e: KeyboardEvent) => this._handleItemKeyDown(e, item, sortedIndex),
+      },
+      this._effectiveIncludeShapes,
+      LEGEND_STYLES.legendDisplaySize,
+      otherCount,
+      sortedIndex,
+    );
+  }
+
+  private _renderOtherDialog() {
+    if (!this._showOtherDialog) return html``;
+
+    return renderOtherDialog(
+      { otherItems: this._otherItems },
+      {
+        onExtract: (value) => this._handleExtractFromOther(value),
+        onClose: () => {
+          this._showOtherDialog = false;
         },
       },
-      effectiveIncludeShapes,
-      LEGEND_STYLES.legendDisplaySize,
-      otherItemsCount,
     );
   }
 
-  private _isItemSelected(item: LegendItem): boolean {
-    return (
-      (item.value === null &&
-        this.selectedItems.includes('null') &&
-        this.selectedItems.length > 0) ||
-      (item.value !== null && item.value !== 'Other' && this.selectedItems.includes(item.value))
-    );
-  }
+  private _renderSettingsDialog() {
+    if (!this._showSettingsDialog) return html``;
 
-  private _getItemClasses(item: LegendItem, isItemSelected: boolean): string {
-    const classes = ['legend-item'];
-
-    if (!item.isVisible) classes.push('hidden');
-    const itemIndex = this.legendItems.findIndex((i) => i.value === item.value);
-    if (this.draggedItemIndex === itemIndex && this.draggedItemIndex !== -1)
-      classes.push('dragging');
-    if (isItemSelected) classes.push('selected');
-    if (item.extractedFromOther) classes.push('extracted');
-
-    return classes.join(' ');
-  }
-
-  private renderSettingsDialog() {
-    if (!this.showSettingsDialog) return html``;
-
-    const onInputChange = (e: Event) => {
-      const target = e.target as HTMLInputElement;
-      const parsed = parseInt(target.value, 10);
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        this.settingsMaxVisibleValues = parsed;
-      }
+    // Initialize sort mode for current annotation if needed
+    this._dialogSettings = {
+      ...this._dialogSettings,
+      annotationSortModes: initializeAnnotationSortMode(
+        this._dialogSettings.annotationSortModes,
+        this.selectedAnnotation,
+        this._annotationSortModes,
+      ),
     };
 
-    const onToggleIncludeOthers = (e: Event) => {
-      const target = e.target as HTMLInputElement;
-      this.settingsIncludeOthers = target.checked;
+    const state: SettingsDialogState = {
+      maxVisibleValues: this._dialogSettings.maxVisibleValues,
+      shapeSize: this._dialogSettings.shapeSize,
+      includeShapes: this._dialogSettings.includeShapes,
+      enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
+      selectedAnnotation: this.selectedAnnotation,
+      annotationSortModes: this._dialogSettings.annotationSortModes,
+      isMultilabelAnnotation: this._isMultilabelAnnotation(),
+      hasPersistedSettings: this._persistenceController.hasPersistedSettings(),
     };
 
-    const onSave = () => this._handleSettingsSave();
-    const onClose = () => this._handleSettingsClose();
+    const callbacks: SettingsDialogCallbacks = {
+      onMaxVisibleValuesChange: (v) => {
+        this._dialogSettings = { ...this._dialogSettings, maxVisibleValues: v };
+      },
+      onShapeSizeChange: (v) => {
+        this._dialogSettings = { ...this._dialogSettings, shapeSize: v };
+      },
+      onIncludeShapesChange: (v) => {
+        this._dialogSettings = { ...this._dialogSettings, includeShapes: v };
+      },
+      onEnableDuplicateStackUIChange: (v) => {
+        this._dialogSettings = { ...this._dialogSettings, enableDuplicateStackUI: v };
+      },
+      onSortModeChange: (annotation, mode) => {
+        this._dialogSettings = {
+          ...this._dialogSettings,
+          annotationSortModes: { ...this._dialogSettings.annotationSortModes, [annotation]: mode },
+        };
+      },
+      onSave: () => this._handleSettingsSave(),
+      onClose: () => this._handleSettingsClose(),
+      onReset: () => this._handleSettingsReset(),
+      onKeydown: (e) => this._handleDialogKeydown(e),
+    };
 
-    // Initialize temp settings for the currently selected feature
-    if (this.selectedFeature && !this.settingsFeatureSortModes[this.selectedFeature]) {
-      this.settingsFeatureSortModes = {
-        ...this.settingsFeatureSortModes,
-        [this.selectedFeature]:
-          (this.featureSortModes[this.selectedFeature] === 'alpha-desc'
-            ? 'alpha'
-            : this.featureSortModes[this.selectedFeature] === 'size-asc'
-              ? 'size'
-              : this.featureSortModes[this.selectedFeature]) ??
-          (FIRST_NUMBER_SORT_FEATURES.has(this.selectedFeature) ? 'alpha' : 'size'),
-      };
-    }
-
-    return html`
-      <div class="modal-overlay" @click=${onClose} @keydown=${this._handleDialogKeydown}>
-        <div
-          id="legend-settings-dialog"
-          class="modal-content"
-          tabindex="-1"
-          @click=${(e: Event) => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div class="modal-header">
-            <h3 class="modal-title">Legend settings</h3>
-            <button class="close-button" @click=${onClose}>
-              <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <div class="modal-description">Legend display options</div>
-
-          <div class="other-items-list">
-            <div class="other-items-list-item">
-              <label for="max-visible-input" class="other-items-list-item-label"
-                >Max legend items</label
-              >
-              <input
-                id="max-visible-input"
-                type="number"
-                min="1"
-                .value=${String(this.settingsMaxVisibleValues)}
-                placeholder=${String(LEGEND_DEFAULTS.maxVisibleValues)}
-                @input=${onInputChange}
-                class="other-items-list-item-input"
-              />
-            </div>
-            <div class="other-items-list-item">
-              <label for="shape-size-input" class="other-items-list-item-label">Shape size</label>
-              <input
-                class="other-items-list-item-input"
-                id="shape-size-input"
-                type="number"
-                min="6"
-                max="64"
-                .value=${String(this.settingsShapeSize)}
-                placeholder=${String(LEGEND_DEFAULTS.symbolSize)}
-                @input=${(e: Event) => {
-                  const target = e.target as HTMLInputElement;
-                  const parsed = parseInt(target.value, 10);
-                  if (!Number.isNaN(parsed) && parsed > 0) {
-                    this.settingsShapeSize = parsed;
-                  }
-                }}
-              />
-            </div>
-            <label class="other-items-list-label">
-              <input
-                class="other-items-list-label-input"
-                type="checkbox"
-                .checked=${this.settingsIncludeOthers}
-                @change=${onToggleIncludeOthers}
-              />
-              Show "Other" category
-            </label>
-            <label
-              class="other-items-list-label"
-              style="${this._isMultilabelFeature() ? 'color: #888;' : ''}"
-            >
-              <input
-                class="other-items-list-label-input"
-                type="checkbox"
-                .checked=${this.settingsIncludeShapes}
-                .disabled=${this._isMultilabelFeature()}
-                @change=${(e: Event) => {
-                  const t = e.target as HTMLInputElement;
-                  this.settingsIncludeShapes = t.checked;
-                }}
-              />
-              Include shapes
-            </label>
-            ${this._isMultilabelFeature()
-              ? html`<div
-                  style="color: #888; font-size: 0.85em; margin-left: 24px; margin-top: -4px;"
-                >
-                  Disabled for multilabel features
-                </div>`
-              : ''}
-            <label class="other-items-list-label">
-              <input
-                class="other-items-list-label-input"
-                type="checkbox"
-                .checked=${this.settingsEnableDuplicateStackUI}
-                @change=${(e: Event) => {
-                  const t = e.target as HTMLInputElement;
-                  this.settingsEnableDuplicateStackUI = t.checked;
-                }}
-              />
-              Show duplicate counts (badges + spiderfy)
-            </label>
-            <div class="other-items-list-item-sorting">
-              <div class="other-items-list-item-sorting-title">Sorting</div>
-              <div class="other-items-list-item-sorting-container">
-                ${this.selectedFeature
-                  ? (() => {
-                      const fname = this.selectedFeature;
-                      const currentMode = this.settingsFeatureSortModes[fname] || 'size';
-                      const normalizedMode: LegendSortMode =
-                        currentMode === 'alpha-desc'
-                          ? 'alpha'
-                          : currentMode === 'size-asc'
-                            ? 'size'
-                            : currentMode;
-                      const isAlphabetic = normalizedMode === 'alpha';
-
-                      return html`
-                        <div class="other-items-list-item-sorting-container-item">
-                          <span class="other-items-list-item-sorting-container-item-name"
-                            >${fname}</span
-                          >
-                          <span class="other-items-list-item-sorting-container-item-container">
-                            <label
-                              class="other-items-list-item-sorting-container-item-container-label"
-                            >
-                              <input
-                                class="other-items-list-item-sorting-container-item-container-input"
-                                type="radio"
-                                name=${`sort-${fname}`}
-                                .checked=${!isAlphabetic}
-                                @change=${() => {
-                                  const newMode: LegendSortMode = 'size';
-                                  this.settingsFeatureSortModes = {
-                                    ...this.settingsFeatureSortModes,
-                                    [fname]: newMode,
-                                  };
-                                }}
-                              />
-                              by category size
-                            </label>
-                            <label>
-                              <input
-                                type="radio"
-                                name=${`sort-${fname}`}
-                                .checked=${isAlphabetic}
-                                @change=${() => {
-                                  const newMode: LegendSortMode = 'alpha';
-                                  this.settingsFeatureSortModes = {
-                                    ...this.settingsFeatureSortModes,
-                                    [fname]: newMode,
-                                  };
-                                }}
-                              />
-                              alphanumerically
-                            </label>
-                          </span>
-                        </div>
-                      `;
-                    })()
-                  : ''}
-              </div>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="modal-close-button" @click=${onClose}>Cancel</button>
-            <button class="extract-button" @click=${onSave}>Save</button>
-          </div>
-        </div>
-      </div>
-    `;
+    return renderSettingsDialog(state, callbacks);
   }
 }
 

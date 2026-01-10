@@ -69,29 +69,53 @@ The main visualization component.
 
 ## Legend
 
-Category filtering and color mapping.
+Category filtering and color mapping with automatic settings persistence.
 
 ### Attributes
 
-| Attribute              | Type    | Default | Description                  |
-| ---------------------- | ------- | ------- | ---------------------------- |
-| `auto-sync`            | boolean | false   | Auto-sync with scatterplot   |
-| `scatterplot-selector` | string  | -       | CSS selector for target plot |
-| `show-counts`          | boolean | false   | Show protein counts          |
-| `auto-hide`            | boolean | false   | Hide when no data            |
+| Attribute              | Type    | Default | Description                             |
+| ---------------------- | ------- | ------- | --------------------------------------- |
+| `auto-sync`            | boolean | false   | Auto-sync with scatterplot              |
+| `scatterplot-selector` | string  | -       | CSS selector for target plot            |
+| `show-counts`          | boolean | false   | Show protein counts                     |
+| `auto-hide`            | boolean | true    | Hide when no data                       |
+| `max-visible-values`   | number  | 10      | Max categories before "Others" grouping |
+| `include-shapes`       | boolean | true    | Enable different shapes per category    |
+| `shape-size`           | number  | 40      | Size of legend symbols                  |
 
 ### Events
 
-| Event              | Detail                | Description          |
-| ------------------ | --------------------- | -------------------- |
-| `category-toggle`  | { category, visible } | Category toggled     |
-| `category-isolate` | { category }          | Category isolated    |
-| `all-visible`      | -                     | All categories shown |
+| Event                        | Detail                             | Description                           |
+| ---------------------------- | ---------------------------------- | ------------------------------------- |
+| `legend-item-click`          | { value, action }                  | Item clicked (toggle/isolate/extract) |
+| `legend-zorder-change`       | { zOrderMapping }                  | Drawing order changed                 |
+| `legend-colormapping-change` | { colorMapping, shapeMapping }     | Color/shape assignments changed       |
+| `legend-customize`           | void                               | Settings dialog opened                |
+| `legend-download`            | void                               | Download requested                    |
+| `legend-error`               | { message, source, originalError } | Error occurred                        |
+
+### Persistence
+
+User customizations (visibility, colors, ordering, settings) are automatically saved to localStorage per dataset and annotation.
 
 ### Example
 
 ```html
-<protspace-legend auto-sync scatterplot-selector="#plot" show-counts></protspace-legend>
+<protspace-legend
+  auto-sync
+  scatterplot-selector="#plot"
+  show-counts
+  max-visible-values="15"
+></protspace-legend>
+
+<script>
+  const legend = document.querySelector('protspace-legend');
+
+  // Listen for z-order changes
+  legend.addEventListener('legend-zorder-change', (e) => {
+    console.log('Z-order:', e.detail.zOrderMapping);
+  });
+</script>
 ```
 
 ## Control Bar
