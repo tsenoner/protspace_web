@@ -169,12 +169,9 @@ export async function initializeDemo() {
         plotElement.selectionMode = false;
         plotElement.hiddenAnnotationValues = [];
 
-        console.log('📊 Scatterplot updated with:', {
-          projections: newData.projections.map((p) => p.name),
-          annotations: Object.keys(newData.annotations),
-          proteinCount: newData.protein_ids.length,
-          selectedAnnotation: plotElement.selectedAnnotation,
-        });
+        console.log(
+          `📊 Scatterplot updated: ${newData.protein_ids.length} proteins, ${newData.projections.length} projections`,
+        );
 
         // Update progress
         if (isLargeDataset) {
@@ -222,7 +219,6 @@ export async function initializeDemo() {
         await new Promise((resolve) => {
           setTimeout(
             async () => {
-              console.log('🏷️ Updating legend with performance optimization...');
               legendElement.autoSync = true;
               legendElement.autoHide = true;
 
@@ -280,11 +276,7 @@ export async function initializeDemo() {
 
               legendElement.requestUpdate();
 
-              console.log('🏷️ Legend updated with:', {
-                annotation: legendElement.selectedAnnotation,
-                dataKeys: Object.keys(newData.annotations),
-                proteinCount: newData.protein_ids.length,
-              });
+              console.log(`🏷️ Legend updated with ${Object.keys(newData.annotations).length} annotations`);
 
               resolve(undefined);
             },
@@ -465,15 +457,6 @@ export async function initializeDemo() {
       updateLegend();
     });
 
-    // Handle protein hover from scatterplot
-    plotElement.addEventListener('protein-hover', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const proteinId = customEvent.detail.proteinId;
-      if (proteinId) {
-        console.log(`Protein hovered: ${proteinId}`);
-      }
-    });
-
     // Handle legend item clicks to toggle visibility
     legendElement.addEventListener('legend-item-click', (event: Event) => {
       const customEvent = event as CustomEvent;
@@ -488,8 +471,6 @@ export async function initializeDemo() {
       } else {
         hiddenValues = [...hiddenValues, valueKey];
       }
-
-      console.log(`Toggled visibility for "${value}". Hidden values:`, hiddenValues);
     });
 
     // Handle structure viewer events
@@ -524,12 +505,9 @@ export async function initializeDemo() {
 
     // Handle annotation change for resetting hidden values
     controlBar.addEventListener('annotation-change', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const annotation = customEvent.detail.annotation;
       hiddenValues = []; // Reset hidden values when switching annotations
       plotElement.hiddenAnnotationValues = hiddenValues;
       updateLegend();
-      console.log(`Switched to annotation: ${annotation}`);
     });
 
     // Handle selection mode toggle for local state
@@ -579,17 +557,13 @@ export async function initializeDemo() {
     });
 
     // Handle successful data loading
-    console.log('🎧 Setting up data-loaded event listener on:', dataLoader);
     dataLoader.addEventListener('data-loaded', (event: Event) => {
-      console.log('🔥 DATA-LOADED EVENT FIRED!', event);
       const customEvent = event as CustomEvent;
       const { data } = customEvent.detail;
-      console.log('📁 Data loaded from Arrow file:', data);
 
       // Load the new data into all components
       loadNewData(data);
     });
-    console.log('🎧 Event listener attached successfully');
 
     // Handle data loading errors
     dataLoader.addEventListener('data-error', (event: Event) => {
@@ -609,7 +583,6 @@ export async function initializeDemo() {
     controlBar.addEventListener('export', async (event: Event) => {
       const customEvent = event as CustomEvent;
       const exportType = customEvent.detail.type;
-      console.log(`Export requested: ${exportType}`);
 
       try {
         // Create exporter instance with current state
