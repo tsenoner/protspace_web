@@ -1,21 +1,14 @@
 import type { TemplateResult } from 'lit';
 import { html } from 'lit';
-import * as d3 from 'd3';
 import type { LegendItem } from './types';
-import { SHAPE_MAPPING, LEGEND_DEFAULTS, LEGEND_STYLES } from './config';
+import { SHAPE_PATH_GENERATORS, LEGEND_DEFAULTS, LEGEND_STYLES, LEGEND_VALUES } from './config';
 
 /**
  * Utility class for rendering legend components
  */
 export class LegendRenderer {
   /**
-   * Diamond needs a small boost to visually match the perceived size of other shapes.
-   * D3 symbol sizes are specified as area, so we square the linear scale factor.
-   */
-  private static readonly DIAMOND_LINEAR_SCALE = 1.25;
-
-  /**
-   * Render a symbol using D3 shapes for consistency with scatterplot
+   * Render a symbol using custom SVG paths that match WebGL shader geometry.
    */
   static renderSymbol(
     shape: string | null,
@@ -23,29 +16,21 @@ export class LegendRenderer {
     size: number = LEGEND_DEFAULTS.symbolSize,
     isSelected: boolean = false,
   ): TemplateResult {
-    // Add padding to accommodate shapes that extend beyond circles (like stars and crosses)
+    // Add padding to accommodate shapes that extend beyond circles
     const padding = 4;
     const canvasSize = size + padding * 2;
     const centerOffset = canvasSize / 2;
 
     // Safely handle null or undefined shape
-    const shapeKey = (shape || 'circle').toLowerCase() as keyof typeof SHAPE_MAPPING;
+    const shapeKey = (shape || 'circle').toLowerCase();
 
-    // Get the D3 symbol type (default to circle if not found)
-    const symbolType = SHAPE_MAPPING[shapeKey] || d3.symbolCircle;
+    // Get the path generator (default to circle if not found)
+    const pathGenerator = SHAPE_PATH_GENERATORS[shapeKey] || SHAPE_PATH_GENERATORS.circle;
 
-    const areaScale =
-      shapeKey === 'diamond'
-        ? LegendRenderer.DIAMOND_LINEAR_SCALE * LegendRenderer.DIAMOND_LINEAR_SCALE
-        : 1;
+    // Generate the SVG path
+    const path = pathGenerator(size);
 
-    // Generate the SVG path using D3
-    const path = d3
-      .symbol()
-      .type(symbolType)
-      .size(size * LEGEND_DEFAULTS.symbolSizeMultiplier * areaScale)();
-
-    // Some symbol types should be rendered as outlines only
+    // Some symbol types should be rendered as outlines only (plus sign)
     const isOutlineOnly = LEGEND_STYLES.outlineShapes.has(shapeKey);
 
     // Determine stroke width based on selection state
@@ -59,7 +44,7 @@ export class LegendRenderer {
       : LEGEND_STYLES.colors.defaultStroke;
 
     // Ensure we have a valid color
-    const validColor = color || LEGEND_STYLES.colors.fallback;
+    const validColor = color || '#888888';
 
     return html`
       <svg width="${canvasSize}" height="${canvasSize}" class="legend-symbol">
@@ -86,7 +71,7 @@ export class LegendRenderer {
     },
   ): TemplateResult {
     return html`
-      <div class="legend-header">
+      <div class="legend-header" part="header">
         <h3 class="legend-title">${title}</h3>
         <div class="legend-header-actions">
           ${actions.onReverse
@@ -139,14 +124,16 @@ export class LegendRenderer {
    */
   static renderLegendContent(
     sortedLegendItems: LegendItem[],
-    renderItemCallback: (item: LegendItem) => TemplateResult,
+    renderItemCallback: (item: LegendItem, index: number) => TemplateResult,
   ): TemplateResult {
     if (sortedLegendItems.length === 0) {
-      return html`<div class="legend-empty">No data available</div>`;
+      return html`<div class="legend-empty" part="empty">No data available</div>`;
     }
 
     return html`
-      <div class="legend-items">${sortedLegendItems.map((item) => renderItemCallback(item))}</div>
+      <div class="legend-items" part="items" role="listbox" aria-label="Legend items">
+        ${sortedLegendItems.map((item, index) => renderItemCallback(item, index))}
+      </div>
     `;
   }
 
@@ -176,7 +163,7 @@ export class LegendRenderer {
   }
 
   /**
-   * Render the item symbol (either "Other" default or feature-specific symbol)
+   * Render the item symbol (either "Other" default or annotation-specific symbol)
    */
   static renderItemSymbol(
     item: LegendItem,
@@ -185,8 +172,8 @@ export class LegendRenderer {
     size: number = LEGEND_DEFAULTS.symbolSize,
   ): TemplateResult {
     return html`
-      <div class="mr-2">
-        ${item.value === 'Other'
+      <div class="mr-2" part="symbol">
+        ${item.value === LEGEND_VALUES.OTHER
           ? this.renderSymbol('circle', '#888', size)
           : this.renderSymbol(
               includeShapes ? item.shape : 'circle',
@@ -201,25 +188,35 @@ export class LegendRenderer {
   /**
    * Render the item text label
    */
-  static renderItemText(item: LegendItem): TemplateResult {
+  static renderItemText(item: LegendItem, otherItemsCount?: number): TemplateResult {
     const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
-    const displayText = item.value === null || isEmptyString ? 'N/A' : item.value;
-    return html`<span class="legend-text">${displayText}</span>`;
+    let displayText = item.value === null || isEmptyString ? LEGEND_VALUES.NA_DISPLAY : item.value;
+
+    // For "Other" items, append the number of categories if provided
+    if (
+      item.value === LEGEND_VALUES.OTHER &&
+      otherItemsCount !== undefined &&
+      otherItemsCount > 0
+    ) {
+      displayText = `${displayText} (${otherItemsCount} categories)`;
+    }
+
+    return html`<span class="legend-text" part="text">${displayText}</span>`;
   }
 
   /**
    * Render item actions (like "view" button for "Other" category)
    */
   static renderItemActions(item: LegendItem, onViewOther: (e: Event) => void): TemplateResult {
-    if (item.value !== 'Other') {
-      return html``;
+    if (item.value === LEGEND_VALUES.OTHER) {
+      return html`
+        <button class="view-button" @click=${onViewOther} title="Extract items from Other">
+          (view)
+        </button>
+      `;
     }
 
-    return html`
-      <button class="view-button" @click=${onViewOther} title="Extract items from Other">
-        (view)
-      </button>
-    `;
+    return html``;
   }
 
   /**
@@ -237,15 +234,28 @@ export class LegendRenderer {
       onDrop: (e: DragEvent) => void;
       onDragEnd: () => void;
       onViewOther: (e: Event) => void;
+      onKeyDown?: (e: KeyboardEvent) => void;
     },
     includeShapes: boolean = true,
     symbolSize: number = LEGEND_DEFAULTS.symbolSize,
+    otherItemsCount?: number,
+    itemIndex?: number,
   ): TemplateResult {
+    const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
+    const displayLabel =
+      item.value === null || isEmptyString ? LEGEND_VALUES.NA_DISPLAY : item.value;
+
     return html`
       <div
         class="${itemClasses}"
+        part="item"
+        role="option"
+        aria-selected="${item.isVisible}"
+        aria-label="${displayLabel}: ${item.count} items${!item.isVisible ? ' (hidden)' : ''}"
+        tabindex="${itemIndex === 0 ? '0' : '-1'}"
         @click=${eventHandlers.onClick}
         @dblclick=${eventHandlers.onDoubleClick}
+        @keydown=${eventHandlers.onKeyDown}
         draggable="true"
         @dragstart=${eventHandlers.onDragStart}
         @dragover=${eventHandlers.onDragOver}
@@ -255,9 +265,10 @@ export class LegendRenderer {
         <div class="legend-item-content">
           ${this.renderDragHandle()}
           ${this.renderItemSymbol(item, isItemSelected, includeShapes, symbolSize)}
-          ${this.renderItemText(item)} ${this.renderItemActions(item, eventHandlers.onViewOther)}
+          ${this.renderItemText(item, otherItemsCount)}
+          ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>
-        <span class="legend-count">${item.count}</span>
+        <span class="legend-count" part="count">${item.count}</span>
       </div>
     `;
   }

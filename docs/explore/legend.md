@@ -17,7 +17,7 @@ Click any label to toggle its visibility:
 
 ## Reordering Labels
 
-Drag labels up or down to reorder them. This changes the **z-order** in the canvas - labels at the top are drawn on top of others.
+Drag labels up or down to reorder them. This changes the **drawing order** in the scatterplot - labels at the top are drawn on top of others.
 
 ![Reorder labels](./images/legend-reorder.gif)
 
@@ -43,6 +43,16 @@ Click the **cog icon** (⚙️) in the top-right corner of the legend for advanc
 | **Group in "Others"**    | Toggle whether to group labels into "Others" or show all     |
 | **Z-order direction**    | Choose top-to-bottom or bottom-to-top ordering               |
 
+### Saved Settings
+
+Your customizations are automatically saved and restored when you return:
+
+- **Per dataset and annotation**: Different datasets and annotations keep separate settings
+- **What's saved**: Visibility, colors, shapes, ordering, and settings panel preferences
+- **Reset**: Use "Reset to Defaults" in the settings panel to clear saved preferences
+
+Settings are stored in your browser's localStorage and persist across sessions.
+
 ## Multi-Label Annotations
 
 When proteins have multiple values (e.g., multiple EC numbers):
@@ -50,6 +60,44 @@ When proteins have multiple values (e.g., multiple EC numbers):
 - Points display as **pie charts**
 - Each slice represents a different value
 - All unique values appear in the legend
+
+## Colors and Shapes
+
+### Color Assignment
+
+Colors are assigned based on category frequency:
+
+- **Most frequent categories** get the most visually distinct colors
+- Uses [Kelly's 22 colors of maximum contrast](https://eleanormaclure.files.wordpress.com/2011/03/colour-coding.pdf)
+- Colors **persist** when you change sort order, switch projections, or toggle shapes
+
+### Special Categories
+
+| Category   | Color     | Shape  |
+| ---------- | --------- | ------ |
+| **Others** | `#999999` | Circle |
+| **N/A**    | `#DDDDDD` | Circle |
+
+### Shapes
+
+When shapes are enabled (via settings), categories cycle through:
+
+1. Circle
+2. Square
+3. Diamond
+4. Plus
+5. Triangle-up
+6. Triangle-down
+
+Shapes are disabled for multi-label annotations (pie charts use circles only).
+
+### Color Recycling
+
+When you move a category to "Others":
+
+- Its color slot becomes available
+- Extracting a category from "Others" reuses the lowest available slot
+- This keeps the most distinct colors assigned to visible categories
 
 ## Next Steps
 
