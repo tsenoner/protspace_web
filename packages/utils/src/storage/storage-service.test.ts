@@ -51,8 +51,8 @@ describe('buildStorageKey', () => {
   });
 
   it('should handle special characters in context', () => {
-    const key = buildStorageKey('legend', 'abc12345', 'Feature:With:Colons');
-    expect(key).toBe('protspace:legend:abc12345:Feature:With:Colons');
+    const key = buildStorageKey('legend', 'abc12345', 'Annotation:With:Colons');
+    expect(key).toBe('protspace:legend:abc12345:Annotation:With:Colons');
   });
 
   it('should handle different component names', () => {

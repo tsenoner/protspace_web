@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SHAPE_PATH_GENERATORS } from './config';
+import { SHAPE_PATH_GENERATORS } from '@protspace/utils';
 
 describe('config', () => {
   describe('SHAPE_PATH_GENERATORS', () => {

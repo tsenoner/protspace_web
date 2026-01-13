@@ -1,4 +1,4 @@
-import type { Feature, VisualizationData } from '@protspace/utils';
+import type { Annotation, VisualizationData } from '@protspace/utils';
 
 // GenericRow represents dynamic Parquet data with arbitrary columns
 export type GenericRow = Record<string, unknown>;
@@ -6,7 +6,7 @@ export type GenericRow = Record<string, unknown>;
 export type Rows = GenericRow[];
 
 export interface ExtractedBundleParts {
-  selectedFeaturesBuffer: ArrayBuffer;
+  selectedAnnotationsBuffer: ArrayBuffer;
   projectionsMetadataBuffer: ArrayBuffer;
   projectionsDataBuffer: ArrayBuffer;
 }
@@ -16,8 +16,8 @@ export interface ExtractedBundleData {
   projectionsMetadata?: Rows;
 }
 
-export type FeaturesMap = Record<string, Feature>;
+export type AnnotationsMap = Record<string, Annotation>;
 
-export type FeatureDataMap = Record<string, number[]>;
+export type AnnotationDataMap = Record<string, number[]>;
 
 export type VisualizationDataResult = VisualizationData;

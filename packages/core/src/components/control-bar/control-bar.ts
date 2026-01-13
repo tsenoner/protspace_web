@@ -17,11 +17,11 @@ export class ProtspaceControlBar extends LitElement {
     name: string;
     metadata?: { dimension?: 2 | 3 };
   }> = [];
-  @property({ type: Array }) features: string[] = [];
+  @property({ type: Array }) annotations: string[] = [];
   @property({ type: String, attribute: 'selected-projection' })
   selectedProjection: string = '';
-  @property({ type: String, attribute: 'selected-feature' })
-  selectedFeature: string = '';
+  @property({ type: String, attribute: 'selected-annotation' })
+  selectedAnnotation: string = '';
   @property({ type: String, attribute: 'projection-plane' })
   projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
   @property({ type: Boolean, attribute: 'selection-mode' })
@@ -43,7 +43,7 @@ export class ProtspaceControlBar extends LitElement {
 
   @state() private showExportMenu: boolean = false;
   @state() private showFilterMenu: boolean = false;
-  @state() private featureValuesMap: Record<string, (string | null)[]> = {};
+  @state() private annotationValuesMap: Record<string, (string | null)[]> = {};
   @state() private filterConfig: Record<string, { enabled: boolean; values: (string | null)[] }> =
     {};
   @state() private lastAppliedFilterConfig: Record<
@@ -117,18 +117,18 @@ export class ProtspaceControlBar extends LitElement {
     this.dispatchEvent(customEvent);
   }
 
-  private handleFeatureChange(event: Event) {
+  private handleAnnotationChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
-      if ('selectedFeature' in this._scatterplotElement) {
-        (this._scatterplotElement as ScatterplotElementLike).selectedFeature = target.value;
-        this.selectedFeature = target.value;
+      if ('selectedAnnotation' in this._scatterplotElement) {
+        (this._scatterplotElement as ScatterplotElementLike).selectedAnnotation = target.value;
+        this.selectedAnnotation = target.value;
       }
     }
 
-    const customEvent = new CustomEvent('feature-change', {
-      detail: { feature: target.value },
+    const customEvent = new CustomEvent('annotation-change', {
+      detail: { annotation: target.value },
       bubbles: true,
       composed: true,
     });
@@ -278,15 +278,17 @@ export class ProtspaceControlBar extends LitElement {
               : null;
           })()}
 
-          <!-- Feature selection -->
+          <!-- Annotation selection -->
           <div class="control-group">
-            <label for="feature-select">Color by:</label>
+            <label for="annotation-select">Annotation:</label>
             <select
-              id="feature-select"
-              .value=${this.selectedFeature}
-              @change=${this.handleFeatureChange}
+              id="annotation-select"
+              .value=${this.selectedAnnotation}
+              @change=${this.handleAnnotationChange}
             >
-              ${this.features.map((feature) => html`<option value=${feature}>${feature}</option>`)}
+              ${this.annotations.map(
+                (annotation) => html`<option value=${annotation}>${annotation}</option>`,
+              )}
             </select>
           </div>
         </div>
@@ -409,27 +411,27 @@ export class ProtspaceControlBar extends LitElement {
               ? html`
                   <div class="filter-menu">
                     <ul class="filter-menu-list">
-                      ${this.features.map((feature) => {
-                        const cfg = this.filterConfig[feature] || {
+                      ${this.annotations.map((annotation) => {
+                        const cfg = this.filterConfig[annotation] || {
                           enabled: false,
                           values: [],
                         };
-                        const values = this.featureValuesMap[feature] || [];
+                        const values = this.annotationValuesMap[annotation] || [];
                         return html` <li class="filter-menu-list-item">
                           <label
-                            >${feature}
+                            >${annotation}
                             <input
                               type="checkbox"
                               .checked=${cfg.enabled}
                               @change=${(e: Event) => {
                                 const target = e.target as HTMLInputElement;
-                                this.handleFilterToggle(feature, target.checked);
+                                this.handleFilterToggle(annotation, target.checked);
                               }}
                             />
                           </label>
                           <button
                             ?disabled=${!cfg.enabled}
-                            @click=${() => this.toggleValueMenu(feature)}
+                            @click=${() => this.toggleValueMenu(annotation)}
                           >
                             ${cfg.values && cfg.values.length > 0
                               ? `${cfg.values.length} selected`
@@ -446,14 +448,14 @@ export class ProtspaceControlBar extends LitElement {
                               />
                             </svg>
                           </button>
-                          ${this.openValueMenus[feature] && cfg.enabled
+                          ${this.openValueMenus[annotation] && cfg.enabled
                             ? html`
                                 <div class="filter-menu-list-item-options">
                                   <div class="filter-menu-list-item-options-selection">
-                                    <button @click=${() => this.selectAllValues(feature)}>
+                                    <button @click=${() => this.selectAllValues(annotation)}>
                                       Select all
                                     </button>
-                                    <button @click=${() => this.clearAllValues(feature)}>
+                                    <button @click=${() => this.clearAllValues(annotation)}>
                                       None
                                     </button>
                                   </div>
@@ -464,7 +466,7 @@ export class ProtspaceControlBar extends LitElement {
                                         .checked=${(cfg.values || []).includes(null)}
                                         @change=${(e: Event) =>
                                           this.handleValueToggle(
-                                            feature,
+                                            annotation,
                                             null,
                                             (e.target as HTMLInputElement).checked,
                                           )}
@@ -479,7 +481,7 @@ export class ProtspaceControlBar extends LitElement {
                                             .checked=${(cfg.values || []).includes(String(v))}
                                             @change=${(e: Event) =>
                                               this.handleValueToggle(
-                                                feature,
+                                                annotation,
                                                 String(v),
                                                 (e.target as HTMLInputElement).checked,
                                               )}
@@ -490,7 +492,7 @@ export class ProtspaceControlBar extends LitElement {
                                     )}
                                   </div>
                                   <div class="filter-menu-list-item-options-done">
-                                    <button @click=${() => this.toggleValueMenu(feature)}>
+                                    <button @click=${() => this.toggleValueMenu(annotation)}>
                                       Done
                                     </button>
                                   </div>
@@ -707,21 +709,6 @@ export class ProtspaceControlBar extends LitElement {
 
     this._updateOptionsFromData(data);
 
-    // // Sync projection index and feature to scatterplot after updating options
-    // // This ensures the scatterplot uses the correct index/feature for the new data
-    // if (this.autoSync && this._scatterplotElement) {
-    //   if ('selectedProjectionIndex' in this._scatterplotElement) {
-    //     const projectionIndex = this.projections.findIndex((p) => p === this.selectedProjection);
-    //     if (projectionIndex !== -1) {
-    //       (this._scatterplotElement as any).selectedProjectionIndex = projectionIndex;
-    //     }
-    //   }
-
-    //   if ('selectedFeature' in this._scatterplotElement) {
-    //     (this._scatterplotElement as any).selectedFeature = this.selectedFeature;
-    //   }
-    // }
-
     // Update protein ids for search
     try {
       const ids = data.protein_ids;
@@ -735,16 +722,16 @@ export class ProtspaceControlBar extends LitElement {
     } catch (e) {
       console.error(e);
     }
-    // Update feature value options for filter UI
+    // Update annotation value options for filter UI
     try {
-      const features = data.features || {};
+      const annotations = data.annotations || {};
       const map: Record<string, (string | null)[]> = {};
-      Object.keys(features).forEach((k) => {
-        const vals = features[k]?.values as (string | null)[] | undefined;
+      Object.keys(annotations).forEach((k) => {
+        const vals = annotations[k]?.values as (string | null)[] | undefined;
         if (Array.isArray(vals)) map[k] = vals;
       });
-      this.featureValuesMap = map;
-      // Initialize filter config entries for new features (preserve existing selections)
+      this.annotationValuesMap = map;
+      // Initialize filter config entries for new annotations (preserve existing selections)
       const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
       Object.keys(map).forEach((k) => {
         if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
@@ -863,17 +850,17 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private _updateOptionsFromData(data: ProtspaceData) {
-    // Update projections and features
+    // Update projections and annotations
     this.projectionsMeta = data.projections || [];
     this.projections = this.projectionsMeta.map((p) => p.name) || [];
-    this.features = Object.keys(data.features || {});
+    this.annotations = Object.keys(data.annotations || {});
 
     // Default selections if invalid
     if (!this.selectedProjection || !this.projections.includes(this.selectedProjection)) {
       this.selectedProjection = this.projections[0] || '';
     }
-    if (!this.selectedFeature || !this.features.includes(this.selectedFeature)) {
-      this.selectedFeature = this.features[0] || '';
+    if (!this.selectedAnnotation || !this.annotations.includes(this.selectedAnnotation)) {
+      this.selectedAnnotation = this.annotations[0] || '';
     }
   }
 
@@ -884,18 +871,18 @@ export class ProtspaceControlBar extends LitElement {
       data = scatterplot.getCurrentData?.();
 
       if (data) {
-        // Extract projections and features
+        // Extract projections and annotations
         this._updateOptionsFromData(data);
 
-        // Build feature values map for filter UI
+        // Build annotation values map for filter UI
         try {
-          const features = data.features || {};
+          const annotations = data.annotations || {};
           const map: Record<string, (string | null)[]> = {};
-          Object.keys(features).forEach((k) => {
-            const vals = features[k]?.values as (string | null)[] | undefined;
+          Object.keys(annotations).forEach((k) => {
+            const vals = annotations[k]?.values as (string | null)[] | undefined;
             if (Array.isArray(vals)) map[k] = vals;
           });
-          this.featureValuesMap = map;
+          this.annotationValuesMap = map;
           const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
           Object.keys(map).forEach((k) => {
             if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
@@ -906,13 +893,13 @@ export class ProtspaceControlBar extends LitElement {
         }
 
         // Sync current values from scatterplot
-        if (scatterplot.selectedFeature !== undefined) {
-          // Only use the scatterplot's selected feature if it's still available
-          const scatterplotFeature = scatterplot.selectedFeature;
-          if (scatterplotFeature && this.features.includes(scatterplotFeature)) {
-            this.selectedFeature = scatterplotFeature;
+        if (scatterplot.selectedAnnotation !== undefined) {
+          // Only use the scatterplot's selected annotation if it's still available
+          const scatterplotAnnotation = scatterplot.selectedAnnotation;
+          if (scatterplotAnnotation && this.annotations.includes(scatterplotAnnotation)) {
+            this.selectedAnnotation = scatterplotAnnotation;
           } else {
-            this.selectedFeature = this.features[0] || '';
+            this.selectedAnnotation = this.annotations[0] || '';
           }
         }
 
@@ -945,8 +932,8 @@ export class ProtspaceControlBar extends LitElement {
         if (!this.selectedProjection && this.projections.length > 0) {
           this.selectedProjection = this.projections[0];
         }
-        if (!this.selectedFeature && this.features.length > 0) {
-          this.selectedFeature = this.features[0];
+        if (!this.selectedAnnotation && this.annotations.length > 0) {
+          this.selectedAnnotation = this.annotations[0];
         }
 
         this.requestUpdate();
@@ -1098,27 +1085,27 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
-  private handleFilterToggle(feature: string, enabled: boolean) {
-    const current = this.filterConfig[feature] || {
+  private handleFilterToggle(annotation: string, enabled: boolean) {
+    const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
     };
     this.filterConfig = {
       ...this.filterConfig,
-      [feature]: { ...current, enabled },
+      [annotation]: { ...current, enabled },
     };
-    if (!enabled) this.openValueMenus = { ...this.openValueMenus, [feature]: false };
+    if (!enabled) this.openValueMenus = { ...this.openValueMenus, [annotation]: false };
   }
 
-  private toggleValueMenu(feature: string) {
+  private toggleValueMenu(annotation: string) {
     this.openValueMenus = {
       ...this.openValueMenus,
-      [feature]: !this.openValueMenus[feature],
+      [annotation]: !this.openValueMenus[annotation],
     };
   }
 
-  private handleValueToggle(feature: string, value: string | null, checked: boolean) {
-    const current = this.filterConfig[feature] || {
+  private handleValueToggle(annotation: string, value: string | null, checked: boolean) {
+    const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
     };
@@ -1127,30 +1114,30 @@ export class ProtspaceControlBar extends LitElement {
     else next.delete(value);
     this.filterConfig = {
       ...this.filterConfig,
-      [feature]: { ...current, values: Array.from(next) },
+      [annotation]: { ...current, values: Array.from(next) },
     };
   }
 
-  private selectAllValues(feature: string) {
-    const all = this.featureValuesMap[feature] || [];
-    const current = this.filterConfig[feature] || {
+  private selectAllValues(annotation: string) {
+    const all = this.annotationValuesMap[annotation] || [];
+    const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
     };
     this.filterConfig = {
       ...this.filterConfig,
-      [feature]: { ...current, values: Array.from(new Set(all)) },
+      [annotation]: { ...current, values: Array.from(new Set(all)) },
     };
   }
 
-  private clearAllValues(feature: string) {
-    const current = this.filterConfig[feature] || {
+  private clearAllValues(annotation: string) {
+    const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
     };
     this.filterConfig = {
       ...this.filterConfig,
-      [feature]: { ...current, values: [] },
+      [annotation]: { ...current, values: [] },
     };
   }
 
@@ -1165,8 +1152,8 @@ export class ProtspaceControlBar extends LitElement {
     // Collect active filters
     const activeFilters = Object.entries(this.filterConfig)
       .filter(([, cfg]) => cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0)
-      .map(([feature, cfg]) => ({
-        feature,
+      .map(([annotation, cfg]) => ({
+        annotation,
         values: cfg.values as (string | null)[],
       }));
 
@@ -1181,20 +1168,20 @@ export class ProtspaceControlBar extends LitElement {
 
     for (let i = 0; i < numProteins; i++) {
       let isMatch = true;
-      for (const { feature, values } of activeFilters) {
-        const featureIdxData = data.feature_data?.[feature];
-        const valuesArr: (string | null)[] | undefined = data.features?.[feature]?.values;
-        if (!featureIdxData || !valuesArr) {
+      for (const { annotation, values } of activeFilters) {
+        const annotationIdxData = data.annotation_data?.[annotation];
+        const valuesArr: (string | null)[] | undefined = data.annotations?.[annotation]?.values;
+        if (!annotationIdxData || !valuesArr) {
           isMatch = false;
           break;
         }
         // Handle both number[] and number[][] formats
-        const featureValue = Array.isArray(featureIdxData[i])
-          ? (featureIdxData[i] as number[])[0]
-          : (featureIdxData as number[])[i];
+        const annotationValue = Array.isArray(annotationIdxData[i])
+          ? (annotationIdxData[i] as number[])[0]
+          : (annotationIdxData as number[])[i];
         const v =
-          featureValue != null && featureValue >= 0 && featureValue < valuesArr.length
-            ? valuesArr[featureValue]
+          annotationValue != null && annotationValue >= 0 && annotationValue < valuesArr.length
+            ? valuesArr[annotationValue]
             : null;
         if (!values.some((allowed) => allowed === v)) {
           isMatch = false;
@@ -1205,51 +1192,51 @@ export class ProtspaceControlBar extends LitElement {
       indices[i] = isMatch ? 0 : 1;
     }
 
-    // Add or replace synthetic Custom feature
+    // Add or replace synthetic Custom annotation
     const customName = 'Custom';
-    const newFeatures: Record<
+    const newAnnotations: Record<
       string,
       { values: (string | null)[]; colors?: string[]; shapes?: string[] }
     > = {
-      ...data.features,
+      ...data.annotations,
     };
-    newFeatures[customName] = {
+    newAnnotations[customName] = {
       values: ['Filtered Proteins', 'Other Proteins'],
       colors: ['#00A35A', '#9AA0A6'],
       shapes: ['circle', 'circle'],
     };
-    const newFeatureData = { ...data.feature_data, [customName]: indices };
+    const newAnnotationData = { ...data.annotation_data, [customName]: indices };
 
     const newData = {
       ...data,
-      features: newFeatures,
-      feature_data: newFeatureData,
+      annotations: newAnnotations,
+      annotation_data: newAnnotationData,
     };
 
     this.lastAppliedFilterConfig = JSON.parse(JSON.stringify(this.filterConfig));
 
-    // Apply to scatterplot and select the Custom feature
+    // Apply to scatterplot and select the Custom annotation
     sp.data = newData;
-    if ('selectedFeature' in sp) sp.selectedFeature = customName;
-    this.features = Object.keys(newData.features || {});
-    this.selectedFeature = customName;
-    this.featureValuesMap = {
-      ...this.featureValuesMap,
-      [customName]: newFeatures[customName].values,
+    if ('selectedAnnotation' in sp) sp.selectedAnnotation = customName;
+    this.annotations = Object.keys(newData.annotations || {});
+    this.selectedAnnotation = customName;
+    this.annotationValuesMap = {
+      ...this.annotationValuesMap,
+      [customName]: newAnnotations[customName].values,
     };
     this.updateComplete.then(() => {
-      const featureSelect = this.renderRoot?.querySelector(
-        '#feature-select',
+      const annotationSelect = this.renderRoot?.querySelector(
+        '#annotation-select',
       ) as HTMLSelectElement | null;
-      if (featureSelect && featureSelect.value !== customName) {
-        featureSelect.value = customName;
+      if (annotationSelect && annotationSelect.value !== customName) {
+        annotationSelect.value = customName;
       }
     });
 
-    // Let listeners know the feature changed to Custom
+    // Let listeners know the annotation changed to Custom
     this.dispatchEvent(
-      new CustomEvent('feature-change', {
-        detail: { feature: customName },
+      new CustomEvent('annotation-change', {
+        detail: { annotation: customName },
         bubbles: true,
         composed: true,
       }),

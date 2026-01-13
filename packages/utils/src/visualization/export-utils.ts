@@ -9,7 +9,7 @@ declare const window: Window & typeof globalThis;
 
 export interface ExportableData {
   protein_ids: string[];
-  features: Record<
+  annotations: Record<
     string,
     {
       values: (string | null)[];
@@ -17,15 +17,16 @@ export interface ExportableData {
       shapes: string[];
     }
   >;
-  feature_data: Record<string, number[][]>;
+  annotation_data: Record<string, number[][]>;
   projections?: Array<{ name: string }>;
 }
 
 export interface ExportableElement extends Element {
   getCurrentData(): ExportableData | null;
-  selectedFeature: string;
+  selectedAnnotation: string;
+  selectedProjectionIndex: number;
   selectedProteinIds?: string[];
-  hiddenFeatureValues?: string[];
+  hiddenAnnotationValues?: string[];
 }
 
 // Narrow typing for accessing the legend component from this utils package
@@ -39,7 +40,7 @@ type LegendExportItem = {
   extractedFromOther?: boolean;
 };
 type LegendExportState = {
-  feature: string;
+  annotation: string;
   includeShapes: boolean;
   otherItemsCount: number;
   items: LegendExportItem[];
@@ -115,6 +116,29 @@ export class ProtSpaceExporter {
   }
 
   /**
+   * Generate consistent export filename: protspace_{projection}_{annotation}_{date}.{ext}
+   * Falls back gracefully if data is not available.
+   */
+  private generateExportFileName(extension: string): string {
+    const data = this.element.getCurrentData();
+    // Format date as YYYY-MM-DD only (no time)
+    const date = new Date().toISOString().split('T')[0];
+
+    // Extract projection and annotation names
+    const projection = data?.projections?.[this.element.selectedProjectionIndex]?.name || 'unknown';
+    const annotation = this.element.selectedAnnotation || 'unknown';
+
+    // Sanitize names (remove spaces, special chars, convert to lowercase)
+    let cleanProjection = projection.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+    const cleanAnnotation = annotation.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+
+    // Remove dimension suffix after sanitization (e.g., "pca_2" -> "pca", "umap_3" -> "umap")
+    cleanProjection = cleanProjection.replace(/_[23]$/, '');
+
+    return `protspace_${cleanProjection}_${cleanAnnotation}_${date}.${extension}`;
+  }
+
+  /**
    * Check if an element should be ignored during export (UI overlays, tooltips, etc.)
    */
   private shouldIgnoreElement(element: Element): boolean {
@@ -141,7 +165,7 @@ export class ProtSpaceExporter {
   ): { canvas: HTMLCanvasElement; widthIncreased: boolean } {
     const legendItems = this.buildLegendItems(options);
     const legendExportState = this.readLegendExportState();
-    const featureNameFromLegend = legendExportState?.feature;
+    const annotationNameFromLegend = legendExportState?.annotation;
 
     const targetLegendWidth = Math.round(
       scatterCanvas.width * ProtSpaceExporter.LEGEND_WIDTH_RATIO,
@@ -150,7 +174,7 @@ export class ProtSpaceExporter {
     // Calculate minimum required width for legend content
     const minRequiredWidth = this.calculateLegendMinWidth(
       legendItems,
-      featureNameFromLegend || this.element.selectedFeature,
+      annotationNameFromLegend || this.element.selectedAnnotation,
       options.legendScaleFactor,
     );
 
@@ -162,7 +186,7 @@ export class ProtSpaceExporter {
       legendWidth,
       scatterCanvas.height,
       options,
-      featureNameFromLegend || this.element.selectedFeature,
+      annotationNameFromLegend || this.element.selectedAnnotation,
       options.legendScaleFactor,
     );
 
@@ -176,8 +200,8 @@ export class ProtSpaceExporter {
    * Calculate minimum width required for legend content to be readable
    */
   private calculateLegendMinWidth(
-    items: Array<{ value: string; count: number; feature: string }>,
-    featureName: string,
+    items: Array<{ value: string; count: number; annotation: string }>,
+    annotationName: string,
     scaleFactor: number,
   ): number {
     // Create temporary canvas for text measurement
@@ -199,7 +223,7 @@ export class ProtSpaceExporter {
 
     // Measure header
     ctx.font = `600 ${headerFontSize}px Arial, sans-serif`;
-    let maxWidth = ctx.measureText(featureName || 'Legend').width;
+    let maxWidth = ctx.measureText(annotationName || 'Legend').width;
 
     // Measure items
     ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
@@ -278,14 +302,14 @@ export class ProtSpaceExporter {
     color: string;
     shape: string;
     count: number;
-    feature: string;
+    annotation: string;
   }> {
     const currentData = this.element.getCurrentData();
     if (!currentData) return [];
 
     const legendExportState = this.readLegendExportState();
-    const featureNameFromLegend = legendExportState?.feature;
-    const hiddenSet = this.readHiddenFeatureValueKeys();
+    const annotationNameFromLegend = legendExportState?.annotation;
+    const hiddenSet = this.readHiddenAnnotationValueKeys();
 
     if (legendExportState) {
       const otherItemsCount = legendExportState.otherItemsCount;
@@ -296,13 +320,13 @@ export class ProtSpaceExporter {
           color: it.color,
           shape: it.shape,
           count: it.count,
-          feature: featureNameFromLegend || this.element.selectedFeature,
+          annotation: annotationNameFromLegend || this.element.selectedAnnotation,
         }));
     }
 
     return this.computeLegendFromData(
       currentData,
-      this.element.selectedFeature,
+      this.element.selectedAnnotation,
       options.includeSelection === true ? this.selectedProteins : undefined,
     ).filter((it) => {
       const key = it.value === 'N/A' ? 'null' : it.value;
@@ -338,34 +362,34 @@ export class ProtSpaceExporter {
       return;
     }
 
-    // Compute visibility based on the scatterplot's current hidden feature values
-    const selectedFeature = this.element.selectedFeature;
-    const featureIndices = data.feature_data?.[selectedFeature];
-    const featureInfo = data.features?.[selectedFeature];
-    const hiddenValues: string[] = Array.isArray(this.element.hiddenFeatureValues)
-      ? (this.element.hiddenFeatureValues as string[])
+    // Compute visibility based on the scatterplot's current hidden annotation values
+    const selectedAnnotation = this.element.selectedAnnotation;
+    const annotationIndices = data.annotation_data?.[selectedAnnotation];
+    const annotationInfo = data.annotations?.[selectedAnnotation];
+    const hiddenValues: string[] = Array.isArray(this.element.hiddenAnnotationValues)
+      ? (this.element.hiddenAnnotationValues as string[])
       : [];
 
     let visibleIds: string[] = [];
-    if (featureIndices && featureInfo && Array.isArray(featureInfo.values)) {
+    if (annotationIndices && annotationInfo && Array.isArray(annotationInfo.values)) {
       const hiddenSet = new Set(hiddenValues);
       visibleIds = data.protein_ids.filter((_id, i) => {
-        const viArray = featureIndices[i];
-        // A protein is visible if at least one of its feature values is not hidden
+        const viArray = annotationIndices[i];
+        // A protein is visible if at least one of its annotation values is not hidden
         if (!Array.isArray(viArray) || viArray.length === 0) {
           return !hiddenSet.has('null');
         }
         return viArray.some((vi) => {
           const value: string | null =
-            typeof vi === 'number' && vi >= 0 && vi < featureInfo.values.length
-              ? (featureInfo.values[vi] ?? null)
+            typeof vi === 'number' && vi >= 0 && vi < annotationInfo.values.length
+              ? (annotationInfo.values[vi] ?? null)
               : null;
           const key = value === null ? 'null' : String(value);
           return !hiddenSet.has(key);
         });
       });
     } else {
-      // Fallback: if we cannot determine feature visibility, export all ids
+      // Fallback: if we cannot determine annotation visibility, export all ids
       visibleIds = data.protein_ids || [];
     }
 
@@ -429,29 +453,29 @@ export class ProtSpaceExporter {
 
     // Download
     const dataUrl = outCanvas.toDataURL('image/png');
-    const fileName = opts.exportName ? `${opts.exportName}_combined.png` : 'protspace_combined.png';
+    const fileName = opts.exportName || this.generateExportFileName('png');
     this.downloadFile(dataUrl, fileName);
   }
 
   /**
-   * Compute legend items (value, color, shape, count) from raw data and selected feature.
+   * Compute legend items (value, color, shape, count) from raw data and selected annotation.
    * If selectedProteinIds provided, counts will be based on the selection subset.
    */
   private computeLegendFromData(
     data: ExportableData,
-    selectedFeature: string,
+    selectedAnnotation: string,
     selectedProteinIds?: string[],
   ): Array<{
     value: string;
     color: string;
     shape: string;
     count: number;
-    feature: string;
+    annotation: string;
   }> {
-    const feature = selectedFeature || Object.keys(data.features || {})[0] || '';
-    const featureInfo = data.features?.[feature];
-    const indices = data.feature_data?.[feature];
-    if (!featureInfo || !indices || !Array.isArray(featureInfo.values)) {
+    const annotation = selectedAnnotation || Object.keys(data.annotations || {})[0] || '';
+    const annotationInfo = data.annotations?.[annotation];
+    const indices = data.annotation_data?.[annotation];
+    if (!annotationInfo || !indices || !Array.isArray(annotationInfo.values)) {
       return [];
     }
 
@@ -469,7 +493,7 @@ export class ProtSpaceExporter {
       });
     }
 
-    const counts = new Array(featureInfo.values.length).fill(0) as number[];
+    const counts = new Array(annotationInfo.values.length).fill(0) as number[];
     for (let i = 0; i < indices.length; i += 1) {
       if (allowedIndexSet && !allowedIndexSet.has(i)) continue;
       const viArray = indices[i];
@@ -487,14 +511,14 @@ export class ProtSpaceExporter {
       color: string;
       shape: string;
       count: number;
-      feature: string;
+      annotation: string;
     }> = [];
-    for (let i = 0; i < featureInfo.values.length; i += 1) {
-      const value = featureInfo.values[i] ?? 'N/A';
-      const color = featureInfo.colors?.[i] ?? '#888';
-      const shape = featureInfo.shapes?.[i] ?? 'circle';
+    for (let i = 0; i < annotationInfo.values.length; i += 1) {
+      const value = annotationInfo.values[i] ?? 'N/A';
+      const color = annotationInfo.colors?.[i] ?? '#888';
+      const shape = annotationInfo.shapes?.[i] ?? 'circle';
       const count = counts[i] ?? 0;
-      items.push({ value: String(value), color, shape, count, feature });
+      items.push({ value: String(value), color, shape, count, annotation });
     }
     return items;
   }
@@ -508,12 +532,12 @@ export class ProtSpaceExporter {
       color: string;
       shape: string;
       count: number;
-      feature: string;
+      annotation: string;
     }>,
     width: number,
     height: number,
     options: ExportOptions,
-    overrideFeatureName?: string,
+    overrideAnnotationName?: string,
     scaleFactor: number = 1.0,
   ): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
@@ -550,7 +574,7 @@ export class ProtSpaceExporter {
     ctx.fillStyle = '#1f2937';
     ctx.font = `600 ${headerFontSize}px Arial, sans-serif`;
     ctx.textBaseline = 'middle';
-    const headerLabel = overrideFeatureName || items[0]?.feature || 'Legend';
+    const headerLabel = overrideAnnotationName || items[0]?.annotation || 'Legend';
     ctx.fillText(`${headerLabel}`, padding, padding + headerHeight / 2);
 
     // Items
@@ -616,17 +640,17 @@ export class ProtSpaceExporter {
   }
 
   /**
-   * Read hidden feature values from the live scatterplot so exports mirror visibility.
+   * Read hidden annotation values from the live scatterplot so exports mirror visibility.
    * Returns keys in the same format used internally (e.g., "null" for null values).
    */
-  private readHiddenFeatureValueKeys(): Set<string> {
+  private readHiddenAnnotationValueKeys(): Set<string> {
     try {
-      const raw = Array.isArray(this.element.hiddenFeatureValues)
-        ? (this.element.hiddenFeatureValues as string[])
+      const raw = Array.isArray(this.element.hiddenAnnotationValues)
+        ? (this.element.hiddenAnnotationValues as string[])
         : [];
       return new Set(raw);
     } catch (_e) {
-      console.error('Error reading hidden feature values:', _e);
+      console.error('Error reading hidden annotation values:', _e);
       return new Set<string>();
     }
   }
@@ -748,10 +772,7 @@ export class ProtSpaceExporter {
     pdf.addImage(scatterImg, 'PNG', xScatter, margin, scatterTargetW, scatterTargetH);
     pdf.addImage(legendImg, 'PNG', xLegend, margin, legendTargetW, legendTargetH);
 
-    const dateForFile = new Date().toISOString().replace(/[:T]/g, '-').replace(/\..+$/, '');
-    const fileName = opts.exportName
-      ? `${opts.exportName}_${dateForFile}.pdf`
-      : `protspace_visualization_${dateForFile}.pdf`;
+    const fileName = opts.exportName || this.generateExportFileName('pdf');
     pdf.save(fileName);
   }
 

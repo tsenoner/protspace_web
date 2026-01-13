@@ -14,8 +14,8 @@ export interface OtherItem {
 
 export interface ScatterplotData {
   protein_ids: string[];
-  features: Record<string, { values: (string | null)[] }>;
-  feature_data: Record<string, number[]>;
+  annotations: Record<string, { values: (string | null)[] }>;
+  annotation_data: Record<string, number[]>;
   projections?: Array<{ name: string }>;
 }
 
@@ -69,7 +69,7 @@ export interface LegendEventMap {
 }
 
 export interface LegendDataInput {
-  features?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
+  annotations?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
 }
 
 export type LegendSortMode =
