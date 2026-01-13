@@ -276,7 +276,9 @@ export async function initializeDemo() {
 
               legendElement.requestUpdate();
 
-              console.log(`🏷️ Legend updated with ${Object.keys(newData.annotations).length} annotations`);
+              console.log(
+                `🏷️ Legend updated with ${Object.keys(newData.annotations).length} annotations`,
+              );
 
               resolve(undefined);
             },
@@ -430,9 +432,6 @@ export async function initializeDemo() {
       if (selectedProteins.length > 0) {
         // Load the most recently selected protein into the viewer
         const lastSelected = selectedProteins[selectedProteins.length - 1];
-        if (structureViewer.style.display === 'none') {
-          structureViewer.style.display = 'block';
-        }
         structureViewer.loadProtein(lastSelected);
         updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
       } else {
@@ -447,12 +446,12 @@ export async function initializeDemo() {
     updateLegend();
 
     // Handle isolation events from scatterplot
-    plotElement.addEventListener('data-isolation', (event: Event) => {
+    plotElement.addEventListener('data-isolation', () => {
       // Update legend with filtered data
       updateLegend();
     });
 
-    plotElement.addEventListener('data-isolation-reset', (event: Event) => {
+    plotElement.addEventListener('data-isolation-reset', () => {
       // Update legend with full data
       updateLegend();
     });
@@ -476,18 +475,11 @@ export async function initializeDemo() {
     // Handle structure viewer events
     structureViewer.addEventListener('structure-load', (event: Event) => {
       const customEvent = event as CustomEvent;
-      const { proteinId, status, error } = customEvent.detail;
-      console.log(`Structure ${proteinId}: ${status}`, error || '');
+      const { proteinId, status } = customEvent.detail;
 
+      // Only log loaded events (loading/error states are less interesting for demo)
       if (status === 'loaded') {
-        console.log(`✅ Structure viewer is now visible with protein ${proteinId}`);
-        console.log(
-          `Close button should be visible in header (showCloseButton: ${structureViewer.showCloseButton})`,
-        );
-      }
-
-      if (status === 'error') {
-        console.warn(`Failed to load structure for ${proteinId}: ${error}`);
+        console.log(`✅ Structure loaded: ${proteinId}`);
       }
     });
 
@@ -504,7 +496,7 @@ export async function initializeDemo() {
     // We keep some event listeners for additional logic that auto-sync doesn't handle
 
     // Handle annotation change for resetting hidden values
-    controlBar.addEventListener('annotation-change', (event: Event) => {
+    controlBar.addEventListener('annotation-change', () => {
       hiddenValues = []; // Reset hidden values when switching annotations
       plotElement.hiddenAnnotationValues = hiddenValues;
       updateLegend();
@@ -516,7 +508,7 @@ export async function initializeDemo() {
     });
 
     // Handle data-change from scatterplot to sync selections
-    plotElement.addEventListener('data-change', (event: Event) => {
+    plotElement.addEventListener('data-change', () => {
       // When data changes (e.g. after a split), the selection is often cleared.
       // Sync local selection state with the component state.
       selectedProteins = plotElement.selectedProteinIds || [];
