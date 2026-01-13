@@ -43,6 +43,16 @@ Click the **cog icon** (⚙️) in the top-right corner of the legend for advanc
 | **Group in "Others"**    | Toggle whether to group labels into "Others" or show all     |
 | **Z-order direction**    | Choose top-to-bottom or bottom-to-top ordering               |
 
+### Saved Settings
+
+Your customizations are automatically saved and restored when you return:
+
+- **Per dataset and annotation**: Different datasets and annotations keep separate settings
+- **What's saved**: Visibility, colors, shapes, ordering, and settings panel preferences
+- **Reset**: Use "Reset to Defaults" in the settings panel to clear saved preferences
+
+Settings are stored in your browser's localStorage and persist across sessions.
+
 ## Multi-Label Annotations
 
 When proteins have multiple values (e.g., multiple EC numbers):
