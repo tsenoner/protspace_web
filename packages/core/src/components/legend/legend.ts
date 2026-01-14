@@ -275,9 +275,10 @@ export class ProtspaceLegend extends LitElement {
   /**
    * Get the set of currently visible values (from legend items, excluding "Other").
    * Used to preserve membership when sort mode changes.
+   * Includes null/empty string values for N/A items.
    */
-  private get _visibleValues(): Set<string> {
-    const visible = new Set<string>();
+  private get _visibleValues(): Set<string | null> {
+    const visible = new Set<string | null>();
 
     // When restoring from localStorage, pendingCategories contains the persisted visible values.
     // Prioritize it over _legendItems since _legendItems may have been populated with defaults
@@ -285,7 +286,9 @@ export class ProtspaceLegend extends LitElement {
     const pendingCategories = this._persistenceController.pendingCategories;
     if (Object.keys(pendingCategories).length > 0) {
       for (const key of Object.keys(pendingCategories)) {
-        if (key !== 'null' && key !== LEGEND_VALUES.OTHER) {
+        if (key === 'null') {
+          visible.add(null);
+        } else if (key !== LEGEND_VALUES.OTHER) {
           visible.add(key);
         }
       }
@@ -295,8 +298,8 @@ export class ProtspaceLegend extends LitElement {
     // Otherwise derive from current legend items
     if (this._legendItems.length > 0) {
       this._legendItems.forEach((item) => {
-        if (item.value !== null && item.value !== LEGEND_VALUES.OTHER) {
-          visible.add(item.value);
+        if (item.value !== LEGEND_VALUES.OTHER) {
+          visible.add(item.value); // includes null and empty string for N/A
         }
       });
     }
@@ -669,7 +672,7 @@ export class ProtspaceLegend extends LitElement {
     this.requestUpdate();
   }
 
-  private _handleMergeToOther(value: string): void {
+  private _handleMergeToOther(value: string | null): void {
     // Set pending merge value - will be used by processor to remove this item from visible set
     this._pendingMergeValue = value;
 
@@ -680,7 +683,8 @@ export class ProtspaceLegend extends LitElement {
     // Note: _updateLegendItems() clears pending values after processing
     this._updateLegendItems();
 
-    this._announceStatus(`Moved ${value} to Other category`);
+    const displayValue = value === null || value === '' ? 'N/A' : value;
+    this._announceStatus(`Moved ${displayValue} to Other category`);
     this._persistenceController.saveSettings();
     this.requestUpdate();
   }
@@ -708,24 +712,18 @@ export class ProtspaceLegend extends LitElement {
       [this.selectedAnnotation]: newMode,
     };
 
-    // For manual modes, directly reverse the current zOrders to ensure
-    // toggling between manual/manual-reverse always reverses the order
-    if (currentMode === 'manual' || currentMode === 'manual-reverse') {
-      // Sort by current zOrder, separate "Other" item
-      const sorted = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
-      const otherItem = sorted.find((i) => i.value === LEGEND_VALUES.OTHER);
-      const nonOther = sorted.filter((i) => i.value !== LEGEND_VALUES.OTHER);
+    // Always reverse the visible items directly, keeping "Other" at the end.
+    // This preserves which items are visible vs in "Other" - we only change display order.
+    const sorted = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
+    const otherItem = sorted.find((i) => i.value === LEGEND_VALUES.OTHER);
+    const nonOther = sorted.filter((i) => i.value !== LEGEND_VALUES.OTHER);
 
-      // Reverse non-Other items
-      const reversed = nonOther.reverse();
-      const reordered = otherItem ? [...reversed, otherItem] : reversed;
+    // Reverse non-Other items
+    const reversed = nonOther.reverse();
+    const reordered = otherItem ? [...reversed, otherItem] : reversed;
 
-      // Reassign zOrders
-      this._legendItems = reordered.map((item, idx) => ({ ...item, zOrder: idx }));
-    } else {
-      // For non-manual modes, re-process legend items with new sort mode
-      this._updateLegendItems();
-    }
+    // Reassign zOrders
+    this._legendItems = reordered.map((item, idx) => ({ ...item, zOrder: idx }));
 
     this._scatterplotController.dispatchZOrderChange();
     this._persistenceController.saveSettings();

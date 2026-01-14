@@ -89,9 +89,9 @@ export class LegendDataProcessor {
     isolationMode: boolean,
     sortMode: LegendSortMode,
     existingZOrders: Map<string | null, number> = new Map(),
-    visibleValues: Set<string> = new Set(),
+    visibleValues: Set<string | null> = new Set(),
     pendingExtract?: string,
-    pendingMerge?: string,
+    pendingMerge?: string | null,
   ): {
     topItems: Array<[string | null, number]>;
     otherItems: OtherItem[];
@@ -159,19 +159,34 @@ export class LegendDataProcessor {
     if (pendingExtract) {
       workingVisible.add(pendingExtract);
     }
-    if (pendingMerge) {
+    // Note: pendingMerge can be "" (empty string for N/A), which is falsy
+    // So we need to check for undefined explicitly
+    if (pendingMerge !== undefined) {
       workingVisible.delete(pendingMerge);
     }
 
     let topItems: Array<[string | null, number]>;
 
+    // Helper to check if a value represents N/A (null, empty string, or whitespace only)
+    const isNAValue = (v: string | null): boolean =>
+      v === null || (typeof v === 'string' && v.trim() === '');
+
+    // Track if N/A is being merged to Other
+    const mergingNA = isNAValue(pendingMerge ?? null);
+
     // If we have existing visible items (from persisted state or current session),
     // filter to those items first, then apply maxVisibleValues limit
     if (workingVisible.size > 0) {
-      // Get entries for visible items only (plus null if present)
-      const visibleEntries = entries.filter(
-        ([v]) => v === null || (typeof v === 'string' && workingVisible.has(v)),
-      );
+      // Get entries for visible items only (plus N/A if present and not being merged)
+      // N/A can be represented as null, empty string, or whitespace depending on the data source
+      const visibleEntries = entries.filter(([v]) => {
+        // Handle N/A values (null, empty string, or whitespace)
+        if (isNAValue(v)) {
+          return !mergingNA; // Include N/A only if not being merged
+        }
+        // Regular string values - check if in visible set
+        return typeof v === 'string' && workingVisible.has(v);
+      });
 
       // Sort visible entries by sort mode and apply maxVisibleValues limit
       const sorted = [...visibleEntries].sort(sortFn);
@@ -302,17 +317,22 @@ export class LegendDataProcessor {
       // Get encoding from slot as default
       let encoding = getVisualEncoding(slot, shapesEnabled, categoryName);
 
-      // Priority for colors/shapes:
+      // Priority for colors:
       // 1. persistedCategories (from localStorage) - for initial load/annotation switch
       // 2. existingColors (from current _legendItems) - for preserving session state
       // 3. default encoding from slot
+      //
+      // For shapes: always use encoding.shape (calculated based on shapesEnabled)
+      // This ensures shapes are recalculated when shapesEnabled toggles.
       const persisted = value !== null ? persistedCategories[value] : undefined;
       const existing = existingColors.get(value);
 
       if (persisted?.color) {
-        encoding = { color: persisted.color, shape: persisted.shape || encoding.shape };
+        // Use persisted color; for shape, always use calculated encoding
+        encoding = { color: persisted.color, shape: encoding.shape };
       } else if (existing) {
-        encoding = { color: existing.color, shape: existing.shape };
+        // Use existing color but always recalculate shape based on shapesEnabled
+        encoding = { color: existing.color, shape: encoding.shape };
       }
 
       return {
@@ -381,9 +401,9 @@ export class LegendDataProcessor {
     sortMode: LegendSortMode = 'size-desc',
     shapesEnabled: boolean = false,
     persistedCategories: Record<string, PersistedCategoryData> = {},
-    visibleValues: Set<string> = new Set(),
+    visibleValues: Set<string | null> = new Set(),
     pendingExtract?: string,
-    pendingMerge?: string,
+    pendingMerge?: string | null,
   ): { legendItems: LegendItem[]; otherItems: OtherItem[] } {
     this.resetIfAnnotationChanged(ctx, annotationName);
 
