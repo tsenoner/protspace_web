@@ -130,7 +130,14 @@ describe('legend-helpers', () => {
 
     it('includes N/A values with __NA__ key', () => {
       const items: LegendItem[] = [
-        { value: LEGEND_VALUES.NA_VALUE, color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
+        {
+          value: LEGEND_VALUES.NA_VALUE,
+          color: '#000',
+          shape: 'circle',
+          count: 1,
+          isVisible: true,
+          zOrder: 0,
+        },
         { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 1 },
       ];
 
@@ -153,7 +160,14 @@ describe('legend-helpers', () => {
 
     it('handles N/A values with __NA__ key', () => {
       const items: LegendItem[] = [
-        { value: LEGEND_VALUES.NA_VALUE, color: '#888', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
+        {
+          value: LEGEND_VALUES.NA_VALUE,
+          color: '#888',
+          shape: 'circle',
+          count: 1,
+          isVisible: true,
+          zOrder: 0,
+        },
       ];
 
       const result = buildColorShapeMappings(items);
@@ -394,7 +408,14 @@ describe('legend-helpers', () => {
 
     it('handles N/A values correctly', () => {
       const itemsWithNA: LegendItem[] = [
-        { value: LEGEND_VALUES.NA_VALUE, color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
+        {
+          value: LEGEND_VALUES.NA_VALUE,
+          color: '#000',
+          shape: 'circle',
+          count: 1,
+          isVisible: true,
+          zOrder: 0,
+        },
         { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 1 },
       ];
       const result = updateItemsVisibility(itemsWithNA, [], LEGEND_VALUES.NA_VALUE);
@@ -437,7 +458,14 @@ describe('legend-helpers', () => {
 
     it('handles N/A value correctly', () => {
       const itemsWithNA: LegendItem[] = [
-        { value: LEGEND_VALUES.NA_VALUE, color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
+        {
+          value: LEGEND_VALUES.NA_VALUE,
+          color: '#000',
+          shape: 'circle',
+          count: 1,
+          isVisible: true,
+          zOrder: 0,
+        },
         { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 1 },
       ];
       const result = isolateItem(itemsWithNA, LEGEND_VALUES.NA_VALUE);

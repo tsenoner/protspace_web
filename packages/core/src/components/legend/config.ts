@@ -98,7 +98,9 @@ export const LEGEND_VALUES = {
  * Use this when processing raw annotation data.
  */
 export function isNADataValue(value: string | null | undefined): boolean {
-  return value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
+  return (
+    value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+  );
 }
 
 /**

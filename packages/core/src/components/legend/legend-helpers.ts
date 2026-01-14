@@ -232,9 +232,7 @@ export function isolateItem(
   }
 
   // Compute hidden values from visibility state
-  const hiddenValues = updatedItems
-    .filter((item) => !item.isVisible)
-    .map((item) => item.value);
+  const hiddenValues = updatedItems.filter((item) => !item.isVisible).map((item) => item.value);
 
   return { items: updatedItems, hiddenValues };
 }

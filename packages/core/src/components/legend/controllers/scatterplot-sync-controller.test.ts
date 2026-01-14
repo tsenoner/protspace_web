@@ -199,10 +199,7 @@ describe('ScatterplotSyncController', () => {
 
       controller.forceSync();
 
-      expect(mockCallbacks.onDataChange).toHaveBeenCalledWith(
-        expect.any(Object),
-        'test-feature',
-      );
+      expect(mockCallbacks.onDataChange).toHaveBeenCalledWith(expect.any(Object), 'test-feature');
     });
 
     it('does nothing when no scatterplot', () => {

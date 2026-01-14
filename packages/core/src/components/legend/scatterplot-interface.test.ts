@@ -142,9 +142,7 @@ describe('scatterplot-interface', () => {
 /**
  * Helper to create a mock scatterplot element with minimal required properties
  */
-function createMockScatterplot(
-  overrides: Partial<IScatterplotElement> = {},
-): IScatterplotElement {
+function createMockScatterplot(overrides: Partial<IScatterplotElement> = {}): IScatterplotElement {
   const element = document.createElement('div') as unknown as IScatterplotElement;
 
   // Required properties

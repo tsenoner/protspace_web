@@ -653,7 +653,9 @@ export class ProtspaceLegend extends LitElement {
     this._hiddenValues = result.hiddenValues;
 
     const visibleCount = result.items.filter((i) => i.isVisible).length;
-    this._announceStatus(visibleCount === 1 ? `Isolated ${toDisplayValue(value)}` : 'All items shown');
+    this._announceStatus(
+      visibleCount === 1 ? `Isolated ${toDisplayValue(value)}` : 'All items shown',
+    );
 
     this._scatterplotController.syncHiddenValues();
     this._dispatchItemAction(value, 'isolate');

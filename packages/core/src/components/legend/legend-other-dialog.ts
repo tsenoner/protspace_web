@@ -28,7 +28,9 @@ function renderOtherItem(item: OtherItem, callbacks: OtherDialogCallbacks): Temp
         <span class="other-item-name">${toDisplayValue(item.value)}</span>
         <span class="other-item-count">(${item.count})</span>
       </div>
-      <button class="extract-button" @click=${() => callbacks.onExtract(item.value)}>Extract</button>
+      <button class="extract-button" @click=${() => callbacks.onExtract(item.value)}>
+        Extract
+      </button>
     </div>
   `;
 }
