@@ -4,14 +4,14 @@ The easiest way to prepare your data for ProtSpace - no local installation requi
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tsenoner/protspace_web/blob/main/notebooks/ProtSpace_Preparation.ipynb)
 
-## What the Notebook Does
+## Overview
 
-The Colab notebook takes protein embeddings and generates a visualization-ready `.parquetbundle` file:
+The Colab notebook converts protein embeddings into a visualization-ready `.parquetbundle` file:
 
-1. **Reads your embeddings** from an HDF5 file (.h5)
-2. **Applies dimensionality reduction** (PCA, UMAP, t-SNE, PaCMAP, MDS)
-3. **Retrieves annotations** from UniProt, InterPro, and NCBI Taxonomy
-4. **Creates the `.parquetbundle`** file ready for ProtSpace exploration
+1. Reads your embeddings from an HDF5 file (.h5)
+2. Applies dimensionality reduction (PCA, UMAP, t-SNE, PaCMAP, MDS)
+3. Retrieves annotations from UniProt, InterPro, and NCBI Taxonomy
+4. Creates the `.parquetbundle` file ready for ProtSpace
 
 ## Step 1: Get Protein Embeddings
 
@@ -21,8 +21,8 @@ You need an HDF5 file (.h5) containing protein embeddings. There are three ways 
 
 1. Go to [uniprot.org](https://www.uniprot.org/)
 2. Search for proteins using [UniProt query syntax](https://www.uniprot.org/help/query-fields) (e.g., `(ft_domain:phosphatase) AND (reviewed:true)`)
-3. Click **"Downoad"** → Select Format **"Embeddings"** → submit job **"Submit"**
-4. Download the results - check UniProts **Tools Dashboard** for the prepared embedding file
+3. Click **Download** → Select Format **Embeddings** → Submit job
+4. Download the results - check UniProt's **Tools Dashboard** for the prepared embedding file
 
 ### Option B: Generate from FASTA
 
@@ -40,17 +40,17 @@ This notebook:
 
 For advanced users with custom embeddings, save them as an HDF5 file where each protein is stored as a dataset named by its identifier.
 
-## Step 2: Run the ProtSpace Notebook
+## Step 2: Run the Notebook
 
-1. **Open the notebook**: Click the Colab badge above
-2. **Install dependencies**: Run the first cell (~1 minute)
-3. **Upload your embeddings**: Use the upload widget to select your `.h5` file
+1. Click the Colab badge above to open the notebook
+2. Run the first cell to install dependencies (~1 minute)
+3. Upload your `.h5` embeddings file
 
-## Step 3: Configure Visualization Options
+## Step 3: Configure Options
 
-### Select Annotations
+### Annotations
 
-Choose which annotations to include for coloring your visualization:
+Choose which annotations to include:
 
 | Source       | Available Annotations                                                    |
 | ------------ | ------------------------------------------------------------------------ |
@@ -58,23 +58,23 @@ Choose which annotations to include for coloring your visualization:
 | **InterPro** | CATH, Pfam, signal_peptide, superfamily                                  |
 | **Taxonomy** | kingdom, phylum, class, order, family, genus, species                    |
 
-::: tip First-Time Taxonomy
-Selecting Taxonomy annotations for the first time will download the required database (~1 minute).
+::: tip
+First-time taxonomy selection downloads a database (~1 minute).
 :::
 
-### Select Dimensionality Reduction Methods
+### Dimensionality Reduction
 
-Choose which 2D projections to include:
+Choose which 2D projections to generate:
 
-- **PCA** - Fast, good for initial overview
-- **UMAP** - Best balance of speed and quality
-- **t-SNE** - Great for clusters, slower for large datasets
-- **PaCMAP** - Good alternative to t-SNE/UMAP
+- **PCA** - Fast, initial overview
+- **UMAP** - Best balance of speed and quality (recommended)
+- **t-SNE** - Great for clusters, slower on large datasets
+- **PaCMAP** - Alternative to t-SNE/UMAP
 - **MDS** - Preserves pairwise distances
 
-### Adjust Parameters (Optional)
+### Parameters (Optional)
 
-Fine-tune parameters for each method:
+Fine-tune settings for each method:
 
 | Method | Parameters                      |
 | ------ | ------------------------------- |
@@ -92,13 +92,13 @@ Fine-tune parameters for each method:
 ## Step 5: Visualize in ProtSpace
 
 1. Go to [protspace.app/explore](https://protspace.app/explore)
-2. Drag & drop your `.parquetbundle` file onto the canvas
+2. Drag & drop your `.parquetbundle` file onto the scatterplot
 3. Start exploring!
 
 ## Tips
 
 - **Start small**: Test with a subset of proteins first.
-- **PCA is fastest**: All methods except PCA slow down exponentially as data size increases.
+- **PCA is fastest**: All methods except PCA become significantly slower with larger datasets (quadratic or worse complexity).
 - **Try multiple methods**: For best results, include both PCA and UMAP.
 
 ## Alternative: Python CLI

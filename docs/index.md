@@ -5,7 +5,7 @@ Get started with ProtSpace - no installation required.
 ## Try ProtSpace Now
 
 1. Visit the **[ProtSpace Explore Page](https://protspace.app/explore)**
-2. Drag & drop a `.parquetbundle` file onto the canvas, or click the **Import** button
+2. Drag & drop a `.parquetbundle` file onto the scatterplot, or click the **Import** button
 3. Start exploring your protein embeddings!
 
 ::: tip Don't have data yet?

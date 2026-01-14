@@ -7,3 +7,5 @@ export * from './visualization/export-utils';
 export * from './visualization/notification-utils';
 export * from './structure/structure-service';
 export * from './message';
+export * from './storage';
+export * from './platform';

@@ -38,9 +38,10 @@ Available annotations depend on your dataset (taxonomy, family, function, etc.).
 
 Find specific proteins by ID:
 
-1. Type a protein ID or partial match
-2. Select from suggestions
-3. Protein is selected in the scatterplot
+1. Click inside the search box or press **⌘/Ctrl + K** to focus it
+2. Type a protein ID or partial match
+3. Select from suggestions
+4. Protein is selected in the scatterplot
 
 ::: tip Multiple IDs
 Paste multiple IDs at once (newline or space separated) and all matching proteins will be selected. Useful for re-selecting a previously exported subset.
@@ -52,29 +53,39 @@ Enable **box selection mode** to select multiple proteins at once. See the [Box 
 
 ## 5. Clear Button
 
-Click **Clear** to remove all current selections.
+Click **Clear** (or press **Escape**) to remove all current selections. Pressing **Escape** again will exit selection mode.
 
 ## 6. Isolate Button
 
-Click **Isolate** to focus on your selected proteins by hiding all unselected proteins from the view:
+**Isolate** focuses on selected proteins by hiding all others:
 
-1. Select one or more proteins using the search or select tools
-2. Click **Isolate** to filter the view
-3. Only selected proteins remain visible in the scatterplot
-4. Click **Reset** (appears when isolated) to restore the full dataset
+1. Select one or more proteins (using search, click, or box select)
+2. Click **Isolate**
+3. Only selected proteins remain visible
+4. Click **Reset** (appears when isolated) to restore all proteins
 
-This is useful for focusing on a specific subset of proteins and exploring their relationships in detail.
+::: tip Use Case
+Isolate is useful for examining relationships within a specific protein subset - hiding unrelated proteins reduces visual clutter.
+:::
 
-## 7. Filter
+## 7. Filter Button
 
-Use the **Filter** dropdown to filter proteins by feature values:
+**Filter** shows only proteins matching specific annotation criteria:
 
 1. Click **Filter** to open the filter menu
-2. Select one or more features to filter by (e.g., taxonomy, family)
-3. Choose specific values for each feature
-4. Click **Done** to apply the filter
+2. Select one or more annotations to filter by (e.g., taxonomy, family)
+3. Choose specific values for each annotation
+4. Click **Apply**
 
-Filtered proteins will be highlighted with a custom color scheme, making it easy to see which proteins match your criteria.
+Filtered proteins are highlighted with a custom color scheme.
+
+::: info Isolate vs Filter
+
+- **Isolate**: Works with selected proteins - hides everything else
+- **Filter**: Works with annotation values - highlights matches, dims non-matches
+
+Use **Isolate** for ad-hoc selections (like search results). Use **Filter** for annotation-based queries (like "show all kinases").
+:::
 
 ## 8. Export
 
@@ -93,7 +104,7 @@ Click **Export** to save your visualization:
 
 Click **Import** to load a `.parquetbundle` file from your computer.
 
-You can also drag & drop files directly onto the canvas.
+You can also drag & drop files directly onto the scatterplot.
 
 ## Tips
 

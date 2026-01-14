@@ -17,7 +17,7 @@ Click any label to toggle its visibility:
 
 ## Reordering Labels
 
-Drag labels up or down to reorder them. This changes the **z-order** in the canvas - labels at the top are drawn on top of others.
+Drag labels up or down to reorder them. This changes the **drawing order** in the scatterplot - labels at the top are drawn on top of others.
 
 ![Reorder labels](./images/legend-reorder.gif)
 
@@ -42,6 +42,16 @@ Click the **cog icon** (⚙️) in the top-right corner of the legend for advanc
 | **Show shapes**          | Toggle between circles only or different shapes per category |
 | **Group in "Others"**    | Toggle whether to group labels into "Others" or show all     |
 | **Z-order direction**    | Choose top-to-bottom or bottom-to-top ordering               |
+
+### Saved Settings
+
+Your customizations are automatically saved and restored when you return:
+
+- **Per dataset and annotation**: Different datasets and annotations keep separate settings
+- **What's saved**: Visibility, colors, shapes, ordering, and settings panel preferences
+- **Reset**: Use "Reset to Defaults" in the settings panel to clear saved preferences
+
+Settings are stored in your browser's localStorage and persist across sessions.
 
 ## Multi-Label Annotations
 

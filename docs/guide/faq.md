@@ -6,11 +6,11 @@ Frequently asked questions about ProtSpace.
 
 ### Do I need machine learning knowledge?
 
-No. ProtSpace is designed for biologists and researchers without machine learning expertise. You only need protein embeddings.
+No. ProtSpace is designed for biologists and researchers - you only need protein embeddings.
 
 ### Is my data uploaded to a server?
 
-No. Everything runs entirely in your browser. Your data never leaves your computer.
+No. Everything runs in your browser - your data never leaves your computer.
 
 ### Which file formats are supported?
 
@@ -18,7 +18,7 @@ Only `.parquetbundle` files. See [Using Google Colab](/guide/data-preparation) f
 
 ### Can I use it offline?
 
-Yes. After the initial page load, ProtSpace works offline. However, loading 3D structures requires internet connectivity.
+Yes, after initial page load. Note: 3D structure loading requires internet.
 
 ### Is it free?
 
@@ -28,10 +28,8 @@ Yes. ProtSpace is open source under the Apache 2.0 license.
 
 ### How do I generate a .parquetbundle?
 
-Two options:
-
-- [Google Colab notebook](/guide/data-preparation) - No installation required
-- [Python CLI](/guide/python-cli) - For local processing
+- [Google Colab notebook](/guide/data-preparation) - No installation (recommended)
+- [Python CLI](/guide/python-cli) - For local processing or automation
 
 ### What is the recommended dataset size?
 
@@ -45,11 +43,11 @@ Browser performance varies by device and GPU capabilities.
 
 ### Can I add custom annotations?
 
-Yes. Add annotation columns to your data when generating the bundle. See [Data Format](/guide/data-format).
+Yes. Add columns when generating the bundle. See [Data Format](/guide/data-format).
 
 ### How do I include 3D structures?
 
-The structure viewer automatically fetches from AlphaFold when the protein ID is a UniProt accession.
+Structures load automatically from AlphaFold if your protein IDs are UniProt accessions.
 
 ## Visualization
 
@@ -59,15 +57,13 @@ Currently, colors are automatically generated. Custom color schemes will be supp
 
 ### What are multi-label annotations?
 
-Annotations where proteins have multiple values (e.g., multiple EC numbers or domains). Displayed as pie charts with each slice representing one value.
+Annotations with multiple values per protein (e.g., multiple EC numbers). Displayed as pie charts.
 
 ## Performance
 
 ### The browser is slow or freezing
 
-Try these solutions:
-
-1. Change browser - Chrome has best performance
+1. Use Chrome for best performance
 2. Reduce dataset size
 
 ### Which browser works best?
@@ -82,7 +78,7 @@ Try these solutions:
 
 ### Can I visualize 1 million proteins?
 
-Not recommended. Performance degrades above 500K proteins. Consider subsetting your data.
+Not recommended. Performance degrades above 500K proteins - consider subsetting.
 
 ## Technical
 
