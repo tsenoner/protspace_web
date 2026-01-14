@@ -184,8 +184,29 @@ export class LegendDataProcessor {
         return workingVisible.has(v);
       });
 
-      const sorted = [...visibleEntries].sort(sortFn);
-      topItems = sorted.slice(0, maxVisibleValues);
+      // Get items NOT in visible set (candidates to promote from "Other")
+      // Exclude pendingMerge from being promoted back
+      const nonVisibleEntries = entries.filter(([v]) => {
+        // Never include the item being merged (it's being demoted to Other)
+        if (pendingMerge !== undefined && v === pendingMerge) return false;
+        if (isNAValue(v)) {
+          if (extractingNA) return false;
+          if (mergingNA) return false; // N/A is being merged, don't promote it
+          return !workingVisible.has(v);
+        }
+        return !workingVisible.has(v);
+      });
+
+      const sortedVisible = [...visibleEntries].sort(sortFn);
+      const sortedNonVisible = [...nonVisibleEntries].sort(sortFn);
+
+      // Take all visible items first, then fill remaining slots from non-visible
+      // This handles the case where maxVisibleValues increases beyond the current visible count
+      const remainingSlots = Math.max(0, maxVisibleValues - sortedVisible.length);
+      topItems = [
+        ...sortedVisible.slice(0, maxVisibleValues),
+        ...sortedNonVisible.slice(0, remainingSlots),
+      ].slice(0, maxVisibleValues);
     } else {
       // Initial load: sort all and take top N
       let filtered = [...entries];

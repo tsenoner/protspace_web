@@ -195,7 +195,7 @@ describe('legend-data-processor', () => {
       expect(result.topItems[3][0]).toBe('regular');
     });
 
-    it('uses visibleValues to filter items', () => {
+    it('uses visibleValues to prioritize items and expands when maxVisibleValues allows', () => {
       const freq = new Map<string, number>([
         ['a', 10],
         ['b', 8],
@@ -205,14 +205,19 @@ describe('legend-data-processor', () => {
       const visibleValues = new Set(['a', 'c']);
       const result = LegendDataProcessor.sortAndLimitItems(
         freq,
-        10,
+        10, // maxVisibleValues > visibleValues.size, so should expand
         false,
         'size-desc',
         new Map(),
         visibleValues,
       );
-      expect(result.topItems).toHaveLength(2);
-      expect(result.topItems.map(([v]) => v)).toEqual(['a', 'c']);
+      // Should include all 4 items since maxVisibleValues=10 allows expansion
+      expect(result.topItems).toHaveLength(4);
+      // Visible values should come first (in sort order), followed by expanded items
+      expect(result.topItems.map(([v]) => v)).toContain('a');
+      expect(result.topItems.map(([v]) => v)).toContain('c');
+      expect(result.topItems.map(([v]) => v)).toContain('b');
+      expect(result.topItems.map(([v]) => v)).toContain('d');
     });
 
     it('includes pendingExtract item in visible set', () => {
@@ -853,6 +858,57 @@ describe('legend-data-processor', () => {
       const otherItem = result.legendItems.find((i) => i.value === 'Other');
       expect(otherItem).toBeUndefined();
       expect(result.otherItems).toHaveLength(0);
+    });
+
+    it('expands categories when maxVisibleValues increases beyond visibleValues size', () => {
+      const values = ['a', 'a', 'a', 'b', 'b', 'c', 'd', 'e', 'f', 'g'];
+      const visibleValues = new Set(['a', 'b']); // Only 2 visible
+      const result = LegendDataProcessor.processLegendItems(
+        ctx,
+        'annotation1',
+        values,
+        values.map((_, i) => `p${i}`),
+        5, // maxVisibleValues = 5, but visibleValues only has 2
+        false,
+        [],
+        [],
+        'size-desc',
+        false,
+        {},
+        visibleValues,
+      );
+      // Should have 5 items (not 2) plus Other
+      const legendValues = result.legendItems
+        .filter((i) => i.value !== 'Other')
+        .map((i) => i.value);
+      expect(legendValues.length).toBe(5);
+      expect(legendValues).toContain('a');
+      expect(legendValues).toContain('b');
+      // Should include next highest frequency items from "Other"
+    });
+
+    it('contracts categories when maxVisibleValues decreases', () => {
+      const values = ['a', 'a', 'a', 'b', 'b', 'c', 'd', 'e'];
+      const visibleValues = new Set(['a', 'b', 'c', 'd', 'e']); // 5 visible
+      const result = LegendDataProcessor.processLegendItems(
+        ctx,
+        'annotation1',
+        values,
+        values.map((_, i) => `p${i}`),
+        3, // maxVisibleValues = 3
+        false,
+        [],
+        [],
+        'size-desc',
+        false,
+        {},
+        visibleValues,
+      );
+      // Should have only 3 items plus Other
+      const legendValues = result.legendItems
+        .filter((i) => i.value !== 'Other')
+        .map((i) => i.value);
+      expect(legendValues.length).toBe(3);
     });
   });
 });
