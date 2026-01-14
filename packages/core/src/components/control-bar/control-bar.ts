@@ -51,6 +51,29 @@ export class ProtspaceControlBar extends LitElement {
     { enabled: boolean; values: (string | null)[] }
   > = {};
   @state() private openValueMenus: Record<string, boolean> = {};
+
+  // Export defaults - single source of truth
+  static readonly EXPORT_DEFAULTS = {
+    FORMAT: 'png' as const,
+    IMAGE_WIDTH: 2048,
+    IMAGE_HEIGHT: 1024,
+    LEGEND_WIDTH_PERCENT: 25,
+    LEGEND_FONT_SIZE_PX: 48,
+    BASE_FONT_SIZE: 24, // Base size for scale factor calculation
+    LOCK_ASPECT_RATIO: true,
+  };
+
+  // Export configuration state
+  @state() private exportFormat: 'png' | 'pdf' | 'json' | 'ids' =
+    ProtspaceControlBar.EXPORT_DEFAULTS.FORMAT;
+  @state() private exportImageWidth: number = ProtspaceControlBar.EXPORT_DEFAULTS.IMAGE_WIDTH;
+  @state() private exportImageHeight: number = ProtspaceControlBar.EXPORT_DEFAULTS.IMAGE_HEIGHT;
+  @state() private exportLegendWidthPercent: number =
+    ProtspaceControlBar.EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
+  @state() private exportLegendFontSizePx: number =
+    ProtspaceControlBar.EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX;
+  @state() private exportLockAspectRatio: boolean =
+    ProtspaceControlBar.EXPORT_DEFAULTS.LOCK_ASPECT_RATIO;
   private _scatterplotElement: ScatterplotElementLike | null = null;
 
   // Search state
@@ -216,9 +239,15 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
-  private handleExport(type: 'json' | 'ids' | 'png' | 'pdf') {
+  private handleExport() {
     const customEvent = new CustomEvent('export', {
-      detail: { type },
+      detail: {
+        type: this.exportFormat,
+        imageWidth: this.exportImageWidth,
+        imageHeight: this.exportImageHeight,
+        legendWidthPercent: this.exportLegendWidthPercent,
+        legendFontSizePx: this.exportLegendFontSizePx,
+      },
       bubbles: true,
       composed: true,
     });
@@ -228,6 +257,37 @@ export class ProtspaceControlBar extends LitElement {
 
   private toggleExportMenu() {
     this.showExportMenu = !this.showExportMenu;
+  }
+
+  private resetExportSettings() {
+    const defaults = ProtspaceControlBar.EXPORT_DEFAULTS;
+    this.exportImageWidth = defaults.IMAGE_WIDTH;
+    this.exportImageHeight = defaults.IMAGE_HEIGHT;
+    this.exportLegendWidthPercent = defaults.LEGEND_WIDTH_PERCENT;
+    this.exportLegendFontSizePx = defaults.LEGEND_FONT_SIZE_PX;
+    this.exportLockAspectRatio = defaults.LOCK_ASPECT_RATIO;
+  }
+
+  private handleWidthChange(newWidth: number) {
+    const oldWidth = this.exportImageWidth;
+    this.exportImageWidth = newWidth;
+
+    // Adjust height proportionally if aspect ratio is locked
+    if (this.exportLockAspectRatio && oldWidth > 0) {
+      const ratio = newWidth / oldWidth;
+      this.exportImageHeight = Math.round(this.exportImageHeight * ratio);
+    }
+  }
+
+  private handleHeightChange(newHeight: number) {
+    const oldHeight = this.exportImageHeight;
+    this.exportImageHeight = newHeight;
+
+    // Adjust width proportionally if aspect ratio is locked
+    if (this.exportLockAspectRatio && oldHeight > 0) {
+      const ratio = newHeight / oldHeight;
+      this.exportImageWidth = Math.round(this.exportImageWidth * ratio);
+    }
   }
 
   private openFileDialog() {
@@ -540,40 +600,211 @@ export class ProtspaceControlBar extends LitElement {
             ${this.showExportMenu
               ? html`
                   <div class="export-menu">
-                    <ul class="export-menu-list">
-                      <li class="export-menu-list-item">
-                        <button
-                          class="export-menu-list-item-button"
-                          @click=${() => this.handleExport('json')}
-                        >
-                          Export JSON
-                        </button>
-                      </li>
-                      <li class="export-menu-list-item">
-                        <button
-                          class="export-menu-list-item-button"
-                          @click=${() => this.handleExport('ids')}
-                        >
-                          Export Protein IDs
-                        </button>
-                      </li>
-                      <li class="export-menu-list-item">
-                        <button
-                          class="export-menu-list-item-button"
-                          @click=${() => this.handleExport('png')}
-                        >
-                          Export PNG
-                        </button>
-                      </li>
-                      <li class="export-menu-list-item">
-                        <button
-                          class="export-menu-list-item-button"
-                          @click=${() => this.handleExport('pdf')}
-                        >
-                          Export PDF
-                        </button>
-                      </li>
-                    </ul>
+                    <div class="export-menu-header">
+                      <span>Export Options</span>
+                    </div>
+
+                    <div class="export-menu-content">
+                      <!-- Format Selection -->
+                      <div class="export-option-group">
+                        <label class="export-option-label">Format</label>
+                        <div class="export-format-options">
+                          <button
+                            class="export-format-btn ${this.exportFormat === 'png' ? 'active' : ''}"
+                            @click=${() => {
+                              this.exportFormat = 'png';
+                            }}
+                            title="Export as PNG image"
+                          >
+                            PNG
+                          </button>
+                          <button
+                            class="export-format-btn ${this.exportFormat === 'pdf' ? 'active' : ''}"
+                            @click=${() => {
+                              this.exportFormat = 'pdf';
+                            }}
+                            title="Export as PDF document"
+                          >
+                            PDF
+                          </button>
+                          <button
+                            class="export-format-btn ${this.exportFormat === 'json'
+                              ? 'active'
+                              : ''}"
+                            @click=${() => {
+                              this.exportFormat = 'json';
+                            }}
+                            title="Export as JSON data"
+                          >
+                            JSON
+                          </button>
+                          <button
+                            class="export-format-btn ${this.exportFormat === 'ids' ? 'active' : ''}"
+                            @click=${() => {
+                              this.exportFormat = 'ids';
+                            }}
+                            title="Export protein IDs list"
+                          >
+                            IDs
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- Image Settings (for PNG/PDF only) -->
+                      ${this.exportFormat === 'png' || this.exportFormat === 'pdf'
+                        ? html`
+                            <div class="export-dimensions-group">
+                              <div class="export-option-group">
+                                <label class="export-option-label" for="export-width">
+                                  Width
+                                  <span class="export-option-value"
+                                    >${this.exportImageWidth}px</span
+                                  >
+                                </label>
+                                <input
+                                  type="range"
+                                  id="export-width"
+                                  class="export-slider"
+                                  min="800"
+                                  max="8192"
+                                  step="128"
+                                  .value=${String(this.exportImageWidth)}
+                                  @input=${(e: Event) => {
+                                    this.handleWidthChange(
+                                      parseInt((e.target as HTMLInputElement).value),
+                                    );
+                                  }}
+                                />
+                                <div class="export-slider-labels">
+                                  <span>800px</span>
+                                  <span>8192px</span>
+                                </div>
+                              </div>
+
+                              <div class="export-option-group">
+                                <label class="export-option-label" for="export-height">
+                                  Height
+                                  <span class="export-option-value"
+                                    >${this.exportImageHeight}px</span
+                                  >
+                                </label>
+                                <input
+                                  type="range"
+                                  id="export-height"
+                                  class="export-slider"
+                                  min="600"
+                                  max="8192"
+                                  step="128"
+                                  .value=${String(this.exportImageHeight)}
+                                  @input=${(e: Event) => {
+                                    this.handleHeightChange(
+                                      parseInt((e.target as HTMLInputElement).value),
+                                    );
+                                  }}
+                                />
+                                <div class="export-slider-labels">
+                                  <span>600px</span>
+                                  <span>8192px</span>
+                                </div>
+                              </div>
+
+                              <label class="export-aspect-lock">
+                                <input
+                                  type="checkbox"
+                                  .checked=${this.exportLockAspectRatio}
+                                  @change=${(e: Event) => {
+                                    this.exportLockAspectRatio = (
+                                      e.target as HTMLInputElement
+                                    ).checked;
+                                  }}
+                                />
+                                Lock aspect ratio
+                              </label>
+                            </div>
+
+                            <div class="export-option-group">
+                              <label class="export-option-label" for="export-legend-width">
+                                Legend Width
+                                <span class="export-option-value"
+                                  >${this.exportLegendWidthPercent}%</span
+                                >
+                              </label>
+                              <input
+                                type="range"
+                                id="export-legend-width"
+                                class="export-slider"
+                                min="15"
+                                max="50"
+                                step="5"
+                                .value=${String(this.exportLegendWidthPercent)}
+                                @input=${(e: Event) => {
+                                  this.exportLegendWidthPercent = parseInt(
+                                    (e.target as HTMLInputElement).value,
+                                  );
+                                }}
+                              />
+                              <div class="export-slider-labels">
+                                <span>15%</span>
+                                <span>50%</span>
+                              </div>
+                            </div>
+
+                            <div class="export-option-group">
+                              <label class="export-option-label" for="export-legend-font">
+                                Legend Font
+                                <span class="export-option-value"
+                                  >${this.exportLegendFontSizePx}px</span
+                                >
+                              </label>
+                              <input
+                                type="range"
+                                id="export-legend-font"
+                                class="export-slider"
+                                min="12"
+                                max="120"
+                                step="2"
+                                .value=${String(this.exportLegendFontSizePx)}
+                                @input=${(e: Event) => {
+                                  this.exportLegendFontSizePx = parseInt(
+                                    (e.target as HTMLInputElement).value,
+                                  );
+                                }}
+                              />
+                              <div class="export-slider-labels">
+                                <span>12px</span>
+                                <span>120px</span>
+                              </div>
+                            </div>
+
+                            <div class="export-actions">
+                              <button class="export-reset-btn" @click=${this.resetExportSettings}>
+                                Reset
+                              </button>
+                              <button class="export-action-btn" @click=${this.handleExport}>
+                                <svg class="icon" viewBox="0 0 24 24">
+                                  <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                  />
+                                </svg>
+                                Export
+                              </button>
+                            </div>
+                          `
+                        : html`
+                            <button class="export-action-btn" @click=${this.handleExport}>
+                              <svg class="icon" viewBox="0 0 24 24">
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                />
+                              </svg>
+                              Export ${this.exportFormat.toUpperCase()}
+                            </button>
+                          `}
+                    </div>
                   </div>
                 `
               : ''}

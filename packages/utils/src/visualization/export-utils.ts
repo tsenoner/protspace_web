@@ -47,29 +47,28 @@ type LegendExportState = {
 };
 
 export interface ExportOptions {
-  includeSelection?: boolean;
-  exportName?: string;
-  scaleForExport?: number;
-  maxLegendItems?: number;
-  backgroundColor?: string;
-  /**
-   * Whether the exported legend should render per-category shapes.
-   * If omitted, we will mirror the current scatterplot setting (`protspace-scatterplot.useShapes`).
-   */
-  includeShapes?: boolean;
-  /**
-   * Scale factor for legend elements (fonts, symbols, spacing) in exports.
-   * Defaults to 1.0. Use larger values (e.g., 1.3-1.5) for better readability.
-   */
+  /** Target width for scatterplot in pixels (excluding legend) */
+  targetWidth?: number;
+  /** Target height for scatterplot in pixels */
+  targetHeight?: number;
+  /** Legend width as percentage of total image width (15-50%) */
+  legendWidthPercent?: number;
+  /** Legend font/symbol scale factor (fontSizePx / 24) */
   legendScaleFactor?: number;
+  /** Include only selected proteins */
+  includeSelection?: boolean;
+  /** Custom filename for export */
+  exportName?: string;
+  /** Background color */
+  backgroundColor?: string;
+  /** Whether to render per-category shapes in legend */
+  includeShapes?: boolean;
 }
 
 export class ProtSpaceExporter {
-  // Export configuration constants
-  private static readonly LEGEND_WIDTH_RATIO = 0.25;
-  private static readonly LEGEND_SCALE_FACTOR = 1.4;
-  private static readonly PNG_SCALE = 2;
-  private static readonly PDF_SCALE = 3;
+  // Configuration constants
+  private static readonly QUALITY_SCALE = 2; // Quality multiplier for PNG/PDF
+  private static readonly DEFAULT_LEGEND_SCALE = 1.0;
   private static readonly DEFAULT_BACKGROUND = '#ffffff';
   private static readonly PDF_MARGIN = 2; // mm
   private static readonly PDF_GAP = 4; // mm
@@ -106,12 +105,13 @@ export class ProtSpaceExporter {
   private getOptionsWithDefaults(options: ExportOptions = {}) {
     return {
       backgroundColor: options.backgroundColor || ProtSpaceExporter.DEFAULT_BACKGROUND,
-      scaleForExport: options.scaleForExport,
-      legendScaleFactor: options.legendScaleFactor ?? ProtSpaceExporter.LEGEND_SCALE_FACTOR,
+      legendScaleFactor: options.legendScaleFactor ?? ProtSpaceExporter.DEFAULT_LEGEND_SCALE,
+      legendWidthPercent: options.legendWidthPercent ?? 25,
+      targetWidth: options.targetWidth,
+      targetHeight: options.targetHeight,
       exportName: options.exportName,
       includeSelection: options.includeSelection,
       includeShapes: options.includeShapes,
-      maxLegendItems: options.maxLegendItems,
     };
   }
 
@@ -167,19 +167,16 @@ export class ProtSpaceExporter {
     const legendExportState = this.readLegendExportState();
     const annotationNameFromLegend = legendExportState?.annotation;
 
+    // Calculate legend width based on percentage of total image width
+    // If legendWidthPercent is 25%, then legend takes 25% and scatterplot takes 75%
+    const legendPercent = (options.legendWidthPercent || 25) / 100;
     const targetLegendWidth = Math.round(
-      scatterCanvas.width * ProtSpaceExporter.LEGEND_WIDTH_RATIO,
+      scatterCanvas.width * (legendPercent / (1 - legendPercent)),
     );
 
-    // Calculate minimum required width for legend content
-    const minRequiredWidth = this.calculateLegendMinWidth(
-      legendItems,
-      annotationNameFromLegend || this.element.selectedAnnotation,
-      options.legendScaleFactor,
-    );
-
-    // Use larger of target width or required width to prevent squishing
-    const legendWidth = Math.max(targetLegendWidth, minRequiredWidth);
+    // Use the target width directly - don't check minimum required width
+    // The scale factor should already be calculated to fill this width
+    const legendWidth = targetLegendWidth;
 
     const canvas = this.renderLegendToCanvas(
       legendItems,
@@ -192,84 +189,77 @@ export class ProtSpaceExporter {
 
     return {
       canvas,
-      widthIncreased: legendWidth > targetLegendWidth,
+      widthIncreased: false,
     };
   }
 
   /**
-   * Calculate minimum width required for legend content to be readable
-   */
-  private calculateLegendMinWidth(
-    items: Array<{ value: string; count: number; annotation: string }>,
-    annotationName: string,
-    scaleFactor: number,
-  ): number {
-    // Create temporary canvas for text measurement
-    const tempCanvas = document.createElement('canvas');
-    const ctx = tempCanvas.getContext('2d');
-    if (!ctx) return 300; // Fallback
-
-    const basePadding = 24;
-    const baseSymbolSize = 28;
-    const baseHeaderFont = 28;
-    const baseItemFont = 24;
-
-    const padding = basePadding * scaleFactor;
-    const symbolSize = baseSymbolSize * scaleFactor;
-    const headerFontSize = baseHeaderFont * scaleFactor;
-    const itemFontSize = baseItemFont * scaleFactor;
-    const textOffset = 8 * scaleFactor;
-    const countGap = 12 * scaleFactor;
-
-    // Measure header
-    ctx.font = `600 ${headerFontSize}px Arial, sans-serif`;
-    let maxWidth = ctx.measureText(annotationName || 'Legend').width;
-
-    // Measure items
-    ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
-    for (const item of items) {
-      const valueWidth = ctx.measureText(item.value).width;
-      const countWidth = ctx.measureText(String(item.count)).width;
-      const itemWidth = padding + symbolSize + textOffset + valueWidth + countGap + countWidth;
-      maxWidth = Math.max(maxWidth, itemWidth);
-    }
-
-    return Math.ceil(maxWidth + padding);
-  }
-
-  /**
    * Capture scatterplot element as canvas with borders cropped out
+   * If targetWidth/targetHeight are provided, temporarily resizes the element to trigger proper re-render
    */
   private async captureScatterplotCanvas(
     scatterplotElement: HTMLElement,
     scale: number,
     backgroundColor: string,
+    targetWidth?: number,
+    targetHeight?: number,
   ): Promise<HTMLCanvasElement> {
     const { default: html2canvas } = await import('html2canvas-pro');
 
-    // Capture WITH the border - don't modify live element to avoid triggering ResizeObserver
-    const rawCanvas = await html2canvas(scatterplotElement, {
-      backgroundColor,
-      scale,
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      width: scatterplotElement.clientWidth,
-      height: scatterplotElement.clientHeight,
-      scrollX: -window.scrollX,
-      scrollY: -window.scrollY,
-      ignoreElements: (element) => this.shouldIgnoreElement(element),
-    });
+    // Store original dimensions
+    const originalWidth = scatterplotElement.style.width;
+    const originalHeight = scatterplotElement.style.height;
+    const needsResize = targetWidth !== undefined || targetHeight !== undefined;
 
-    // Crop the 1px border from all sides
-    const borderWidth = 1 * scale;
-    return this.cropCanvas(
-      rawCanvas,
-      borderWidth,
-      borderWidth,
-      rawCanvas.width - borderWidth * 2,
-      rawCanvas.height - borderWidth * 2,
-    );
+    try {
+      // Temporarily resize element if target dimensions specified
+      if (needsResize) {
+        if (targetWidth) scatterplotElement.style.width = `${targetWidth}px`;
+        if (targetHeight) scatterplotElement.style.height = `${targetHeight}px`;
+
+        // Wait for the element to re-render at new dimensions
+        // This allows WebGL/Canvas to properly adjust the viewport
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // Wait for any ResizeObserver callbacks to complete
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+
+      // Capture at current element size (which is now the target size if resized)
+      const rawCanvas = await html2canvas(scatterplotElement, {
+        backgroundColor,
+        scale,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        width: scatterplotElement.clientWidth,
+        height: scatterplotElement.clientHeight,
+        scrollX: -window.scrollX,
+        scrollY: -window.scrollY,
+        ignoreElements: (element) => this.shouldIgnoreElement(element),
+      });
+
+      // Crop the 1px border from all sides
+      const borderWidth = 1 * scale;
+      return this.cropCanvas(
+        rawCanvas,
+        borderWidth,
+        borderWidth,
+        rawCanvas.width - borderWidth * 2,
+        rawCanvas.height - borderWidth * 2,
+      );
+    } finally {
+      // Restore original dimensions
+      if (needsResize) {
+        scatterplotElement.style.width = originalWidth;
+        scatterplotElement.style.height = originalHeight;
+
+        // Wait for restore to complete
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+    }
   }
 
   /**
@@ -413,8 +403,7 @@ export class ProtSpaceExporter {
   }
 
   /**
-   * Create a combined PNG by compositing the scatterplot on the left and a generated legend on the right
-   * Legend takes 30% of the final width with improved sizing for readability
+   * Create a combined PNG with scatterplot and legend side-by-side
    */
   private async exportCombinedPNG(options: ExportOptions = {}): Promise<void> {
     const scatterplotElement = this.getScatterplotElement();
@@ -422,11 +411,13 @@ export class ProtSpaceExporter {
 
     const opts = this.getOptionsWithDefaults(options);
 
-    // Capture scatterplot with border removed
+    // Capture scatterplot at target dimensions with quality scaling
     const scatterCanvas = await this.captureScatterplotCanvas(
       scatterplotElement,
-      opts.scaleForExport ?? ProtSpaceExporter.PNG_SCALE,
+      ProtSpaceExporter.QUALITY_SCALE,
       opts.backgroundColor,
+      opts.targetWidth,
+      opts.targetHeight,
     );
 
     // Generate legend canvas
@@ -706,7 +697,6 @@ export class ProtSpaceExporter {
 
   /**
    * Create a single-page PDF with scatterplot and legend side-by-side
-   * Legend takes 20% of content width with improved typography and formatting
    */
   private async exportCombinedPDF(options: ExportOptions = {}): Promise<void> {
     const scatterplotElement = this.getScatterplotElement();
@@ -715,11 +705,13 @@ export class ProtSpaceExporter {
     const opts = this.getOptionsWithDefaults(options);
     const { default: jsPDF } = await import('jspdf');
 
-    // Capture scatterplot with border removed
+    // Capture scatterplot at target dimensions with quality scaling
     const scatterCanvas = await this.captureScatterplotCanvas(
       scatterplotElement,
-      opts.scaleForExport ?? ProtSpaceExporter.PDF_SCALE,
+      ProtSpaceExporter.QUALITY_SCALE,
       opts.backgroundColor,
+      opts.targetWidth,
+      opts.targetHeight,
     );
 
     // Generate legend canvas

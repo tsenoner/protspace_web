@@ -4,9 +4,9 @@ import type {
   ProtspaceScatterplot,
   ProtspaceLegend,
   ProtspaceStructureViewer,
-  ProtspaceControlBar,
   DataLoader,
 } from '@protspace/core';
+import { ProtspaceControlBar } from '@protspace/core';
 import { createExporter, showNotification } from '@protspace/utils';
 
 // Export initialization function that can be called when the component mounts
@@ -571,39 +571,46 @@ export async function initializeDemo() {
     // The user can still drag and drop the file manually
     loadDataFromFile();
 
-    // Handle export using the new export utilities
+    // Handle export
     controlBar.addEventListener('export', async (event: Event) => {
       const customEvent = event as CustomEvent;
-      const exportType = customEvent.detail.type;
+      const { type, imageWidth, imageHeight, legendWidthPercent, legendFontSizePx } =
+        customEvent.detail;
 
       try {
-        // Create exporter instance with current state
         const exporter = createExporter(plotElement);
+        const DEFAULTS = ProtspaceControlBar.EXPORT_DEFAULTS;
+
+        // Calculate scatterplot dimensions (excluding legend)
+        const legendPercent = (legendWidthPercent ?? DEFAULTS.LEGEND_WIDTH_PERCENT) / 100;
+        const targetWidth = Math.round((imageWidth ?? DEFAULTS.IMAGE_WIDTH) * (1 - legendPercent));
+        const targetHeight = imageHeight ?? DEFAULTS.IMAGE_HEIGHT;
 
         // Export options
-        const exportOptions = {
+        const options = {
+          targetWidth,
+          targetHeight,
+          legendWidthPercent: legendWidthPercent ?? DEFAULTS.LEGEND_WIDTH_PERCENT,
+          legendScaleFactor:
+            (legendFontSizePx ?? DEFAULTS.LEGEND_FONT_SIZE_PX) / DEFAULTS.BASE_FONT_SIZE,
           includeSelection: selectedProteins.length > 0,
-          scaleForExport: 2,
-          maxLegendItems: 10,
           backgroundColor: 'white',
         };
 
-        // Handle different export types
-        switch (exportType) {
+        // Execute export
+        switch (type) {
           case 'json':
-            exporter.exportJSON(exportOptions);
+            exporter.exportJSON(options);
             break;
           case 'ids':
-            exporter.exportProteinIds(exportOptions);
+            exporter.exportProteinIds(options);
             break;
           case 'png':
-            await exporter.exportPNG(exportOptions);
+            await exporter.exportPNG(options);
             break;
           case 'pdf':
-            await exporter.exportPDF(exportOptions);
+            await exporter.exportPDF(options);
             break;
-          default:
-            console.warn(`Unknown export type: ${exportType}`);
         }
       } catch (error) {
         console.error('Export failed:', error);
