@@ -558,7 +558,11 @@ export class ProtspaceScatterplot extends LitElement {
         this._webglRenderer.setSelectedFeature(this.selectedFeature);
       }
       this._webglRenderer.resize(width, height);
+      // Force fresh style getters to ensure depth values are recomputed consistently
+      this._styleGettersCache = null;
       this._webglRenderer.invalidatePositionCache();
+      // Also invalidate style cache to force re-sorting of colors when point order may change
+      this._webglRenderer.invalidateStyleCache();
     }
 
     // Keep badge canvas in sync with layout and DPR
