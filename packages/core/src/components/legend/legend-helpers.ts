@@ -53,22 +53,6 @@ export function computeOtherConcreteValues(otherItems: OtherItem[]): string[] {
 }
 
 /**
- * Reverses z-order of legend items, keeping "Other" at the end.
- */
-export function reverseZOrderKeepOtherLast(items: LegendItem[]): LegendItem[] {
-  if (!items || items.length <= 1) return items;
-
-  // Start from current rendered order (zOrder), not array order
-  const sorted = [...items].sort((a, b) => a.zOrder - b.zOrder);
-  const otherItem = sorted.find((i) => i.value === LEGEND_VALUES.OTHER) ?? null;
-
-  const reversed = sorted.filter((i) => i.value !== LEGEND_VALUES.OTHER).reverse();
-  const reordered = otherItem ? [...reversed, otherItem] : reversed;
-
-  return reordered.map((item, idx) => ({ ...item, zOrder: idx }));
-}
-
-/**
  * Builds a z-order mapping from legend items.
  * All items (including N/A with __NA__ value) are included.
  */

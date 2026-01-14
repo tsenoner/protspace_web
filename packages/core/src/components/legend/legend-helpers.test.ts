@@ -5,7 +5,6 @@ import {
   valueToKey,
   expandHiddenValues,
   computeOtherConcreteValues,
-  reverseZOrderKeepOtherLast,
   buildZOrderMapping,
   buildColorShapeMappings,
   calculatePointSize,
@@ -72,49 +71,6 @@ describe('legend-helpers', () => {
 
     it('returns empty array for empty input', () => {
       expect(computeOtherConcreteValues([])).toEqual([]);
-    });
-  });
-
-  describe('reverseZOrderKeepOtherLast', () => {
-    it('reverses z-order keeping Other at the end', () => {
-      const items: LegendItem[] = [
-        { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
-        { value: 'b', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 1 },
-        { value: 'Other', color: '#888', shape: 'circle', count: 1, isVisible: true, zOrder: 2 },
-      ];
-
-      const result = reverseZOrderKeepOtherLast(items);
-
-      expect(result[0].value).toBe('b');
-      expect(result[0].zOrder).toBe(0);
-      expect(result[1].value).toBe('a');
-      expect(result[1].zOrder).toBe(1);
-      expect(result[2].value).toBe('Other');
-      expect(result[2].zOrder).toBe(2);
-    });
-
-    it('reverses z-order when no Other present', () => {
-      const items: LegendItem[] = [
-        { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
-        { value: 'b', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 1 },
-      ];
-
-      const result = reverseZOrderKeepOtherLast(items);
-
-      expect(result[0].value).toBe('b');
-      expect(result[1].value).toBe('a');
-    });
-
-    it('returns empty array for empty input', () => {
-      expect(reverseZOrderKeepOtherLast([])).toEqual([]);
-    });
-
-    it('returns single item unchanged', () => {
-      const items: LegendItem[] = [
-        { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
-      ];
-      const result = reverseZOrderKeepOtherLast(items);
-      expect(result).toEqual(items);
     });
   });
 

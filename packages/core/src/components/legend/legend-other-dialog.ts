@@ -36,9 +36,10 @@ function renderOtherItem(item: OtherItem, callbacks: OtherDialogCallbacks): Temp
 }
 
 /**
- * Renders the close button SVG icon
+ * Renders the close button SVG icon.
+ * Shared utility for dialog close buttons.
  */
-function renderCloseIcon(): TemplateResult {
+export function renderCloseIcon(): TemplateResult {
   return html`
     <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path

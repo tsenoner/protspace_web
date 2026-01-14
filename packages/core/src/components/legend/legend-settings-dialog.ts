@@ -1,6 +1,7 @@
 import { html, nothing, type TemplateResult } from 'lit';
 import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_ANNOTATIONS } from './config';
 import type { LegendSortMode } from './types';
+import { renderCloseIcon } from './legend-other-dialog';
 
 /**
  * Settings dialog state interface
@@ -222,14 +223,7 @@ function renderDialogHeader(callbacks: SettingsDialogCallbacks): TemplateResult 
     <div class="modal-header">
       <h3 class="modal-title">Legend settings</h3>
       <button class="close-button" @click=${callbacks.onClose}>
-        <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M6 18L18 6M6 6l12 12"
-          />
-        </svg>
+        ${renderCloseIcon()}
       </button>
     </div>
   `;
