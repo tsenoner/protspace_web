@@ -12,7 +12,7 @@ import type {
   LegendSortMode,
   PersistedCategoryData,
 } from '../types';
-import { LEGEND_VALUES, toInternalValue } from '../config';
+import { LEGEND_VALUES } from '../config';
 import { createDefaultSettings } from '../legend-helpers';
 
 /**
@@ -111,34 +111,10 @@ export class PersistenceController implements ReactiveController {
       ...saved,
     };
 
-    // Migrate old keys in categories (e.g., empty string "" -> "__NA__")
-    const migratedCategories = this._migrateCategories(mergedSettings.categories);
-    mergedSettings.categories = migratedCategories;
-
-    // Also migrate hidden values
-    mergedSettings.hiddenValues = mergedSettings.hiddenValues.map((v) => toInternalValue(v));
-
-    this._pendingCategories = migratedCategories;
+    this._pendingCategories = mergedSettings.categories;
     this._settingsLoaded = true;
 
     this.callbacks.onSettingsLoaded(mergedSettings);
-  }
-
-  /**
-   * Migrate old category keys to new internal format.
-   * Converts empty strings and null-like values to '__NA__'.
-   */
-  private _migrateCategories(
-    categories: Record<string, PersistedCategoryData>,
-  ): Record<string, PersistedCategoryData> {
-    const migrated: Record<string, PersistedCategoryData> = {};
-
-    for (const [key, data] of Object.entries(categories)) {
-      const newKey = toInternalValue(key);
-      migrated[newKey] = data;
-    }
-
-    return migrated;
   }
 
   /**

@@ -334,5 +334,33 @@ describe('PersistenceController', () => {
       // pendingCategories are NOT cleared - they're needed for _visibleValues in subsequent updates
       expect(controller.hasPendingCategories()).toBe(true);
     });
+
+    it('applies z-order to N/A items using __NA__ key', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedAnnotation('annotation1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size-desc',
+        hiddenValues: [],
+        categories: {
+          cat1: { zOrder: 1, color: '#f00', shape: 'circle' },
+          [LEGEND_VALUES.NA_VALUE]: { zOrder: 0, color: '#888', shape: 'circle' }, // N/A with __NA__ key
+        },
+        enableDuplicateStackUI: false,
+      });
+      controller.loadSettings();
+
+      const items = [
+        createTestItem('cat1', 0),
+        createTestItem(LEGEND_VALUES.NA_VALUE, 1), // N/A item with __NA__ value
+      ];
+
+      const result = controller.applyPendingZOrder(items);
+
+      expect(result[0].zOrder).toBe(1); // cat1: 0 -> 1
+      expect(result[1].zOrder).toBe(0); // N/A: 1 -> 0 (from __NA__ key in categories)
+    });
   });
 });
