@@ -222,9 +222,7 @@ function renderDialogHeader(callbacks: SettingsDialogCallbacks): TemplateResult 
   return html`
     <div class="modal-header">
       <h3 class="modal-title">Legend settings</h3>
-      <button class="close-button" @click=${callbacks.onClose}>
-        ${renderCloseIcon()}
-      </button>
+      <button class="close-button" @click=${callbacks.onClose}>${renderCloseIcon()}</button>
     </div>
   `;
 }
