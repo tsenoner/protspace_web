@@ -9,7 +9,7 @@ export interface DragCallbacks {
   getLegendItems: () => LegendItem[];
   setLegendItems: (items: LegendItem[]) => void;
   onReorder: () => void;
-  onMergeToOther?: (value: string | null) => void;
+  onMergeToOther?: (value: string) => void;
   onSortModeChange?: (mode: LegendSortMode) => void;
 }
 
@@ -92,7 +92,7 @@ export class DragController implements ReactiveController {
     if (targetItem.value === LEGEND_VALUES.OTHER && this._draggedItemIndex !== -1) {
       const legendItems = this.callbacks.getLegendItems();
       const draggedItem = legendItems[this._draggedItemIndex];
-      // Allow merging any item except "Other" itself (including null/N/A)
+      // Allow merging any item except "Other" itself (N/A items use '__NA__' as value)
       if (draggedItem && draggedItem.value !== LEGEND_VALUES.OTHER) {
         this.callbacks.onMergeToOther?.(draggedItem.value);
       }

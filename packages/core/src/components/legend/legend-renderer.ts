@@ -1,7 +1,13 @@
 import type { TemplateResult } from 'lit';
 import { html } from 'lit';
 import type { LegendItem } from './types';
-import { SHAPE_PATH_GENERATORS, LEGEND_DEFAULTS, LEGEND_STYLES, LEGEND_VALUES } from './config';
+import {
+  SHAPE_PATH_GENERATORS,
+  LEGEND_DEFAULTS,
+  LEGEND_STYLES,
+  LEGEND_VALUES,
+  toDisplayValue,
+} from './config';
 
 /**
  * Utility class for rendering legend components
@@ -186,11 +192,11 @@ export class LegendRenderer {
   }
 
   /**
-   * Render the item text label
+   * Render the item text label.
+   * N/A items have '__NA__' as value and display as 'N/A'.
    */
   static renderItemText(item: LegendItem, otherItemsCount?: number): TemplateResult {
-    const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
-    let displayText = item.value === null || isEmptyString ? LEGEND_VALUES.NA_DISPLAY : item.value;
+    let displayText = toDisplayValue(item.value);
 
     // For "Other" items, append the number of categories if provided
     if (
@@ -220,7 +226,8 @@ export class LegendRenderer {
   }
 
   /**
-   * Render a complete legend item
+   * Render a complete legend item.
+   * N/A items have '__NA__' as value and display as 'N/A'.
    */
   static renderLegendItem(
     item: LegendItem,
@@ -241,9 +248,7 @@ export class LegendRenderer {
     otherItemsCount?: number,
     itemIndex?: number,
   ): TemplateResult {
-    const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
-    const displayLabel =
-      item.value === null || isEmptyString ? LEGEND_VALUES.NA_DISPLAY : item.value;
+    const displayLabel = toDisplayValue(item.value);
 
     return html`
       <div

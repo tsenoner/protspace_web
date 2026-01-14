@@ -1,5 +1,10 @@
+/**
+ * A legend item representing a category.
+ * N/A items use LEGEND_VALUES.NA_VALUE ('__NA__') as their value.
+ */
 export interface LegendItem {
-  value: string | null;
+  /** Category value. N/A items use '__NA__', "Other" uses 'Other' */
+  value: string;
   color: string;
   shape: string;
   count: number;
@@ -7,8 +12,13 @@ export interface LegendItem {
   zOrder: number;
 }
 
+/**
+ * An item in the "Other" category bucket.
+ * These are items that didn't make the top maxVisibleValues.
+ */
 export interface OtherItem {
-  value: string | null;
+  /** Category value. N/A items use '__NA__' */
+  value: string;
   count: number;
 }
 
@@ -36,7 +46,8 @@ export type ItemAction = 'toggle' | 'isolate' | 'extract';
 
 /** Detail for legend-item-click event */
 export interface LegendItemClickEventDetail {
-  value: string | null;
+  /** Category value. N/A items use '__NA__' */
+  value: string;
   action: ItemAction;
 }
 

@@ -5,6 +5,7 @@ import {
   type LegendProcessorContext,
 } from './legend-data-processor';
 import type { LegendItem } from './types';
+import { LEGEND_VALUES } from './config';
 
 describe('legend-data-processor', () => {
   let ctx: LegendProcessorContext;
@@ -73,11 +74,12 @@ describe('legend-data-processor', () => {
       expect(result.get('c')).toBe(1);
     });
 
-    it('handles null values', () => {
+    it('handles null values (converts to __NA__)', () => {
       const values = ['a', null, 'a', null];
       const result = LegendDataProcessor.countAnnotationFrequencies(values, false, [], new Set());
       expect(result.get('a')).toBe(2);
-      expect(result.get(null)).toBe(2);
+      // Null values are converted to '__NA__' internally
+      expect(result.get(LEGEND_VALUES.NA_VALUE)).toBe(2);
     });
 
     it('filters by indices in isolation mode', () => {
@@ -144,14 +146,14 @@ describe('legend-data-processor', () => {
       expect(result.otherCount).toBe(15); // 8 + 7
     });
 
-    it('handles null values in sorting', () => {
-      const freq = new Map<string | null, number>([
+    it('handles N/A values in sorting (uses __NA__)', () => {
+      const freq = new Map<string, number>([
         ['a', 10],
-        [null, 5],
+        [LEGEND_VALUES.NA_VALUE, 5],
         ['b', 8],
       ]);
       const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'size-desc');
-      expect(result.topItems.some(([v]) => v === null)).toBe(true);
+      expect(result.topItems.some(([v]) => v === LEGEND_VALUES.NA_VALUE)).toBe(true);
     });
   });
 
@@ -290,44 +292,6 @@ describe('legend-data-processor', () => {
       const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, false, [], true);
       const shapes = new Set(items.map((i) => i.shape));
       expect(shapes.size).toBeGreaterThan(1);
-    });
-  });
-
-  describe('addNullEntry', () => {
-    it('adds null entry when in frequency but not in top items', () => {
-      const items: LegendItem[] = [];
-      const freq = new Map<string | null, number>([
-        ['a', 10],
-        [null, 5],
-      ]);
-      const topItems: Array<[string | null, number]> = [['a', 10]];
-      LegendDataProcessor.addNullEntry(items, freq, topItems, [], false);
-      expect(items.some((i) => i.value === null)).toBe(true);
-    });
-
-    it('does not add null entry when already in top items', () => {
-      const items: LegendItem[] = [];
-      const freq = new Map<string | null, number>([
-        ['a', 10],
-        [null, 5],
-      ]);
-      const topItems: Array<[string | null, number]> = [
-        ['a', 10],
-        [null, 5],
-      ];
-      LegendDataProcessor.addNullEntry(items, freq, topItems, [], false);
-      expect(items).toHaveLength(0);
-    });
-
-    it('preserves existing null z-order', () => {
-      const items: LegendItem[] = [];
-      const freq = new Map<string | null, number>([[null, 5]]);
-      const topItems: Array<[string | null, number]> = [];
-      const existing: LegendItem[] = [
-        { value: null, color: '#000', shape: 'circle', count: 5, isVisible: true, zOrder: 99 },
-      ];
-      LegendDataProcessor.addNullEntry(items, freq, topItems, existing, false);
-      expect(items[0]?.zOrder).toBe(99);
     });
   });
 

@@ -83,12 +83,55 @@ export const FIRST_NUMBER_SORT_ANNOTATIONS = new Set<string>(['length_fixed', 'l
 
 /** Magic string constants for legend values */
 export const LEGEND_VALUES = {
+  /** Synthetic "Other" category that groups items beyond maxVisibleValues */
   OTHER: 'Other',
   /** Used for visual encoding special color lookup */
   OTHERS: 'Others',
-  NULL_STRING: 'null',
+  /** Display text for N/A items */
   NA_DISPLAY: 'N/A',
+  /** Internal value used to represent N/A items (null, empty string, whitespace) */
+  NA_VALUE: '__NA__',
 } as const;
+
+/**
+ * Check if a raw data value represents N/A (null, empty string, or whitespace only).
+ * Use this when processing raw annotation data.
+ */
+export function isNADataValue(value: string | null | undefined): boolean {
+  return value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
+}
+
+/**
+ * Check if an internal legend value is N/A.
+ * Use this when working with LegendItem.value.
+ */
+export function isNAValue(value: string): boolean {
+  return value === LEGEND_VALUES.NA_VALUE;
+}
+
+/**
+ * Convert raw data value to internal legend value.
+ * N/A values (null, empty, whitespace) become LEGEND_VALUES.NA_VALUE.
+ */
+export function toInternalValue(value: string | null | undefined): string {
+  return isNADataValue(value) ? LEGEND_VALUES.NA_VALUE : (value as string);
+}
+
+/**
+ * Convert internal legend value back to raw data value for matching.
+ * LEGEND_VALUES.NA_VALUE becomes null for matching against raw annotation data.
+ */
+export function toDataValue(value: string): string | null {
+  return value === LEGEND_VALUES.NA_VALUE ? null : value;
+}
+
+/**
+ * Get display text for a legend value.
+ * N/A values show as "N/A", others show as-is.
+ */
+export function toDisplayValue(value: string): string {
+  return value === LEGEND_VALUES.NA_VALUE ? LEGEND_VALUES.NA_DISPLAY : value;
+}
 
 /** Event name constants for legend component */
 export const LEGEND_EVENTS = {

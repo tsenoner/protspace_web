@@ -139,27 +139,16 @@ function renderCheckboxOptions(
 }
 
 /**
- * Checks if sort mode is reversed (desc for size/alpha, reverse for manual)
+ * Returns the appropriate sort mode for a given category
  */
-function isSortReversed(mode: LegendSortMode): boolean {
-  return mode === 'manual-reverse' || mode.endsWith('-desc');
-}
-
-/**
- * Returns the appropriate sort mode for a given category, preserving current direction
- */
-function getSortModeForCategory(
-  category: 'size' | 'alpha' | 'manual',
-  currentMode: LegendSortMode,
-): LegendSortMode {
-  const reversed = isSortReversed(currentMode);
+function getSortModeForCategory(category: 'size' | 'alpha' | 'manual'): LegendSortMode {
   switch (category) {
     case 'size':
-      return reversed ? 'size-desc' : 'size-asc';
+      return 'size-asc';
     case 'alpha':
-      return reversed ? 'alpha-desc' : 'alpha-asc';
+      return 'alpha-asc';
     case 'manual':
-      return reversed ? 'manual-reverse' : 'manual';
+      return 'manual';
   }
 }
 
@@ -178,10 +167,10 @@ function renderSortingSection(
 
   const isSize = currentMode.startsWith('size');
   const isAlphabetic = currentMode.startsWith('alpha');
-  const isManual = currentMode === 'manual' || currentMode === 'manual-reverse';
+  const isManual = currentMode.startsWith('manual');
 
   const handleTypeChange = (category: 'size' | 'alpha' | 'manual') => {
-    callbacks.onSortModeChange(aname, getSortModeForCategory(category, currentMode));
+    callbacks.onSortModeChange(aname, getSortModeForCategory(category));
   };
 
   return html`
