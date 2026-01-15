@@ -56,3 +56,7 @@ docs/.vitepress/dist
 /test-results
 /temp-videos
 /playwright-report
+
+# Claude
+CLAUDE.md
+.claude

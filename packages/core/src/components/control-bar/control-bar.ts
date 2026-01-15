@@ -60,6 +60,7 @@ export class ProtspaceControlBar extends LitElement {
 
   // Stable listeners for proper add/remove
   private _onDocumentClick = (event: Event) => this.handleDocumentClick(event);
+  private _onDocumentKeydown = (event: KeyboardEvent) => this.handleDocumentKeydown(event);
   private _onDataChange = (event: Event) => this._handleDataChange(event);
   private _onProteinClick = (event: Event) => this._handleProteinSelection(event);
   private _onDataIsolation = (event: Event) => this._handleDataIsolation(event);
@@ -644,6 +645,7 @@ export class ProtspaceControlBar extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     document.addEventListener('click', this._onDocumentClick);
+    document.addEventListener('keydown', this._onDocumentKeydown);
 
     if (this.autoSync) {
       this._setupAutoSync();
@@ -653,6 +655,7 @@ export class ProtspaceControlBar extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     document.removeEventListener('click', this._onDocumentClick);
+    document.removeEventListener('keydown', this._onDocumentKeydown);
 
     if (this._scatterplotElement) {
       this._scatterplotElement.removeEventListener('data-change', this._onDataChange);
@@ -667,6 +670,26 @@ export class ProtspaceControlBar extends LitElement {
         'auto-disable-selection',
         this._onAutoDisableSelection,
       );
+    }
+  }
+
+  private handleDocumentKeydown(event: KeyboardEvent) {
+    const path = event.composedPath?.() ?? [];
+    const inAriaModal = path.some(
+      (n) => n instanceof HTMLElement && n.getAttribute('aria-modal') === 'true',
+    );
+    if (inAriaModal) return;
+
+    if (event.key === 'Escape') {
+      if (this.selectedProteinsCount > 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.handleClearSelections();
+      } else if (this.selectionMode) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.handleToggleSelectionMode();
+      }
     }
   }
 

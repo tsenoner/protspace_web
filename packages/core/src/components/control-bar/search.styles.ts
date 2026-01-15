@@ -65,6 +65,7 @@ export const searchStyles = css`
   }
 
   .search-input {
+    position: relative;
     flex: 1 1 auto;
     min-width: 9rem;
     border: none;
@@ -72,6 +73,20 @@ export const searchStyles = css`
     padding: 0.1rem 0.25rem;
     font-size: 0.875rem;
     background: transparent;
+  }
+
+  .search-keyboard-shortcut-hint {
+    position: absolute;
+    right: 0.25rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #d6d7da;
+    font-size: 0.75rem;
+    letter-spacing: 0.125rem;
+    pointer-events: none;
+    border: 1px solid #d9e2ec;
+    border-radius: 0.25rem;
+    padding: 0rem 0.25rem;
   }
 
   .search-suggestions {

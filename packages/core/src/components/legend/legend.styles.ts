@@ -24,7 +24,6 @@ export const legendStyles = css`
     --legend-drag-bg: #eaf4fb;
     --legend-drag-bg-dark: #1e3a8a;
     --legend-selected-ring: #00a3e0; /* UniProt lighter azure */
-    --legend-extracted-border: #10b981;
 
     display: flex;
     user-select: none;
@@ -57,6 +56,18 @@ export const legendStyles = css`
     height: 100%;
     padding-bottom: 8px;
     flex-shrink: 1;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .legend-header {
@@ -155,6 +166,16 @@ export const legendStyles = css`
     box-shadow: 0 0 0 2px var(--legend-selected-ring);
   }
 
+  .legend-item:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--legend-selected-ring);
+  }
+
+  .legend-item:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--legend-selected-ring);
+  }
+
   /* Drag-and-drop visual hints */
   .legend-item.dragging {
     opacity: 0.8;
@@ -187,6 +208,10 @@ export const legendStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .mr-2 {
+    margin-right: 0.5rem;
   }
 
   .legend-text {
@@ -372,8 +397,6 @@ export const legendStyles = css`
     font-weight: 600;
     font-size: 0.95rem;
     color: var(--legend-text-color);
-    padding-bottom: 8px;
-    border-bottom: 2px solid var(--legend-border);
   }
 
   .other-items-list-item-sorting-container {
@@ -397,18 +420,6 @@ export const legendStyles = css`
     background: #f0f4f8;
     border-color: #b8c5d0;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  }
-
-  .other-items-list-item-sorting-container-item-name {
-    font-weight: 500;
-    font-size: 0.875rem;
-    color: var(--legend-text-color);
-    margin-bottom: 4px;
-    font-family: 'Courier New', monospace;
-    background: #e8eef4;
-    padding: 4px 8px;
-    border-radius: 4px;
-    width: fit-content;
   }
 
   .other-items-list-item-sorting-container-item-container {
@@ -516,19 +527,11 @@ export const legendStyles = css`
     padding-left: 2rem;
   }
 
-  @media (prefers-color-scheme: dark) {
-  }
-
   .other-items-list {
     border: 1px solid var(--legend-border);
     border-radius: 0.375rem;
     margin-bottom: 1rem;
     overflow-y: auto;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .other-items-list {
-    }
   }
 
   .other-item {
@@ -546,13 +549,6 @@ export const legendStyles = css`
 
   .other-item:hover {
     background: var(--legend-hover-bg);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .other-item {
-    }
-    .other-item:hover {
-    }
   }
 
   .other-item-info {
@@ -590,9 +586,25 @@ export const legendStyles = css`
     display: flex;
     justify-content: flex-end;
     gap: 10px;
-    padding-top: 12px;
-    border-top: 1px solid var(--legend-border);
-    margin-top: 8px;
+  }
+
+  .modal-reset-button {
+    background: transparent;
+    border: 1px solid #dc2626;
+    color: #dc2626;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+    margin-inline-end: auto;
+  }
+
+  .modal-reset-button:hover {
+    background: #dc2626;
+    color: white;
+    box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
   }
 
   .modal-close-button {
