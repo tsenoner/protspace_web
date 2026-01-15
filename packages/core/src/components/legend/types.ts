@@ -25,7 +25,7 @@ export interface OtherItem {
 export interface ScatterplotData {
   protein_ids: string[];
   annotations: Record<string, { values: (string | null)[] }>;
-  annotation_data: Record<string, number[]>;
+  annotation_data: Record<string, (number | number[])[]>;
   projections?: Array<{ name: string }>;
 }
 

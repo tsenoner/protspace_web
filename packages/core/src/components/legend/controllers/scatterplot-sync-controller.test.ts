@@ -153,10 +153,10 @@ describe('ScatterplotSyncController', () => {
     it('returns false for single-value annotations', () => {
       mockScatterplot.getCurrentData = () => ({
         protein_ids: ['p1', 'p2'],
-        projections: {},
-        annotations: ['single'],
+        projections: [],
+        annotations: { single: { values: ['a', 'b'] } },
         annotation_data: {
-          single: ['a', 'b'],
+          single: [0, 1],
         },
       });
 
@@ -166,10 +166,10 @@ describe('ScatterplotSyncController', () => {
     it('returns true for multilabel annotations', () => {
       mockScatterplot.getCurrentData = () => ({
         protein_ids: ['p1', 'p2'],
-        projections: {},
-        annotations: ['multi'],
+        projections: [],
+        annotations: { multi: { values: ['a;b', 'c'] } },
         annotation_data: {
-          multi: [['a', 'b'], ['c']],
+          multi: [[0, 1], [2]],
         },
       });
 
@@ -179,8 +179,8 @@ describe('ScatterplotSyncController', () => {
     it('returns false when annotation data is missing', () => {
       mockScatterplot.getCurrentData = () => ({
         protein_ids: ['p1'],
-        projections: {},
-        annotations: [],
+        projections: [],
+        annotations: {},
         annotation_data: {},
       });
 

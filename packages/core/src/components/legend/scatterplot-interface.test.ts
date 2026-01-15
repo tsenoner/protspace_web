@@ -25,7 +25,7 @@ describe('scatterplot-interface', () => {
     });
 
     it('returns false for element with only getCurrentData', () => {
-      const element = document.createElement('div') as Element & {
+      const element = document.createElement('div') as unknown as Element & {
         getCurrentData: () => null;
       };
       element.getCurrentData = () => null;
@@ -33,10 +33,10 @@ describe('scatterplot-interface', () => {
     });
 
     it('returns false for element with only selectedAnnotation', () => {
-      const element = document.createElement('div') as Element & {
+      const element = document.createElement('div') as unknown as Element & {
         selectedAnnotation: string;
       };
-      (element as unknown as { selectedAnnotation: string }).selectedAnnotation = 'test';
+      element.selectedAnnotation = 'test';
       expect(isScatterplotElement(element)).toBe(false);
     });
 
