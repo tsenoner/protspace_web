@@ -41,9 +41,9 @@ async function waitForControlBar(
 
       // Check that selects have options (data is loaded)
       const projectionSelect = selects[0] as HTMLSelectElement;
-      const featureSelect = selects[1] as HTMLSelectElement;
+      const annotationSelect = selects[1] as HTMLSelectElement;
 
-      return projectionSelect.options.length > 0 && featureSelect.options.length > 0;
+      return projectionSelect.options.length > 0 && annotationSelect.options.length > 0;
     },
     { timeout, polling: 500 },
   );
@@ -141,7 +141,7 @@ test.describe('Control Bar Screenshots', () => {
       // Define annotations with their target selectors
       const annotations = [
         { selector: '#projection-select', label: '1', offset: { x: -15, y: -40 } },
-        { selector: '#feature-select', label: '2', offset: { x: -15, y: -40 } },
+        { selector: '#annotation-select', label: '2', offset: { x: -15, y: -40 } },
         { selector: '.search-group', label: '3', offset: { x: -15, y: -40 } },
         { selector: 'button:has(.icon)', label: '4', offset: { x: -15, y: -40 }, nth: 0 }, // Select
         { selector: 'button:has(.icon)', label: '5', offset: { x: -15, y: -40 }, nth: 1 }, // Clear
@@ -305,7 +305,7 @@ test.describe('Control Bar Screenshots', () => {
       const controlBar = document.querySelector('#myControlBar') as any;
       if (!controlBar?.shadowRoot) return { options: [], bounds: null };
 
-      const select = controlBar.shadowRoot.querySelector('#feature-select') as HTMLSelectElement;
+      const select = controlBar.shadowRoot.querySelector('#annotation-select') as HTMLSelectElement;
       if (!select) return { options: [], bounds: null };
 
       const options = Array.from(select.options).map((opt) => opt.textContent || opt.value);

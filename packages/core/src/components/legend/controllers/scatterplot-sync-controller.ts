@@ -83,7 +83,7 @@ export class ScatterplotSyncController implements ReactiveController {
    */
   isMultilabelAnnotation(selectedAnnotation: string): boolean {
     const currentData = this._scatterplotElement?.getCurrentData?.();
-    const annotationData = currentData?.feature_data?.[selectedAnnotation];
+    const annotationData = currentData?.annotation_data?.[selectedAnnotation];
 
     return (
       Array.isArray(annotationData) &&
@@ -109,11 +109,11 @@ export class ScatterplotSyncController implements ReactiveController {
         this.callbacks.getHiddenValues(),
         this.callbacks.getOtherItems(),
       );
-      this._scatterplotElement.hiddenFeatureValues = [...expandedHidden];
+      this._scatterplotElement.hiddenAnnotationValues = [...expandedHidden];
     }
 
     if (supportsOtherValues(this._scatterplotElement)) {
-      this._scatterplotElement.otherFeatureValues = this.callbacks.getOtherConcreteValues();
+      this._scatterplotElement.otherAnnotationValues = this.callbacks.getOtherConcreteValues();
     }
   }
 
@@ -123,7 +123,7 @@ export class ScatterplotSyncController implements ReactiveController {
   syncOtherValues(): void {
     if (!this._scatterplotElement || !supportsOtherValues(this._scatterplotElement)) return;
 
-    this._scatterplotElement.otherFeatureValues = this.callbacks.getOtherConcreteValues();
+    this._scatterplotElement.otherAnnotationValues = this.callbacks.getOtherConcreteValues();
   }
 
   /**
@@ -297,7 +297,7 @@ export class ScatterplotSyncController implements ReactiveController {
 
     if (data && this._scatterplotElement) {
       const currentData = this._scatterplotElement.getCurrentData();
-      const selectedAnnotation = this._scatterplotElement.selectedFeature;
+      const selectedAnnotation = this._scatterplotElement.selectedAnnotation;
 
       if (currentData && selectedAnnotation) {
         this.callbacks.onDataChange(currentData, selectedAnnotation);
@@ -307,15 +307,15 @@ export class ScatterplotSyncController implements ReactiveController {
 
   private _handleAnnotationChange(event: Event): void {
     const customEvent = event as CustomEvent;
-    const { feature } = customEvent.detail;
-    this.callbacks.onAnnotationChange(feature);
+    const { annotation } = customEvent.detail;
+    this.callbacks.onAnnotationChange(annotation);
   }
 
   private _syncWithScatterplot(): void {
     if (!this._scatterplotElement) return;
 
     const currentData = this._scatterplotElement.getCurrentData();
-    const selectedAnnotation = this._scatterplotElement.selectedFeature;
+    const selectedAnnotation = this._scatterplotElement.selectedAnnotation;
 
     if (!currentData || !selectedAnnotation) return;
 

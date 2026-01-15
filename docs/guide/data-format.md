@@ -8,7 +8,7 @@ A `.parquetbundle` is a single file containing three Parquet tables bundled toge
 
 ```
 .parquetbundle file
-├── selected_features.parquet    # Protein metadata and annotations
+├── selected_annotations.parquet # Protein metadata and annotations
 ├── ---PARQUET_DELIMITER---      # Separator
 ├── projections_metadata.parquet # Projection method information
 ├── ---PARQUET_DELIMITER---      # Separator

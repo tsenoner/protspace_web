@@ -471,53 +471,199 @@ export const controlBarStyles = css`
     background: #f6f8fb;
   }
 
+  /* Export menu reuses filter-menu styles with minimal overrides */
   .export-menu {
     position: absolute;
     right: 0;
     top: calc(100% + 5px);
-    width: max-content;
+    width: 280px;
     background: var(--up-surface);
     border: 1px solid var(--up-border);
     border-radius: 0.25rem;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
     display: flex;
     z-index: 50;
     flex-direction: column;
-    row-gap: 20px;
-    padding: 10px 10px 14px;
+    padding: 9px 10px 14px;
   }
 
-  .export-menu-list {
-    margin: 0;
-    list-style: none;
-    padding: 0;
+  .export-menu-header {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--up-border);
+    margin-bottom: 0.75rem;
+  }
+
+  .export-menu-header span {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--up-muted);
+  }
+
+  .export-option-group {
     display: flex;
     flex-direction: column;
-    row-gap: 10px;
-  }
-  .export-menu-list-item {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-  }
-  .export-menu-list-item-button {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    border: 1px solid #3afcf3;
-    border-radius: 5px;
-    padding: 0.35rem 0.9rem;
-    cursor: pointer;
-    box-shadow: inset -1px -1px 2px -1px #969696c9;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
   }
 
-  .export-menu-list-item-button:hover {
-    border: 1px solid #3afcf3;
-    background-color: #58e9f3;
-    box-shadow: inset -1px -1px 2px -1px #e9e9e9c9;
-    color: #fff;
+  .export-option-label {
+    font-size: 0.75rem;
+    color: var(--up-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .export-option-value {
+    font-weight: 500;
+    color: #0b0f19;
+  }
+
+  /* Reuse filter button grid style for format buttons */
+  .export-format-options {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.375rem;
+  }
+
+  .export-format-btn {
+    border: 1px solid var(--up-border);
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    background: var(--up-surface);
+    color: var(--up-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: inset -1px -1px 3px 0px #d8d8d8;
+  }
+
+  .export-format-btn:hover {
+    background: #f6f8fb;
+  }
+
+  .export-format-btn.active {
+    background: var(--up-primary);
+    color: #ffffff;
+    border-color: var(--up-primary);
+  }
+
+  /* Sliders reuse standard input styles */
+  .export-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 3px;
+    border-radius: 1.5px;
+    background: var(--up-border);
+    outline: none;
+    cursor: pointer;
+  }
+
+  .export-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--up-primary);
+    border: 2px solid var(--up-surface);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+  }
+
+  .export-slider::-webkit-slider-thumb:hover {
+    background: var(--up-primary-hover);
+  }
+
+  .export-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--up-primary);
+    border: 2px solid var(--up-surface);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+  }
+
+  .export-slider::-moz-range-thumb:hover {
+    background: var(--up-primary-hover);
+  }
+
+  .export-slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.625rem;
+    color: var(--up-muted);
+    opacity: 0.7;
+    margin-top: 0.125rem;
+  }
+
+  .export-dimensions-group {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--up-border);
+    margin-bottom: 0.75rem;
+  }
+
+  .export-aspect-lock {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--up-muted);
+    cursor: pointer;
+    margin-top: 0.375rem;
+    user-select: none;
+  }
+
+  .export-aspect-lock input[type='checkbox'] {
+    cursor: pointer;
+  }
+
+  /* Reuse filter button action styles */
+  .export-actions {
+    display: flex;
+    gap: 0.375rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--up-border);
+  }
+
+  .export-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    flex: 1;
+    border: 1px solid var(--up-border);
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    background: var(--up-primary);
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: inset -1px -1px 3px 0px rgba(0, 0, 0, 0.1);
+  }
+
+  .export-action-btn:hover {
+    background: var(--up-primary-hover);
+  }
+
+  .export-reset-btn {
+    border: 1px solid var(--up-border);
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    background: var(--up-surface);
+    color: var(--up-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: inset -1px -1px 3px 0px #d8d8d8;
+  }
+
+  .export-reset-btn:hover {
+    background: #f6f8fb;
   }
 
   .chevron-down {

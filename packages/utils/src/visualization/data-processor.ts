@@ -16,23 +16,23 @@ export class DataProcessor {
         | [number, number]
         | [number, number, number];
 
-      // Map feature values for this protein
-      const featureValues: Record<string, string[]> = {};
-      Object.keys(data.features).forEach((featureKey) => {
-        const featureRows = data.feature_data?.[featureKey];
-        const featureIndicesData = featureRows ? featureRows[index] : undefined;
+      // Map annotation values for this protein
+      const annotationValues: Record<string, string[]> = {};
+      Object.keys(data.annotations).forEach((annotationKey) => {
+        const annotationRows = data.annotation_data?.[annotationKey];
+        const annotationIndicesData = annotationRows ? annotationRows[index] : undefined;
 
         // Handle array/single/undefined cases
-        const featureIndices: unknown[] = Array.isArray(featureIndicesData)
-          ? featureIndicesData
-          : featureIndicesData == null
+        const annotationIndices: unknown[] = Array.isArray(annotationIndicesData)
+          ? annotationIndicesData
+          : annotationIndicesData == null
             ? []
-            : [featureIndicesData];
+            : [annotationIndicesData];
 
-        featureValues[featureKey] = Array.isArray(data.features[featureKey].values)
-          ? featureIndices
+        annotationValues[annotationKey] = Array.isArray(data.annotations[annotationKey].values)
+          ? annotationIndices
               .filter((i): i is number => typeof i === 'number' && Number.isFinite(i))
-              .map((i) => data.features[featureKey].values[i])
+              .map((i) => data.annotations[annotationKey].values[i])
               .filter((v) => v != null)
           : [];
       });
@@ -44,7 +44,7 @@ export class DataProcessor {
         id,
         x: xVal,
         y: yVal,
-        featureValues,
+        annotationValues,
         originalIndex: index,
       } as PlotDataPoint;
       if (coordinates.length === 3) {

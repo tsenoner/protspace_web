@@ -12,7 +12,7 @@ export interface WebGLStyleGetters {
   getDepth: (point: PlotDataPoint) => number;
   getStrokeColor: (point: PlotDataPoint) => string;
   getStrokeWidth: (point: PlotDataPoint) => number;
-  getShape: (point: PlotDataPoint) => d3.SymbolType;
+  getShape: (point: PlotDataPoint) => string;
 }
 
 export type ScalePair = {

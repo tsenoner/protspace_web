@@ -17,7 +17,7 @@ function createTestItem(value: string | null, zOrder: number): LegendItem {
 vi.mock('@protspace/utils', () => ({
   generateDatasetHash: vi.fn((ids: string[]) => `hash_${ids.join('_')}`),
   buildStorageKey: vi.fn(
-    (prefix: string, hash: string, feature: string) => `${prefix}_${hash}_${feature}`,
+    (prefix: string, hash: string, annotation: string) => `${prefix}_${hash}_${annotation}`,
   ),
   getStorageItem: vi.fn(),
   setStorageItem: vi.fn(),

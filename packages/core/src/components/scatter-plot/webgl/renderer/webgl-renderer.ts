@@ -8,8 +8,8 @@
  * Falls back to direct rendering if gamma pipeline is unavailable.
  */
 
-import * as d3 from 'd3';
 import type { PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
+import { getShapeIndex } from '@protspace/utils';
 import {
   type WebGLStyleGetters,
   type ScalePair,
@@ -31,18 +31,6 @@ const MIN_CAPACITY = 1024;
 const MAX_LABELS = 8;
 const LABEL_TEXTURE_WIDTH = 2048;
 const DIAMOND_SIZE_SCALE = 1.25;
-
-// Shape type to index mapping (matches shader logic)
-// 0=circle, 1=square, 2=diamond, 3=triangle-up, 4=triangle-down, 5=plus
-function getShapeIndex(symbolType: d3.SymbolType): number {
-  if (symbolType === d3.symbolCircle) return 0;
-  if (symbolType === d3.symbolSquare) return 1;
-  if (symbolType === d3.symbolDiamond) return 2;
-  if (symbolType === d3.symbolTriangle) return 3;
-  if (symbolType === d3.symbolTriangle2) return 4;
-  if (symbolType === d3.symbolPlus) return 5;
-  return 0; // Default to circle
-}
 
 const POINT_VERTEX_SHADER = `#version 300 es
 precision highp float;
@@ -68,11 +56,11 @@ void main() {
   vec2 cssTransformed = a_dataPosition * u_transform.z + u_transform.xy;
   vec2 physicalPos = cssTransformed * u_dpr;
   vec2 clipSpace = (physicalPos / u_resolution) * 2.0 - 1.0;
-  
+
   // Depth is computed per-point on the CPU (opacity + legend z-order tie-break)
   gl_Position = vec4(clipSpace.x, -clipSpace.y, a_depth, 1.0);
   gl_PointSize = max(1.0, a_pointSize);
-  
+
   // Convert sRGB input to linear RGB for proper blending
   vec3 linearColor = pow(max(a_color.rgb, vec3(0.0)), vec3(u_gamma));
   v_color = vec4(linearColor, a_color.a);
@@ -102,7 +90,7 @@ const float SQRT3 = 1.73205080757;
 void main() {
   vec2 coord = gl_PointCoord * 2.0 - 1.0;
   bool discard_fragment = false;
-  
+
   // Shape rendering (0=circle, 1=square, 2=diamond, 3=triangle-up, 4=triangle-down, 5=plus)
   if (v_shape < 0.5) { // Circle
     discard_fragment = dot(coord, coord) > 1.0;
@@ -121,9 +109,9 @@ void main() {
     bool inHorizontal = abs(coord.y) < thickness;
     discard_fragment = !(inVertical || inHorizontal);
   }
-  
+
   if (discard_fragment) discard;
-  
+
   vec3 finalColor = v_color.rgb;
 
   // Pie Chart Logic (only for multi-label points, which always use circle shape)
@@ -131,22 +119,22 @@ void main() {
     float angle = atan(coord.y, coord.x); // -PI to PI
     // Map to 0..1
     float normalizedAngle = (angle + PI) / (2.0 * PI);
-    
+
     float count = floor(v_labelCount + 0.5);
     float sliceIndex = floor(normalizedAngle * count);
-    
+
     // Calculate texture lookup index
     int globalIndex = v_pointIndex * u_maxLabels + int(sliceIndex);
     int texW = int(u_labelTextureSize.x);
     int tx = globalIndex % texW;
     int ty = globalIndex / texW;
-    
+
     vec4 texColor = texelFetch(u_labelColors, ivec2(tx, ty), 0);
-    
+
     // Linearize texture color
     finalColor = pow(max(texColor.rgb, vec3(0.0)), vec3(u_gamma));
   }
-  
+
   // Apply a cheap "outline" effect by darkening near the edge of each shape.
   // (This is distinct from the SVG renderer's true stroke color/width.)
   //
@@ -200,7 +188,7 @@ void main() {
   if (max(edgeDist, 0.0) < strokeWidth) {
     finalColor = finalColor * 0.5;
   }
-  
+
   float finalAlpha = v_color.a;
   fragColor = vec4(finalColor * finalAlpha, finalAlpha);
 }`;
@@ -226,10 +214,10 @@ out vec4 fragColor;
 
 void main() {
   vec4 linear = texture(u_linearTexture, v_texCoord);
-  
+
   // Apply gamma correction to RGB, preserve alpha
   vec3 corrected = pow(max(linear.rgb, vec3(0.0)), vec3(1.0 / u_gamma));
-  
+
   fragColor = vec4(corrected, linear.a);
 }`;
 
@@ -360,11 +348,11 @@ export class WebGLRenderer {
   }
 
   /**
-   * @deprecated Selected feature is now handled via style signature.
+   * @deprecated Selected annotation is now handled via style signature.
    * Kept for backward compatibility.
    */
-  setSelectedFeature(_feature: string) {
-    // No-op: selected feature is now part of style signature
+  setSelectedAnnotation(_annotation: string) {
+    // No-op: selected annotation is now part of style signature
   }
 
   invalidateStyleCache() {

@@ -4,12 +4,12 @@ ProtSpace provides four web components for building protein embedding visualizat
 
 ## Components
 
-| Component                             | Tag                            | Purpose                       |
-| ------------------------------------- | ------------------------------ | ----------------------------- |
-| [Scatterplot](#scatterplot)           | `<protspace-scatterplot>`      | Main 2D/3D visualization      |
-| [Legend](#legend)                     | `<protspace-legend>`           | Category filtering and colors |
-| [Control Bar](#control-bar)           | `<protspace-control-bar>`      | Projection/feature selection  |
-| [Structure Viewer](#structure-viewer) | `<protspace-structure-viewer>` | 3D protein structures         |
+| Component                             | Tag                            | Purpose                         |
+| ------------------------------------- | ------------------------------ | ------------------------------- |
+| [Scatterplot](#scatterplot)           | `<protspace-scatterplot>`      | Main 2D/3D visualization        |
+| [Legend](#legend)                     | `<protspace-legend>`           | Category filtering and colors   |
+| [Control Bar](#control-bar)           | `<protspace-control-bar>`      | Projection/annotation selection |
+| [Structure Viewer](#structure-viewer) | `<protspace-structure-viewer>` | 3D protein structures           |
 
 ## Scatterplot
 
@@ -32,7 +32,7 @@ The main visualization component.
 | ------------------------- | ----------------- | ------------------------------ |
 | `data`                    | VisualizationData | The loaded dataset             |
 | `selectedProjectionIndex` | number            | Current projection index       |
-| `selectedFeature`         | string            | Current coloring feature       |
+| `selectedAnnotation`      | string            | Current coloring annotation    |
 | `selectedProteins`        | string[]          | Currently selected protein IDs |
 
 ### Methods
@@ -120,7 +120,7 @@ User customizations (visibility, colors, ordering, settings) are automatically s
 
 ## Control Bar
 
-Projection and feature selection controls.
+Projection and annotation selection controls.
 
 ### Attributes
 
@@ -129,7 +129,7 @@ Projection and feature selection controls.
 | `auto-sync`              | boolean | false   | Auto-sync with scatterplot   |
 | `scatterplot-selector`   | string  | -       | CSS selector for target plot |
 | `show-projection-select` | boolean | true    | Show projection dropdown     |
-| `show-feature-select`    | boolean | true    | Show feature dropdown        |
+| `show-annotation-select` | boolean | true    | Show annotation dropdown     |
 | `show-search`            | boolean | true    | Show search box              |
 | `show-export`            | boolean | true    | Show export button           |
 
@@ -138,7 +138,7 @@ Projection and feature selection controls.
 | Event               | Detail                | Description        |
 | ------------------- | --------------------- | ------------------ |
 | `projection-change` | { projection, index } | Projection changed |
-| `feature-change`    | { feature }           | Feature changed    |
+| `annotation-change` | { annotation }        | Annotation changed |
 | `search`            | { query, results }    | Search performed   |
 | `export-request`    | { format }            | Export requested   |
 
@@ -149,7 +149,7 @@ Projection and feature selection controls.
   auto-sync
   scatterplot-selector="#plot"
   show-projection-select
-  show-feature-select
+  show-annotation-select
   show-search
   show-export
 ></protspace-control-bar>
@@ -262,7 +262,7 @@ import type {
   ProtspaceStructureViewer,
 } from '@protspace/core';
 
-import type { VisualizationData, Protein, Projection, FeatureDefinition } from '@protspace/utils';
+import type { VisualizationData, Protein, Projection, Annotation } from '@protspace/utils';
 
 const plot = document.getElementById('plot') as ProtspaceScatterplot;
 ```
