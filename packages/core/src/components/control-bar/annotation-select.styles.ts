@@ -4,16 +4,6 @@ export const annotationSelectStyles = css`
   :host {
     display: inline-block;
     position: relative;
-    font-family:
-      system-ui,
-      -apple-system,
-      sans-serif;
-    /* Reuse control bar design tokens */
-    --up-primary: #00a3e0;
-    --up-primary-hover: #008ec4;
-    --up-surface: #ffffff;
-    --up-border: #d9e2ec;
-    --up-muted: #4a5568;
   }
 
   .annotation-select-container {
@@ -21,36 +11,41 @@ export const annotationSelectStyles = css`
     display: inline-block;
   }
 
+  /* Trigger inherits from .input-base defined in control-bar.styles.ts */
   .annotation-select-trigger {
+    /* Base input styles are inherited through CSS variables */
+    /* Only define what's unique to this component */
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
-    padding: 6px 30px 6px 9px;
-    border: 1px solid var(--up-border);
-    border-radius: 0.25rem;
-    background: var(--up-surface);
-    font-size: 0.875rem;
-    color: var(--up-muted);
-    cursor: pointer;
-    transition: all 0.15s ease;
+    gap: var(--spacing-sm);
+    padding: var(--input-padding-y) 30px var(--input-padding-y) var(--input-padding-x);
     min-width: 10rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     width: max-content;
+    cursor: pointer;
+
+    /* Use shared input styles */
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: var(--text-base);
+    color: var(--muted);
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition);
   }
 
   .annotation-select-trigger:hover {
-    background: #f6f8fb;
+    background: var(--hover-bg);
   }
 
   .annotation-select-trigger:focus {
     outline: none;
-    border-color: var(--up-primary);
-    box-shadow: 0 0 0 2px rgba(0, 114, 181, 0.15);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--focus-ring);
   }
 
   .annotation-select-trigger.open {
-    border-color: var(--up-primary);
+    border-color: var(--primary);
   }
 
   .annotation-select-text {
@@ -68,51 +63,57 @@ export const annotationSelectStyles = css`
     fill: none;
     stroke-width: 1.5;
     flex-shrink: 0;
-    transition: transform 0.15s ease;
+    transition: var(--transition-fast);
   }
 
   .annotation-select-trigger.open .chevron-down {
     transform: rotate(180deg);
   }
 
+  /* Dropdown menu - inherits shared dropdown styles from control-bar */
   .annotation-select-menu {
+    /* Shared dropdown menu styles */
     position: absolute;
-    top: calc(100% + 5px);
+    top: calc(100% + var(--dropdown-offset));
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    z-index: var(--dropdown-z);
+    display: flex;
+    flex-direction: column;
+
+    /* Component-specific positioning */
     left: 0;
     min-width: 100%;
     width: max-content;
     max-width: 20rem;
-    background: var(--up-surface);
-    border: 1px solid var(--up-border);
-    border-radius: 0.25rem;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
-    z-index: 50;
-    display: flex;
-    flex-direction: column;
     max-height: 24rem;
     overflow: hidden;
   }
 
   .annotation-search-container {
-    padding: 0.5rem;
-    border-bottom: 1px solid var(--up-border);
+    padding: var(--spacing-sm);
+    border-bottom: var(--border-width) solid var(--border);
   }
 
+  /* Search input inherits from .input-base */
   .annotation-search-input {
     width: 100%;
-    padding: 0.4rem 0.6rem;
-    border: 1px solid var(--up-border);
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
-    background: var(--up-surface);
-    color: var(--up-muted);
+    padding: var(--input-padding-y) var(--input-padding-x);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    font-size: var(--text-base);
+    background: var(--surface);
+    color: var(--muted);
     box-sizing: border-box;
+    transition: var(--transition);
   }
 
   .annotation-search-input:focus {
     outline: none;
-    border-color: var(--up-primary);
-    box-shadow: 0 0 0 2px rgba(0, 114, 181, 0.15);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--focus-ring);
   }
 
   .annotation-list-container {
@@ -127,17 +128,17 @@ export const annotationSelectStyles = css`
   }
 
   .annotation-section-header {
-    padding: 0.5rem 0.75rem 0.25rem;
-    font-size: 0.7rem;
-    font-weight: 600;
+    padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--up-muted);
-    background: var(--up-surface);
+    color: var(--muted);
+    background: var(--surface);
     position: sticky;
     top: 0;
     z-index: 1;
-    border-bottom: 1px solid var(--up-border);
+    border-bottom: var(--border-width) solid var(--border);
   }
 
   .annotation-section-items {
@@ -145,38 +146,41 @@ export const annotationSelectStyles = css`
     flex-direction: column;
   }
 
+  /* Dropdown items - inherit from .dropdown-item base class */
   .annotation-item {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-    color: var(--up-muted);
+    /* All base styles come from CSS variables defined in control-bar */
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--text-base);
+    color: var(--muted);
     cursor: pointer;
-    transition: background-color 0.1s ease;
+    transition: var(--transition-fast);
     border-left: 2px solid transparent;
   }
 
   .annotation-item:hover {
-    background: #f6f8fb;
+    background: var(--primary-light);
   }
 
   .annotation-item.highlighted {
-    background: #eef6fb;
-    border-left-color: var(--up-primary);
+    background: var(--primary-light);
+    border-left-color: var(--primary);
   }
 
   .annotation-item.selected {
-    font-weight: 600;
-    color: var(--up-primary);
+    font-weight: var(--font-semibold);
+    color: var(--primary);
   }
 
-  .annotation-item.selected.highlighted {
-    background: #e0f2f8;
+  .annotation-item.selected.highlighted,
+  .annotation-item.selected:hover {
+    background: var(--primary-light);
   }
 
   .no-results {
-    padding: 1rem;
+    padding: var(--spacing-lg);
     text-align: center;
-    color: var(--up-muted);
-    font-size: 0.875rem;
+    color: var(--muted);
+    font-size: var(--text-base);
   }
 
   /* Responsive: ensure dropdown doesn't overflow on small screens */

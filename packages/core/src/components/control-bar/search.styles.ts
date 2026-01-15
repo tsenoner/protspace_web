@@ -21,29 +21,29 @@ export const searchStyles = css`
     align-items: center;
     flex-wrap: nowrap;
     gap: 0.25rem;
-    border: 1px solid var(--up-border, #d9e2ec);
+    border: 1px solid var(--border);
     padding: 0.1rem 0.2rem;
     border-radius: 0.25rem;
-    background: var(--up-surface, #ffffff);
+    background: var(--surface);
     min-height: 1.6rem;
     width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e0 transparent;
+    scrollbar-color: var(--scrollbar) transparent;
   }
 
   .search-chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    background: #eef6fb;
-    color: #0b0f19;
-    border: 1px solid #cfe8f5;
+    gap: var(--spacing-xs);
+    background: var(--primary-light);
+    color: var(--text-dark);
+    border: var(--border-width) solid var(--border-light);
     border-radius: 999px;
-    padding: 0.04rem 0.35rem;
-    font-size: 0.75rem;
+    padding: 0.04rem var(--spacing-sm);
+    font-size: var(--text-sm);
     flex: 0 0 auto;
   }
 
@@ -51,8 +51,8 @@ export const searchStyles = css`
     border: none;
     background: transparent;
     cursor: pointer;
-    color: #6b7280;
-    font-weight: 700;
+    color: var(--muted);
+    font-weight: var(--font-bold);
     line-height: 1;
     padding: 0;
     display: flex;
@@ -61,7 +61,7 @@ export const searchStyles = css`
   }
 
   .search-chip-remove:hover {
-    color: #111827;
+    color: var(--text-dark);
   }
 
   .search-input {
@@ -70,54 +70,69 @@ export const searchStyles = css`
     min-width: 9rem;
     border: none;
     outline: none;
-    padding: 0.1rem 0.25rem;
-    font-size: 0.875rem;
+    padding: 0.1rem var(--spacing-xs);
+    font-size: var(--text-base);
     background: transparent;
+    color: var(--muted);
   }
 
   .search-keyboard-shortcut-hint {
     position: absolute;
-    right: 0.25rem;
+    right: var(--spacing-xs);
     top: 50%;
     transform: translateY(-50%);
-    color: #d6d7da;
-    font-size: 0.75rem;
+    color: var(--hint);
+    font-size: var(--text-sm);
     letter-spacing: 0.125rem;
     pointer-events: none;
-    border: 1px solid #d9e2ec;
-    border-radius: 0.25rem;
-    padding: 0rem 0.25rem;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    padding: 0rem var(--spacing-xs);
   }
 
+  /* Dropdown menu - inherits shared dropdown styles from control-bar */
   .search-suggestions {
+    /* Shared dropdown menu styles */
     position: absolute;
-    top: calc(100% + 0.125rem);
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    z-index: var(--dropdown-z);
+
+    /* Component-specific positioning */
+    top: calc(100% + var(--dropdown-offset));
     left: 0;
     right: 0;
-    z-index: 60;
-    background: var(--up-surface, #ffffff);
-    border: 1px solid var(--up-border, #d9e2ec);
-    border-radius: 0.25rem;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
     max-height: 13.75rem;
     overflow-y: auto;
   }
 
+  /* Dropdown items - inherit from .dropdown-item base class */
   .search-suggestion {
-    padding: 0.4rem 0.6rem;
+    /* All base styles come from CSS variables */
+    padding: var(--spacing-sm) var(--spacing-md);
     cursor: pointer;
-    font-size: 0.875rem;
+    font-size: var(--text-base);
+    color: var(--muted);
+    transition: var(--transition-fast);
+    border-left: 2px solid transparent;
   }
 
-  .search-suggestion:hover,
-  .search-suggestion.active {
-    background: #f6f8fb;
+  .search-suggestion:hover {
+    background: var(--primary-light);
+  }
+
+  .search-suggestion.active,
+  .search-suggestion:focus {
+    background: var(--primary-light);
+    border-left-color: var(--primary);
   }
 
   .no-results {
-    padding: 0.6rem;
-    color: #6b7280;
-    font-size: 0.875rem;
+    padding: var(--spacing-md);
+    color: var(--muted);
+    font-size: var(--text-base);
     text-align: center;
   }
 `;
