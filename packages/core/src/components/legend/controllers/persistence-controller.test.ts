@@ -18,11 +18,17 @@ function createTestItem(value: string, zOrder: number): LegendItem {
 vi.mock('@protspace/utils', () => ({
   generateDatasetHash: vi.fn((ids: string[]) => `hash_${ids.join('_')}`),
   buildStorageKey: vi.fn(
-    (prefix: string, hash: string, feature: string) => `${prefix}_${hash}_${feature}`,
+    (prefix: string, hash: string, annotation: string) => `${prefix}_${hash}_${annotation}`,
   ),
   getStorageItem: vi.fn(),
   setStorageItem: vi.fn(),
   removeStorageItem: vi.fn(),
+  LEGEND_VALUES: {
+    OTHER: 'Other',
+    OTHERS: 'Others',
+    NA_DISPLAY: 'N/A',
+    NA_VALUE: '__NA__',
+  },
 }));
 
 import {

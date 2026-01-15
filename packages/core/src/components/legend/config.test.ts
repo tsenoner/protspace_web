@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   SHAPE_PATH_GENERATORS,
   LEGEND_VALUES,
+  toDisplayValue,
   isNADataValue,
   isNAValue,
   toInternalValue,
   toDataValue,
-  toDisplayValue,
 } from './config';
 
 describe('config', () => {
@@ -147,7 +147,11 @@ describe('config', () => {
     it('preserves other values', () => {
       expect(toDisplayValue('value')).toBe('value');
       expect(toDisplayValue('Other')).toBe('Other');
-      expect(toDisplayValue('')).toBe('');
+    });
+
+    it('formats Other with count', () => {
+      expect(toDisplayValue('Other', 5)).toBe('Other (5 categories)');
+      expect(toDisplayValue('Other', 0)).toBe('Other');
     });
   });
 });

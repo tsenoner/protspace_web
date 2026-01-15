@@ -1,6 +1,6 @@
 import type { LegendItem, OtherItem, LegendSortMode, PersistedCategoryData } from './types';
 import { getVisualEncoding, SlotTracker } from './visual-encoding';
-import { LEGEND_VALUES, toInternalValue, toDisplayValue, isNAValue } from './config';
+import { LEGEND_VALUES, toInternalValue, isNAValue, toDisplayValue } from './config';
 
 /**
  * Context object for legend data processing.

@@ -13,7 +13,7 @@ Click **Export** in the control bar to see available options:
 | Format          | Description                                    |
 | --------------- | ---------------------------------------------- |
 | **PNG**         | Raster image of the current view               |
-| **PDF**         | Vector image of the current view               |
+| **PDF**         | Raster image of the current view               |
 | **JSON**        | Full data for isolated proteins (can be large) |
 | **Protein IDs** | Text file with newline-separated identifiers   |
 

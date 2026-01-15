@@ -32,42 +32,42 @@ describe('scatterplot-interface', () => {
       expect(isScatterplotElement(element)).toBe(false);
     });
 
-    it('returns false for element with only selectedFeature', () => {
+    it('returns false for element with only selectedAnnotation', () => {
       const element = document.createElement('div') as Element & {
-        selectedFeature: string;
+        selectedAnnotation: string;
       };
-      (element as unknown as { selectedFeature: string }).selectedFeature = 'test';
+      (element as unknown as { selectedAnnotation: string }).selectedAnnotation = 'test';
       expect(isScatterplotElement(element)).toBe(false);
     });
 
-    it('returns true for element with both getCurrentData and selectedFeature', () => {
+    it('returns true for element with both getCurrentData and selectedAnnotation', () => {
       const element = createMockScatterplot();
       expect(isScatterplotElement(element)).toBe(true);
     });
   });
 
   describe('supportsHiddenValues', () => {
-    it('returns true when hiddenFeatureValues property exists', () => {
-      const element = createMockScatterplot({ hiddenFeatureValues: [] });
+    it('returns true when hiddenAnnotationValues property exists', () => {
+      const element = createMockScatterplot({ hiddenAnnotationValues: [] });
       expect(supportsHiddenValues(element)).toBe(true);
     });
 
-    it('returns false when hiddenFeatureValues property is missing', () => {
+    it('returns false when hiddenAnnotationValues property is missing', () => {
       const element = createMockScatterplot();
-      delete (element as Partial<IScatterplotElement>).hiddenFeatureValues;
+      delete (element as Partial<IScatterplotElement>).hiddenAnnotationValues;
       expect(supportsHiddenValues(element)).toBe(false);
     });
   });
 
   describe('supportsOtherValues', () => {
-    it('returns true when otherFeatureValues property exists', () => {
-      const element = createMockScatterplot({ otherFeatureValues: [] });
+    it('returns true when otherAnnotationValues property exists', () => {
+      const element = createMockScatterplot({ otherAnnotationValues: [] });
       expect(supportsOtherValues(element)).toBe(true);
     });
 
-    it('returns false when otherFeatureValues property is missing', () => {
+    it('returns false when otherAnnotationValues property is missing', () => {
       const element = createMockScatterplot();
-      delete (element as Partial<IScatterplotElement>).otherFeatureValues;
+      delete (element as Partial<IScatterplotElement>).otherAnnotationValues;
       expect(supportsOtherValues(element)).toBe(false);
     });
   });
@@ -147,15 +147,11 @@ function createMockScatterplot(overrides: Partial<IScatterplotElement> = {}): IS
 
   // Required properties
   element.getCurrentData = () => null;
-  Object.defineProperty(element, 'selectedFeature', {
-    value: 'test-feature',
-    writable: true,
-    configurable: true,
-  });
+  element.selectedAnnotation = 'test-annotation';
 
   // Default optional properties
-  element.hiddenFeatureValues = [];
-  element.otherFeatureValues = [];
+  element.hiddenAnnotationValues = [];
+  element.otherAnnotationValues = [];
   element.useShapes = false;
   element.config = {};
 

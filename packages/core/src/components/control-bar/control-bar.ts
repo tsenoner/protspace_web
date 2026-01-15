@@ -17,11 +17,11 @@ export class ProtspaceControlBar extends LitElement {
     name: string;
     metadata?: { dimension?: 2 | 3 };
   }> = [];
-  @property({ type: Array }) features: string[] = [];
+  @property({ type: Array }) annotations: string[] = [];
   @property({ type: String, attribute: 'selected-projection' })
   selectedProjection: string = '';
-  @property({ type: String, attribute: 'selected-feature' })
-  selectedFeature: string = '';
+  @property({ type: String, attribute: 'selected-annotation' })
+  selectedAnnotation: string = '';
   @property({ type: String, attribute: 'projection-plane' })
   projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
   @property({ type: Boolean, attribute: 'selection-mode' })
@@ -43,7 +43,7 @@ export class ProtspaceControlBar extends LitElement {
 
   @state() private showExportMenu: boolean = false;
   @state() private showFilterMenu: boolean = false;
-  @state() private featureValuesMap: Record<string, (string | null)[]> = {};
+  @state() private annotationValuesMap: Record<string, (string | null)[]> = {};
   @state() private filterConfig: Record<string, { enabled: boolean; values: (string | null)[] }> =
     {};
   @state() private lastAppliedFilterConfig: Record<
@@ -51,6 +51,29 @@ export class ProtspaceControlBar extends LitElement {
     { enabled: boolean; values: (string | null)[] }
   > = {};
   @state() private openValueMenus: Record<string, boolean> = {};
+
+  // Export defaults - single source of truth
+  static readonly EXPORT_DEFAULTS = {
+    FORMAT: 'png' as const,
+    IMAGE_WIDTH: 2048,
+    IMAGE_HEIGHT: 1024,
+    LEGEND_WIDTH_PERCENT: 25,
+    LEGEND_FONT_SIZE_PX: 48,
+    BASE_FONT_SIZE: 24, // Base size for scale factor calculation
+    LOCK_ASPECT_RATIO: true,
+  };
+
+  // Export configuration state
+  @state() private exportFormat: 'png' | 'pdf' | 'json' | 'ids' =
+    ProtspaceControlBar.EXPORT_DEFAULTS.FORMAT;
+  @state() private exportImageWidth: number = ProtspaceControlBar.EXPORT_DEFAULTS.IMAGE_WIDTH;
+  @state() private exportImageHeight: number = ProtspaceControlBar.EXPORT_DEFAULTS.IMAGE_HEIGHT;
+  @state() private exportLegendWidthPercent: number =
+    ProtspaceControlBar.EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
+  @state() private exportLegendFontSizePx: number =
+    ProtspaceControlBar.EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX;
+  @state() private exportLockAspectRatio: boolean =
+    ProtspaceControlBar.EXPORT_DEFAULTS.LOCK_ASPECT_RATIO;
   private _scatterplotElement: ScatterplotElementLike | null = null;
 
   // Search state
@@ -117,18 +140,18 @@ export class ProtspaceControlBar extends LitElement {
     this.dispatchEvent(customEvent);
   }
 
-  private handleFeatureChange(event: Event) {
+  private handleAnnotationChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
-      if ('selectedFeature' in this._scatterplotElement) {
-        (this._scatterplotElement as ScatterplotElementLike).selectedFeature = target.value;
-        this.selectedFeature = target.value;
+      if ('selectedAnnotation' in this._scatterplotElement) {
+        (this._scatterplotElement as ScatterplotElementLike).selectedAnnotation = target.value;
+        this.selectedAnnotation = target.value;
       }
     }
 
-    const customEvent = new CustomEvent('feature-change', {
-      detail: { feature: target.value },
+    const customEvent = new CustomEvent('annotation-change', {
+      detail: { annotation: target.value },
       bubbles: true,
       composed: true,
     });
@@ -216,9 +239,15 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
-  private handleExport(type: 'json' | 'ids' | 'png' | 'pdf') {
+  private handleExport() {
     const customEvent = new CustomEvent('export', {
-      detail: { type },
+      detail: {
+        type: this.exportFormat,
+        imageWidth: this.exportImageWidth,
+        imageHeight: this.exportImageHeight,
+        legendWidthPercent: this.exportLegendWidthPercent,
+        legendFontSizePx: this.exportLegendFontSizePx,
+      },
       bubbles: true,
       composed: true,
     });
@@ -228,6 +257,37 @@ export class ProtspaceControlBar extends LitElement {
 
   private toggleExportMenu() {
     this.showExportMenu = !this.showExportMenu;
+  }
+
+  private resetExportSettings() {
+    const defaults = ProtspaceControlBar.EXPORT_DEFAULTS;
+    this.exportImageWidth = defaults.IMAGE_WIDTH;
+    this.exportImageHeight = defaults.IMAGE_HEIGHT;
+    this.exportLegendWidthPercent = defaults.LEGEND_WIDTH_PERCENT;
+    this.exportLegendFontSizePx = defaults.LEGEND_FONT_SIZE_PX;
+    this.exportLockAspectRatio = defaults.LOCK_ASPECT_RATIO;
+  }
+
+  private handleWidthChange(newWidth: number) {
+    const oldWidth = this.exportImageWidth;
+    this.exportImageWidth = newWidth;
+
+    // Adjust height proportionally if aspect ratio is locked
+    if (this.exportLockAspectRatio && oldWidth > 0) {
+      const ratio = newWidth / oldWidth;
+      this.exportImageHeight = Math.round(this.exportImageHeight * ratio);
+    }
+  }
+
+  private handleHeightChange(newHeight: number) {
+    const oldHeight = this.exportImageHeight;
+    this.exportImageHeight = newHeight;
+
+    // Adjust width proportionally if aspect ratio is locked
+    if (this.exportLockAspectRatio && oldHeight > 0) {
+      const ratio = newHeight / oldHeight;
+      this.exportImageWidth = Math.round(this.exportImageWidth * ratio);
+    }
   }
 
   private openFileDialog() {
@@ -278,15 +338,17 @@ export class ProtspaceControlBar extends LitElement {
               : null;
           })()}
 
-          <!-- Feature selection -->
+          <!-- Annotation selection -->
           <div class="control-group">
-            <label for="feature-select">Color by:</label>
+            <label for="annotation-select">Annotation:</label>
             <select
-              id="feature-select"
-              .value=${this.selectedFeature}
-              @change=${this.handleFeatureChange}
+              id="annotation-select"
+              .value=${this.selectedAnnotation}
+              @change=${this.handleAnnotationChange}
             >
-              ${this.features.map((feature) => html`<option value=${feature}>${feature}</option>`)}
+              ${this.annotations.map(
+                (annotation) => html`<option value=${annotation}>${annotation}</option>`,
+              )}
             </select>
           </div>
         </div>
@@ -409,27 +471,27 @@ export class ProtspaceControlBar extends LitElement {
               ? html`
                   <div class="filter-menu">
                     <ul class="filter-menu-list">
-                      ${this.features.map((feature) => {
-                        const cfg = this.filterConfig[feature] || {
+                      ${this.annotations.map((annotation) => {
+                        const cfg = this.filterConfig[annotation] || {
                           enabled: false,
                           values: [],
                         };
-                        const values = this.featureValuesMap[feature] || [];
+                        const values = this.annotationValuesMap[annotation] || [];
                         return html` <li class="filter-menu-list-item">
                           <label
-                            >${feature}
+                            >${annotation}
                             <input
                               type="checkbox"
                               .checked=${cfg.enabled}
                               @change=${(e: Event) => {
                                 const target = e.target as HTMLInputElement;
-                                this.handleFilterToggle(feature, target.checked);
+                                this.handleFilterToggle(annotation, target.checked);
                               }}
                             />
                           </label>
                           <button
                             ?disabled=${!cfg.enabled}
-                            @click=${() => this.toggleValueMenu(feature)}
+                            @click=${() => this.toggleValueMenu(annotation)}
                           >
                             ${cfg.values && cfg.values.length > 0
                               ? `${cfg.values.length} selected`
@@ -446,14 +508,14 @@ export class ProtspaceControlBar extends LitElement {
                               />
                             </svg>
                           </button>
-                          ${this.openValueMenus[feature] && cfg.enabled
+                          ${this.openValueMenus[annotation] && cfg.enabled
                             ? html`
                                 <div class="filter-menu-list-item-options">
                                   <div class="filter-menu-list-item-options-selection">
-                                    <button @click=${() => this.selectAllValues(feature)}>
+                                    <button @click=${() => this.selectAllValues(annotation)}>
                                       Select all
                                     </button>
-                                    <button @click=${() => this.clearAllValues(feature)}>
+                                    <button @click=${() => this.clearAllValues(annotation)}>
                                       None
                                     </button>
                                   </div>
@@ -464,7 +526,7 @@ export class ProtspaceControlBar extends LitElement {
                                         .checked=${(cfg.values || []).includes(null)}
                                         @change=${(e: Event) =>
                                           this.handleValueToggle(
-                                            feature,
+                                            annotation,
                                             null,
                                             (e.target as HTMLInputElement).checked,
                                           )}
@@ -479,7 +541,7 @@ export class ProtspaceControlBar extends LitElement {
                                             .checked=${(cfg.values || []).includes(String(v))}
                                             @change=${(e: Event) =>
                                               this.handleValueToggle(
-                                                feature,
+                                                annotation,
                                                 String(v),
                                                 (e.target as HTMLInputElement).checked,
                                               )}
@@ -490,7 +552,7 @@ export class ProtspaceControlBar extends LitElement {
                                     )}
                                   </div>
                                   <div class="filter-menu-list-item-options-done">
-                                    <button @click=${() => this.toggleValueMenu(feature)}>
+                                    <button @click=${() => this.toggleValueMenu(annotation)}>
                                       Done
                                     </button>
                                   </div>
@@ -538,40 +600,211 @@ export class ProtspaceControlBar extends LitElement {
             ${this.showExportMenu
               ? html`
                   <div class="export-menu">
-                    <ul class="export-menu-list">
-                      <li class="export-menu-list-item">
-                        <button
-                          class="export-menu-list-item-button"
-                          @click=${() => this.handleExport('json')}
-                        >
-                          Export JSON
-                        </button>
-                      </li>
-                      <li class="export-menu-list-item">
-                        <button
-                          class="export-menu-list-item-button"
-                          @click=${() => this.handleExport('ids')}
-                        >
-                          Export Protein IDs
-                        </button>
-                      </li>
-                      <li class="export-menu-list-item">
-                        <button
-                          class="export-menu-list-item-button"
-                          @click=${() => this.handleExport('png')}
-                        >
-                          Export PNG
-                        </button>
-                      </li>
-                      <li class="export-menu-list-item">
-                        <button
-                          class="export-menu-list-item-button"
-                          @click=${() => this.handleExport('pdf')}
-                        >
-                          Export PDF
-                        </button>
-                      </li>
-                    </ul>
+                    <div class="export-menu-header">
+                      <span>Export Options</span>
+                    </div>
+
+                    <div class="export-menu-content">
+                      <!-- Format Selection -->
+                      <div class="export-option-group">
+                        <label class="export-option-label">Format</label>
+                        <div class="export-format-options">
+                          <button
+                            class="export-format-btn ${this.exportFormat === 'png' ? 'active' : ''}"
+                            @click=${() => {
+                              this.exportFormat = 'png';
+                            }}
+                            title="Export as PNG image"
+                          >
+                            PNG
+                          </button>
+                          <button
+                            class="export-format-btn ${this.exportFormat === 'pdf' ? 'active' : ''}"
+                            @click=${() => {
+                              this.exportFormat = 'pdf';
+                            }}
+                            title="Export as PDF document"
+                          >
+                            PDF
+                          </button>
+                          <button
+                            class="export-format-btn ${this.exportFormat === 'json'
+                              ? 'active'
+                              : ''}"
+                            @click=${() => {
+                              this.exportFormat = 'json';
+                            }}
+                            title="Export as JSON data"
+                          >
+                            JSON
+                          </button>
+                          <button
+                            class="export-format-btn ${this.exportFormat === 'ids' ? 'active' : ''}"
+                            @click=${() => {
+                              this.exportFormat = 'ids';
+                            }}
+                            title="Export protein IDs list"
+                          >
+                            IDs
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- Image Settings (for PNG/PDF only) -->
+                      ${this.exportFormat === 'png' || this.exportFormat === 'pdf'
+                        ? html`
+                            <div class="export-dimensions-group">
+                              <div class="export-option-group">
+                                <label class="export-option-label" for="export-width">
+                                  Width
+                                  <span class="export-option-value"
+                                    >${this.exportImageWidth}px</span
+                                  >
+                                </label>
+                                <input
+                                  type="range"
+                                  id="export-width"
+                                  class="export-slider"
+                                  min="800"
+                                  max="8192"
+                                  step="128"
+                                  .value=${String(this.exportImageWidth)}
+                                  @input=${(e: Event) => {
+                                    this.handleWidthChange(
+                                      parseInt((e.target as HTMLInputElement).value),
+                                    );
+                                  }}
+                                />
+                                <div class="export-slider-labels">
+                                  <span>800px</span>
+                                  <span>8192px</span>
+                                </div>
+                              </div>
+
+                              <div class="export-option-group">
+                                <label class="export-option-label" for="export-height">
+                                  Height
+                                  <span class="export-option-value"
+                                    >${this.exportImageHeight}px</span
+                                  >
+                                </label>
+                                <input
+                                  type="range"
+                                  id="export-height"
+                                  class="export-slider"
+                                  min="600"
+                                  max="8192"
+                                  step="128"
+                                  .value=${String(this.exportImageHeight)}
+                                  @input=${(e: Event) => {
+                                    this.handleHeightChange(
+                                      parseInt((e.target as HTMLInputElement).value),
+                                    );
+                                  }}
+                                />
+                                <div class="export-slider-labels">
+                                  <span>600px</span>
+                                  <span>8192px</span>
+                                </div>
+                              </div>
+
+                              <label class="export-aspect-lock">
+                                <input
+                                  type="checkbox"
+                                  .checked=${this.exportLockAspectRatio}
+                                  @change=${(e: Event) => {
+                                    this.exportLockAspectRatio = (
+                                      e.target as HTMLInputElement
+                                    ).checked;
+                                  }}
+                                />
+                                Lock aspect ratio
+                              </label>
+                            </div>
+
+                            <div class="export-option-group">
+                              <label class="export-option-label" for="export-legend-width">
+                                Legend Width
+                                <span class="export-option-value"
+                                  >${this.exportLegendWidthPercent}%</span
+                                >
+                              </label>
+                              <input
+                                type="range"
+                                id="export-legend-width"
+                                class="export-slider"
+                                min="15"
+                                max="50"
+                                step="5"
+                                .value=${String(this.exportLegendWidthPercent)}
+                                @input=${(e: Event) => {
+                                  this.exportLegendWidthPercent = parseInt(
+                                    (e.target as HTMLInputElement).value,
+                                  );
+                                }}
+                              />
+                              <div class="export-slider-labels">
+                                <span>15%</span>
+                                <span>50%</span>
+                              </div>
+                            </div>
+
+                            <div class="export-option-group">
+                              <label class="export-option-label" for="export-legend-font">
+                                Legend Font
+                                <span class="export-option-value"
+                                  >${this.exportLegendFontSizePx}px</span
+                                >
+                              </label>
+                              <input
+                                type="range"
+                                id="export-legend-font"
+                                class="export-slider"
+                                min="12"
+                                max="120"
+                                step="2"
+                                .value=${String(this.exportLegendFontSizePx)}
+                                @input=${(e: Event) => {
+                                  this.exportLegendFontSizePx = parseInt(
+                                    (e.target as HTMLInputElement).value,
+                                  );
+                                }}
+                              />
+                              <div class="export-slider-labels">
+                                <span>12px</span>
+                                <span>120px</span>
+                              </div>
+                            </div>
+
+                            <div class="export-actions">
+                              <button class="export-reset-btn" @click=${this.resetExportSettings}>
+                                Reset
+                              </button>
+                              <button class="export-action-btn" @click=${this.handleExport}>
+                                <svg class="icon" viewBox="0 0 24 24">
+                                  <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                  />
+                                </svg>
+                                Export
+                              </button>
+                            </div>
+                          `
+                        : html`
+                            <button class="export-action-btn" @click=${this.handleExport}>
+                              <svg class="icon" viewBox="0 0 24 24">
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                />
+                              </svg>
+                              Export ${this.exportFormat.toUpperCase()}
+                            </button>
+                          `}
+                    </div>
                   </div>
                 `
               : ''}
@@ -707,21 +940,6 @@ export class ProtspaceControlBar extends LitElement {
 
     this._updateOptionsFromData(data);
 
-    // // Sync projection index and feature to scatterplot after updating options
-    // // This ensures the scatterplot uses the correct index/feature for the new data
-    // if (this.autoSync && this._scatterplotElement) {
-    //   if ('selectedProjectionIndex' in this._scatterplotElement) {
-    //     const projectionIndex = this.projections.findIndex((p) => p === this.selectedProjection);
-    //     if (projectionIndex !== -1) {
-    //       (this._scatterplotElement as any).selectedProjectionIndex = projectionIndex;
-    //     }
-    //   }
-
-    //   if ('selectedFeature' in this._scatterplotElement) {
-    //     (this._scatterplotElement as any).selectedFeature = this.selectedFeature;
-    //   }
-    // }
-
     // Update protein ids for search
     try {
       const ids = data.protein_ids;
@@ -735,16 +953,16 @@ export class ProtspaceControlBar extends LitElement {
     } catch (e) {
       console.error(e);
     }
-    // Update feature value options for filter UI
+    // Update annotation value options for filter UI
     try {
-      const features = data.features || {};
+      const annotations = data.annotations || {};
       const map: Record<string, (string | null)[]> = {};
-      Object.keys(features).forEach((k) => {
-        const vals = features[k]?.values as (string | null)[] | undefined;
+      Object.keys(annotations).forEach((k) => {
+        const vals = annotations[k]?.values as (string | null)[] | undefined;
         if (Array.isArray(vals)) map[k] = vals;
       });
-      this.featureValuesMap = map;
-      // Initialize filter config entries for new features (preserve existing selections)
+      this.annotationValuesMap = map;
+      // Initialize filter config entries for new annotations (preserve existing selections)
       const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
       Object.keys(map).forEach((k) => {
         if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
@@ -863,17 +1081,17 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private _updateOptionsFromData(data: ProtspaceData) {
-    // Update projections and features
+    // Update projections and annotations
     this.projectionsMeta = data.projections || [];
     this.projections = this.projectionsMeta.map((p) => p.name) || [];
-    this.features = Object.keys(data.features || {});
+    this.annotations = Object.keys(data.annotations || {});
 
     // Default selections if invalid
     if (!this.selectedProjection || !this.projections.includes(this.selectedProjection)) {
       this.selectedProjection = this.projections[0] || '';
     }
-    if (!this.selectedFeature || !this.features.includes(this.selectedFeature)) {
-      this.selectedFeature = this.features[0] || '';
+    if (!this.selectedAnnotation || !this.annotations.includes(this.selectedAnnotation)) {
+      this.selectedAnnotation = this.annotations[0] || '';
     }
   }
 
@@ -884,18 +1102,18 @@ export class ProtspaceControlBar extends LitElement {
       data = scatterplot.getCurrentData?.();
 
       if (data) {
-        // Extract projections and features
+        // Extract projections and annotations
         this._updateOptionsFromData(data);
 
-        // Build feature values map for filter UI
+        // Build annotation values map for filter UI
         try {
-          const features = data.features || {};
+          const annotations = data.annotations || {};
           const map: Record<string, (string | null)[]> = {};
-          Object.keys(features).forEach((k) => {
-            const vals = features[k]?.values as (string | null)[] | undefined;
+          Object.keys(annotations).forEach((k) => {
+            const vals = annotations[k]?.values as (string | null)[] | undefined;
             if (Array.isArray(vals)) map[k] = vals;
           });
-          this.featureValuesMap = map;
+          this.annotationValuesMap = map;
           const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
           Object.keys(map).forEach((k) => {
             if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
@@ -906,13 +1124,13 @@ export class ProtspaceControlBar extends LitElement {
         }
 
         // Sync current values from scatterplot
-        if (scatterplot.selectedFeature !== undefined) {
-          // Only use the scatterplot's selected feature if it's still available
-          const scatterplotFeature = scatterplot.selectedFeature;
-          if (scatterplotFeature && this.features.includes(scatterplotFeature)) {
-            this.selectedFeature = scatterplotFeature;
+        if (scatterplot.selectedAnnotation !== undefined) {
+          // Only use the scatterplot's selected annotation if it's still available
+          const scatterplotAnnotation = scatterplot.selectedAnnotation;
+          if (scatterplotAnnotation && this.annotations.includes(scatterplotAnnotation)) {
+            this.selectedAnnotation = scatterplotAnnotation;
           } else {
-            this.selectedFeature = this.features[0] || '';
+            this.selectedAnnotation = this.annotations[0] || '';
           }
         }
 
@@ -945,8 +1163,8 @@ export class ProtspaceControlBar extends LitElement {
         if (!this.selectedProjection && this.projections.length > 0) {
           this.selectedProjection = this.projections[0];
         }
-        if (!this.selectedFeature && this.features.length > 0) {
-          this.selectedFeature = this.features[0];
+        if (!this.selectedAnnotation && this.annotations.length > 0) {
+          this.selectedAnnotation = this.annotations[0];
         }
 
         this.requestUpdate();
@@ -1098,27 +1316,27 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
-  private handleFilterToggle(feature: string, enabled: boolean) {
-    const current = this.filterConfig[feature] || {
+  private handleFilterToggle(annotation: string, enabled: boolean) {
+    const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
     };
     this.filterConfig = {
       ...this.filterConfig,
-      [feature]: { ...current, enabled },
+      [annotation]: { ...current, enabled },
     };
-    if (!enabled) this.openValueMenus = { ...this.openValueMenus, [feature]: false };
+    if (!enabled) this.openValueMenus = { ...this.openValueMenus, [annotation]: false };
   }
 
-  private toggleValueMenu(feature: string) {
+  private toggleValueMenu(annotation: string) {
     this.openValueMenus = {
       ...this.openValueMenus,
-      [feature]: !this.openValueMenus[feature],
+      [annotation]: !this.openValueMenus[annotation],
     };
   }
 
-  private handleValueToggle(feature: string, value: string | null, checked: boolean) {
-    const current = this.filterConfig[feature] || {
+  private handleValueToggle(annotation: string, value: string | null, checked: boolean) {
+    const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
     };
@@ -1127,30 +1345,30 @@ export class ProtspaceControlBar extends LitElement {
     else next.delete(value);
     this.filterConfig = {
       ...this.filterConfig,
-      [feature]: { ...current, values: Array.from(next) },
+      [annotation]: { ...current, values: Array.from(next) },
     };
   }
 
-  private selectAllValues(feature: string) {
-    const all = this.featureValuesMap[feature] || [];
-    const current = this.filterConfig[feature] || {
+  private selectAllValues(annotation: string) {
+    const all = this.annotationValuesMap[annotation] || [];
+    const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
     };
     this.filterConfig = {
       ...this.filterConfig,
-      [feature]: { ...current, values: Array.from(new Set(all)) },
+      [annotation]: { ...current, values: Array.from(new Set(all)) },
     };
   }
 
-  private clearAllValues(feature: string) {
-    const current = this.filterConfig[feature] || {
+  private clearAllValues(annotation: string) {
+    const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
     };
     this.filterConfig = {
       ...this.filterConfig,
-      [feature]: { ...current, values: [] },
+      [annotation]: { ...current, values: [] },
     };
   }
 
@@ -1165,8 +1383,8 @@ export class ProtspaceControlBar extends LitElement {
     // Collect active filters
     const activeFilters = Object.entries(this.filterConfig)
       .filter(([, cfg]) => cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0)
-      .map(([feature, cfg]) => ({
-        feature,
+      .map(([annotation, cfg]) => ({
+        annotation,
         values: cfg.values as (string | null)[],
       }));
 
@@ -1181,20 +1399,20 @@ export class ProtspaceControlBar extends LitElement {
 
     for (let i = 0; i < numProteins; i++) {
       let isMatch = true;
-      for (const { feature, values } of activeFilters) {
-        const featureIdxData = data.feature_data?.[feature];
-        const valuesArr: (string | null)[] | undefined = data.features?.[feature]?.values;
-        if (!featureIdxData || !valuesArr) {
+      for (const { annotation, values } of activeFilters) {
+        const annotationIdxData = data.annotation_data?.[annotation];
+        const valuesArr: (string | null)[] | undefined = data.annotations?.[annotation]?.values;
+        if (!annotationIdxData || !valuesArr) {
           isMatch = false;
           break;
         }
         // Handle both number[] and number[][] formats
-        const featureValue = Array.isArray(featureIdxData[i])
-          ? (featureIdxData[i] as number[])[0]
-          : (featureIdxData as number[])[i];
+        const annotationValue = Array.isArray(annotationIdxData[i])
+          ? (annotationIdxData[i] as number[])[0]
+          : (annotationIdxData as number[])[i];
         const v =
-          featureValue != null && featureValue >= 0 && featureValue < valuesArr.length
-            ? valuesArr[featureValue]
+          annotationValue != null && annotationValue >= 0 && annotationValue < valuesArr.length
+            ? valuesArr[annotationValue]
             : null;
         if (!values.some((allowed) => allowed === v)) {
           isMatch = false;
@@ -1205,51 +1423,51 @@ export class ProtspaceControlBar extends LitElement {
       indices[i] = isMatch ? 0 : 1;
     }
 
-    // Add or replace synthetic Custom feature
+    // Add or replace synthetic Custom annotation
     const customName = 'Custom';
-    const newFeatures: Record<
+    const newAnnotations: Record<
       string,
       { values: (string | null)[]; colors?: string[]; shapes?: string[] }
     > = {
-      ...data.features,
+      ...data.annotations,
     };
-    newFeatures[customName] = {
+    newAnnotations[customName] = {
       values: ['Filtered Proteins', 'Other Proteins'],
       colors: ['#00A35A', '#9AA0A6'],
       shapes: ['circle', 'circle'],
     };
-    const newFeatureData = { ...data.feature_data, [customName]: indices };
+    const newAnnotationData = { ...data.annotation_data, [customName]: indices };
 
     const newData = {
       ...data,
-      features: newFeatures,
-      feature_data: newFeatureData,
+      annotations: newAnnotations,
+      annotation_data: newAnnotationData,
     };
 
     this.lastAppliedFilterConfig = JSON.parse(JSON.stringify(this.filterConfig));
 
-    // Apply to scatterplot and select the Custom feature
+    // Apply to scatterplot and select the Custom annotation
     sp.data = newData;
-    if ('selectedFeature' in sp) sp.selectedFeature = customName;
-    this.features = Object.keys(newData.features || {});
-    this.selectedFeature = customName;
-    this.featureValuesMap = {
-      ...this.featureValuesMap,
-      [customName]: newFeatures[customName].values,
+    if ('selectedAnnotation' in sp) sp.selectedAnnotation = customName;
+    this.annotations = Object.keys(newData.annotations || {});
+    this.selectedAnnotation = customName;
+    this.annotationValuesMap = {
+      ...this.annotationValuesMap,
+      [customName]: newAnnotations[customName].values,
     };
     this.updateComplete.then(() => {
-      const featureSelect = this.renderRoot?.querySelector(
-        '#feature-select',
+      const annotationSelect = this.renderRoot?.querySelector(
+        '#annotation-select',
       ) as HTMLSelectElement | null;
-      if (featureSelect && featureSelect.value !== customName) {
-        featureSelect.value = customName;
+      if (annotationSelect && annotationSelect.value !== customName) {
+        annotationSelect.value = customName;
       }
     });
 
-    // Let listeners know the feature changed to Custom
+    // Let listeners know the annotation changed to Custom
     this.dispatchEvent(
-      new CustomEvent('feature-change', {
-        detail: { feature: customName },
+      new CustomEvent('annotation-change', {
+        detail: { annotation: customName },
         bubbles: true,
         composed: true,
       }),

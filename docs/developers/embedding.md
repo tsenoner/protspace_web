@@ -4,12 +4,12 @@ ProtSpace provides four web components that work in any HTML page or JavaScript 
 
 ## Components Overview
 
-| Component        | Tag                            | Purpose                      |
-| ---------------- | ------------------------------ | ---------------------------- |
-| Scatterplot      | `<protspace-scatterplot>`      | Main 2D visualization        |
-| Legend           | `<protspace-legend>`           | Category filtering           |
-| Control Bar      | `<protspace-control-bar>`      | Projection/feature selection |
-| Structure Viewer | `<protspace-structure-viewer>` | 3D protein structures        |
+| Component        | Tag                            | Purpose                         |
+| ---------------- | ------------------------------ | ------------------------------- |
+| Scatterplot      | `<protspace-scatterplot>`      | Main 2D visualization           |
+| Legend           | `<protspace-legend>`           | Category filtering              |
+| Control Bar      | `<protspace-control-bar>`      | Projection/annotation selection |
+| Structure Viewer | `<protspace-structure-viewer>` | 3D protein structures           |
 
 ## Basic HTML Setup
 
@@ -58,7 +58,7 @@ ProtSpace provides four web components that work in any HTML page or JavaScript 
 
         plot.data = data;
         plot.selectedProjectionIndex = 0;
-        plot.selectedFeature = Object.keys(data.features)[0];
+        plot.selectedAnnotation = Object.keys(data.annotations)[0];
       });
     </script>
   </body>
@@ -106,7 +106,7 @@ export default function ProtSpaceViewer() {
 
       plotRef.current.data = data;
       plotRef.current.selectedProjectionIndex = 0;
-      plotRef.current.selectedFeature = Object.keys(data.features)[0];
+      plotRef.current.selectedAnnotation = Object.keys(data.annotations)[0];
 
       setStatus(`Loaded ${data.proteins.length} proteins`);
     } catch (error) {
@@ -175,7 +175,7 @@ const handleFileChange = async (e) => {
 
     plot.value.data = data;
     plot.value.selectedProjectionIndex = 0;
-    plot.value.selectedFeature = Object.keys(data.features)[0];
+    plot.value.selectedAnnotation = Object.keys(data.annotations)[0];
 
     status.value = `Loaded ${data.proteins.length} proteins`;
   } catch (error) {

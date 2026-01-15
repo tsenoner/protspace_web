@@ -154,8 +154,8 @@ describe('ScatterplotSyncController', () => {
       mockScatterplot.getCurrentData = () => ({
         protein_ids: ['p1', 'p2'],
         projections: {},
-        features: ['single'],
-        feature_data: {
+        annotations: ['single'],
+        annotation_data: {
           single: ['a', 'b'],
         },
       });
@@ -167,8 +167,8 @@ describe('ScatterplotSyncController', () => {
       mockScatterplot.getCurrentData = () => ({
         protein_ids: ['p1', 'p2'],
         projections: {},
-        features: ['multi'],
-        feature_data: {
+        annotations: ['multi'],
+        annotation_data: {
           multi: [['a', 'b'], ['c']],
         },
       });
@@ -180,8 +180,8 @@ describe('ScatterplotSyncController', () => {
       mockScatterplot.getCurrentData = () => ({
         protein_ids: ['p1'],
         projections: {},
-        features: [],
-        feature_data: {},
+        annotations: [],
+        annotation_data: {},
       });
 
       expect(controller.isMultilabelAnnotation('missing')).toBe(false);
@@ -223,7 +223,7 @@ describe('ScatterplotSyncController', () => {
 
       controller.syncHiddenValues();
 
-      expect(mockScatterplot.hiddenFeatureValues).toEqual(['hidden1', 'hidden2']);
+      expect(mockScatterplot.hiddenAnnotationValues).toEqual(['hidden1', 'hidden2']);
     });
 
     it('expands Other to concrete values', () => {
@@ -235,7 +235,7 @@ describe('ScatterplotSyncController', () => {
 
       controller.syncHiddenValues();
 
-      expect(mockScatterplot.hiddenFeatureValues).toEqual(['other1', 'other2']);
+      expect(mockScatterplot.hiddenAnnotationValues).toEqual(['other1', 'other2']);
     });
 
     it('syncs other concrete values', () => {
@@ -243,7 +243,7 @@ describe('ScatterplotSyncController', () => {
 
       controller.syncHiddenValues();
 
-      expect(mockScatterplot.otherFeatureValues).toEqual(['other1', 'other2']);
+      expect(mockScatterplot.otherAnnotationValues).toEqual(['other1', 'other2']);
     });
 
     it('does nothing when autoHide is false', () => {
@@ -252,7 +252,7 @@ describe('ScatterplotSyncController', () => {
 
       controller.syncHiddenValues();
 
-      expect(mockScatterplot.hiddenFeatureValues).toEqual([]);
+      expect(mockScatterplot.hiddenAnnotationValues).toEqual([]);
     });
   });
 
@@ -268,7 +268,7 @@ describe('ScatterplotSyncController', () => {
 
       controller.syncOtherValues();
 
-      expect(mockScatterplot.otherFeatureValues).toEqual(['a', 'b', 'c']);
+      expect(mockScatterplot.otherAnnotationValues).toEqual(['a', 'b', 'c']);
     });
   });
 
@@ -438,7 +438,7 @@ describe('ScatterplotSyncController', () => {
       controller.hostConnected();
 
       const event = new CustomEvent(LEGEND_EVENTS.ANNOTATION_CHANGE, {
-        detail: { feature: 'new-annotation' },
+        detail: { annotation: 'new-annotation' },
       });
       controlBar.dispatchEvent(event);
 
@@ -491,18 +491,18 @@ function createMockScatterplot(): IScatterplotElement {
   element.getCurrentData = vi.fn().mockReturnValue({
     protein_ids: ['p1', 'p2'],
     projections: { pca: { x: [0, 1], y: [0, 1] } },
-    features: ['test-feature'],
-    feature_data: { 'test-feature': ['a', 'b'] },
+    annotations: ['test-feature'],
+    annotation_data: { 'test-feature': ['a', 'b'] },
   });
 
-  Object.defineProperty(element, 'selectedFeature', {
+  Object.defineProperty(element, 'selectedAnnotation', {
     value: 'test-feature',
     writable: true,
     configurable: true,
   });
 
-  element.hiddenFeatureValues = [];
-  element.otherFeatureValues = [];
+  element.hiddenAnnotationValues = [];
+  element.otherAnnotationValues = [];
   element.useShapes = false;
   element.config = {};
 

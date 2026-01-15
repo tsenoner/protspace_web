@@ -14,7 +14,7 @@ declare namespace JSX {
       React.HTMLAttributes<HTMLElement> & {
         id?: string;
         'selected-projection'?: string;
-        'selected-feature'?: string;
+        'selected-annotation'?: string;
         'selected-proteins-count'?: string;
         'auto-sync'?: string;
         'scatterplot-selector'?: string;

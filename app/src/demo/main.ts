@@ -4,9 +4,9 @@ import type {
   ProtspaceScatterplot,
   ProtspaceLegend,
   ProtspaceStructureViewer,
-  ProtspaceControlBar,
   DataLoader,
 } from '@protspace/core';
+import { ProtspaceControlBar } from '@protspace/core';
 import { createExporter, showNotification } from '@protspace/utils';
 
 // Export initialization function that can be called when the component mounts
@@ -163,18 +163,15 @@ export async function initializeDemo() {
         plotElement.requestUpdate('data', oldData);
 
         plotElement.selectedProjectionIndex = 0;
-        const firstFeatureKey = Object.keys(newData.features)[0] || '';
-        plotElement.selectedFeature = firstFeatureKey;
+        const firstAnnotationKey = Object.keys(newData.annotations)[0] || '';
+        plotElement.selectedAnnotation = firstAnnotationKey;
         plotElement.selectedProteinIds = [];
         plotElement.selectionMode = false;
-        plotElement.hiddenFeatureValues = [];
+        plotElement.hiddenAnnotationValues = [];
 
-        console.log('📊 Scatterplot updated with:', {
-          projections: newData.projections.map((p) => p.name),
-          features: Object.keys(newData.features),
-          proteinCount: newData.protein_ids.length,
-          selectedFeature: plotElement.selectedFeature,
-        });
+        console.log(
+          `📊 Scatterplot updated: ${newData.protein_ids.length} proteins, ${newData.projections.length} projections`,
+        );
 
         // Update progress
         if (isLargeDataset) {
@@ -195,7 +192,7 @@ export async function initializeDemo() {
             () => {
               controlBar.autoSync = true;
               controlBar.selectedProjection = newData.projections[0]?.name || '';
-              controlBar.selectedFeature = Object.keys(newData.features)[0] || '';
+              controlBar.selectedAnnotation = Object.keys(newData.annotations)[0] || '';
               controlBar.selectionMode = false;
               controlBar.selectedProteinsCount = 0;
               controlBar.requestUpdate();
@@ -218,34 +215,33 @@ export async function initializeDemo() {
         // Yield to browser
         await new Promise((resolve) => requestAnimationFrame(resolve));
 
-        // Update legend with enhanced progressive feature processing
+        // Update legend with enhanced progressive annotation processing
         await new Promise((resolve) => {
           setTimeout(
             async () => {
-              console.log('🏷️ Updating legend with performance optimization...');
               legendElement.autoSync = true;
               legendElement.autoHide = true;
 
-              legendElement.data = { features: newData.features };
-              legendElement.selectedFeature = Object.keys(newData.features)[0] || '';
+              legendElement.data = { annotations: newData.annotations };
+              legendElement.selectedAnnotation = Object.keys(newData.annotations)[0] || '';
 
-              // Process legend feature values
-              const firstFeature = Object.keys(newData.features)[0];
-              if (firstFeature) {
+              // Process legend annotation values
+              const firstAnnotation = Object.keys(newData.annotations)[0];
+              if (firstAnnotation) {
                 if (isLargeDataset) {
                   // Large datasets: Chunked processing to keep UI responsive
                   const chunkSize = 1000;
-                  const featureValues: (string | null)[] = [];
+                  const annotationValues: (string | null)[] = [];
 
                   for (let i = 0; i < newData.protein_ids.length; i += chunkSize) {
                     const endIndex = Math.min(i + chunkSize, newData.protein_ids.length);
 
                     for (let j = i; j < endIndex; j++) {
-                      const featureIdxArray = newData.feature_data[firstFeature][j];
+                      const annotationIdxArray = newData.annotation_data[firstAnnotation][j];
 
-                      for (let k = 0; k < featureIdxArray.length; k++) {
-                        featureValues.push(
-                          newData.features[firstFeature].values[featureIdxArray[k]],
+                      for (let k = 0; k < annotationIdxArray.length; k++) {
+                        annotationValues.push(
+                          newData.annotations[firstAnnotation].values[annotationIdxArray[k]],
                         );
                       }
                     }
@@ -263,14 +259,16 @@ export async function initializeDemo() {
                     }
                   }
 
-                  legendElement.featureValues = featureValues;
+                  legendElement.annotationValues = annotationValues;
                 } else {
                   // Small datasets: Process directly
-                  const featureValues = newData.protein_ids.flatMap((_, index) => {
-                    const featureIdx = newData.feature_data[firstFeature][index];
-                    return featureIdx.map((idx) => newData.features[firstFeature].values[idx]);
+                  const annotationValues = newData.protein_ids.flatMap((_, index) => {
+                    const annotationIdx = newData.annotation_data[firstAnnotation][index];
+                    return annotationIdx.map(
+                      (idx) => newData.annotations[firstAnnotation].values[idx],
+                    );
                   });
-                  legendElement.featureValues = featureValues;
+                  legendElement.annotationValues = annotationValues;
                 }
 
                 legendElement.proteinIds = newData.protein_ids;
@@ -278,11 +276,9 @@ export async function initializeDemo() {
 
               legendElement.requestUpdate();
 
-              console.log('🏷️ Legend updated with:', {
-                feature: legendElement.selectedFeature,
-                dataKeys: Object.keys(newData.features),
-                proteinCount: newData.protein_ids.length,
-              });
+              console.log(
+                `🏷️ Legend updated with ${Object.keys(newData.annotations).length} annotations`,
+              );
 
               resolve(undefined);
             },
@@ -386,27 +382,27 @@ export async function initializeDemo() {
 
     // Update legend function - force sync even with auto-sync enabled
     const updateLegend = () => {
-      const currentFeature = plotElement.selectedFeature;
+      const currentAnnotation = plotElement.selectedAnnotation;
       const currentData = plotElement.getCurrentData();
-      if (currentFeature && currentData && currentData.features[currentFeature]) {
+      if (currentAnnotation && currentData && currentData.annotations[currentAnnotation]) {
         // Force legend sync using the public interface
         if (legendElement.autoSync && 'forceSync' in legendElement) {
           legendElement.forceSync();
         } else if (!legendElement.autoSync) {
           // Manual update for non-auto-sync mode
-          legendElement.data = { features: currentData.features };
-          legendElement.selectedFeature = currentFeature;
+          legendElement.data = { annotations: currentData.annotations };
+          legendElement.selectedAnnotation = currentAnnotation;
 
-          // Extract feature values for current data
-          const featureValues = currentData.protein_ids.flatMap((_, index) => {
-            const featureIdxArray = currentData.feature_data[currentFeature][index];
+          // Extract annotation values for current data
+          const annotationValues = currentData.protein_ids.flatMap((_, index) => {
+            const annotationIdxArray = currentData.annotation_data[currentAnnotation][index];
 
-            return featureIdxArray.map((featureIdx) => {
-              return currentData.features[currentFeature].values[featureIdx];
+            return annotationIdxArray.map((annotationIdx) => {
+              return currentData.annotations[currentAnnotation].values[annotationIdx];
             });
           });
 
-          legendElement.featureValues = featureValues;
+          legendElement.annotationValues = annotationValues;
           legendElement.proteinIds = currentData.protein_ids;
         }
       }
@@ -436,9 +432,6 @@ export async function initializeDemo() {
       if (selectedProteins.length > 0) {
         // Load the most recently selected protein into the viewer
         const lastSelected = selectedProteins[selectedProteins.length - 1];
-        if (structureViewer.style.display === 'none') {
-          structureViewer.style.display = 'block';
-        }
         structureViewer.loadProtein(lastSelected);
         updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
       } else {
@@ -453,23 +446,14 @@ export async function initializeDemo() {
     updateLegend();
 
     // Handle isolation events from scatterplot
-    plotElement.addEventListener('data-isolation', (event: Event) => {
+    plotElement.addEventListener('data-isolation', () => {
       // Update legend with filtered data
       updateLegend();
     });
 
-    plotElement.addEventListener('data-isolation-reset', (event: Event) => {
+    plotElement.addEventListener('data-isolation-reset', () => {
       // Update legend with full data
       updateLegend();
-    });
-
-    // Handle protein hover from scatterplot
-    plotElement.addEventListener('protein-hover', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const proteinId = customEvent.detail.proteinId;
-      if (proteinId) {
-        console.log(`Protein hovered: ${proteinId}`);
-      }
     });
 
     // Handle legend item clicks to toggle visibility
@@ -486,25 +470,16 @@ export async function initializeDemo() {
       } else {
         hiddenValues = [...hiddenValues, valueKey];
       }
-
-      console.log(`Toggled visibility for "${value}". Hidden values:`, hiddenValues);
     });
 
     // Handle structure viewer events
     structureViewer.addEventListener('structure-load', (event: Event) => {
       const customEvent = event as CustomEvent;
-      const { proteinId, status, error } = customEvent.detail;
-      console.log(`Structure ${proteinId}: ${status}`, error || '');
+      const { proteinId, status } = customEvent.detail;
 
+      // Only log loaded events (loading/error states are less interesting for demo)
       if (status === 'loaded') {
-        console.log(`✅ Structure viewer is now visible with protein ${proteinId}`);
-        console.log(
-          `Close button should be visible in header (showCloseButton: ${structureViewer.showCloseButton})`,
-        );
-      }
-
-      if (status === 'error') {
-        console.warn(`Failed to load structure for ${proteinId}: ${error}`);
+        console.log(`✅ Structure loaded: ${proteinId}`);
       }
     });
 
@@ -520,14 +495,11 @@ export async function initializeDemo() {
     // Note: With auto-sync enabled, the control bar now directly manages the scatterplot
     // We keep some event listeners for additional logic that auto-sync doesn't handle
 
-    // Handle feature change for resetting hidden values
-    controlBar.addEventListener('feature-change', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const feature = customEvent.detail.feature;
-      hiddenValues = []; // Reset hidden values when switching features
-      plotElement.hiddenFeatureValues = hiddenValues;
+    // Handle annotation change for resetting hidden values
+    controlBar.addEventListener('annotation-change', () => {
+      hiddenValues = []; // Reset hidden values when switching annotations
+      plotElement.hiddenAnnotationValues = hiddenValues;
       updateLegend();
-      console.log(`Switched to feature: ${feature}`);
     });
 
     // Handle selection mode toggle for local state
@@ -536,7 +508,7 @@ export async function initializeDemo() {
     });
 
     // Handle data-change from scatterplot to sync selections
-    plotElement.addEventListener('data-change', (event: Event) => {
+    plotElement.addEventListener('data-change', () => {
       // When data changes (e.g. after a split), the selection is often cleared.
       // Sync local selection state with the component state.
       selectedProteins = plotElement.selectedProteinIds || [];
@@ -577,17 +549,13 @@ export async function initializeDemo() {
     });
 
     // Handle successful data loading
-    console.log('🎧 Setting up data-loaded event listener on:', dataLoader);
     dataLoader.addEventListener('data-loaded', (event: Event) => {
-      console.log('🔥 DATA-LOADED EVENT FIRED!', event);
       const customEvent = event as CustomEvent;
       const { data } = customEvent.detail;
-      console.log('📁 Data loaded from Arrow file:', data);
 
       // Load the new data into all components
       loadNewData(data);
     });
-    console.log('🎧 Event listener attached successfully');
 
     // Handle data loading errors
     dataLoader.addEventListener('data-error', (event: Event) => {
@@ -603,41 +571,46 @@ export async function initializeDemo() {
     // The user can still drag and drop the file manually
     loadDataFromFile();
 
-    // Handle export using the new export utilities
+    // Handle export
     controlBar.addEventListener('export', async (event: Event) => {
       const customEvent = event as CustomEvent;
-      const exportType = customEvent.detail.type;
-      console.log(`Export requested: ${exportType}`);
+      const { type, imageWidth, imageHeight, legendWidthPercent, legendFontSizePx } =
+        customEvent.detail;
 
       try {
-        // Create exporter instance with current state
         const exporter = createExporter(plotElement);
+        const DEFAULTS = ProtspaceControlBar.EXPORT_DEFAULTS;
+
+        // Calculate scatterplot dimensions (excluding legend)
+        const legendPercent = (legendWidthPercent ?? DEFAULTS.LEGEND_WIDTH_PERCENT) / 100;
+        const targetWidth = Math.round((imageWidth ?? DEFAULTS.IMAGE_WIDTH) * (1 - legendPercent));
+        const targetHeight = imageHeight ?? DEFAULTS.IMAGE_HEIGHT;
 
         // Export options
-        const exportOptions = {
-          exportName: isolationMode ? 'protspace_data_split' : 'protspace_data',
+        const options = {
+          targetWidth,
+          targetHeight,
+          legendWidthPercent: legendWidthPercent ?? DEFAULTS.LEGEND_WIDTH_PERCENT,
+          legendScaleFactor:
+            (legendFontSizePx ?? DEFAULTS.LEGEND_FONT_SIZE_PX) / DEFAULTS.BASE_FONT_SIZE,
           includeSelection: selectedProteins.length > 0,
-          scaleForExport: 2,
-          maxLegendItems: 10,
           backgroundColor: 'white',
         };
 
-        // Handle different export types
-        switch (exportType) {
+        // Execute export
+        switch (type) {
           case 'json':
-            exporter.exportJSON(exportOptions);
+            exporter.exportJSON(options);
             break;
           case 'ids':
-            exporter.exportProteinIds(exportOptions);
+            exporter.exportProteinIds(options);
             break;
           case 'png':
-            await exporter.exportPNG(exportOptions);
+            await exporter.exportPNG(options);
             break;
           case 'pdf':
-            await exporter.exportPDF(exportOptions);
+            await exporter.exportPDF(options);
             break;
-          default:
-            console.warn(`Unknown export type: ${exportType}`);
         }
       } catch (error) {
         console.error('Export failed:', error);
@@ -647,7 +620,7 @@ export async function initializeDemo() {
 
     console.log('ProtSpace components loaded and connected!');
     console.log('Data will be loaded from data.parquetbundle file');
-    console.log('Use the control bar to change features and toggle selection modes!');
+    console.log('Use the control bar to change annotations and toggle selection modes!');
   } else {
     console.error('Could not find one or more required elements.');
     console.log('Plot element:', plotElement);

@@ -631,7 +631,7 @@ test.describe('Legend Animation Captures', () => {
     const colorBySelectCoords = await page.evaluate(() => {
       const controlBar = document.querySelector('#myControlBar');
       if (!controlBar || !controlBar.shadowRoot) return null;
-      const select = controlBar.shadowRoot.querySelector('#feature-select') as HTMLElement;
+      const select = controlBar.shadowRoot.querySelector('#annotation-select') as HTMLElement;
       if (!select) return null;
       const rect = select.getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
@@ -646,7 +646,7 @@ test.describe('Legend Animation Captures', () => {
     await page.evaluate(() => {
       const controlBar = document.querySelector('#myControlBar');
       if (!controlBar || !controlBar.shadowRoot) return;
-      const select = controlBar.shadowRoot.querySelector('#feature-select') as HTMLSelectElement;
+      const select = controlBar.shadowRoot.querySelector('#annotation-select') as HTMLSelectElement;
       if (select) {
         // Find and select "genus" option
         const options = Array.from(select.options);

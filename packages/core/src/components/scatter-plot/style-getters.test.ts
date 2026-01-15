@@ -12,36 +12,38 @@ import type { VisualizationData, PlotDataPoint } from '@protspace/utils';
 
 describe('style-getters', () => {
   describe('N/A value handling', () => {
-    const createMockData = (featureValues: (string | null)[]): VisualizationData => ({
-      protein_ids: featureValues.map((_, i) => `protein_${i}`),
-      projections: [{ name: 'test', coordinates: featureValues.map(() => [0, 0, 0]) }],
-      features: {
-        test_feature: {
-          values: featureValues,
-          colors: featureValues.map(() => '#ff0000'),
+    const createMockData = (annotationValues: (string | null)[]): VisualizationData => ({
+      protein_ids: annotationValues.map((_, i) => `protein_${i}`),
+      projections: [{ name: 'test', data: annotationValues.map(() => [0, 0, 0]) }],
+      annotations: {
+        test_annotation: {
+          values: annotationValues,
+          colors: annotationValues.map(() => '#ff0000'),
+          shapes: annotationValues.map(() => 'circle'),
         },
       },
-      feature_data: {
-        test_feature: featureValues.map((v) => [featureValues.indexOf(v)]),
+      annotation_data: {
+        test_annotation: annotationValues.map((v) => [annotationValues.indexOf(v)]),
       },
     });
 
-    const createMockPoint = (featureValue: string | null): PlotDataPoint => ({
+    const createMockPoint = (annotationValue: string | null): PlotDataPoint => ({
       id: 'test_protein',
       x: 0,
       y: 0,
       z: 0,
-      featureValues: {
-        test_feature: featureValue === null ? [null as unknown as string] : [featureValue],
+      originalIndex: 0,
+      annotationValues: {
+        test_annotation: annotationValue === null ? [null as unknown as string] : [annotationValue],
       },
     });
 
     const createDefaultStyleConfig = (overrides: Partial<StyleConfig> = {}): StyleConfig => ({
       selectedProteinIds: [],
       highlightedProteinIds: [],
-      selectedFeature: 'test_feature',
-      hiddenFeatureValues: [],
-      otherFeatureValues: [],
+      selectedAnnotation: 'test_annotation',
+      hiddenAnnotationValues: [],
+      otherAnnotationValues: [],
       useShapes: false,
       zOrderMapping: null,
       colorMapping: null,
@@ -52,10 +54,10 @@ describe('style-getters', () => {
     });
 
     describe('getOpacity with hidden N/A values', () => {
-      it('should hide points with null feature values when __NA__ is hidden', () => {
+      it('should hide points with null annotation values when __NA__ is hidden', () => {
         const data = createMockData([null, 'value1', 'value2']);
         const config = createDefaultStyleConfig({
-          hiddenFeatureValues: ['__NA__'],
+          hiddenAnnotationValues: ['__NA__'],
         });
 
         const getters = createStyleGetters(data, config);
@@ -64,10 +66,10 @@ describe('style-getters', () => {
         expect(getters.getOpacity(nullPoint)).toBe(0);
       });
 
-      it('should hide points with empty string feature values when __NA__ is hidden', () => {
+      it('should hide points with empty string annotation values when __NA__ is hidden', () => {
         const data = createMockData(['', 'value1', 'value2']);
         const config = createDefaultStyleConfig({
-          hiddenFeatureValues: ['__NA__'],
+          hiddenAnnotationValues: ['__NA__'],
         });
 
         const getters = createStyleGetters(data, config);
@@ -76,10 +78,10 @@ describe('style-getters', () => {
         expect(getters.getOpacity(emptyStringPoint)).toBe(0);
       });
 
-      it('should hide points with whitespace-only feature values when __NA__ is hidden', () => {
+      it('should hide points with whitespace-only annotation values when __NA__ is hidden', () => {
         const data = createMockData(['   ', 'value1', 'value2']);
         const config = createDefaultStyleConfig({
-          hiddenFeatureValues: ['__NA__'],
+          hiddenAnnotationValues: ['__NA__'],
         });
 
         const getters = createStyleGetters(data, config);
@@ -91,7 +93,7 @@ describe('style-getters', () => {
       it('should NOT hide non-N/A points when __NA__ is hidden', () => {
         const data = createMockData([null, 'value1', 'value2']);
         const config = createDefaultStyleConfig({
-          hiddenFeatureValues: ['__NA__'],
+          hiddenAnnotationValues: ['__NA__'],
         });
 
         const getters = createStyleGetters(data, config);
@@ -103,7 +105,7 @@ describe('style-getters', () => {
       it('should show N/A points when __NA__ is NOT hidden', () => {
         const data = createMockData([null, 'value1', 'value2']);
         const config = createDefaultStyleConfig({
-          hiddenFeatureValues: [],
+          hiddenAnnotationValues: [],
         });
 
         const getters = createStyleGetters(data, config);
@@ -114,7 +116,7 @@ describe('style-getters', () => {
     });
 
     describe('getColors with N/A color mapping', () => {
-      it('should use color from colorMapping for null feature values', () => {
+      it('should use color from colorMapping for null annotation values', () => {
         const data = createMockData([null, 'value1']);
         const config = createDefaultStyleConfig({
           colorMapping: {
@@ -129,7 +131,7 @@ describe('style-getters', () => {
         expect(getters.getColors(nullPoint)).toEqual(['#dddddd']);
       });
 
-      it('should use color from colorMapping for empty string feature values', () => {
+      it('should use color from colorMapping for empty string annotation values', () => {
         const data = createMockData(['', 'value1']);
         const config = createDefaultStyleConfig({
           colorMapping: {
@@ -146,7 +148,7 @@ describe('style-getters', () => {
     });
 
     describe('getDepth with N/A z-order mapping', () => {
-      it('should use z-order from zOrderMapping for null feature values', () => {
+      it('should use z-order from zOrderMapping for null annotation values', () => {
         const data = createMockData([null, 'value1', 'value2']);
         const config = createDefaultStyleConfig({
           zOrderMapping: {
@@ -167,7 +169,7 @@ describe('style-getters', () => {
         expect(nullDepth).toBeLessThan(value1Depth);
       });
 
-      it('should use z-order from zOrderMapping for empty string feature values', () => {
+      it('should use z-order from zOrderMapping for empty string annotation values', () => {
         const data = createMockData(['', 'value1', 'value2']);
         const config = createDefaultStyleConfig({
           zOrderMapping: {
@@ -193,49 +195,51 @@ describe('style-getters', () => {
         // If someone explicitly uses '__NA__' as a value, it should work correctly
         const data = createMockData(['__NA__', 'value1']);
         const config = createDefaultStyleConfig({
-          hiddenFeatureValues: ['__NA__'],
+          hiddenAnnotationValues: ['__NA__'],
         });
 
         const getters = createStyleGetters(data, config);
         const naStringPoint = createMockPoint('__NA__');
 
-        // __NA__ string should be hidden when __NA__ is in hiddenFeatureValues
+        // __NA__ string should be hidden when __NA__ is in hiddenAnnotationValues
         expect(getters.getOpacity(naStringPoint)).toBe(0);
       });
     });
   });
 
   describe('z-order change consistency', () => {
-    const createMockData = (featureValues: string[]): VisualizationData => ({
-      protein_ids: featureValues.map((_, i) => `protein_${i}`),
-      projections: [{ name: 'test', coordinates: featureValues.map(() => [0, 0, 0]) }],
-      features: {
-        test_feature: {
-          values: featureValues,
-          colors: featureValues.map(() => '#ff0000'),
+    const createMockData = (annotationValues: string[]): VisualizationData => ({
+      protein_ids: annotationValues.map((_, i) => `protein_${i}`),
+      projections: [{ name: 'test', data: annotationValues.map(() => [0, 0, 0]) }],
+      annotations: {
+        test_annotation: {
+          values: annotationValues,
+          colors: annotationValues.map(() => '#ff0000'),
+          shapes: annotationValues.map(() => 'circle'),
         },
       },
-      feature_data: {
-        test_feature: featureValues.map((v) => [featureValues.indexOf(v)]),
+      annotation_data: {
+        test_annotation: annotationValues.map((v) => [annotationValues.indexOf(v)]),
       },
     });
 
-    const createMockPoint = (featureValue: string): PlotDataPoint => ({
+    const createMockPoint = (annotationValue: string): PlotDataPoint => ({
       id: 'test_protein',
       x: 0,
       y: 0,
       z: 0,
-      featureValues: {
-        test_feature: [featureValue],
+      originalIndex: 0,
+      annotationValues: {
+        test_annotation: [annotationValue],
       },
     });
 
     const createDefaultStyleConfig = (overrides: Partial<StyleConfig> = {}): StyleConfig => ({
       selectedProteinIds: [],
       highlightedProteinIds: [],
-      selectedFeature: 'test_feature',
-      hiddenFeatureValues: [],
-      otherFeatureValues: [],
+      selectedAnnotation: 'test_annotation',
+      hiddenAnnotationValues: [],
+      otherAnnotationValues: [],
       useShapes: false,
       zOrderMapping: null,
       colorMapping: null,

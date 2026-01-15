@@ -9,7 +9,7 @@ import { createStyleGetters } from './style-getters';
 import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer } from './webgl';
 import { QuadtreeIndex } from './quadtree-index';
 
-// Virtualization is only needed for viewport culling on very large datasets.
+// Visualization is only needed for viewport culling on very large datasets.
 // For <= MAX_POINTS_DIRECT_RENDER we can render the full set once and then pan/zoom via uniforms
 // (no per-frame quadtree queries or buffer rebuilds), which is substantially faster for ~500k points.
 const VIRTUALIZATION_THRESHOLD = MAX_POINTS_DIRECT_RENDER;
@@ -39,12 +39,12 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Object }) data: VisualizationData | null = null;
   @property({ type: Number }) selectedProjectionIndex = 0;
   @property({ type: String }) projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
-  @property({ type: String }) selectedFeature = 'family';
+  @property({ type: String }) selectedAnnotation = 'family';
   @property({ type: Array }) highlightedProteinIds: string[] = [];
   @property({ type: Array }) selectedProteinIds: string[] = [];
   @property({ type: Boolean }) selectionMode = false;
-  @property({ type: Array }) hiddenFeatureValues: string[] = [];
-  @property({ type: Array }) otherFeatureValues: string[] = [];
+  @property({ type: Array }) hiddenAnnotationValues: string[] = [];
+  @property({ type: Array }) otherAnnotationValues: string[] = [];
   @property({ type: Boolean }) useShapes: boolean = false;
   @property({ type: Object }) config: Partial<ScatterplotConfig> = {};
 
@@ -262,8 +262,8 @@ export class ProtspaceScatterplot extends LitElement {
 
   updated(changedProperties: Map<string, unknown>) {
     // When new data is loaded (or projection index changes), ensure the selection is valid.
-    // This prevents a blank plot when switching from a dataset with many projections/features
-    // to one with only a single projection/feature.
+    // This prevents a blank plot when switching from a dataset with many projections/annotations
+    // to one with only a single projection/annotation.
     if (
       (changedProperties.has('data') || changedProperties.has('selectedProjectionIndex')) &&
       this.data
@@ -282,14 +282,14 @@ export class ProtspaceScatterplot extends LitElement {
         this.selectedProjectionIndex = 0;
       }
 
-      const featureKeys = Object.keys(this.data.features || {});
-      if (this.selectedFeature && featureKeys.includes(this.selectedFeature)) {
+      const annotationKeys = Object.keys(this.data.annotations || {});
+      if (this.selectedAnnotation && annotationKeys.includes(this.selectedAnnotation)) {
         // ok
       } else {
-        this.selectedFeature = featureKeys[0] || '';
-        // Reset filters when the active feature changes due to a data swap
-        this.hiddenFeatureValues = [];
-        this.otherFeatureValues = [];
+        this.selectedAnnotation = annotationKeys[0] || '';
+        // Reset filters when the active annotation changes due to a data swap
+        this.hiddenAnnotationValues = [];
+        this.otherAnnotationValues = [];
         this._colorMapping = null;
         this._shapeMapping = null;
       }
@@ -336,9 +336,9 @@ export class ProtspaceScatterplot extends LitElement {
       this._scheduleQuadtreeRebuild();
     }
     if (
-      changedProperties.has('selectedFeature') ||
-      changedProperties.has('hiddenFeatureValues') ||
-      changedProperties.has('otherFeatureValues')
+      changedProperties.has('selectedAnnotation') ||
+      changedProperties.has('hiddenAnnotationValues') ||
+      changedProperties.has('otherAnnotationValues')
     ) {
       this._scheduleQuadtreeRebuild();
       this._webglRenderer?.invalidateStyleCache();
@@ -347,9 +347,6 @@ export class ProtspaceScatterplot extends LitElement {
       this._webglRenderer?.invalidatePositionCache();
       this._updateStyleSignature();
       this._webglRenderer?.setStyleSignature(this._styleSig);
-      if (changedProperties.has('selectedFeature')) {
-        this._webglRenderer?.setSelectedFeature(this.selectedFeature);
-      }
     }
     if (changedProperties.has('selectionMode')) {
       this._updateSelectionMode();
@@ -357,9 +354,9 @@ export class ProtspaceScatterplot extends LitElement {
     // Refresh cached style getters when any relevant input changes
     if (
       changedProperties.has('data') ||
-      changedProperties.has('selectedFeature') ||
-      changedProperties.has('hiddenFeatureValues') ||
-      changedProperties.has('otherFeatureValues') ||
+      changedProperties.has('selectedAnnotation') ||
+      changedProperties.has('hiddenAnnotationValues') ||
+      changedProperties.has('otherAnnotationValues') ||
       changedProperties.has('selectedProteinIds') ||
       changedProperties.has('highlightedProteinIds') ||
       changedProperties.has('config') ||
@@ -368,9 +365,9 @@ export class ProtspaceScatterplot extends LitElement {
       this._styleGettersCache = createStyleGetters(this.data, {
         selectedProteinIds: this.selectedProteinIds,
         highlightedProteinIds: this.highlightedProteinIds,
-        selectedFeature: this.selectedFeature,
-        hiddenFeatureValues: this.hiddenFeatureValues,
-        otherFeatureValues: this.otherFeatureValues,
+        selectedAnnotation: this.selectedAnnotation,
+        hiddenAnnotationValues: this.hiddenAnnotationValues,
+        otherAnnotationValues: this.otherAnnotationValues,
         useShapes: this.useShapes,
         zOrderMapping: this._zOrderMapping,
         colorMapping: this._colorMapping,
@@ -426,7 +423,6 @@ export class ProtspaceScatterplot extends LitElement {
       );
       this._updateStyleSignature();
       this._webglRenderer.setStyleSignature(this._styleSig);
-      this._webglRenderer.setSelectedFeature(this.selectedFeature);
       this._syncWebglSelectionActive();
     }
   }
@@ -555,7 +551,6 @@ export class ProtspaceScatterplot extends LitElement {
         );
         this._updateStyleSignature();
         this._webglRenderer.setStyleSignature(this._styleSig);
-        this._webglRenderer.setSelectedFeature(this.selectedFeature);
       }
       this._webglRenderer.resize(width, height);
       // Force fresh style getters to ensure depth values are recomputed consistently
@@ -1213,7 +1208,7 @@ export class ProtspaceScatterplot extends LitElement {
     this._updateDuplicateOverlays();
   }
 
-  private _getPointShape(point: PlotDataPoint): d3.SymbolType {
+  private _getPointShape(point: PlotDataPoint): string {
     const getters = this._getStyleGetters();
     return getters.getPointShape(point);
   }
@@ -1253,9 +1248,9 @@ export class ProtspaceScatterplot extends LitElement {
       this._styleGettersCache = createStyleGetters(this.data, {
         selectedProteinIds: this.selectedProteinIds,
         highlightedProteinIds: this.highlightedProteinIds,
-        selectedFeature: this.selectedFeature,
-        hiddenFeatureValues: this.hiddenFeatureValues,
-        otherFeatureValues: this.otherFeatureValues,
+        selectedAnnotation: this.selectedAnnotation,
+        hiddenAnnotationValues: this.hiddenAnnotationValues,
+        otherAnnotationValues: this.otherAnnotationValues,
         useShapes: this.useShapes,
         zOrderMapping: this._zOrderMapping,
         colorMapping: this._colorMapping,
@@ -1625,10 +1620,10 @@ export class ProtspaceScatterplot extends LitElement {
               >
                 <div class="tooltip-protein-id">${this._tooltipData.protein.id}</div>
 
-                <div class="tooltip-feature-header">${this.selectedFeature}:</div>
+                <div class="tooltip-annotation-header">${this.selectedAnnotation}:</div>
 
-                ${this._tooltipData.protein.featureValues[this.selectedFeature].map(
-                  (value) => html`<div class="tooltip-feature">${value || 'N/A'}</div>`,
+                ${this._tooltipData.protein.annotationValues[this.selectedAnnotation].map(
+                  (value) => html`<div class="tooltip-annotation">${value || 'N/A'}</div>`,
                 )}
               </div>
             `
@@ -1666,7 +1661,7 @@ export class ProtspaceScatterplot extends LitElement {
     const cfg = this._mergedConfig;
     const parts = [
       `ps:${cfg.pointSize}`,
-      `feat:${this.selectedFeature}`,
+      `annot:${this.selectedAnnotation}`,
       `sh:${this.useShapes ? 1 : 0}`,
     ];
     this._styleSig = parts.join('|');
@@ -1818,16 +1813,16 @@ export class ProtspaceScatterplot extends LitElement {
       const currentProteinIds = this._plotData.map((point) => point.id);
       const currentProteinIdsSet = new Set(currentProteinIds);
 
-      // Filter feature data to match current protein IDs
-      const filteredFeatureData: { [key: string]: number[][] } = {};
+      // Filter annotation data to match current protein IDs
+      const filteredAnnotationData: { [key: string]: number[][] } = {};
 
-      for (const [featureName, featureValues] of Object.entries(this.data.feature_data)) {
-        filteredFeatureData[featureName] = [];
+      for (const [annotationName, annotationValues] of Object.entries(this.data.annotation_data)) {
+        filteredAnnotationData[annotationName] = [];
 
         // Map original indices to current indices
         this.data.protein_ids.forEach((proteinId, originalIndex) => {
           if (currentProteinIdsSet.has(proteinId)) {
-            filteredFeatureData[featureName].push(featureValues[originalIndex]);
+            filteredAnnotationData[annotationName].push(annotationValues[originalIndex]);
           }
         });
       }
@@ -1835,7 +1830,7 @@ export class ProtspaceScatterplot extends LitElement {
       return {
         ...this.data,
         protein_ids: currentProteinIds,
-        feature_data: filteredFeatureData,
+        annotation_data: filteredAnnotationData,
         projections: this.data.projections, // Keep original projections
       };
     }
