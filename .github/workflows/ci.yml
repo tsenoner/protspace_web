@@ -53,8 +53,7 @@ jobs:
         run: pnpm build
 
       - name: Test
-        run: pnpm test
-        continue-on-error: true # Continue even if tests fail (in case you don't have tests yet)
+        run: pnpm test:ci
 
   build-docs:
     name: Build Documentation

@@ -1,8 +1,13 @@
 import type { TemplateResult } from 'lit';
 import { html } from 'lit';
 import type { LegendItem } from './types';
-import { LEGEND_DEFAULTS, LEGEND_STYLES, LEGEND_VALUES } from './config';
-import { SHAPE_PATH_GENERATORS, getLegendDisplayText } from '@protspace/utils';
+import {
+  LEGEND_DEFAULTS,
+  LEGEND_STYLES,
+  LEGEND_VALUES,
+  SHAPE_PATH_GENERATORS,
+  toDisplayValue,
+} from './config';
 
 /**
  * Utility class for rendering legend components
@@ -187,10 +192,11 @@ export class LegendRenderer {
   }
 
   /**
-   * Render the item text label
+   * Render the item text label.
+   * N/A items have '__NA__' as value and display as 'N/A'.
    */
   static renderItemText(item: LegendItem, otherItemsCount?: number): TemplateResult {
-    const displayText = getLegendDisplayText(item.value, otherItemsCount);
+    const displayText = toDisplayValue(item.value, otherItemsCount);
     return html`<span class="legend-text" part="text">${displayText}</span>`;
   }
 
@@ -210,7 +216,8 @@ export class LegendRenderer {
   }
 
   /**
-   * Render a complete legend item
+   * Render a complete legend item.
+   * N/A items have '__NA__' as value and display as 'N/A'.
    */
   static renderLegendItem(
     item: LegendItem,
@@ -231,9 +238,7 @@ export class LegendRenderer {
     otherItemsCount?: number,
     itemIndex?: number,
   ): TemplateResult {
-    const isEmptyString = typeof item.value === 'string' && item.value.trim() === '';
-    const displayLabel =
-      item.value === null || isEmptyString ? LEGEND_VALUES.NA_DISPLAY : item.value;
+    const displayLabel = toDisplayValue(item.value);
 
     return html`
       <div

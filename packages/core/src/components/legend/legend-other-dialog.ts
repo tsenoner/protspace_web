@@ -1,6 +1,6 @@
-import { html, nothing, type TemplateResult } from 'lit';
+import { html, type TemplateResult } from 'lit';
 import type { OtherItem } from './types';
-import { LEGEND_VALUES } from './config';
+import { toDisplayValue } from './config';
 
 /**
  * State for the Other dialog
@@ -18,40 +18,28 @@ export interface OtherDialogCallbacks {
 }
 
 /**
- * Renders a single item in the Other dialog list
+ * Renders a single item in the Other dialog list.
+ * All items (including N/A with '__NA__' value) can be extracted.
  */
 function renderOtherItem(item: OtherItem, callbacks: OtherDialogCallbacks): TemplateResult {
-  const displayValue =
-    item.value === null || (typeof item.value === 'string' && item.value.trim() === '')
-      ? LEGEND_VALUES.NA_DISPLAY
-      : item.value;
-
-  const canExtract = item.value !== null;
-
   return html`
     <div class="other-item">
       <div class="other-item-info">
-        <span class="other-item-name">${displayValue}</span>
+        <span class="other-item-name">${toDisplayValue(item.value)}</span>
         <span class="other-item-count">(${item.count})</span>
       </div>
-      ${canExtract
-        ? html`
-            <button
-              class="extract-button"
-              @click=${() => callbacks.onExtract(item.value as string)}
-            >
-              Extract
-            </button>
-          `
-        : nothing}
+      <button class="extract-button" @click=${() => callbacks.onExtract(item.value)}>
+        Extract
+      </button>
     </div>
   `;
 }
 
 /**
- * Renders the close button SVG icon
+ * Renders the close button SVG icon.
+ * Shared utility for dialog close buttons.
  */
-function renderCloseIcon(): TemplateResult {
+export function renderCloseIcon(): TemplateResult {
   return html`
     <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path

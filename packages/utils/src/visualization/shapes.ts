@@ -7,24 +7,43 @@ import type { PointShape } from '../types.js';
  */
 
 // ============================================================================
+// Legend Value Constants
+// ============================================================================
+
+/** Magic string constants for legend values */
+export const LEGEND_VALUES = {
+  /** Synthetic "Other" category that groups items beyond maxVisibleValues */
+  OTHER: 'Other',
+  /** Used for visual encoding special color lookup */
+  OTHERS: 'Others',
+  /** Display text for N/A items */
+  NA_DISPLAY: 'N/A',
+  /** Internal value used to represent N/A items (null, empty string, whitespace) */
+  NA_VALUE: '__NA__',
+} as const;
+
+// ============================================================================
 // Legend Display Text Utilities
 // ============================================================================
 
 /**
  * Convert a legend item value to its display text.
- * Handles null, empty strings, and "Other" category formatting.
+ * Handles __NA__ internal value and "Other" category formatting.
  * Used by both legend renderer and export utilities for consistency.
+ *
+ * NOTE: Values must be converted to internal representation (via toInternalValue)
+ * before calling this function. Raw null/empty values should be __NA__.
  */
-export function getLegendDisplayText(
-  value: string | null | 'Other',
-  otherItemsCount?: number,
-): string {
-  // Handle null and empty string
-  const isEmptyString = typeof value === 'string' && value.trim() === '';
-  let displayText = value === null || isEmptyString ? 'N/A' : String(value);
+export function toDisplayValue(value: string, otherItemsCount?: number): string {
+  // Handle __NA__ internal value
+  if (value === LEGEND_VALUES.NA_VALUE) {
+    return LEGEND_VALUES.NA_DISPLAY;
+  }
+
+  let displayText = value;
 
   // For "Other" items, append the number of categories if provided
-  if (value === 'Other' && otherItemsCount !== undefined && otherItemsCount > 0) {
+  if (value === LEGEND_VALUES.OTHER && otherItemsCount !== undefined && otherItemsCount > 0) {
     displayText = `${displayText} (${otherItemsCount} categories)`;
   }
 

@@ -2,7 +2,7 @@
  * Export utilities for ProtSpace visualizations
  */
 
-import { SHAPE_PATH_GENERATORS, renderPathOnCanvas, getLegendDisplayText } from './shapes';
+import { SHAPE_PATH_GENERATORS, renderPathOnCanvas, toDisplayValue } from './shapes';
 
 // PDF generation libraries are imported dynamically for better browser compatibility
 declare const window: Window & typeof globalThis;
@@ -31,7 +31,8 @@ export interface ExportableElement extends Element {
 
 // Narrow typing for accessing the legend component from this utils package
 type LegendExportItem = {
-  value: string | null | 'Other';
+  /** Category value using internal representation. N/A items use '__NA__', "Other" uses 'Other' */
+  value: string;
   color: string;
   shape: string;
   count: number;
@@ -306,7 +307,7 @@ export class ProtSpaceExporter {
       return legendExportState.items
         .filter((it) => it.isVisible)
         .map((it) => ({
-          value: getLegendDisplayText(it.value, otherItemsCount),
+          value: toDisplayValue(it.value, otherItemsCount),
           color: it.color,
           shape: it.shape,
           count: it.count,

@@ -17,10 +17,11 @@ export type { ItemAction };
 
 /**
  * Converts a legend item value to its string key representation.
- * Null values are converted to the 'null' string constant.
+ * This is used for storage keys, hidden values tracking, etc.
+ * N/A items use LEGEND_VALUES.NA_VALUE ('__NA__') as their value.
  */
-export function valueToKey(value: string | null): string {
-  return value === null ? LEGEND_VALUES.NULL_STRING : value;
+export function valueToKey(value: string): string {
+  return value;
 }
 
 /**
@@ -52,30 +53,13 @@ export function computeOtherConcreteValues(otherItems: OtherItem[]): string[] {
 }
 
 /**
- * Reverses z-order of legend items, keeping "Other" at the end.
- */
-export function reverseZOrderKeepOtherLast(items: LegendItem[]): LegendItem[] {
-  if (!items || items.length <= 1) return items;
-
-  // Start from current rendered order (zOrder), not array order
-  const sorted = [...items].sort((a, b) => a.zOrder - b.zOrder);
-  const otherItem = sorted.find((i) => i.value === LEGEND_VALUES.OTHER) ?? null;
-
-  const reversed = sorted.filter((i) => i.value !== LEGEND_VALUES.OTHER).reverse();
-  const reordered = otherItem ? [...reversed, otherItem] : reversed;
-
-  return reordered.map((item, idx) => ({ ...item, zOrder: idx }));
-}
-
-/**
  * Builds a z-order mapping from legend items.
+ * All items (including N/A with __NA__ value) are included.
  */
 export function buildZOrderMapping(items: LegendItem[]): Record<string, number> {
   const mapping: Record<string, number> = {};
   items.forEach((item) => {
-    if (item.value !== null) {
-      mapping[item.value] = item.zOrder;
-    }
+    mapping[item.value] = item.zOrder;
   });
   return mapping;
 }
@@ -145,14 +129,8 @@ export function getItemClasses(item: LegendItem, isSelected: boolean, isDragging
  * Checks if an item is selected based on selectedItems array.
  */
 export function isItemSelected(item: LegendItem, selectedItems: string[]): boolean {
-  return (
-    (item.value === null &&
-      selectedItems.includes(LEGEND_VALUES.NULL_STRING) &&
-      selectedItems.length > 0) ||
-    (item.value !== null &&
-      item.value !== LEGEND_VALUES.OTHER &&
-      selectedItems.includes(item.value))
-  );
+  if (item.value === LEGEND_VALUES.OTHER) return false;
+  return selectedItems.includes(item.value);
 }
 
 /**
@@ -161,9 +139,9 @@ export function isItemSelected(item: LegendItem, selectedItems: string[]): boole
  */
 export function createItemActionEvent(
   eventName: string,
-  value: string | null,
+  value: string,
   action: ItemAction,
-): CustomEvent<{ value: string | null; action: ItemAction }> {
+): CustomEvent<{ value: string; action: ItemAction }> {
   return new CustomEvent(eventName, {
     detail: { value, action },
     bubbles: true,
@@ -214,7 +192,7 @@ export function updateItemsVisibility(
  */
 export function isolateItem(
   items: LegendItem[],
-  valueToIsolate: string | null,
+  valueToIsolate: string,
 ): { items: LegendItem[]; hiddenValues: string[] } {
   const clickedItem = items.find((item) => item.value === valueToIsolate);
   if (!clickedItem) {
@@ -238,9 +216,7 @@ export function isolateItem(
   }
 
   // Compute hidden values from visibility state
-  const hiddenValues = updatedItems
-    .filter((item) => !item.isVisible)
-    .map((item) => valueToKey(item.value));
+  const hiddenValues = updatedItems.filter((item) => !item.isVisible).map((item) => item.value);
 
   return { items: updatedItems, hiddenValues };
 }

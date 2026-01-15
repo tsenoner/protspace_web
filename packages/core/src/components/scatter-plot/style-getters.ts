@@ -37,18 +37,20 @@ export interface StyleConfig {
 }
 
 export function createStyleGetters(data: VisualizationData | null, styleConfig: StyleConfig) {
-  // Normalize values: null and empty-string map to simple string keys
+  // Normalize values: null, undefined, and empty-string map to '__NA__' to match legend convention
   const normalizeToKey = (value: unknown): string => {
-    if (value === null) return 'null';
-    if (typeof value === 'string' && value.trim() === '') return '';
+    if (value === null || value === undefined) return '__NA__';
+    if (typeof value === 'string' && value.trim() === '') return '__NA__';
     return String(value);
   };
 
   // Precompute fast lookup structures
   const selectedIdsSet = new Set(styleConfig.selectedProteinIds);
   const highlightedIdsSet = new Set(styleConfig.highlightedProteinIds);
-  const hiddenKeysSet = new Set(styleConfig.hiddenAnnotationValues.map((v) => normalizeToKey(v)));
-  const otherValuesSet = new Set(styleConfig.otherAnnotationValues);
+  const hiddenKeysSet = new Set(
+    (styleConfig.hiddenAnnotationValues || []).map((v) => normalizeToKey(v)),
+  );
+  const otherValuesSet = new Set(styleConfig.otherAnnotationValues || []);
 
   // Precompute value -> color and value -> shape for the selected annotation
   const annotation =
@@ -67,7 +69,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     // Use legend-provided color mapping (frequency-sorted)
     for (const [key, color] of Object.entries(colorMap)) {
       valueToColor.set(key, color);
-      if (key === 'null' || key === '') {
+      if (key === '__NA__') {
         nullishConfiguredColor = color;
       }
     }
@@ -78,7 +80,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       const k = normalizeToKey(v);
       const color = annotation.colors?.[i];
       if (color) valueToColor.set(k, color);
-      if ((v === null || (typeof v === 'string' && v.trim() === '')) && color) {
+      if (k === '__NA__' && color) {
         nullishConfiguredColor = color;
       }
     }

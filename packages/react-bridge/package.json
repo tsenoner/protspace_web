@@ -18,7 +18,8 @@
   "scripts": {
     "build": "vite build && tsc --emitDeclarationOnly",
     "dev": "vite build --watch",
-    "test": "echo 'No tests yet' && exit 0",
+    "test": "echo 'No tests yet. Once tests are added change this command to 'vitest'. Same as in the other packages.'",
+    "test:ci": "echo 'No tests yet. Once tests are added change this command to 'vitest --run'. Same as in the other packages.'",
     "lint": "eslint src --ext .ts,.tsx",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist"
