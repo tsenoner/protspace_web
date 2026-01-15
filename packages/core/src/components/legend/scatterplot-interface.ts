@@ -7,11 +7,11 @@ import type { ScatterplotData } from './types';
 export interface IScatterplotElement extends Element {
   // Data access
   getCurrentData(): ScatterplotData | null;
-  selectedFeature: string;
+  selectedAnnotation: string;
 
   // Annotation values (using scatterplot's property names)
-  hiddenFeatureValues: string[];
-  otherFeatureValues: string[];
+  hiddenAnnotationValues: string[];
+  otherAnnotationValues: string[];
   useShapes: boolean;
 
   // Configuration
@@ -26,21 +26,21 @@ export interface IScatterplotElement extends Element {
  * Type guard to check if an element is a scatterplot element
  */
 export function isScatterplotElement(element: Element | null): element is IScatterplotElement {
-  return element !== null && 'getCurrentData' in element && 'selectedFeature' in element;
+  return element !== null && 'getCurrentData' in element && 'selectedAnnotation' in element;
 }
 
 /**
  * Type guard to check if scatterplot supports hidden values
  */
 export function supportsHiddenValues(element: IScatterplotElement): boolean {
-  return 'hiddenFeatureValues' in element;
+  return 'hiddenAnnotationValues' in element;
 }
 
 /**
  * Type guard to check if scatterplot supports other annotation values
  */
 export function supportsOtherValues(element: IScatterplotElement): boolean {
-  return 'otherFeatureValues' in element;
+  return 'otherAnnotationValues' in element;
 }
 
 /**

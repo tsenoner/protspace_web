@@ -127,10 +127,10 @@ export class PersistenceController implements ReactiveController {
     const legendItems = this.callbacks.getLegendItems();
     const currentSettings = this.callbacks.getCurrentSettings();
 
-    // Build categories from current legend items
+    // Build categories from current legend items (excluding "Other" which is synthetic)
     const categories: Record<string, PersistedCategoryData> = {};
     legendItems.forEach((item) => {
-      if (item.value !== null && item.value !== LEGEND_VALUES.OTHER) {
+      if (item.value !== LEGEND_VALUES.OTHER) {
         categories[item.value] = {
           zOrder: item.zOrder,
           color: item.color,
@@ -197,8 +197,14 @@ export class PersistenceController implements ReactiveController {
   }
 
   /**
-   * Apply pending categories (z-order only) to legend items
-   * Color/shape are applied during legend item creation in the processor
+   * Apply pending categories (z-order only) to legend items.
+   * Color/shape are applied during legend item creation in the processor.
+   * N/A items use '__NA__' as their value.
+   *
+   * Note: This method does NOT clear pendingCategories because subsequent update
+   * cycles (triggered by property changes in _applyPersistedSettings) need them
+   * for _visibleValues to work correctly. Categories are naturally overwritten
+   * when loadSettings() is called for a different annotation.
    */
   applyPendingZOrder(legendItems: LegendItem[]): LegendItem[] {
     if (!this.hasPendingCategories() || legendItems.length === 0) {
@@ -206,23 +212,20 @@ export class PersistenceController implements ReactiveController {
     }
 
     const hasMapping = legendItems.some(
-      (item) => item.value !== null && this._pendingCategories[item.value] !== undefined,
+      (item) => this._pendingCategories[item.value] !== undefined,
     );
 
     if (!hasMapping) {
-      this._pendingCategories = {};
       return legendItems;
     }
 
-    const updatedItems = legendItems.map((item) => {
-      if (item.value !== null && this._pendingCategories[item.value] !== undefined) {
-        return { ...item, zOrder: this._pendingCategories[item.value].zOrder };
+    return legendItems.map((item) => {
+      const persisted = this._pendingCategories[item.value];
+      if (persisted !== undefined) {
+        return { ...item, zOrder: persisted.zOrder };
       }
       return item;
     });
-
-    this._pendingCategories = {};
-    return updatedItems;
   }
 
   private _getStorageKey(): string | null {

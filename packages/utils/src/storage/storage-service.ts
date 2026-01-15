@@ -1,7 +1,7 @@
 /**
  * Generic typed localStorage wrapper for persisting component settings.
  * Provides a consistent API for saving and loading settings scoped by
- * component, dataset, and context (e.g., feature name).
+ * component, dataset, and context (e.g., annotation name).
  */
 
 const STORAGE_PREFIX = 'protspace';
