@@ -8,6 +8,7 @@ import {
   FIRST_NUMBER_SORT_ANNOTATIONS,
   LEGEND_VALUES,
   LEGEND_EVENTS,
+  toDisplayValue,
 } from './config';
 import { legendStyles } from './legend.styles';
 
@@ -116,9 +117,10 @@ export class ProtspaceLegend extends LitElement {
   @state() private _showSettingsDialog = false;
   @state() private _statusMessage = '';
 
-  // Pending extract/merge values for next update cycle
-  private _pendingExtractValue: string | null = null;
-  private _pendingMergeValue: string | null = null;
+  // Pending extract/merge values for next update cycle.
+  // undefined = no pending operation, string = value to extract/merge (including '__NA__' for N/A)
+  private _pendingExtractValue: string | undefined = undefined;
+  private _pendingMergeValue: string | undefined = undefined;
 
   // Settings dialog temporary state (consolidated into single object)
   @state() private _dialogSettings: {
@@ -275,30 +277,31 @@ export class ProtspaceLegend extends LitElement {
   /**
    * Get the set of currently visible values (from legend items, excluding "Other").
    * Used to preserve membership when sort mode changes.
+   * N/A items use '__NA__' as their value.
    */
   private get _visibleValues(): Set<string> {
     const visible = new Set<string>();
 
-    // When restoring from localStorage, pendingCategories contains the persisted visible values.
-    // Prioritize it over _legendItems since _legendItems may have been populated with defaults
-    // before loadSettings() completed.
-    const pendingCategories = this._persistenceController.pendingCategories;
-    if (Object.keys(pendingCategories).length > 0) {
-      for (const key of Object.keys(pendingCategories)) {
-        if (key !== 'null' && key !== LEGEND_VALUES.OTHER) {
-          visible.add(key);
-        }
-      }
-      return visible;
-    }
-
-    // Otherwise derive from current legend items
+    // Collect visible values from current _legendItems (excluding "Other")
     if (this._legendItems.length > 0) {
       this._legendItems.forEach((item) => {
-        if (item.value !== null && item.value !== LEGEND_VALUES.OTHER) {
+        if (item.value !== LEGEND_VALUES.OTHER) {
           visible.add(item.value);
         }
       });
+    }
+
+    // If visible is empty but we have pendingCategories, use those instead.
+    // This handles the case where _legendItems only has "Other" during restore.
+    if (visible.size === 0) {
+      const pendingCategories = this._persistenceController.pendingCategories;
+      if (Object.keys(pendingCategories).length > 0) {
+        for (const key of Object.keys(pendingCategories)) {
+          if (key !== LEGEND_VALUES.OTHER) {
+            visible.add(key);
+          }
+        }
+      }
     }
 
     return visible;
@@ -388,6 +391,10 @@ export class ProtspaceLegend extends LitElement {
         this.selectedAnnotation,
       );
       if (annotationChanged || !this._persistenceController.settingsLoaded) {
+        // Clear legend items before loading settings so _visibleValues falls back to pendingCategories
+        if (annotationChanged) {
+          this._legendItems = [];
+        }
         this._persistenceController.loadSettings();
       }
     }
@@ -431,11 +438,13 @@ export class ProtspaceLegend extends LitElement {
   public getLegendExportData(): {
     annotation: string;
     includeShapes: boolean;
+    otherItemsCount: number;
     items: LegendItem[];
   } {
     return {
       annotation: this.annotationData.name || this.annotationName || 'Legend',
       includeShapes: this._effectiveIncludeShapes,
+      otherItemsCount: this._otherItems.length,
       items: this._sortedLegendItems.map((i) => ({ ...i })),
     };
   }
@@ -452,11 +461,11 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private _handleScatterplotDataChange(data: ScatterplotData, selectedAnnotation: string): void {
-    this.data = { features: data.features };
+    this.data = { annotations: data.annotations };
     this.selectedAnnotation = selectedAnnotation;
     this.annotationData = {
       name: selectedAnnotation,
-      values: data.features[selectedAnnotation].values,
+      values: data.annotations[selectedAnnotation].values,
     };
     this._updateAnnotationValues(data, selectedAnnotation);
     this.proteinIds = data.protein_ids;
@@ -474,7 +483,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _updateAnnotationDataFromData(): void {
-    const annotationInfo = this.data?.features?.[this.selectedAnnotation] ?? null;
+    const annotationInfo = this.data?.annotations?.[this.selectedAnnotation] ?? null;
     this.annotationData = annotationInfo
       ? { name: this.selectedAnnotation, values: annotationInfo.values }
       : { name: '', values: [] };
@@ -482,19 +491,19 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateAnnotationValues(data: ScatterplotData, selectedAnnotation: string): void {
     const annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
-      const annotationIdxData = data.feature_data[selectedAnnotation][index];
+      const annotationIdxData = data.annotation_data[selectedAnnotation][index];
       const annotationIdxArray = Array.isArray(annotationIdxData)
         ? annotationIdxData
         : [annotationIdxData];
       return annotationIdxArray
-        .map((annotationIdx: number) => data.features[selectedAnnotation].values[annotationIdx])
+        .map((annotationIdx: number) => data.annotations[selectedAnnotation].values[annotationIdx])
         .filter((v) => v != null);
     });
     this.annotationValues = annotationValues;
   }
 
   private _ensureSortModeDefaults(): void {
-    const annotationNames = this.data?.features ? Object.keys(this.data.features) : [];
+    const annotationNames = this.data?.annotations ? Object.keys(this.data.annotations) : [];
     if (annotationNames.length === 0) return;
 
     const updated: Record<string, LegendSortMode> = { ...this._annotationSortModes };
@@ -525,14 +534,19 @@ export class ProtspaceLegend extends LitElement {
       const persistedCategories = this._persistenceController.pendingCategories;
 
       // Get pending values for extract/merge operations
-      const pendingExtract = this._pendingExtractValue ?? undefined;
-      const pendingMerge = this._pendingMergeValue ?? undefined;
+      // undefined = no pending operation, string = value (including '__NA__' for N/A)
+      const pendingExtract = this._pendingExtractValue;
+      const pendingMerge = this._pendingMergeValue;
 
-      // Only use visibleValues when there are persisted settings in localStorage.
-      // When no localStorage key exists, use empty set so maxVisibleValues is respected.
-      const visibleValues = this._persistenceController.hasPersistedSettings()
-        ? this._visibleValues
-        : new Set<string>();
+      // Use visibleValues when there are persisted settings OR when there are pending operations.
+      // When there are pending merge/extract operations, we need the current visible set
+      // to properly filter items even if localStorage hasn't been written yet.
+      // When no localStorage key exists and no pending ops, use empty set so maxVisibleValues is respected.
+      const hasPendingOps = pendingExtract !== undefined || pendingMerge !== undefined;
+      const visibleValues =
+        this._persistenceController.hasPersistedSettings() || hasPendingOps
+          ? this._visibleValues
+          : new Set<string>();
 
       const { legendItems, otherItems } = LegendDataProcessor.processLegendItems(
         this._processorContext,
@@ -563,8 +577,8 @@ export class ProtspaceLegend extends LitElement {
       this._otherItems = otherItems;
 
       // Clear pending extract/merge values after they've been applied
-      this._pendingExtractValue = null;
-      this._pendingMergeValue = null;
+      this._pendingExtractValue = undefined;
+      this._pendingMergeValue = undefined;
       // Note: We do NOT clear pendingCategories here because subsequent update cycles
       // (triggered by property changes in _applyPersistedSettings) may rebuild legend items
       // and need the persisted colors/shapes. Categories are cleared when loadSettings()
@@ -618,7 +632,7 @@ export class ProtspaceLegend extends LitElement {
   // Item Interactions
   // ─────────────────────────────────────────────────────────────────
 
-  private _handleItemClick(value: string | null): void {
+  private _handleItemClick(value: string): void {
     const valueKey = valueToKey(value);
     const result = updateItemsVisibility(this._legendItems, this._hiddenValues, valueKey);
 
@@ -626,8 +640,7 @@ export class ProtspaceLegend extends LitElement {
     this._hiddenValues = result.hiddenValues;
 
     const item = this._legendItems.find((i) => valueToKey(i.value) === valueKey);
-    const displayName = value ?? 'N/A';
-    this._announceStatus(`${displayName} ${item?.isVisible ? 'shown' : 'hidden'}`);
+    this._announceStatus(`${toDisplayValue(value)} ${item?.isVisible ? 'shown' : 'hidden'}`);
 
     this._scatterplotController.syncHiddenValues();
     this._dispatchItemAction(value, 'toggle');
@@ -635,15 +648,16 @@ export class ProtspaceLegend extends LitElement {
     this.requestUpdate();
   }
 
-  private _handleItemDoubleClick(value: string | null): void {
+  private _handleItemDoubleClick(value: string): void {
     const result = isolateItem(this._legendItems, value);
 
     this._legendItems = result.items;
     this._hiddenValues = result.hiddenValues;
 
-    const displayName = value ?? 'N/A';
     const visibleCount = result.items.filter((i) => i.isVisible).length;
-    this._announceStatus(visibleCount === 1 ? `Isolated ${displayName}` : 'All items shown');
+    this._announceStatus(
+      visibleCount === 1 ? `Isolated ${toDisplayValue(value)}` : 'All items shown',
+    );
 
     this._scatterplotController.syncHiddenValues();
     this._dispatchItemAction(value, 'isolate');
@@ -656,17 +670,21 @@ export class ProtspaceLegend extends LitElement {
     this._pendingExtractValue = value;
 
     // Increase maxVisibleValues to accommodate the extracted item
+    // This triggers updated() which calls _updateLegendItems() with pending value still set
     this.maxVisibleValues = this.maxVisibleValues + 1;
 
-    // Update legend items - respects current sort mode, item sorted into position
-    // Note: _updateLegendItems() clears pending values after processing
-    this._updateLegendItems();
+    // Don't call _updateLegendItems() explicitly - the maxVisibleValues change will trigger
+    // updated() which calls it. If we call it here, it will be called twice and the
+    // pending value will be cleared after the first call, causing the second call to not
+    // respect the extract operation.
     this._showOtherDialog = false;
 
-    this._announceStatus(`Extracted ${value} from Other category`);
+    this._announceStatus(`Extracted ${toDisplayValue(value)} from Other category`);
     this._dispatchItemAction(value, 'extract');
-    this._persistenceController.saveSettings();
-    this.requestUpdate();
+    // Save settings after the update cycle completes
+    this.updateComplete.then(() => {
+      this._persistenceController.saveSettings();
+    });
   }
 
   private _handleMergeToOther(value: string): void {
@@ -674,15 +692,19 @@ export class ProtspaceLegend extends LitElement {
     this._pendingMergeValue = value;
 
     // Decrease maxVisibleValues to remove space for the merged item
+    // This triggers updated() which calls _updateLegendItems() with pending value still set
     this.maxVisibleValues = Math.max(1, this.maxVisibleValues - 1);
 
-    // Re-process legend items
-    // Note: _updateLegendItems() clears pending values after processing
-    this._updateLegendItems();
+    // Don't call _updateLegendItems() explicitly - the maxVisibleValues change will trigger
+    // updated() which calls it. If we call it here, it will be called twice and the
+    // pending value will be cleared after the first call, causing the second call to not
+    // respect the merge operation.
 
-    this._announceStatus(`Moved ${value} to Other category`);
-    this._persistenceController.saveSettings();
-    this.requestUpdate();
+    this._announceStatus(`Moved ${toDisplayValue(value)} to Other category`);
+    // Save settings after the update cycle completes
+    this.updateComplete.then(() => {
+      this._persistenceController.saveSettings();
+    });
   }
 
   private _reverseZOrder(): void {
@@ -708,34 +730,25 @@ export class ProtspaceLegend extends LitElement {
       [this.selectedAnnotation]: newMode,
     };
 
-    // For manual modes, directly reverse the current zOrders to ensure
-    // toggling between manual/manual-reverse always reverses the order
-    if (currentMode === 'manual' || currentMode === 'manual-reverse') {
-      // Sort by current zOrder, separate "Other" item
-      const sorted = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
-      const otherItem = sorted.find((i) => i.value === LEGEND_VALUES.OTHER);
-      const nonOther = sorted.filter((i) => i.value !== LEGEND_VALUES.OTHER);
+    // Always reverse the visible items directly, keeping "Other" at the end.
+    // This preserves which items are visible vs in "Other" - we only change display order.
+    const sorted = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
+    const otherItem = sorted.find((i) => i.value === LEGEND_VALUES.OTHER);
+    const nonOther = sorted.filter((i) => i.value !== LEGEND_VALUES.OTHER);
 
-      // Reverse non-Other items
-      const reversed = nonOther.reverse();
-      const reordered = otherItem ? [...reversed, otherItem] : reversed;
+    // Reverse non-Other items
+    const reversed = nonOther.reverse();
+    const reordered = otherItem ? [...reversed, otherItem] : reversed;
 
-      // Reassign zOrders
-      this._legendItems = reordered.map((item, idx) => ({ ...item, zOrder: idx }));
-    } else {
-      // For non-manual modes, re-process legend items with new sort mode
-      this._updateLegendItems();
-    }
+    // Reassign zOrders
+    this._legendItems = reordered.map((item, idx) => ({ ...item, zOrder: idx }));
 
     this._scatterplotController.dispatchZOrderChange();
     this._persistenceController.saveSettings();
     this.requestUpdate();
   }
 
-  private _dispatchItemAction(
-    value: string | null,
-    action: 'toggle' | 'isolate' | 'extract',
-  ): void {
+  private _dispatchItemAction(value: string, action: 'toggle' | 'isolate' | 'extract'): void {
     this.dispatchEvent(createItemActionEvent(LEGEND_EVENTS.ITEM_CLICK, value, action));
   }
 
@@ -795,8 +808,9 @@ export class ProtspaceLegend extends LitElement {
     this.shapeSize = this._dialogSettings.shapeSize;
     this._annotationSortModes = this._dialogSettings.annotationSortModes;
     this._showSettingsDialog = false;
-    this._legendItems = [];
 
+    // Don't clear _legendItems - we want to preserve current zOrders when switching sort modes.
+    // This ensures switching to manual mode keeps the current display order.
     this._updateLegendItems();
     this._scatterplotController.syncHiddenValues();
     this._scatterplotController.updateConfig({

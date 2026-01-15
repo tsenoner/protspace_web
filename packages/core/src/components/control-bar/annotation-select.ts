@@ -1,11 +1,11 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { featureSelectStyles } from './feature-select.styles';
+import { annotationSelectStyles } from './annotation-select.styles';
 
 /**
- * Feature categories as defined in the plan
+ * Annotation categories as defined in the plan
  */
-const FEATURE_CATEGORIES = {
+const ANNOTATION_CATEGORIES = {
   UniProt: [
     'annotation_score',
     'cc_subcellular_location',
@@ -38,21 +38,21 @@ const TAXONOMY_ORDER = [
 
 type CategoryName = 'UniProt' | 'InterPro' | 'Taxonomy' | 'Other';
 
-interface GroupedFeature {
+interface GroupedAnnotation {
   category: CategoryName;
-  features: string[];
+  annotations: string[];
 }
 
 /**
- * Custom dropdown component for feature selection with section headers and search
+ * Custom dropdown component for annotation selection with section headers and search
  */
-@customElement('protspace-feature-select')
-export class ProtspaceFeatureSelect extends LitElement {
-  static styles = featureSelectStyles;
+@customElement('protspace-annotation-select')
+export class ProtspaceAnnotationSelect extends LitElement {
+  static styles = annotationSelectStyles;
 
-  @property({ type: Array }) features: string[] = [];
-  @property({ type: String, attribute: 'selected-feature' }) selectedFeature: string = '';
-  @property({ type: String }) placeholder: string = 'Select feature';
+  @property({ type: Array }) annotations: string[] = [];
+  @property({ type: String, attribute: 'selected-annotation' }) selectedAnnotation: string = '';
+  @property({ type: String }) placeholder: string = 'Select annotation';
 
   @state() private open: boolean = false;
   @state() private query: string = '';
@@ -93,7 +93,7 @@ export class ProtspaceFeatureSelect extends LitElement {
       // Focus search input when opening
       this.updateComplete.then(() => {
         const searchInput = this.shadowRoot?.querySelector(
-          '#feature-search-input',
+          '#annotation-search-input',
         ) as HTMLInputElement | null;
         searchInput?.focus();
       });
@@ -118,8 +118,8 @@ export class ProtspaceFeatureSelect extends LitElement {
       return;
     }
 
-    const filtered = this.getFilteredGroupedFeatures();
-    const flatFeatures = this.flattenGroupedFeatures(filtered);
+    const filtered = this.getFilteredGroupedAnnotations();
+    const flatAnnotations = this.flattenGroupedAnnotations(filtered);
 
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -128,46 +128,46 @@ export class ProtspaceFeatureSelect extends LitElement {
       this.highlightIndex = -1;
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (flatFeatures.length > 0) {
-        this.highlightIndex = Math.min(this.highlightIndex + 1, flatFeatures.length - 1);
+      if (flatAnnotations.length > 0) {
+        this.highlightIndex = Math.min(this.highlightIndex + 1, flatAnnotations.length - 1);
         this.scrollToHighlighted();
       }
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (flatFeatures.length > 0) {
+      if (flatAnnotations.length > 0) {
         this.highlightIndex = Math.max(this.highlightIndex - 1, 0);
         this.scrollToHighlighted();
       }
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      if (this.highlightIndex >= 0 && this.highlightIndex < flatFeatures.length) {
-        this.selectFeature(flatFeatures[this.highlightIndex], event);
+      if (this.highlightIndex >= 0 && this.highlightIndex < flatAnnotations.length) {
+        this.selectAnnotation(flatAnnotations[this.highlightIndex], event);
       }
     }
   }
 
   private scrollToHighlighted() {
     this.updateComplete.then(() => {
-      const highlighted = this.shadowRoot?.querySelector('.feature-item.highlighted');
+      const highlighted = this.shadowRoot?.querySelector('.annotation-item.highlighted');
       if (highlighted) {
         highlighted.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
     });
   }
 
-  private selectFeature(feature: string, event?: Event) {
+  private selectAnnotation(annotation: string, event?: Event) {
     if (event) {
       event.stopPropagation();
     }
-    this.selectedFeature = feature;
+    this.selectedAnnotation = annotation;
     this.open = false;
     this.query = '';
     this.highlightIndex = -1;
 
-    // Dispatch feature-select event
+    // Dispatch annotation-select event
     this.dispatchEvent(
-      new CustomEvent('feature-select', {
-        detail: { feature },
+      new CustomEvent('annotation-select', {
+        detail: { annotation },
         bubbles: true,
         composed: true,
       }),
@@ -175,9 +175,9 @@ export class ProtspaceFeatureSelect extends LitElement {
   }
 
   /**
-   * Categorize features according to the plan
+   * Categorize annotations according to the plan
    */
-  private categorizeFeatures(features: string[]): GroupedFeature[] {
+  private categorizeAnnotations(annotations: string[]): GroupedAnnotation[] {
     const categorized: Record<CategoryName, string[]> = {
       UniProt: [],
       InterPro: [],
@@ -185,21 +185,21 @@ export class ProtspaceFeatureSelect extends LitElement {
       Other: [],
     };
 
-    for (const feature of features) {
+    for (const annotation of annotations) {
       let found = false;
-      for (const [category, categoryFeatures] of Object.entries(FEATURE_CATEGORIES)) {
-        if ((categoryFeatures as readonly string[]).includes(feature)) {
-          categorized[category as CategoryName].push(feature);
+      for (const [category, categoryAnnotations] of Object.entries(ANNOTATION_CATEGORIES)) {
+        if ((categoryAnnotations as readonly string[]).includes(annotation)) {
+          categorized[category as CategoryName].push(annotation);
           found = true;
           break;
         }
       }
       if (!found) {
-        categorized.Other.push(feature);
+        categorized.Other.push(annotation);
       }
     }
 
-    // Sort features within each category
+    // Sort annotations within each category
     categorized.UniProt.sort((a, b) => a.localeCompare(b));
     categorized.InterPro.sort((a, b) => a.localeCompare(b));
     categorized.Other.sort((a, b) => a.localeCompare(b));
@@ -214,11 +214,11 @@ export class ProtspaceFeatureSelect extends LitElement {
     });
 
     // Build grouped array, sorting categories alphabetically (Other last)
-    const groups: GroupedFeature[] = [];
+    const groups: GroupedAnnotation[] = [];
     const categoryOrder: CategoryName[] = ['InterPro', 'Taxonomy', 'UniProt', 'Other'];
     for (const category of categoryOrder) {
       if (categorized[category].length > 0) {
-        groups.push({ category, features: categorized[category] });
+        groups.push({ category, annotations: categorized[category] });
       }
     }
 
@@ -226,50 +226,52 @@ export class ProtspaceFeatureSelect extends LitElement {
   }
 
   /**
-   * Filter features based on search query
+   * Filter annotations based on search query
    */
-  private getFilteredGroupedFeatures(): GroupedFeature[] {
-    const grouped = this.categorizeFeatures(this.features);
+  private getFilteredGroupedAnnotations(): GroupedAnnotation[] {
+    const grouped = this.categorizeAnnotations(this.annotations);
     const queryLower = this.query.trim().toLowerCase();
 
     if (!queryLower) {
       return grouped;
     }
 
-    // Filter each category's features
+    // Filter each category's annotations
     return grouped
       .map((group) => ({
         ...group,
-        features: group.features.filter((feature) => feature.toLowerCase().includes(queryLower)),
+        annotations: group.annotations.filter((annotation) =>
+          annotation.toLowerCase().includes(queryLower),
+        ),
       }))
-      .filter((group) => group.features.length > 0); // Remove empty categories
+      .filter((group) => group.annotations.length > 0); // Remove empty categories
   }
 
   /**
-   * Flatten grouped features into a single array for keyboard navigation
+   * Flatten grouped annotations into a single array for keyboard navigation
    */
-  private flattenGroupedFeatures(grouped: GroupedFeature[]): string[] {
+  private flattenGroupedAnnotations(grouped: GroupedAnnotation[]): string[] {
     const flat: string[] = [];
     for (const group of grouped) {
-      flat.push(...group.features);
+      flat.push(...group.annotations);
     }
     return flat;
   }
 
   render() {
-    const filtered = this.getFilteredGroupedFeatures();
-    const displayText = this.selectedFeature || this.placeholder;
+    const filtered = this.getFilteredGroupedAnnotations();
+    const displayText = this.selectedAnnotation || this.placeholder;
 
     return html`
-      <div class="feature-select-container">
+      <div class="annotation-select-container">
         <button
-          class="feature-select-trigger ${this.open ? 'open' : ''}"
+          class="annotation-select-trigger ${this.open ? 'open' : ''}"
           @click=${this.toggleDropdown}
           @keydown=${this.handleKeydown}
           aria-expanded=${this.open}
           aria-haspopup="listbox"
         >
-          <span class="feature-select-text">${displayText}</span>
+          <span class="annotation-select-text">${displayText}</span>
           <svg class="chevron-down" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
@@ -277,49 +279,49 @@ export class ProtspaceFeatureSelect extends LitElement {
 
         ${this.open
           ? html`
-              <div class="feature-select-menu" @click=${(e: Event) => e.stopPropagation()}>
-                <div class="feature-search-container">
+              <div class="annotation-select-menu" @click=${(e: Event) => e.stopPropagation()}>
+                <div class="annotation-search-container">
                   <input
-                    id="feature-search-input"
-                    class="feature-search-input"
+                    id="annotation-search-input"
+                    class="annotation-search-input"
                     type="text"
                     .value=${this.query}
-                    placeholder="Search features..."
+                    placeholder="Search annotations..."
                     @input=${this.handleSearchInput}
                     @keydown=${this.handleKeydown}
                   />
                 </div>
 
-                <div class="feature-list-container">
+                <div class="annotation-list-container">
                   ${filtered.length === 0
-                    ? html` <div class="no-results">No matching features</div> `
+                    ? html` <div class="no-results">No matching annotations</div> `
                     : filtered.map((group) => {
                         let currentIndex = 0;
                         // Find starting index for this group
                         for (const g of filtered) {
                           if (g === group) break;
-                          currentIndex += g.features.length;
+                          currentIndex += g.annotations.length;
                         }
 
                         return html`
-                          <div class="feature-section">
-                            <div class="feature-section-header">${group.category}</div>
-                            <div class="feature-section-items">
-                              ${group.features.map((feature) => {
+                          <div class="annotation-section">
+                            <div class="annotation-section-header">${group.category}</div>
+                            <div class="annotation-section-items">
+                              ${group.annotations.map((annotation) => {
                                 const itemIndex = currentIndex++;
                                 const isHighlighted = itemIndex === this.highlightIndex;
-                                const isSelected = feature === this.selectedFeature;
+                                const isSelected = annotation === this.selectedAnnotation;
                                 return html`
                                   <div
-                                    class="feature-item ${isHighlighted
+                                    class="annotation-item ${isHighlighted
                                       ? 'highlighted'
                                       : ''} ${isSelected ? 'selected' : ''}"
-                                    @click=${(e: Event) => this.selectFeature(feature, e)}
+                                    @click=${(e: Event) => this.selectAnnotation(annotation, e)}
                                     @mouseenter=${() => {
                                       this.highlightIndex = itemIndex;
                                     }}
                                   >
-                                    ${feature}
+                                    ${annotation}
                                   </div>
                                 `;
                               })}
@@ -338,6 +340,6 @@ export class ProtspaceFeatureSelect extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    'protspace-feature-select': ProtspaceFeatureSelect;
+    'protspace-annotation-select': ProtspaceAnnotationSelect;
   }
 }

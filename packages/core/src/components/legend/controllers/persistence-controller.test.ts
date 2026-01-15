@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ReactiveControllerHost } from 'lit';
 import { PersistenceController, type PersistenceCallbacks } from './persistence-controller';
 import type { LegendItem } from '../types';
+import { LEGEND_VALUES } from '../config';
 
-function createTestItem(value: string | null, zOrder: number): LegendItem {
+function createTestItem(value: string, zOrder: number): LegendItem {
   return {
     value,
     zOrder,
@@ -17,11 +18,17 @@ function createTestItem(value: string | null, zOrder: number): LegendItem {
 vi.mock('@protspace/utils', () => ({
   generateDatasetHash: vi.fn((ids: string[]) => `hash_${ids.join('_')}`),
   buildStorageKey: vi.fn(
-    (prefix: string, hash: string, feature: string) => `${prefix}_${hash}_${feature}`,
+    (prefix: string, hash: string, annotation: string) => `${prefix}_${hash}_${annotation}`,
   ),
   getStorageItem: vi.fn(),
   setStorageItem: vi.fn(),
   removeStorageItem: vi.fn(),
+  LEGEND_VALUES: {
+    OTHER: 'Other',
+    OTHERS: 'Others',
+    NA_DISPLAY: 'N/A',
+    NA_VALUE: '__NA__',
+  },
 }));
 
 import {
@@ -162,13 +169,13 @@ describe('PersistenceController', () => {
       expect(setStorageItem).not.toHaveBeenCalled();
     });
 
-    it('saves settings excluding null and Other from categories', () => {
+    it('saves settings excluding Other from categories (N/A uses __NA__)', () => {
       controller.updateDatasetHash(['protein1']);
       controller.updateSelectedAnnotation('annotation1');
 
       mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
         { value: 'cat1', zOrder: 0, color: '#f00', shape: 'circle' },
-        { value: null, zOrder: 1, color: '#888', shape: 'circle' },
+        { value: LEGEND_VALUES.NA_VALUE, zOrder: 1, color: '#888', shape: 'circle' },
         { value: 'Other', zOrder: 2, color: '#888', shape: 'circle' },
       ]);
       mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['hidden1']);
@@ -182,6 +189,7 @@ describe('PersistenceController', () => {
 
       controller.saveSettings();
 
+      // N/A items are included with __NA__ key, Other is excluded
       expect(setStorageItem).toHaveBeenCalledWith('legend_hash_protein1_annotation1', {
         maxVisibleValues: 15,
         includeShapes: true,
@@ -190,6 +198,7 @@ describe('PersistenceController', () => {
         hiddenValues: ['hidden1'],
         categories: {
           cat1: { zOrder: 0, color: '#f00', shape: 'circle' },
+          [LEGEND_VALUES.NA_VALUE]: { zOrder: 1, color: '#888', shape: 'circle' },
         },
         enableDuplicateStackUI: true,
       });
@@ -298,7 +307,7 @@ describe('PersistenceController', () => {
       expect(controller.applyPendingZOrder([])).toEqual([]);
     });
 
-    it('applies z-order from categories and clears pending', () => {
+    it('applies z-order from categories without clearing them', () => {
       controller.updateDatasetHash(['protein1']);
       controller.updateSelectedAnnotation('annotation1');
       vi.mocked(getStorageItem).mockReturnValue({
@@ -319,7 +328,7 @@ describe('PersistenceController', () => {
         createTestItem('cat1', 0),
         createTestItem('cat2', 1),
         createTestItem('cat3', 2),
-        createTestItem(null, 3),
+        createTestItem(LEGEND_VALUES.NA_VALUE, 3),
       ];
 
       const result = controller.applyPendingZOrder(items);
@@ -327,8 +336,37 @@ describe('PersistenceController', () => {
       expect(result[0].zOrder).toBe(2); // cat1: 0 -> 2
       expect(result[1].zOrder).toBe(0); // cat2: 1 -> 0
       expect(result[2].zOrder).toBe(2); // cat3: unchanged
-      expect(result[3].zOrder).toBe(3); // null: unchanged
-      expect(controller.hasPendingCategories()).toBe(false);
+      expect(result[3].zOrder).toBe(3); // N/A: unchanged (not in persisted categories)
+      // pendingCategories are NOT cleared - they're needed for _visibleValues in subsequent updates
+      expect(controller.hasPendingCategories()).toBe(true);
+    });
+
+    it('applies z-order to N/A items using __NA__ key', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedAnnotation('annotation1');
+      vi.mocked(getStorageItem).mockReturnValue({
+        maxVisibleValues: 10,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size-desc',
+        hiddenValues: [],
+        categories: {
+          cat1: { zOrder: 1, color: '#f00', shape: 'circle' },
+          [LEGEND_VALUES.NA_VALUE]: { zOrder: 0, color: '#888', shape: 'circle' }, // N/A with __NA__ key
+        },
+        enableDuplicateStackUI: false,
+      });
+      controller.loadSettings();
+
+      const items = [
+        createTestItem('cat1', 0),
+        createTestItem(LEGEND_VALUES.NA_VALUE, 1), // N/A item with __NA__ value
+      ];
+
+      const result = controller.applyPendingZOrder(items);
+
+      expect(result[0].zOrder).toBe(1); // cat1: 0 -> 1
+      expect(result[1].zOrder).toBe(0); // N/A: 1 -> 0 (from __NA__ key in categories)
     });
   });
 });

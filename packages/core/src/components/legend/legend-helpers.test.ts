@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import type { LegendItem, OtherItem } from './types';
+import { LEGEND_VALUES } from './config';
 import {
   valueToKey,
   expandHiddenValues,
   computeOtherConcreteValues,
-  reverseZOrderKeepOtherLast,
   buildZOrderMapping,
   buildColorShapeMappings,
   calculatePointSize,
@@ -20,14 +20,11 @@ import { initializeAnnotationSortMode } from './legend-settings-dialog';
 
 describe('legend-helpers', () => {
   describe('valueToKey', () => {
-    it('converts null to "null" string', () => {
-      expect(valueToKey(null)).toBe('null');
-    });
-
     it('returns string values unchanged', () => {
       expect(valueToKey('test')).toBe('test');
       expect(valueToKey('Other')).toBe('Other');
       expect(valueToKey('')).toBe('');
+      expect(valueToKey(LEGEND_VALUES.NA_VALUE)).toBe(LEGEND_VALUES.NA_VALUE);
     });
   });
 
@@ -35,12 +32,12 @@ describe('legend-helpers', () => {
     const otherItems: OtherItem[] = [
       { value: 'cat1', count: 5 },
       { value: 'cat2', count: 3 },
-      { value: null, count: 2 },
+      { value: LEGEND_VALUES.NA_VALUE, count: 2 },
     ];
 
     it('expands Other to concrete values', () => {
       const result = expandHiddenValues(['Other'], otherItems);
-      expect(result).toEqual(['cat1', 'cat2', 'null']);
+      expect(result).toEqual(['cat1', 'cat2', LEGEND_VALUES.NA_VALUE]);
     });
 
     it('keeps non-Other values unchanged', () => {
@@ -50,12 +47,12 @@ describe('legend-helpers', () => {
 
     it('combines expanded Other with other values', () => {
       const result = expandHiddenValues(['value1', 'Other'], otherItems);
-      expect(result).toEqual(['value1', 'cat1', 'cat2', 'null']);
+      expect(result).toEqual(['value1', 'cat1', 'cat2', LEGEND_VALUES.NA_VALUE]);
     });
 
     it('deduplicates values', () => {
       const result = expandHiddenValues(['cat1', 'Other'], otherItems);
-      expect(result).toEqual(['cat1', 'cat2', 'null']);
+      expect(result).toEqual(['cat1', 'cat2', LEGEND_VALUES.NA_VALUE]);
     });
 
     it('returns empty array for empty input', () => {
@@ -67,56 +64,13 @@ describe('legend-helpers', () => {
     it('converts other items to string keys', () => {
       const otherItems: OtherItem[] = [
         { value: 'cat1', count: 5 },
-        { value: null, count: 2 },
+        { value: LEGEND_VALUES.NA_VALUE, count: 2 },
       ];
-      expect(computeOtherConcreteValues(otherItems)).toEqual(['cat1', 'null']);
+      expect(computeOtherConcreteValues(otherItems)).toEqual(['cat1', LEGEND_VALUES.NA_VALUE]);
     });
 
     it('returns empty array for empty input', () => {
       expect(computeOtherConcreteValues([])).toEqual([]);
-    });
-  });
-
-  describe('reverseZOrderKeepOtherLast', () => {
-    it('reverses z-order keeping Other at the end', () => {
-      const items: LegendItem[] = [
-        { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
-        { value: 'b', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 1 },
-        { value: 'Other', color: '#888', shape: 'circle', count: 1, isVisible: true, zOrder: 2 },
-      ];
-
-      const result = reverseZOrderKeepOtherLast(items);
-
-      expect(result[0].value).toBe('b');
-      expect(result[0].zOrder).toBe(0);
-      expect(result[1].value).toBe('a');
-      expect(result[1].zOrder).toBe(1);
-      expect(result[2].value).toBe('Other');
-      expect(result[2].zOrder).toBe(2);
-    });
-
-    it('reverses z-order when no Other present', () => {
-      const items: LegendItem[] = [
-        { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
-        { value: 'b', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 1 },
-      ];
-
-      const result = reverseZOrderKeepOtherLast(items);
-
-      expect(result[0].value).toBe('b');
-      expect(result[1].value).toBe('a');
-    });
-
-    it('returns empty array for empty input', () => {
-      expect(reverseZOrderKeepOtherLast([])).toEqual([]);
-    });
-
-    it('returns single item unchanged', () => {
-      const items: LegendItem[] = [
-        { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
-      ];
-      const result = reverseZOrderKeepOtherLast(items);
-      expect(result).toEqual(items);
     });
   });
 
@@ -130,13 +84,20 @@ describe('legend-helpers', () => {
       expect(buildZOrderMapping(items)).toEqual({ a: 0, b: 1 });
     });
 
-    it('excludes null values', () => {
+    it('includes N/A values with __NA__ key', () => {
       const items: LegendItem[] = [
-        { value: null, color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
+        {
+          value: LEGEND_VALUES.NA_VALUE,
+          color: '#000',
+          shape: 'circle',
+          count: 1,
+          isVisible: true,
+          zOrder: 0,
+        },
         { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 1 },
       ];
 
-      expect(buildZOrderMapping(items)).toEqual({ a: 1 });
+      expect(buildZOrderMapping(items)).toEqual({ [LEGEND_VALUES.NA_VALUE]: 0, a: 1 });
     });
   });
 
@@ -153,15 +114,22 @@ describe('legend-helpers', () => {
       expect(result.shapeMapping).toEqual({ a: 'circle', b: 'square' });
     });
 
-    it('handles null values with "null" key', () => {
+    it('handles N/A values with __NA__ key', () => {
       const items: LegendItem[] = [
-        { value: null, color: '#888', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
+        {
+          value: LEGEND_VALUES.NA_VALUE,
+          color: '#888',
+          shape: 'circle',
+          count: 1,
+          isVisible: true,
+          zOrder: 0,
+        },
       ];
 
       const result = buildColorShapeMappings(items);
 
-      expect(result.colorMapping).toEqual({ null: '#888' });
-      expect(result.shapeMapping).toEqual({ null: 'circle' });
+      expect(result.colorMapping).toEqual({ [LEGEND_VALUES.NA_VALUE]: '#888' });
+      expect(result.shapeMapping).toEqual({ [LEGEND_VALUES.NA_VALUE]: 'circle' });
     });
   });
 
@@ -264,21 +232,21 @@ describe('legend-helpers', () => {
       expect(isItemSelected(item, ['a', 'b'])).toBe(false);
     });
 
-    it('handles null value with "null" in selectedItems', () => {
+    it('handles N/A value with __NA__ in selectedItems', () => {
       const item: LegendItem = {
-        value: null,
+        value: LEGEND_VALUES.NA_VALUE,
         color: '#000',
         shape: 'circle',
         count: 1,
         isVisible: true,
         zOrder: 0,
       };
-      expect(isItemSelected(item, ['null'])).toBe(true);
+      expect(isItemSelected(item, [LEGEND_VALUES.NA_VALUE])).toBe(true);
     });
 
-    it('returns false for null value when selectedItems is empty', () => {
+    it('returns false for N/A value when selectedItems is empty', () => {
       const item: LegendItem = {
-        value: null,
+        value: LEGEND_VALUES.NA_VALUE,
         color: '#000',
         shape: 'circle',
         count: 1,
@@ -356,9 +324,9 @@ describe('legend-helpers', () => {
       expect(event.detail).toEqual({ value: 'extracted', action: 'extract' });
     });
 
-    it('handles null value', () => {
-      const event = createItemActionEvent('legend-item-click', null, 'toggle');
-      expect(event.detail).toEqual({ value: null, action: 'toggle' });
+    it('handles N/A value', () => {
+      const event = createItemActionEvent('legend-item-click', LEGEND_VALUES.NA_VALUE, 'toggle');
+      expect(event.detail).toEqual({ value: LEGEND_VALUES.NA_VALUE, action: 'toggle' });
     });
   });
 
@@ -394,14 +362,21 @@ describe('legend-helpers', () => {
       expect(result.hiddenValues).toEqual([]);
     });
 
-    it('handles null values correctly', () => {
-      const itemsWithNull: LegendItem[] = [
-        { value: null, color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
+    it('handles N/A values correctly', () => {
+      const itemsWithNA: LegendItem[] = [
+        {
+          value: LEGEND_VALUES.NA_VALUE,
+          color: '#000',
+          shape: 'circle',
+          count: 1,
+          isVisible: true,
+          zOrder: 0,
+        },
         { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 1 },
       ];
-      const result = updateItemsVisibility(itemsWithNull, [], 'null');
+      const result = updateItemsVisibility(itemsWithNA, [], LEGEND_VALUES.NA_VALUE);
       expect(result.items[0].isVisible).toBe(false);
-      expect(result.hiddenValues).toEqual(['null']);
+      expect(result.hiddenValues).toEqual([LEGEND_VALUES.NA_VALUE]);
     });
   });
 
@@ -437,12 +412,19 @@ describe('legend-helpers', () => {
       expect(result.hiddenValues).toEqual([]);
     });
 
-    it('handles null value correctly', () => {
-      const itemsWithNull: LegendItem[] = [
-        { value: null, color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 0 },
+    it('handles N/A value correctly', () => {
+      const itemsWithNA: LegendItem[] = [
+        {
+          value: LEGEND_VALUES.NA_VALUE,
+          color: '#000',
+          shape: 'circle',
+          count: 1,
+          isVisible: true,
+          zOrder: 0,
+        },
         { value: 'a', color: '#000', shape: 'circle', count: 1, isVisible: true, zOrder: 1 },
       ];
-      const result = isolateItem(itemsWithNull, null);
+      const result = isolateItem(itemsWithNA, LEGEND_VALUES.NA_VALUE);
       expect(result.items[0].isVisible).toBe(true);
       expect(result.items[1].isVisible).toBe(false);
       expect(result.hiddenValues).toEqual(['a']);

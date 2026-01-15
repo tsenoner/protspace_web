@@ -40,11 +40,14 @@ export class ProtspaceStructureViewer extends LitElement {
     if (changedProperties.size > 0) {
     }
     if (changedProperties.has('proteinId')) {
-      if (this.proteinId) {
-        this._loadStructure();
-      } else {
-        this._cleanup();
-      }
+      // Defer loading to avoid triggering updates during update cycle
+      requestAnimationFrame(() => {
+        if (this.proteinId) {
+          this._loadStructure();
+        } else {
+          this._cleanup();
+        }
+      });
     }
     if (changedProperties.has('height')) {
       this.style.setProperty('14rem', this.height);
@@ -131,8 +134,11 @@ export class ProtspaceStructureViewer extends LitElement {
   public loadProtein(proteinId: string) {
     // Public method to load a specific protein
     this.proteinId = proteinId;
+    // Defer style change to avoid triggering update during update
     if (this.autoShow) {
-      this.style.display = 'flex';
+      requestAnimationFrame(() => {
+        this.style.display = 'flex';
+      });
     }
   }
 
@@ -169,10 +175,10 @@ export class ProtspaceStructureViewer extends LitElement {
       this._isLoading = false;
       this._dispatchStructureEvent('loaded');
     } catch (error) {
-      console.error('[StructureViewer] Structure loading error:', error);
       const formattedId = this.proteinId?.split('.')[0] ?? this.proteinId ?? '';
       const genericMessage = `No 3D structure was found for ${formattedId}.`;
       const fallbackMessage = 'Failed to load structure. Please try again.';
+
       if (error instanceof Error) {
         // Map low-level errors to a user-friendly message
         const message = error.message.toLowerCase();
@@ -180,11 +186,15 @@ export class ProtspaceStructureViewer extends LitElement {
           message.includes('failed to load structure from both alphafold and pdb') ||
           message.includes('alphafold structure not available')
         ) {
+          // Structure not available is expected, no need to log as error
           this._error = genericMessage;
         } else {
+          // Unexpected error - log for debugging
+          console.error('[StructureViewer] Unexpected structure loading error:', error);
           this._error = fallbackMessage;
         }
       } else {
+        console.error('[StructureViewer] Unknown structure loading error:', error);
         this._error = fallbackMessage;
       }
       this._isLoading = false;

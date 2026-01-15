@@ -1,4 +1,4 @@
-import type { Feature, VisualizationData } from '@protspace/utils';
+import type { Annotation, VisualizationData } from '@protspace/utils';
 import { COLOR_SCHEMES } from '@protspace/utils';
 import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
@@ -137,26 +137,26 @@ function convertBundleFormatData(
     proteinIdCol,
   ]);
 
-  const featureColumns = columnNames.filter((col) => !allIdColumns.has(col));
+  const annotationColumns = columnNames.filter((col) => !allIdColumns.has(col));
 
-  const features: Record<string, Feature> = {};
-  const feature_data: Record<string, number[][]> = {};
+  const annotations: Record<string, Annotation> = {};
+  const annotation_data: Record<string, number[][]> = {};
 
   const baseProjectionData = projectionGroups.values().next().value || rows;
 
-  for (const featureCol of featureColumns) {
-    const featureMap = new Map<string, string[]>();
+  for (const annotationCol of annotationColumns) {
+    const annotationMap = new Map<string, string[]>();
     const valueCountMap = new Map<string, number>();
 
     for (const row of baseProjectionData) {
       const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-      const value = row[featureCol];
+      const value = row[annotationCol];
 
       if (value == null) {
-        featureMap.set(proteinId, []);
+        annotationMap.set(proteinId, []);
       } else {
         const valueArray = String(value).split(';');
-        featureMap.set(proteinId, valueArray);
+        annotationMap.set(proteinId, valueArray);
         // Count occurrences for frequency-based sorting
         for (const v of valueArray) {
           valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
@@ -176,16 +176,16 @@ function convertBundleFormatData(
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
 
-    const featureDataArray = uniqueProteinIds.map((proteinId) => {
-      const value = featureMap.get(proteinId);
+    const annotationDataArray = uniqueProteinIds.map((proteinId) => {
+      const value = annotationMap.get(proteinId);
       return (value ?? []).map((v) => valueToIndex.get(v) ?? -1);
     });
 
-    features[featureCol] = { values: uniqueValues, colors, shapes };
-    feature_data[featureCol] = featureDataArray;
+    annotations[annotationCol] = { values: uniqueValues, colors, shapes };
+    annotation_data[annotationCol] = annotationDataArray;
   }
 
-  return { protein_ids: uniqueProteinIds, projections, features, feature_data };
+  return { protein_ids: uniqueProteinIds, projections, annotations, annotation_data };
 }
 
 async function convertBundleFormatDataOptimized(
@@ -279,14 +279,14 @@ async function convertBundleFormatDataOptimized(
     await new Promise((r) => setTimeout(r, 0));
   }
 
-  const { features, feature_data } = await extractFeaturesOptimized(
+  const { annotations, annotation_data } = await extractAnnotationsOptimized(
     rows,
     columnNames,
     proteinIdCol,
     uniqueProteinIds,
   );
 
-  return { protein_ids: uniqueProteinIds, projections, features, feature_data };
+  return { protein_ids: uniqueProteinIds, projections, annotations, annotation_data };
 }
 
 function convertLegacyFormatData(rows: Rows, columnNames: string[]): VisualizationData {
@@ -328,14 +328,14 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
   });
 
   const usedColumns = new Set([proteinIdCol, ...projectionPairs.flatMap((p) => [p.xCol, p.yCol])]);
-  const featureColumns = columnNames.filter((col) => !usedColumns.has(col));
+  const annotationColumns = columnNames.filter((col) => !usedColumns.has(col));
 
-  const features: Record<string, Feature> = {};
-  const feature_data: Record<string, number[][]> = {};
+  const annotations: Record<string, Annotation> = {};
+  const annotation_data: Record<string, number[][]> = {};
 
-  for (const featureCol of featureColumns) {
+  for (const annotationCol of annotationColumns) {
     const rawValues: string[][] = rows.map((row) => {
-      const v = row[featureCol];
+      const v = row[annotationCol];
       return v == null ? [] : String(v).split(';');
     });
     const uniqueValues = Array.from(new Set(rawValues.flat()));
@@ -344,15 +344,15 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
 
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
-    const featureDataArray = rawValues.map((valueArray) =>
+    const annotationDataArray = rawValues.map((valueArray) =>
       valueArray.map((v) => valueToIndex.get(v) ?? -1),
     );
 
-    features[featureCol] = { values: uniqueValues, colors, shapes };
-    feature_data[featureCol] = featureDataArray;
+    annotations[annotationCol] = { values: uniqueValues, colors, shapes };
+    annotation_data[annotationCol] = annotationDataArray;
   }
 
-  return { protein_ids, projections, features, feature_data };
+  return { protein_ids, projections, annotations, annotation_data };
 }
 
 export function findProjectionPairs(
@@ -502,14 +502,14 @@ export function generateShapes(count: number): string[] {
   return shapes;
 }
 
-export async function extractFeaturesOptimized(
+export async function extractAnnotationsOptimized(
   rows: Rows,
   columnNames: string[],
   proteinIdCol: string,
   uniqueProteinIds: string[],
 ): Promise<{
-  features: Record<string, Feature>;
-  feature_data: Record<string, number[][]>;
+  annotations: Record<string, Annotation>;
+  annotation_data: Record<string, number[][]>;
 }> {
   const allIdColumns = new Set([
     'projection_name',
@@ -523,29 +523,29 @@ export async function extractFeaturesOptimized(
     'entry',
     proteinIdCol,
   ]);
-  const featureColumns = columnNames.filter((c) => !allIdColumns.has(c));
+  const annotationColumns = columnNames.filter((c) => !allIdColumns.has(c));
 
-  const features: Record<string, Feature> = {};
-  const feature_data: Record<string, number[][]> = {};
+  const annotations: Record<string, Annotation> = {};
+  const annotation_data: Record<string, number[][]> = {};
 
   const chunkSize = 10000;
-  for (const featureCol of featureColumns) {
-    const featureMap = new Map<string, string[]>();
+  for (const annotationCol of annotationColumns) {
+    const annotationMap = new Map<string, string[]>();
     const valueCountMap = new Map<string | null, number>();
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, Math.min(i + chunkSize, rows.length));
       for (const row of chunk) {
         const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-        const value = row[featureCol];
+        const value = row[annotationCol];
 
         if (value == null) {
-          featureMap.set(proteinId, []);
+          annotationMap.set(proteinId, []);
           continue;
         }
 
         const valueArray = String(value).split(';');
 
-        featureMap.set(proteinId, valueArray);
+        annotationMap.set(proteinId, valueArray);
 
         for (const v of valueArray) {
           valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
@@ -563,16 +563,16 @@ export async function extractFeaturesOptimized(
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
 
-    const featureDataArray = new Array<number[]>(uniqueProteinIds.length);
+    const annotationDataArray = new Array<number[]>(uniqueProteinIds.length);
 
     for (let i = 0; i < uniqueProteinIds.length; i++) {
-      const valueArray = featureMap.get(uniqueProteinIds[i]) ?? null;
-      featureDataArray[i] = (valueArray ?? []).map((v) => valueToIndex.get(v) ?? -1);
+      const valueArray = annotationMap.get(uniqueProteinIds[i]) ?? null;
+      annotationDataArray[i] = (valueArray ?? []).map((v) => valueToIndex.get(v) ?? -1);
     }
 
-    features[featureCol] = { values: uniqueValues, colors, shapes };
-    feature_data[featureCol] = featureDataArray;
+    annotations[annotationCol] = { values: uniqueValues, colors, shapes };
+    annotation_data[annotationCol] = annotationDataArray;
   }
 
-  return { features, feature_data };
+  return { annotations, annotation_data };
 }

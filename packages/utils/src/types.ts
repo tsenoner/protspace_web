@@ -1,4 +1,4 @@
-export interface Feature {
+export interface Annotation {
   values: (string | null)[];
   colors: string[];
   shapes: string[];
@@ -14,8 +14,8 @@ export interface Projection {
 export interface VisualizationData {
   protein_ids: string[];
   projections: Projection[];
-  features: Record<string, Feature>;
-  feature_data: Record<string, number[][]>;
+  annotations: Record<string, Annotation>;
+  annotation_data: Record<string, number[][]>;
 }
 
 export interface PlotDataPoint {
@@ -23,11 +23,11 @@ export interface PlotDataPoint {
   x: number;
   y: number;
   z?: number;
-  featureValues: Record<string, string[]>;
+  annotationValues: Record<string, string[]>;
   originalIndex: number;
 }
 
-export interface StyleForFeature {
+export interface StyleForAnnotation {
   color: string;
   shape: string;
 }

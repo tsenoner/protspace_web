@@ -1,6 +1,6 @@
 import { css } from 'lit';
 
-export const featureSelectStyles = css`
+export const annotationSelectStyles = css`
   :host {
     display: inline-block;
     position: relative;
@@ -16,12 +16,12 @@ export const featureSelectStyles = css`
     --up-muted: #4a5568;
   }
 
-  .feature-select-container {
+  .annotation-select-container {
     position: relative;
     display: inline-block;
   }
 
-  .feature-select-trigger {
+  .annotation-select-trigger {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -39,21 +39,21 @@ export const featureSelectStyles = css`
     width: max-content;
   }
 
-  .feature-select-trigger:hover {
+  .annotation-select-trigger:hover {
     background: #f6f8fb;
   }
 
-  .feature-select-trigger:focus {
+  .annotation-select-trigger:focus {
     outline: none;
     border-color: var(--up-primary);
     box-shadow: 0 0 0 2px rgba(0, 114, 181, 0.15);
   }
 
-  .feature-select-trigger.open {
+  .annotation-select-trigger.open {
     border-color: var(--up-primary);
   }
 
-  .feature-select-text {
+  .annotation-select-text {
     flex: 1;
     text-align: left;
     overflow: hidden;
@@ -71,11 +71,11 @@ export const featureSelectStyles = css`
     transition: transform 0.15s ease;
   }
 
-  .feature-select-trigger.open .chevron-down {
+  .annotation-select-trigger.open .chevron-down {
     transform: rotate(180deg);
   }
 
-  .feature-select-menu {
+  .annotation-select-menu {
     position: absolute;
     top: calc(100% + 5px);
     left: 0;
@@ -93,12 +93,12 @@ export const featureSelectStyles = css`
     overflow: hidden;
   }
 
-  .feature-search-container {
+  .annotation-search-container {
     padding: 0.5rem;
     border-bottom: 1px solid var(--up-border);
   }
 
-  .feature-search-input {
+  .annotation-search-input {
     width: 100%;
     padding: 0.4rem 0.6rem;
     border: 1px solid var(--up-border);
@@ -109,24 +109,24 @@ export const featureSelectStyles = css`
     box-sizing: border-box;
   }
 
-  .feature-search-input:focus {
+  .annotation-search-input:focus {
     outline: none;
     border-color: var(--up-primary);
     box-shadow: 0 0 0 2px rgba(0, 114, 181, 0.15);
   }
 
-  .feature-list-container {
+  .annotation-list-container {
     overflow-y: auto;
     scrollbar-width: thin;
     max-height: 20rem;
   }
 
-  .feature-section {
+  .annotation-section {
     display: flex;
     flex-direction: column;
   }
 
-  .feature-section-header {
+  .annotation-section-header {
     padding: 0.5rem 0.75rem 0.25rem;
     font-size: 0.7rem;
     font-weight: 600;
@@ -140,12 +140,12 @@ export const featureSelectStyles = css`
     border-bottom: 1px solid var(--up-border);
   }
 
-  .feature-section-items {
+  .annotation-section-items {
     display: flex;
     flex-direction: column;
   }
 
-  .feature-item {
+  .annotation-item {
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     color: var(--up-muted);
@@ -154,21 +154,21 @@ export const featureSelectStyles = css`
     border-left: 2px solid transparent;
   }
 
-  .feature-item:hover {
+  .annotation-item:hover {
     background: #f6f8fb;
   }
 
-  .feature-item.highlighted {
+  .annotation-item.highlighted {
     background: #eef6fb;
     border-left-color: var(--up-primary);
   }
 
-  .feature-item.selected {
+  .annotation-item.selected {
     font-weight: 600;
     color: var(--up-primary);
   }
 
-  .feature-item.selected.highlighted {
+  .annotation-item.selected.highlighted {
     background: #e0f2f8;
   }
 
@@ -181,7 +181,7 @@ export const featureSelectStyles = css`
 
   /* Responsive: ensure dropdown doesn't overflow on small screens */
   @media (max-width: 1024px) {
-    .feature-select-menu {
+    .annotation-select-menu {
       max-width: calc(100vw - 2rem);
     }
   }

@@ -157,12 +157,12 @@ export const scatterplotStyles = css`
     margin-bottom: 0.25rem;
   }
 
-  .tooltip-feature {
+  .tooltip-annotation {
     font-size: 0.75rem;
     color: #5b6b7a;
   }
 
-  .tooltip-feature-header {
+  .tooltip-annotation-header {
     font-size: 0.75rem;
     color: #5b6b7a;
     margin-bottom: 0.125rem;

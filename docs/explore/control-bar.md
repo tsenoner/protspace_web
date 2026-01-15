@@ -20,7 +20,7 @@ Switch between different dimensionality reduction methods:
 
 Different projections reveal different patterns - try switching between them!
 
-## 2. Color By (Annotation Selector)
+## 2. Annotation Selector
 
 Choose which annotation to use for coloring points:
 
