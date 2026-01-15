@@ -32,6 +32,8 @@ declare global {
             viewportShowAnimation?: boolean;
             pdbProvider?: string;
             emdbProvider?: string;
+            validationProvider?: string;
+            extensions?: unknown[];
           },
         ) => Promise<MolstarViewer>;
       };
@@ -65,8 +67,49 @@ export async function ensureMolstarResourcesLoaded(): Promise<void> {
   }
 }
 
+// Install a global fetch interceptor once to silently block Molstar validation server requests.
+// Molstar tries to fetch validation data from localhost:9000 by default, which doesn't exist
+// in our setup. This interceptor prevents console errors without affecting functionality.
+let validationInterceptorInstalled = false;
+
+function installValidationInterceptor(): void {
+  if (validationInterceptorInstalled) return;
+
+  const originalFetch = window.fetch;
+  window.fetch = function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    // Extract URL from various input types
+    let url: string | undefined;
+    if (typeof input === 'string') {
+      url = input;
+    } else if (input instanceof Request) {
+      url = input.url;
+    } else if (input instanceof URL) {
+      url = input.href;
+    }
+
+    // Block Molstar validation server requests (they're optional and fail silently in Molstar anyway)
+    if (url && (url.includes('localhost:9000') || url.includes('/v2/list_entries/'))) {
+      return Promise.resolve(
+        new Response('[]', {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    }
+
+    return originalFetch.call(this, input, init);
+  };
+
+  validationInterceptorInstalled = true;
+}
+
 export async function createMolstarViewer(container: HTMLElement): Promise<MolstarViewer> {
   await ensureMolstarResourcesLoaded();
+
+  // Install fetch interceptor to suppress validation server errors
+  installValidationInterceptor();
+
   const viewer = await window.molstar?.Viewer.create(container, {
     layoutIsExpanded: false,
     layoutShowControls: false,

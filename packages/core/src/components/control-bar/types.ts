@@ -4,17 +4,17 @@
 
 export interface ControlBarState {
   projections: string[];
-  features: string[];
+  annotations: string[];
   selectedProjection: string;
-  selectedFeature: string;
+  selectedAnnotation: string;
   selectionMode: boolean;
   selectedProteinsCount: number;
 }
 
 export interface ProtspaceData {
   projections?: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>;
-  features?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
-  feature_data?: Record<string, number[] | number[][]>;
+  annotations?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
+  annotation_data?: Record<string, number[] | number[][]>;
   protein_ids?: string[];
 }
 
@@ -25,7 +25,7 @@ export interface DataChangeDetail {
 export interface ScatterplotElementLike extends Element {
   // State properties
   selectedProjectionIndex?: number;
-  selectedFeature?: string;
+  selectedAnnotation?: string;
   selectionMode?: boolean;
   selectedProteinIds?: string[];
   projectionPlane?: 'xy' | 'xz' | 'yz';

@@ -431,11 +431,13 @@ export class ProtspaceLegend extends LitElement {
   public getLegendExportData(): {
     annotation: string;
     includeShapes: boolean;
+    otherItemsCount: number;
     items: LegendItem[];
   } {
     return {
       annotation: this.annotationData.name || this.annotationName || 'Legend',
       includeShapes: this._effectiveIncludeShapes,
+      otherItemsCount: this._otherItems.length,
       items: this._sortedLegendItems.map((i) => ({ ...i })),
     };
   }
@@ -452,11 +454,11 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private _handleScatterplotDataChange(data: ScatterplotData, selectedAnnotation: string): void {
-    this.data = { features: data.features };
+    this.data = { annotations: data.annotations };
     this.selectedAnnotation = selectedAnnotation;
     this.annotationData = {
       name: selectedAnnotation,
-      values: data.features[selectedAnnotation].values,
+      values: data.annotations[selectedAnnotation].values,
     };
     this._updateAnnotationValues(data, selectedAnnotation);
     this.proteinIds = data.protein_ids;
@@ -474,7 +476,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _updateAnnotationDataFromData(): void {
-    const annotationInfo = this.data?.features?.[this.selectedAnnotation] ?? null;
+    const annotationInfo = this.data?.annotations?.[this.selectedAnnotation] ?? null;
     this.annotationData = annotationInfo
       ? { name: this.selectedAnnotation, values: annotationInfo.values }
       : { name: '', values: [] };
@@ -482,19 +484,19 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateAnnotationValues(data: ScatterplotData, selectedAnnotation: string): void {
     const annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
-      const annotationIdxData = data.feature_data[selectedAnnotation][index];
+      const annotationIdxData = data.annotation_data[selectedAnnotation][index];
       const annotationIdxArray = Array.isArray(annotationIdxData)
         ? annotationIdxData
         : [annotationIdxData];
       return annotationIdxArray
-        .map((annotationIdx: number) => data.features[selectedAnnotation].values[annotationIdx])
+        .map((annotationIdx: number) => data.annotations[selectedAnnotation].values[annotationIdx])
         .filter((v) => v != null);
     });
     this.annotationValues = annotationValues;
   }
 
   private _ensureSortModeDefaults(): void {
-    const annotationNames = this.data?.features ? Object.keys(this.data.features) : [];
+    const annotationNames = this.data?.annotations ? Object.keys(this.data.annotations) : [];
     if (annotationNames.length === 0) return;
 
     const updated: Record<string, LegendSortMode> = { ...this._annotationSortModes };

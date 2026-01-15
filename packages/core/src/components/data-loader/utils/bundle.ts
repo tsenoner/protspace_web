@@ -57,13 +57,13 @@ export async function extractRowsFromParquetBundle(
   assertValidParquetMagic(part2);
   assertValidParquetMagic(part3);
 
-  const [selectedFeaturesData, projectionsMetadataData, projectionsData] = await Promise.all([
+  const [selectedAnnotationsData, projectionsMetadataData, projectionsData] = await Promise.all([
     parquetReadObjects({ file: part1 }),
     parquetReadObjects({ file: part2 }),
     parquetReadObjects({ file: part3 }),
   ]);
 
-  const mergedRows = mergeProjectionsWithFeatures(projectionsData, selectedFeaturesData);
+  const mergedRows = mergeProjectionsWithAnnotations(projectionsData, selectedAnnotationsData);
 
   // Validate merged rows for expected bundle shape
   validateMergedBundleRows(mergedRows);
@@ -71,25 +71,26 @@ export async function extractRowsFromParquetBundle(
   return { rows: mergedRows, projectionsMetadata: projectionsMetadataData };
 }
 
-export function mergeProjectionsWithFeatures(projectionsData: Rows, featuresData: Rows): Rows {
-  // Build map of features keyed by protein id
-  const featureIdColumn = findColumn(featuresData.length > 0 ? Object.keys(featuresData[0]) : [], [
-    'protein_id',
-    'identifier',
-    'id',
-    'uniprot',
-    'entry',
-  ]);
+export function mergeProjectionsWithAnnotations(
+  projectionsData: Rows,
+  annotationsData: Rows,
+): Rows {
+  // Build map of annotations keyed by protein id
+  const annotationIdColumn = findColumn(
+    annotationsData.length > 0 ? Object.keys(annotationsData[0]) : [],
+    ['protein_id', 'identifier', 'id', 'uniprot', 'entry'],
+  );
 
-  const finalFeatureIdColumn =
-    featureIdColumn || (featuresData.length > 0 ? Object.keys(featuresData[0])[0] : undefined);
+  const finalAnnotationIdColumn =
+    annotationIdColumn ||
+    (annotationsData.length > 0 ? Object.keys(annotationsData[0])[0] : undefined);
 
-  const featuresMap = new Map<string, GenericRow>();
-  if (finalFeatureIdColumn) {
-    for (const feature of featuresData) {
-      const proteinId = feature[finalFeatureIdColumn];
+  const annotationsMap = new Map<string, GenericRow>();
+  if (finalAnnotationIdColumn) {
+    for (const annotation of annotationsData) {
+      const proteinId = annotation[finalAnnotationIdColumn];
       if (proteinId != null) {
-        featuresMap.set(String(proteinId), feature);
+        annotationsMap.set(String(proteinId), annotation);
       }
     }
   }
@@ -107,8 +108,8 @@ export function mergeProjectionsWithFeatures(projectionsData: Rows, featuresData
   for (let i = 0; i < projectionsData.length; i++) {
     const projection = projectionsData[i];
     const proteinId = projection[projectionIdColumn];
-    const feature = proteinId != null ? featuresMap.get(String(proteinId)) : undefined;
-    merged[i] = feature ? { ...projection, ...feature } : { ...projection };
+    const annotation = proteinId != null ? annotationsMap.get(String(proteinId)) : undefined;
+    merged[i] = annotation ? { ...projection, ...annotation } : { ...projection };
   }
 
   return merged;

@@ -1,30 +1,29 @@
-import * as d3 from 'd3';
 import { NEUTRAL_VALUE_COLOR } from './config';
 import type { PlotDataPoint, VisualizationData } from '@protspace/utils';
-import { getSymbolType } from '@protspace/utils';
+import { normalizeShapeName } from '@protspace/utils';
 
 export interface StyleConfig {
   selectedProteinIds: string[];
   highlightedProteinIds: string[];
-  selectedFeature: string;
-  hiddenFeatureValues: string[];
-  otherFeatureValues: string[];
+  selectedAnnotation: string;
+  hiddenAnnotationValues: string[];
+  otherAnnotationValues: string[];
   useShapes?: boolean;
   /**
-   * Optional legend-driven z-order mapping: feature value key -> rank (0 = top).
+   * Optional legend-driven z-order mapping: annotation value key -> rank (0 = top).
    * Used to break overlap ties deterministically without CPU-sorting.
    */
   zOrderMapping?: Record<string, number> | null;
   /**
-   * Optional legend-driven color mapping: feature value key -> hex color.
+   * Optional legend-driven color mapping: annotation value key -> hex color.
    * When provided, colors are determined by the legend (frequency-sorted).
-   * When null, falls back to feature.colors from the data.
+   * When null, falls back to annotation.colors from the data.
    */
   colorMapping?: Record<string, string> | null;
   /**
-   * Optional legend-driven shape mapping: feature value key -> shape name.
+   * Optional legend-driven shape mapping: annotation value key -> shape name.
    * When provided, shapes are determined by the legend (frequency-sorted).
-   * When null, falls back to feature.shapes from the data.
+   * When null, falls back to annotation.shapes from the data.
    */
   shapeMapping?: Record<string, string> | null;
   sizes: {
@@ -48,17 +47,19 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   // Precompute fast lookup structures
   const selectedIdsSet = new Set(styleConfig.selectedProteinIds);
   const highlightedIdsSet = new Set(styleConfig.highlightedProteinIds);
-  const hiddenKeysSet = new Set(styleConfig.hiddenFeatureValues.map((v) => normalizeToKey(v)));
-  const otherValuesSet = new Set(styleConfig.otherFeatureValues);
+  const hiddenKeysSet = new Set(styleConfig.hiddenAnnotationValues.map((v) => normalizeToKey(v)));
+  const otherValuesSet = new Set(styleConfig.otherAnnotationValues);
 
-  // Precompute value -> color and value -> shape for the selected feature
-  const feature =
-    data && styleConfig.selectedFeature ? data.features[styleConfig.selectedFeature] : undefined;
+  // Precompute value -> color and value -> shape for the selected annotation
+  const annotation =
+    data && styleConfig.selectedAnnotation
+      ? data.annotations[styleConfig.selectedAnnotation]
+      : undefined;
   const valueToColor = new Map<string, string>();
-  const valueToShape = new Map<string, d3.SymbolType>();
+  const valueToShape = new Map<string, string>();
   let nullishConfiguredColor: string | null = null;
 
-  // Priority: legend colorMapping > feature.colors from data
+  // Priority: legend colorMapping > annotation.colors from data
   const colorMap = styleConfig.colorMapping;
   const shapeMap = styleConfig.shapeMapping;
 
@@ -70,12 +71,12 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
         nullishConfiguredColor = color;
       }
     }
-  } else if (feature && Array.isArray(feature.values)) {
-    // Fallback to feature.colors from data
-    for (let i = 0; i < feature.values.length; i++) {
-      const v = feature.values[i];
+  } else if (annotation && Array.isArray(annotation.values)) {
+    // Fallback to annotation.colors from data
+    for (let i = 0; i < annotation.values.length; i++) {
+      const v = annotation.values[i];
       const k = normalizeToKey(v);
-      const color = feature.colors?.[i];
+      const color = annotation.colors?.[i];
       if (color) valueToColor.set(k, color);
       if ((v === null || (typeof v === 'string' && v.trim() === '')) && color) {
         nullishConfiguredColor = color;
@@ -86,27 +87,27 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   if (shapeMap && styleConfig.useShapes) {
     // Use legend-provided shape mapping (frequency-sorted)
     for (const [key, shape] of Object.entries(shapeMap)) {
-      valueToShape.set(key, getSymbolType(shape));
+      valueToShape.set(key, normalizeShapeName(shape));
     }
-  } else if (feature && Array.isArray(feature.values) && styleConfig.useShapes) {
-    // Fallback to feature.shapes from data
-    for (let i = 0; i < feature.values.length; i++) {
-      const v = feature.values[i];
+  } else if (annotation && Array.isArray(annotation.values) && styleConfig.useShapes) {
+    // Fallback to annotation.shapes from data
+    for (let i = 0; i < annotation.values.length; i++) {
+      const v = annotation.values[i];
       const k = normalizeToKey(v);
-      if (feature.shapes && feature.shapes[i]) {
-        valueToShape.set(k, getSymbolType(feature.shapes[i]));
+      if (annotation.shapes && annotation.shapes[i]) {
+        valueToShape.set(k, normalizeShapeName(annotation.shapes[i]));
       }
     }
   }
-  // Detect if the user has effectively hidden all values for the selected feature
+  // Detect if the user has effectively hidden all values for the selected annotation
   // In that case, we ignore the hidden filter to avoid rendering an empty plot.
   const computeAllHidden = (): boolean => {
-    if (!data || !styleConfig.selectedFeature) return false;
-    const feature = data.features[styleConfig.selectedFeature];
-    if (!feature || !Array.isArray(feature.values)) return false;
-    const hidden = new Set(styleConfig.hiddenFeatureValues);
+    if (!data || !styleConfig.selectedAnnotation) return false;
+    const annotation = data.annotations[styleConfig.selectedAnnotation];
+    if (!annotation || !Array.isArray(annotation.values)) return false;
+    const hidden = new Set(styleConfig.hiddenAnnotationValues);
     if (hidden.size === 0) return false;
-    const normalizedKeys = feature.values.map((v) =>
+    const normalizedKeys = annotation.values.map((v) =>
       v === null ? 'null' : typeof v === 'string' && v.trim() === '' ? '' : (v as string),
     );
     return normalizedKeys.length > 0 && normalizedKeys.every((k) => hidden.has(k));
@@ -118,40 +119,40 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     return styleConfig.sizes.base;
   };
 
-  const getPointShape = (point: PlotDataPoint): d3.SymbolType => {
-    if (styleConfig.useShapes === false) return d3.symbolCircle;
-    if (!data || !styleConfig.selectedFeature) return d3.symbolCircle;
+  const getPointShape = (point: PlotDataPoint): string => {
+    if (styleConfig.useShapes === false) return 'circle';
+    if (!data || !styleConfig.selectedAnnotation) return 'circle';
 
-    const featureValueArray = point.featureValues[styleConfig.selectedFeature];
+    const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
 
-    // multilabel points only suppor circle for now
-    if (featureValueArray.length > 1) return d3.symbolCircle;
+    // multilabel points only support circle for now
+    if (annotationValueArray.length > 1) return 'circle';
 
-    // default to circle for points with no feature
-    if (featureValueArray.length === 0) return d3.symbolCircle;
+    // default to circle for points with no annotation
+    if (annotationValueArray.length === 0) return 'circle';
 
-    const featureValue = featureValueArray[0];
-    if (featureValue && otherValuesSet.has(featureValue)) return d3.symbolCircle;
+    const annotationValue = annotationValueArray[0];
+    if (annotationValue && otherValuesSet.has(annotationValue)) return 'circle';
 
-    const k = normalizeToKey(featureValue);
-    return valueToShape.get(k) ?? d3.symbolCircle;
+    const k = normalizeToKey(annotationValue);
+    return valueToShape.get(k) ?? 'circle';
   };
 
   const getColors = (point: PlotDataPoint): string[] => {
-    if (!data || !styleConfig.selectedFeature) return [NEUTRAL_VALUE_COLOR];
+    if (!data || !styleConfig.selectedAnnotation) return [NEUTRAL_VALUE_COLOR];
 
-    const featureValueArray = point.featureValues[styleConfig.selectedFeature];
+    const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
 
-    if (featureValueArray.length === 0) {
+    if (annotationValueArray.length === 0) {
       if (nullishConfiguredColor) return [nullishConfiguredColor];
       else return [NEUTRAL_VALUE_COLOR];
     }
 
-    if (featureValueArray.every((v) => otherValuesSet.has(v))) {
+    if (annotationValueArray.every((v) => otherValuesSet.has(v))) {
       return [NEUTRAL_VALUE_COLOR];
     }
 
-    const colors = featureValueArray
+    const colors = annotationValueArray
       .map((v) => {
         if (hiddenKeysSet.has(normalizeToKey(v))) return undefined;
         if (otherValuesSet.has(v)) return NEUTRAL_VALUE_COLOR;
@@ -159,15 +160,15 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       })
       .filter((v) => v !== undefined);
 
-    // Remove multiple neutral colors from multiple other features
+    // Remove multiple neutral colors from multiple other annotations
     return [...new Set(colors)];
   };
 
   const getOpacity = (point: PlotDataPoint): number => {
-    const featureValue = point.featureValues[styleConfig.selectedFeature];
+    const annotationValue = point.annotationValues[styleConfig.selectedAnnotation];
 
-    if (!allHidden && featureValue) {
-      if (featureValue.every((f) => hiddenKeysSet.has(normalizeToKey(f)))) return 0;
+    if (!allHidden && annotationValue) {
+      if (annotationValue.every((f) => hiddenKeysSet.has(normalizeToKey(f)))) return 0;
     }
 
     const isSelected = selectedIdsSet.has(point.id);
@@ -201,17 +202,17 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     // Base depth in [0,1]: higher opacity -> smaller depth -> wins with LESS
     let depth = 1 - Math.min(1, Math.max(0, opacity));
 
-    if (zMap && styleConfig.selectedFeature) {
-      const featureValueArray = point.featureValues[styleConfig.selectedFeature];
+    if (zMap && styleConfig.selectedAnnotation) {
+      const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
       let key: string;
 
-      if (featureValueArray && featureValueArray.length > 0) {
+      if (annotationValueArray && annotationValueArray.length > 0) {
         // Check if this point belongs to the "Other" category
-        const isOther = featureValueArray.some((v) => otherValuesSet.has(v));
+        const isOther = annotationValueArray.some((v) => otherValuesSet.has(v));
         if (isOther) {
           key = 'Other';
         } else {
-          const raw = featureValueArray[0];
+          const raw = annotationValueArray[0];
           key = normalizeToKey(raw);
         }
       } else {

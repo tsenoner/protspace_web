@@ -94,10 +94,13 @@ export class StructureService {
         },
       };
     } catch (error) {
-      console.error(
-        `[StructureService] Failed to load AlphaFold structure for ${formattedId}:`,
-        error,
-      );
+      // Only log unexpected errors (not 404s, which are expected for proteins without structures)
+      if (error instanceof Error && !error.message.includes('404')) {
+        console.warn(
+          `[StructureService] Failed to load AlphaFold structure for ${formattedId}:`,
+          error.message,
+        );
+      }
       throw new Error(`AlphaFold structure not available for ${formattedId}`);
     }
   }
