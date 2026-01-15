@@ -99,7 +99,7 @@ describe('legend-data-processor', () => {
 
   describe('sortAndLimitItems', () => {
     it('sorts by size (descending) by default', () => {
-      const freq = new Map<string | null, number>([
+      const freq = new Map<string, number>([
         ['small', 5],
         ['large', 20],
         ['medium', 10],
@@ -111,7 +111,7 @@ describe('legend-data-processor', () => {
     });
 
     it('sorts alphabetically with alpha mode', () => {
-      const freq = new Map<string | null, number>([
+      const freq = new Map<string, number>([
         ['10-20', 5],
         ['1-5', 10],
         ['5-10', 8],
@@ -123,7 +123,7 @@ describe('legend-data-processor', () => {
     });
 
     it('limits items to maxVisibleValues', () => {
-      const freq = new Map<string | null, number>([
+      const freq = new Map<string, number>([
         ['a', 10],
         ['b', 9],
         ['c', 8],
@@ -136,7 +136,7 @@ describe('legend-data-processor', () => {
     });
 
     it('calculates other count correctly', () => {
-      const freq = new Map<string | null, number>([
+      const freq = new Map<string, number>([
         ['a', 10],
         ['b', 9],
         ['c', 8],
@@ -345,7 +345,7 @@ describe('legend-data-processor', () => {
 
   describe('createLegendItems', () => {
     it('creates legend items with correct properties', () => {
-      const topItems: Array<[string | null, number]> = [
+      const topItems: Array<[string, number]> = [
         ['category1', 10],
         ['category2', 5],
       ];
@@ -359,19 +359,19 @@ describe('legend-data-processor', () => {
     });
 
     it('adds Other item when otherCount > 0', () => {
-      const topItems: Array<[string | null, number]> = [['category1', 10]];
+      const topItems: Array<[string, number]> = [['category1', 10]];
       const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, false, [], false);
       expect(items.some((i) => i.value === 'Other')).toBe(true);
     });
 
     it('does not add Other item in isolation mode', () => {
-      const topItems: Array<[string | null, number]> = [['category1', 10]];
+      const topItems: Array<[string, number]> = [['category1', 10]];
       const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, true, [], false);
       expect(items.some((i) => i.value === 'Other')).toBe(false);
     });
 
     it('preserves existing z-order in manual mode', () => {
-      const topItems: Array<[string | null, number]> = [
+      const topItems: Array<[string, number]> = [
         ['category1', 10],
         ['category2', 5],
       ];
@@ -400,7 +400,7 @@ describe('legend-data-processor', () => {
     });
 
     it('uses sorted index for z-order in non-manual modes', () => {
-      const topItems: Array<[string | null, number]> = [
+      const topItems: Array<[string, number]> = [
         ['category1', 10],
         ['category2', 5],
       ];
@@ -432,7 +432,7 @@ describe('legend-data-processor', () => {
 
     it('reassigns z-order based on reversed position in manual-reverse mode', () => {
       // Items are passed in reverse order (as sortAndLimitItems would sort them)
-      const topItems: Array<[string | null, number]> = [
+      const topItems: Array<[string, number]> = [
         ['category2', 5], // Was at zOrder 1, now first
         ['category1', 10], // Was at zOrder 0, now second
       ];
@@ -471,7 +471,7 @@ describe('legend-data-processor', () => {
     });
 
     it('includes shapes when shapesEnabled', () => {
-      const topItems: Array<[string | null, number]> = [
+      const topItems: Array<[string, number]> = [
         ['category1', 10],
         ['category2', 5],
       ];
@@ -481,7 +481,7 @@ describe('legend-data-processor', () => {
     });
 
     it('applies colors from persistedCategories', () => {
-      const topItems: Array<[string | null, number]> = [
+      const topItems: Array<[string, number]> = [
         ['category1', 10],
         ['category2', 5],
       ];
@@ -505,7 +505,7 @@ describe('legend-data-processor', () => {
     });
 
     it('prefers persisted colors over existing colors', () => {
-      const topItems: Array<[string | null, number]> = [['category1', 10]];
+      const topItems: Array<[string, number]> = [['category1', 10]];
       const existing: LegendItem[] = [
         {
           value: 'category1',
@@ -534,7 +534,7 @@ describe('legend-data-processor', () => {
     });
 
     it('applies persisted colors to N/A items using __NA__ key', () => {
-      const topItems: Array<[string | null, number]> = [[LEGEND_VALUES.NA_VALUE, 10]];
+      const topItems: Array<[string, number]> = [[LEGEND_VALUES.NA_VALUE, 10]];
       const persistedCategories = {
         [LEGEND_VALUES.NA_VALUE]: { zOrder: 0, color: '#na-color', shape: 'circle' },
       };
@@ -553,7 +553,7 @@ describe('legend-data-processor', () => {
     });
 
     it('uses existing colors when no persisted categories', () => {
-      const topItems: Array<[string | null, number]> = [['category1', 10]];
+      const topItems: Array<[string, number]> = [['category1', 10]];
       const existing: LegendItem[] = [
         {
           value: 'category1',
