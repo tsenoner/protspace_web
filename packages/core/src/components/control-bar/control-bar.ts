@@ -9,6 +9,7 @@ import type {
   StructureViewerElement,
 } from './types';
 import './search';
+import './annotation-select';
 
 @customElement('protspace-control-bar')
 export class ProtspaceControlBar extends LitElement {
@@ -43,6 +44,7 @@ export class ProtspaceControlBar extends LitElement {
 
   @state() private showExportMenu: boolean = false;
   @state() private showFilterMenu: boolean = false;
+  @state() private showProjectionMenu: boolean = false;
   @state() private annotationValuesMap: Record<string, (string | null)[]> = {};
   @state() private filterConfig: Record<string, { enabled: boolean; values: (string | null)[] }> =
     {};
@@ -92,15 +94,20 @@ export class ProtspaceControlBar extends LitElement {
 
   static styles = controlBarStyles;
 
-  private handleProjectionChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
+  private toggleProjectionMenu() {
+    this.showProjectionMenu = !this.showProjectionMenu;
+  }
+
+  private selectProjection(projection: string) {
+    this.selectedProjection = projection;
+    this.showProjectionMenu = false;
+
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
-      const projectionIndex = this.projections.findIndex((p) => p === target.value);
+      const projectionIndex = this.projections.findIndex((p) => p === projection);
       if (projectionIndex !== -1 && 'selectedProjectionIndex' in this._scatterplotElement) {
         (this._scatterplotElement as ScatterplotElementLike).selectedProjectionIndex =
           projectionIndex;
-        this.selectedProjection = target.value;
 
         // If projection is 3D, keep current plane; otherwise, reset to XY
         const meta = this.projectionsMeta.find((p) => p.name === this.selectedProjection);
@@ -114,7 +121,7 @@ export class ProtspaceControlBar extends LitElement {
     }
 
     const customEvent = new CustomEvent('projection-change', {
-      detail: { projection: target.value },
+      detail: { projection },
       bubbles: true,
       composed: true,
     });
@@ -140,18 +147,18 @@ export class ProtspaceControlBar extends LitElement {
     this.dispatchEvent(customEvent);
   }
 
-  private handleAnnotationChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
+  private handleAnnotationSelected(event: CustomEvent<{ annotation: string }>) {
+    const annotation = event.detail.annotation;
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
       if ('selectedAnnotation' in this._scatterplotElement) {
-        (this._scatterplotElement as ScatterplotElementLike).selectedAnnotation = target.value;
-        this.selectedAnnotation = target.value;
+        (this._scatterplotElement as ScatterplotElementLike).selectedAnnotation = annotation;
+        this.selectedAnnotation = annotation;
       }
     }
 
     const customEvent = new CustomEvent('annotation-change', {
-      detail: { annotation: target.value },
+      detail: { annotation },
       bubbles: true,
       composed: true,
     });
@@ -305,16 +312,46 @@ export class ProtspaceControlBar extends LitElement {
         <div class="left-controls">
           <!-- Projection selection -->
           <div class="control-group">
-            <label for="projection-select">Projection:</label>
-            <select
-              id="projection-select"
-              .value=${this.selectedProjection}
-              @change=${this.handleProjectionChange}
-            >
-              ${this.projections.map(
-                (projection) => html`<option value=${projection}>${projection}</option>`,
-              )}
-            </select>
+            <label for="projection-trigger">Projection:</label>
+            <div class="projection-container">
+              <button
+                id="projection-trigger"
+                class="dropdown-trigger ${this.showProjectionMenu ? 'open' : ''}"
+                @click=${this.toggleProjectionMenu}
+                aria-haspopup="listbox"
+                aria-expanded=${this.showProjectionMenu}
+              >
+                <span class="dropdown-trigger-text">
+                  ${this.selectedProjection || 'Select projection'}
+                </span>
+                <svg class="chevron-down" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              ${this.showProjectionMenu
+                ? html`
+                    <div class="dropdown-menu align-left" role="listbox">
+                      <div class="dropdown-list">
+                        ${this.projections.map(
+                          (projection) => html`
+                            <div
+                              class="dropdown-item ${projection === this.selectedProjection
+                                ? 'selected'
+                                : ''}"
+                              role="option"
+                              aria-selected=${projection === this.selectedProjection}
+                              @click=${() => this.selectProjection(projection)}
+                            >
+                              ${projection}
+                            </div>
+                          `,
+                        )}
+                      </div>
+                    </div>
+                  `
+                : ''}
+            </div>
           </div>
 
           ${(() => {
@@ -341,15 +378,12 @@ export class ProtspaceControlBar extends LitElement {
           <!-- Annotation selection -->
           <div class="control-group">
             <label for="annotation-select">Annotation:</label>
-            <select
+            <protspace-annotation-select
               id="annotation-select"
-              .value=${this.selectedAnnotation}
-              @change=${this.handleAnnotationChange}
-            >
-              ${this.annotations.map(
-                (annotation) => html`<option value=${annotation}>${annotation}</option>`,
-              )}
-            </select>
+              .annotations=${this.annotations}
+              .selectedAnnotation=${this.selectedAnnotation}
+              @annotation-select=${this.handleAnnotationSelected}
+            ></protspace-annotation-select>
           </div>
         </div>
 
@@ -454,7 +488,7 @@ export class ProtspaceControlBar extends LitElement {
           <!-- Filter dropdown -->
           <div class="filter-container right-controls-filter">
             <button
-              class=${this.showFilterMenu ? 'active' : ''}
+              class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''}"
               @click=${this.toggleFilterMenu}
               title="Filter Options"
             >
@@ -580,8 +614,8 @@ export class ProtspaceControlBar extends LitElement {
           <!-- Export dropdown -->
           <div class="export-container right-controls-export">
             <button
+              class="dropdown-trigger ${this.showExportMenu ? 'open' : ''}"
               @click=${this.toggleExportMenu}
-              class=${this.showExportMenu ? 'active' : ''}
               title="Export Options"
             >
               <svg class="icon" viewBox="0 0 24 24">
@@ -882,6 +916,7 @@ export class ProtspaceControlBar extends LitElement {
     if (!this.contains(event.target as Node)) {
       this.showExportMenu = false;
       this.showFilterMenu = false;
+      this.showProjectionMenu = false;
       this.openValueMenus = {};
     }
   }
@@ -1455,14 +1490,7 @@ export class ProtspaceControlBar extends LitElement {
       ...this.annotationValuesMap,
       [customName]: newAnnotations[customName].values,
     };
-    this.updateComplete.then(() => {
-      const annotationSelect = this.renderRoot?.querySelector(
-        '#annotation-select',
-      ) as HTMLSelectElement | null;
-      if (annotationSelect && annotationSelect.value !== customName) {
-        annotationSelect.value = customName;
-      }
-    });
+    // Annotation select component will automatically update via selectedAnnotation property binding
 
     // Let listeners know the annotation changed to Custom
     this.dispatchEvent(
