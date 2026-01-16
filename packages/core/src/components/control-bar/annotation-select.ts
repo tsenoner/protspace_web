@@ -147,7 +147,7 @@ export class ProtspaceAnnotationSelect extends LitElement {
 
   private scrollToHighlighted() {
     this.updateComplete.then(() => {
-      const highlighted = this.shadowRoot?.querySelector('.annotation-item.highlighted');
+      const highlighted = this.shadowRoot?.querySelector('.dropdown-item.highlighted');
       if (highlighted) {
         highlighted.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
@@ -278,7 +278,7 @@ export class ProtspaceAnnotationSelect extends LitElement {
 
         ${this.open
           ? html`
-              <div class="annotation-select-menu" @click=${(e: Event) => e.stopPropagation()}>
+              <div class="dropdown-menu align-left" @click=${(e: Event) => e.stopPropagation()}>
                 <div class="annotation-search-container">
                   <input
                     id="annotation-search-input"
@@ -312,7 +312,7 @@ export class ProtspaceAnnotationSelect extends LitElement {
                                 const isSelected = annotation === this.selectedAnnotation;
                                 return html`
                                   <div
-                                    class="annotation-item ${isHighlighted
+                                    class="dropdown-item ${isHighlighted
                                       ? 'highlighted'
                                       : ''} ${isSelected ? 'selected' : ''}"
                                     @click=${(e: Event) => this.selectAnnotation(annotation, e)}

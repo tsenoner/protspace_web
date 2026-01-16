@@ -8,6 +8,8 @@ import type {
   DataLoaderElement,
   StructureViewerElement,
 } from './types';
+import { LEGEND_VALUES } from '@protspace/utils';
+import { toInternalValue } from '../legend/config';
 import './search';
 import './annotation-select';
 
@@ -45,13 +47,10 @@ export class ProtspaceControlBar extends LitElement {
   @state() private showExportMenu: boolean = false;
   @state() private showFilterMenu: boolean = false;
   @state() private showProjectionMenu: boolean = false;
-  @state() private annotationValuesMap: Record<string, (string | null)[]> = {};
-  @state() private filterConfig: Record<string, { enabled: boolean; values: (string | null)[] }> =
+  @state() private annotationValuesMap: Record<string, string[]> = {};
+  @state() private filterConfig: Record<string, { enabled: boolean; values: string[] }> = {};
+  @state() private lastAppliedFilterConfig: Record<string, { enabled: boolean; values: string[] }> =
     {};
-  @state() private lastAppliedFilterConfig: Record<
-    string,
-    { enabled: boolean; values: (string | null)[] }
-  > = {};
   @state() private openValueMenus: Record<string, boolean> = {};
 
   // Export defaults - single source of truth
@@ -554,20 +553,28 @@ export class ProtspaceControlBar extends LitElement {
                                     </button>
                                   </div>
                                   <div class="filter-menu-list-item-options-inputs">
-                                    <label>
-                                      <input
-                                        type="checkbox"
-                                        .checked=${(cfg.values || []).includes(null)}
-                                        @change=${(e: Event) =>
-                                          this.handleValueToggle(
-                                            annotation,
-                                            null,
-                                            (e.target as HTMLInputElement).checked,
-                                          )}
-                                      />
-                                      <span>N/A</span>
-                                    </label>
-                                    ${Array.from(new Set(values.filter((v) => v != null))).map(
+                                    ${values.some((v) => v === LEGEND_VALUES.NA_VALUE)
+                                      ? html`
+                                          <label>
+                                            <input
+                                              type="checkbox"
+                                              .checked=${(cfg.values || []).includes(
+                                                LEGEND_VALUES.NA_VALUE,
+                                              )}
+                                              @change=${(e: Event) =>
+                                                this.handleValueToggle(
+                                                  annotation,
+                                                  LEGEND_VALUES.NA_VALUE,
+                                                  (e.target as HTMLInputElement).checked,
+                                                )}
+                                            />
+                                            <span>${LEGEND_VALUES.NA_DISPLAY}</span>
+                                          </label>
+                                        `
+                                      : ''}
+                                    ${Array.from(
+                                      new Set(values.filter((v) => v !== LEGEND_VALUES.NA_VALUE)),
+                                    ).map(
                                       (v) => html`
                                         <label>
                                           <input
@@ -586,7 +593,10 @@ export class ProtspaceControlBar extends LitElement {
                                     )}
                                   </div>
                                   <div class="filter-menu-list-item-options-done">
-                                    <button @click=${() => this.toggleValueMenu(annotation)}>
+                                    <button
+                                      class="active"
+                                      @click=${() => this.toggleValueMenu(annotation)}
+                                    >
                                       Done
                                     </button>
                                   </div>
@@ -814,7 +824,7 @@ export class ProtspaceControlBar extends LitElement {
                               <button class="export-reset-btn" @click=${this.resetExportSettings}>
                                 Reset
                               </button>
-                              <button class="export-action-btn" @click=${this.handleExport}>
+                              <button class="export-action-btn active" @click=${this.handleExport}>
                                 <svg class="icon" viewBox="0 0 24 24">
                                   <path
                                     stroke-linecap="round"
@@ -991,10 +1001,13 @@ export class ProtspaceControlBar extends LitElement {
     // Update annotation value options for filter UI
     try {
       const annotations = data.annotations || {};
-      const map: Record<string, (string | null)[]> = {};
+      const map: Record<string, string[]> = {};
       Object.keys(annotations).forEach((k) => {
         const vals = annotations[k]?.values as (string | null)[] | undefined;
-        if (Array.isArray(vals)) map[k] = vals;
+        if (Array.isArray(vals)) {
+          // Normalize values to internal format (N/A values become '__NA__')
+          map[k] = vals.map(toInternalValue);
+        }
       });
       this.annotationValuesMap = map;
       // Initialize filter config entries for new annotations (preserve existing selections)
@@ -1143,10 +1156,13 @@ export class ProtspaceControlBar extends LitElement {
         // Build annotation values map for filter UI
         try {
           const annotations = data.annotations || {};
-          const map: Record<string, (string | null)[]> = {};
+          const map: Record<string, string[]> = {};
           Object.keys(annotations).forEach((k) => {
             const vals = annotations[k]?.values as (string | null)[] | undefined;
-            if (Array.isArray(vals)) map[k] = vals;
+            if (Array.isArray(vals)) {
+              // Normalize values to internal format (N/A values become '__NA__')
+              map[k] = vals.map(toInternalValue);
+            }
           });
           this.annotationValuesMap = map;
           const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
@@ -1370,7 +1386,7 @@ export class ProtspaceControlBar extends LitElement {
     };
   }
 
-  private handleValueToggle(annotation: string, value: string | null, checked: boolean) {
+  private handleValueToggle(annotation: string, value: string, checked: boolean) {
     const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
@@ -1420,7 +1436,7 @@ export class ProtspaceControlBar extends LitElement {
       .filter(([, cfg]) => cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0)
       .map(([annotation, cfg]) => ({
         annotation,
-        values: cfg.values as (string | null)[],
+        values: cfg.values,
       }));
 
     if (activeFilters.length === 0) {
@@ -1445,11 +1461,13 @@ export class ProtspaceControlBar extends LitElement {
         const annotationValue = Array.isArray(annotationIdxData[i])
           ? (annotationIdxData[i] as number[])[0]
           : (annotationIdxData as number[])[i];
-        const v =
+        const rawValue =
           annotationValue != null && annotationValue >= 0 && annotationValue < valuesArr.length
             ? valuesArr[annotationValue]
             : null;
-        if (!values.some((allowed) => allowed === v)) {
+        // Normalize raw value to internal format for comparison
+        const normalizedValue = toInternalValue(rawValue);
+        if (!values.some((allowed) => allowed === normalizedValue)) {
           isMatch = false;
           break;
         }
@@ -1488,7 +1506,7 @@ export class ProtspaceControlBar extends LitElement {
     this.selectedAnnotation = customName;
     this.annotationValuesMap = {
       ...this.annotationValuesMap,
-      [customName]: newAnnotations[customName].values,
+      [customName]: newAnnotations[customName].values.map(toInternalValue),
     };
     // Annotation select component will automatically update via selectedAnnotation property binding
 

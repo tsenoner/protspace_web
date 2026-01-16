@@ -27,7 +27,7 @@ export class ProtspaceProteinSearch extends LitElement {
             class="search-input"
             type="text"
             .value=${this.searchQuery}
-            placeholder="Search or paste one or several protein IDs"
+            placeholder="Search or paste protein IDs"
             @input=${this._onSearchInput}
             @keydown=${this._onSearchKeydown}
             @blur=${this._onInputBlur}
@@ -36,7 +36,7 @@ export class ProtspaceProteinSearch extends LitElement {
           />
 
           <div class="search-keyboard-shortcut-hint">
-            <kbd> ${isMacOrIos() ? html`⌘K` : html`^K`} </kbd>
+            <kbd>${isMacOrIos() ? html`⌘K` : html`^K`}</kbd>
           </div>
         </div>
 
