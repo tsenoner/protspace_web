@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: 📖 Documentation
-    url: ../blob/main/README.md
+    url: https://protspace.app/docs/
     about: Please check our documentation before creating an issue
   - name: 💬 Discussion
     url: ../discussions
