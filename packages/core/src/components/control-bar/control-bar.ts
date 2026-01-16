@@ -311,45 +311,47 @@ export class ProtspaceControlBar extends LitElement {
         <!-- Left side controls -->
         <div class="left-controls">
           <!-- Projection selection -->
-          <div class="control-group projection-container">
+          <div class="control-group">
             <label for="projection-trigger">Projection:</label>
-            <button
-              id="projection-trigger"
-              class="dropdown-trigger ${this.showProjectionMenu ? 'open' : ''}"
-              @click=${this.toggleProjectionMenu}
-              aria-haspopup="listbox"
-              aria-expanded=${this.showProjectionMenu}
-            >
-              <span class="dropdown-trigger-text">
-                ${this.selectedProjection || 'Select projection'}
-              </span>
-              <svg class="chevron-down" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+            <div class="projection-container">
+              <button
+                id="projection-trigger"
+                class="dropdown-trigger ${this.showProjectionMenu ? 'open' : ''}"
+                @click=${this.toggleProjectionMenu}
+                aria-haspopup="listbox"
+                aria-expanded=${this.showProjectionMenu}
+              >
+                <span class="dropdown-trigger-text">
+                  ${this.selectedProjection || 'Select projection'}
+                </span>
+                <svg class="chevron-down" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
-            ${this.showProjectionMenu
-              ? html`
-                  <div class="dropdown-menu align-left" role="listbox">
-                    <div class="dropdown-list">
-                      ${this.projections.map(
-                        (projection) => html`
-                          <div
-                            class="dropdown-item ${projection === this.selectedProjection
-                              ? 'selected'
-                              : ''}"
-                            role="option"
-                            aria-selected=${projection === this.selectedProjection}
-                            @click=${() => this.selectProjection(projection)}
-                          >
-                            ${projection}
-                          </div>
-                        `,
-                      )}
+              ${this.showProjectionMenu
+                ? html`
+                    <div class="dropdown-menu align-left" role="listbox">
+                      <div class="dropdown-list">
+                        ${this.projections.map(
+                          (projection) => html`
+                            <div
+                              class="dropdown-item ${projection === this.selectedProjection
+                                ? 'selected'
+                                : ''}"
+                              role="option"
+                              aria-selected=${projection === this.selectedProjection}
+                              @click=${() => this.selectProjection(projection)}
+                            >
+                              ${projection}
+                            </div>
+                          `,
+                        )}
+                      </div>
                     </div>
-                  </div>
-                `
-              : ''}
+                  `
+                : ''}
+            </div>
           </div>
 
           ${(() => {

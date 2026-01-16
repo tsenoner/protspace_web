@@ -264,11 +264,16 @@ export const controlBarStyles = css`
 
   /* Dropdown containers share common styling */
   .export-container,
-  .filter-container,
-  .projection-container {
+  .filter-container {
     position: relative;
     display: flex;
     align-items: center;
+  }
+
+  /* Projection container - similar to annotation-select-container */
+  .projection-container {
+    position: relative;
+    display: inline-flex;
   }
 
   /* Master dropdown trigger class - used by all dropdowns */
@@ -357,6 +362,12 @@ export const controlBarStyles = css`
   /* Left-aligned dropdowns (projection, annotation) */
   .dropdown-menu.align-left {
     left: 0;
+  }
+
+  /* Projection dropdown - match trigger width exactly like annotation dropdown */
+  .projection-container .dropdown-menu.align-left {
+    min-width: 100%; /* Match trigger width */
+    width: max-content; /* Allow expansion if content is wider */
   }
 
   /* Right-aligned dropdowns (filter, export) */
