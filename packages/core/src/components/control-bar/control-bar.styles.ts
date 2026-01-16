@@ -103,9 +103,8 @@ export const controlBarStyles = css`
   .control-group {
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     min-width: 0;
   }
 
@@ -130,7 +129,7 @@ export const controlBarStyles = css`
   }
 
   /* ==========================================
-     SHARED COMPONENT SYSTEM
+      SHARED COMPONENT SYSTEM
      ========================================== */
 
   /* Base input/select styling - shared across all inputs */
@@ -245,8 +244,8 @@ export const controlBarStyles = css`
   }
 
   /* Make Filter/Export button text more visible */
-  .right-controls .export-container > button,
-  .right-controls .filter-container > button {
+  .right-controls .export-container .dropdown-trigger,
+  .right-controls .filter-container .dropdown-trigger {
     color: var(--text-dark);
     font-weight: var(--font-normal);
   }
@@ -259,34 +258,83 @@ export const controlBarStyles = css`
     stroke-width: 1.5;
   }
 
+  /* ==========================================
+      UNIFIED DROPDOWN SYSTEM
+     ========================================== */
+
   /* Dropdown containers share common styling */
   .export-container,
-  .filter-container {
+  .filter-container,
+  .projection-container {
     position: relative;
     display: flex;
     align-items: center;
   }
 
-  .export-container > button,
-  .filter-container > button {
-    /* Inherits from .btn base, just needs active state trigger */
+  /* Master dropdown trigger class - used by all dropdowns */
+  .dropdown-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    padding: var(--input-padding-y) var(--input-padding-x);
+    min-width: 10rem;
+    cursor: pointer;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: var(--text-base);
+    color: var(--muted);
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition);
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
   }
 
-  .export-container > button.active,
-  .filter-container > button.active {
-    background: var(--primary);
-    color: var(--text-light);
+  .dropdown-trigger:hover {
+    background: var(--hover-bg);
+  }
+
+  .dropdown-trigger:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--focus-ring);
+  }
+
+  .dropdown-trigger.open {
     border-color: var(--primary);
   }
-  .export-container {
-    position: relative;
+
+  /* Text wrapper for dropdown triggers */
+  .dropdown-trigger-text {
+    flex: 1;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  /* Shared dropdown menu styling */
+  /* Unified chevron icon for all dropdowns */
+  .chevron-down {
+    width: 1rem;
+    height: 1rem;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+    flex-shrink: 0;
+    transition: var(--transition-fast);
+  }
+
+  .dropdown-trigger.open .chevron-down {
+    transform: rotate(180deg);
+  }
+
+  /* Master dropdown menu class - shared by all dropdown menus */
+  .dropdown-menu,
   .filter-menu,
   .export-menu {
     position: absolute;
-    right: 0;
     top: calc(100% + var(--dropdown-offset));
     background: var(--surface);
     border: var(--border-width) solid var(--border);
@@ -295,7 +343,81 @@ export const controlBarStyles = css`
     z-index: var(--dropdown-z);
     display: flex;
     flex-direction: column;
+    max-height: 50vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .dropdown-menu {
+    min-width: 100%; /* Match trigger width minimum */
+    width: max-content; /* Expand if content is wider */
+    max-width: 20rem; /* But don't get too wide */
+  }
+
+  /* Left-aligned dropdowns (projection, annotation) */
+  .dropdown-menu.align-left {
+    left: 0;
+  }
+
+  /* Right-aligned dropdowns (filter, export) */
+  .dropdown-menu.align-right,
+  .filter-menu,
+  .export-menu {
+    right: 0;
+  }
+
+  /* Master dropdown item class - exactly matches annotation-item */
+  .dropdown-item {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--text-base);
+    color: var(--muted);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    border-left: 2px solid transparent;
+  }
+
+  .dropdown-item:hover,
+  .dropdown-item.highlighted {
+    background: var(--primary-light);
+    border-left-color: var(--primary);
+  }
+
+  .dropdown-item.selected {
+    font-weight: var(--font-semibold);
+    color: var(--primary);
+  }
+
+  .dropdown-item.selected:hover,
+  .dropdown-item.selected.highlighted {
+    background: var(--primary-light);
+  }
+
+  /* List wrapper for dropdown items */
+  .dropdown-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ==========================================
+     FILTER & EXPORT DROPDOWN SPECIFICS
+     ========================================== */
+
+  /* Filter and export buttons have icons, adjust padding */
+  .filter-container .dropdown-trigger,
+  .export-container .dropdown-trigger {
+    padding: var(--button-padding-y) var(--button-padding-x);
+    min-width: auto;
+    gap: var(--spacing-xs);
+  }
+
+  /* Filter and export menus - only override differences from master */
+  .filter-menu,
+  .export-menu {
     padding: var(--input-padding-y) 10px 14px;
+    overflow-y: visible; /* Allow nested submenus to overflow */
   }
 
   .filter-menu {
@@ -471,12 +593,6 @@ export const controlBarStyles = css`
     background: var(--hover-bg);
   }
 
-  .filter-menu-buttons > button.active {
-    /* Apply button - uses standard active (blue) style from .btn.active */
-  }
-
-  /* Removed - now handled by .btn:hover base style */
-
   .export-menu {
     width: 280px;
   }
@@ -525,8 +641,6 @@ export const controlBarStyles = css`
     padding: 0.3rem var(--spacing-sm);
     font-size: var(--text-sm);
   }
-
-  /* .active state handled by .btn.active base style */
 
   /* Sliders reuse standard input styles */
   .export-slider {
@@ -632,12 +746,6 @@ export const controlBarStyles = css`
 
   /* Reset button hover handled by .btn:hover */
 
-  .chevron-down {
-    width: 1rem;
-    height: 1rem;
-    margin-left: var(--spacing-xs);
-  }
-
   .control-group select {
     appearance: none;
     -webkit-appearance: none;
@@ -658,11 +766,16 @@ export const controlBarStyles = css`
     background-color: var(--surface);
   }
 
-  /* Annotation select component styling */
+  /* Ensure consistent sizing for projection and annotation controls */
+  .control-group.projection-container,
   .control-group protspace-annotation-select {
-    display: inline-block;
-    width: max-content;
-    min-width: 10rem;
+    flex: 0 1 auto; /* Same flex behavior - size to content */
+    min-width: 10rem; /* Same minimum width */
+  }
+
+  /* The dropdown triggers themselves just need to size appropriately */
+  .control-group .dropdown-trigger {
+    width: max-content; /* Size to content by default */
   }
 
   .right-controls-data > button {
@@ -702,13 +815,17 @@ export const controlBarStyles = css`
       width: 100%;
     }
 
-    /* Make selects expand to available width inside a row */
-    .control-group select {
+    /* Make all controls expand to full width on small screens */
+    .control-group select,
+    .control-group .dropdown-trigger,
+    .control-group protspace-annotation-select {
       width: 100%;
+      max-width: none;
+      flex: 1 1 100%;
     }
 
-    /* Annotation select should also expand on small screens */
-    .control-group protspace-annotation-select {
+    /* Ensure annotation select expands its trigger to full width */
+    protspace-annotation-select .dropdown-trigger {
       width: 100%;
     }
   }

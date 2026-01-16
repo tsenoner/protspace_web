@@ -2,19 +2,17 @@ import { css } from 'lit';
 
 export const annotationSelectStyles = css`
   :host {
-    display: inline-block;
+    display: inline-flex;
     position: relative;
   }
 
   .annotation-select-container {
     position: relative;
-    display: inline-block;
+    display: inline-flex;
   }
 
-  /* Trigger inherits from .input-base defined in control-bar.styles.ts */
-  .annotation-select-trigger {
-    /* Base input styles are inherited through CSS variables */
-    /* Only define what's unique to this component */
+  /* Master dropdown trigger - must be copied here due to shadow DOM boundary */
+  .dropdown-trigger {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -23,8 +21,6 @@ export const annotationSelectStyles = css`
     min-width: 10rem;
     width: max-content;
     cursor: pointer;
-
-    /* Use shared input styles */
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
@@ -32,23 +28,27 @@ export const annotationSelectStyles = css`
     color: var(--muted);
     box-shadow: var(--shadow-sm);
     transition: var(--transition);
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
   }
 
-  .annotation-select-trigger:hover {
+  .dropdown-trigger:hover {
     background: var(--hover-bg);
   }
 
-  .annotation-select-trigger:focus {
+  .dropdown-trigger:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 2px var(--focus-ring);
   }
 
-  .annotation-select-trigger.open {
+  .dropdown-trigger.open {
     border-color: var(--primary);
   }
 
-  .annotation-select-text {
+  /* Text wrapper for dropdown triggers */
+  .dropdown-trigger-text {
     flex: 1;
     text-align: left;
     overflow: hidden;
@@ -56,6 +56,7 @@ export const annotationSelectStyles = css`
     white-space: nowrap;
   }
 
+  /* Unified chevron icon */
   .chevron-down {
     width: 1rem;
     height: 1rem;
@@ -66,7 +67,7 @@ export const annotationSelectStyles = css`
     transition: var(--transition-fast);
   }
 
-  .annotation-select-trigger.open .chevron-down {
+  .dropdown-trigger.open .chevron-down {
     transform: rotate(180deg);
   }
 
@@ -185,6 +186,18 @@ export const annotationSelectStyles = css`
 
   /* Responsive: ensure dropdown doesn't overflow on small screens */
   @media (max-width: 1024px) {
+    :host {
+      width: 100%;
+    }
+
+    .annotation-select-container {
+      width: 100%;
+    }
+
+    .dropdown-trigger {
+      width: 100%;
+    }
+
     .annotation-select-menu {
       max-width: calc(100vw - 2rem);
     }

@@ -265,13 +265,13 @@ export class ProtspaceAnnotationSelect extends LitElement {
     return html`
       <div class="annotation-select-container">
         <button
-          class="annotation-select-trigger ${this.open ? 'open' : ''}"
+          class="dropdown-trigger ${this.open ? 'open' : ''}"
           @click=${this.toggleDropdown}
           @keydown=${this.handleKeydown}
           aria-expanded=${this.open}
           aria-haspopup="listbox"
         >
-          <span class="annotation-select-text">${displayText}</span>
+          <span class="dropdown-trigger-text">${displayText}</span>
           <svg class="chevron-down" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
