@@ -10,3 +10,6 @@ export { tokens } from './tokens';
 
 // Export reusable component mixins
 export { inputMixin, buttonMixin, dropdownMixin, iconMixin } from './mixins';
+
+// Export utility mixins for overlays, modals, and tooltips
+export { overlayMixins } from './overlay-mixins';

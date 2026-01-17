@@ -1,29 +1,31 @@
 import { css } from 'lit';
+import { tokens } from '../../styles/tokens';
+import { overlayMixins } from '../../styles/overlay-mixins';
 
-export const legendStyles = css`
+const legendStylesCore = css`
   :host {
-    --legend-bg: #ffffff;
-    --legend-bg-dark: #1f2937;
-    --legend-border: #d9e2ec; /* softer border for UniProt */
-    --legend-border-dark: #374151;
+    --legend-bg: var(--surface);
+    --legend-bg-dark: var(--surface-dark);
+    --legend-border: var(--border);
+    --legend-border-dark: var(--border-dark);
     --legend-border-radius: 6px;
-    --legend-padding: 0.75rem;
+    --legend-padding: var(--spacing-md);
     --legend-item-padding: 0.625rem;
-    --legend-item-gap: 0.5rem;
-    --legend-text-color: #334155;
+    --legend-item-gap: var(--spacing-sm);
+    --legend-text-color: var(--text-primary);
     --legend-text-color-dark: #f9fafb;
-    --legend-text-secondary: #5b6b7a;
+    --legend-text-secondary: var(--text-secondary);
     --legend-text-secondary-dark: #9ca3af;
-    --legend-hover-bg: #f6f8fb;
-    --legend-hover-bg-dark: #374151;
-    --legend-hidden-bg: #f6f8fb;
-    --legend-hidden-bg-dark: #374151;
+    --legend-hover-bg: var(--disabled-bg);
+    --legend-hover-bg-dark: var(--border-dark);
+    --legend-hidden-bg: var(--disabled-bg);
+    --legend-hidden-bg-dark: var(--border-dark);
     --legend-hidden-opacity: 0.5;
-    --legend-active-bg: #e6f1f8;
+    --legend-active-bg: var(--active-bg);
     --legend-active-bg-dark: #1e3a8a;
-    --legend-drag-bg: #eaf4fb;
+    --legend-drag-bg: var(--primary-light);
     --legend-drag-bg-dark: #1e3a8a;
-    --legend-selected-ring: #00a3e0; /* UniProt lighter azure */
+    --legend-selected-ring: var(--primary);
 
     display: flex;
     user-select: none;
@@ -107,8 +109,8 @@ export const legendStyles = css`
   }
 
   .customize-button:hover {
-    color: #ffffffff;
-    background-color: #979595ff;
+    color: var(--text-light);
+    background-color: var(--accent-gray);
   }
 
   .legend-items {
@@ -158,7 +160,7 @@ export const legendStyles = css`
     background: var(--legend-drag-bg);
     transform: scale(1.02);
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.15);
-    border: 2px solid #7c3aed !important;
+    border: 2px solid var(--accent-purple) !important;
     border-radius: 0.5rem;
   }
 
@@ -179,7 +181,7 @@ export const legendStyles = css`
   /* Drag-and-drop visual hints */
   .legend-item.dragging {
     opacity: 0.8;
-    z-index: 1000;
+    z-index: var(--z-modal);
     position: relative;
   }
 
@@ -229,7 +231,7 @@ export const legendStyles = css`
   .view-button {
     background: none;
     border: none;
-    color: #00a3e0;
+    color: var(--primary);
     cursor: pointer;
     font-size: 0.75rem;
     font-weight: 500;
@@ -240,7 +242,7 @@ export const legendStyles = css`
   }
 
   .view-button:hover {
-    color: #008ec4;
+    color: var(--primary-hover);
   }
 
   .legend-count {
@@ -262,30 +264,13 @@ export const legendStyles = css`
   }
 
   /* ----------------------------- Modal styles -------------------------------------- */
-
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
+  /* Base modal styles provided by overlayMixins */
 
   .modal-content {
-    background: var(--legend-bg);
+    /* Override and extend base modal-content from overlayMixins */
     padding: 1.5rem 1.75rem;
     display: flex;
-    border-radius: 0.75rem;
-    box-shadow:
-      0 20px 25px -5px rgba(0, 0, 0, 0.1),
-      0 10px 10px -5px rgba(0, 0, 0, 0.04);
     width: min(90vw, 32rem);
-    max-height: 85vh;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
@@ -321,8 +306,8 @@ export const legendStyles = css`
   }
 
   .other-items-list-item:hover {
-    background: #f0f4f8;
-    border-color: #b8c5d0;
+    background: var(--hover-bg-alt);
+    border-color: var(--border-hover);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
@@ -347,14 +332,14 @@ export const legendStyles = css`
   }
 
   .other-items-list-item-input:hover {
-    border-color: #b8c5d0;
+    border-color: var(--border-hover);
   }
 
   .other-items-list-item-input:focus,
   .other-items-list-item-input:focus-visible {
     outline: none;
-    border-color: #00a3e0;
-    box-shadow: 0 0 0 3px rgba(0, 163, 224, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--focus-ring);
   }
 
   .other-items-list-label {
@@ -374,8 +359,8 @@ export const legendStyles = css`
   }
 
   .other-items-list-label:hover {
-    background: #f0f4f8;
-    border-color: #b8c5d0;
+    background: var(--hover-bg-alt);
+    border-color: var(--border-hover);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
@@ -383,7 +368,7 @@ export const legendStyles = css`
     width: 18px;
     height: 18px;
     cursor: pointer;
-    accent-color: #00a3e0;
+    accent-color: var(--primary);
   }
   .other-items-list-item-sorting {
     padding: 0;
@@ -417,8 +402,8 @@ export const legendStyles = css`
   }
 
   .other-items-list-item-sorting-container-item:hover {
-    background: #f0f4f8;
-    border-color: #b8c5d0;
+    background: var(--hover-bg-alt);
+    border-color: var(--border-hover);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
@@ -441,15 +426,15 @@ export const legendStyles = css`
     border-radius: 6px;
     transition: all 0.15s ease;
     font-size: 0.875rem;
-    color: #4a5568;
+    color: var(--text-tertiary);
     user-select: none;
     white-space: nowrap;
   }
 
   .other-items-list-item-sorting-container-item-container-label:hover,
   .other-items-list-item-sorting-container-item-container label:hover {
-    background: rgba(0, 163, 224, 0.08);
-    color: #00a3e0;
+    background: var(--focus-ring);
+    color: var(--primary);
   }
 
   .other-items-list-item-sorting-container-item-container-input,
@@ -458,7 +443,7 @@ export const legendStyles = css`
     width: 16px;
     height: 16px;
     cursor: pointer;
-    accent-color: #00a3e0;
+    accent-color: var(--primary);
   }
 
   /* Special styling for the reverse checkbox */
@@ -471,8 +456,8 @@ export const legendStyles = css`
 
   /* Visual feedback when option is selected */
   .other-items-list-item-sorting-container-item-container label:has(input:checked) {
-    background: rgba(0, 163, 224, 0.12);
-    color: #00a3e0;
+    background: var(--primary-light);
+    color: var(--primary);
     font-weight: 500;
   }
 
@@ -569,7 +554,7 @@ export const legendStyles = css`
   .other-item .extract-button {
     background: none;
     border: none;
-    color: #00a3e0;
+    color: var(--primary);
     cursor: pointer;
     font-size: 0.875rem;
     font-weight: 500;
@@ -579,7 +564,7 @@ export const legendStyles = css`
   }
 
   .other-item .extract-button:hover {
-    color: #008ec4;
+    color: var(--primary-hover);
   }
 
   .modal-footer {
@@ -590,8 +575,8 @@ export const legendStyles = css`
 
   .modal-reset-button {
     background: transparent;
-    border: 1px solid #dc2626;
-    color: #dc2626;
+    border: 1px solid var(--danger);
+    color: var(--danger);
     cursor: pointer;
     padding: 0.5rem 1rem;
     border-radius: 0.5rem;
@@ -602,7 +587,7 @@ export const legendStyles = css`
   }
 
   .modal-reset-button:hover {
-    background: #dc2626;
+    background: var(--danger);
     color: white;
     box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
   }
@@ -621,13 +606,13 @@ export const legendStyles = css`
 
   .modal-close-button:hover {
     background: var(--legend-hidden-bg);
-    border-color: #b8c5d0;
+    border-color: var(--border-hover);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   }
 
   .extract-button {
-    background: #00a3e0;
-    border: 1px solid #00a3e0;
+    background: var(--primary);
+    border: 1px solid var(--primary);
     color: white;
     cursor: pointer;
     font-size: 0.875rem;
@@ -638,8 +623,10 @@ export const legendStyles = css`
   }
 
   .extract-button:hover {
-    background: #008ec4;
-    border-color: #008ec4;
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
     box-shadow: 0 2px 6px rgba(0, 163, 224, 0.3);
   }
 `;
+
+export const legendStyles = [tokens, overlayMixins, legendStylesCore];

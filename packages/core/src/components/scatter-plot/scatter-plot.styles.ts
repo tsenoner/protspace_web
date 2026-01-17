@@ -1,12 +1,14 @@
 import { css } from 'lit';
+import { tokens } from '../../styles/tokens';
+import { overlayMixins } from '../../styles/overlay-mixins';
 
-export const scatterplotStyles = css`
+const scatterplotStylesCore = css`
   :host {
     /* Layout */
     --protspace-width: 100%;
     --protspace-height: 600px;
-    --protspace-bg-color: #ffffff;
-    --protspace-border-color: #d9e2ec; /* UniProt-like subtle border */
+    --protspace-bg-color: var(--surface);
+    --protspace-border-color: var(--border);
     --protspace-border-radius: 6px;
 
     /* Points */
@@ -19,7 +21,7 @@ export const scatterplotStyles = css`
 
     /* Selection */
     --protspace-selection-color: #ff8a3d; /* warmer but softer */
-    --protspace-highlight-color: #00a3e0; /* UniProt azure */
+    --protspace-highlight-color: var(--primary);
     --protspace-default-stroke: #3a3a3a;
     --protspace-stroke-width-base: 1px;
     --protspace-stroke-width-highlighted: 2px;
@@ -31,7 +33,7 @@ export const scatterplotStyles = css`
 
     /* Tooltip */
     --protspace-tooltip-bg: rgba(255, 255, 255, 0.95);
-    --protspace-tooltip-border: #d9e2ec;
+    --protspace-tooltip-border: var(--border);
     --protspace-tooltip-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 
     /* Brush */
@@ -67,12 +69,12 @@ export const scatterplotStyles = css`
   }
 
   svg {
-    z-index: 10;
+    z-index: var(--z-svg);
     pointer-events: all;
   }
 
   canvas {
-    z-index: 5;
+    z-index: var(--z-canvas);
     pointer-events: none;
   }
 
@@ -95,41 +97,20 @@ export const scatterplotStyles = css`
     display: none;
   }
 
-  .loading-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.8);
-    z-index: 10;
-  }
-
+  /* Base loading overlay styles provided by overlayMixins */
   .loading-spinner {
+    /* Override size from base mixin */
     width: 3rem;
     height: 3rem;
-    border: 2px solid #e5e7eb;
-    border-top: 2px solid #00a3e0;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
   }
 
   .mode-indicator {
     position: absolute;
     top: 0.5rem;
     right: 0.5rem;
-    z-index: 10;
+    z-index: var(--z-overlay);
     padding: 0.5rem;
-    background: #00a3e0;
+    background: var(--primary);
     color: white;
     font-size: 0.75rem;
     border-radius: 0.375rem;
@@ -138,18 +119,11 @@ export const scatterplotStyles = css`
     gap: 0.25rem;
   }
 
+  /* Base tooltip styles provided by overlayMixins */
   .tooltip {
-    position: absolute;
-    z-index: 20;
-    padding: 0.5rem;
-    background: var(--protspace-tooltip-bg);
-    border: 1px solid var(--protspace-tooltip-border);
+    /* Extend base tooltip with scatter-plot-specific styles */
     border-radius: 0.375rem;
-    box-shadow: var(--protspace-tooltip-shadow);
     font-size: 0.875rem;
-    max-width: 200px;
-    word-wrap: break-word;
-    pointer-events: none;
   }
 
   .tooltip-protein-id {
@@ -159,12 +133,12 @@ export const scatterplotStyles = css`
 
   .tooltip-annotation {
     font-size: 0.75rem;
-    color: #5b6b7a;
+    color: var(--text-secondary);
   }
 
   .tooltip-annotation-header {
     font-size: 0.75rem;
-    color: #5b6b7a;
+    color: var(--text-secondary);
     margin-bottom: 0.125rem;
   }
 
@@ -205,7 +179,7 @@ export const scatterplotStyles = css`
     position: absolute;
     top: 0.5rem;
     left: 0.5rem;
-    z-index: 10;
+    z-index: var(--z-overlay);
     background: rgba(255, 255, 255, 0.95);
     border: 1px solid var(--protspace-tooltip-border);
     border-radius: 0.375rem;
@@ -251,7 +225,7 @@ export const scatterplotStyles = css`
     justify-content: space-between;
     gap: 0.75rem;
     margin-bottom: 0.25rem;
-    color: #5b6b7a;
+    color: var(--text-secondary);
     line-height: 1.4;
   }
 
@@ -261,12 +235,14 @@ export const scatterplotStyles = css`
 
   .projection-metadata-key {
     font-weight: 500;
-    color: #475569;
+    color: var(--muted);
   }
 
   .projection-metadata-value {
-    color: #64748b;
+    color: var(--muted);
     text-align: right;
     word-break: break-word;
   }
 `;
+
+export const scatterplotStyles = [tokens, overlayMixins, scatterplotStylesCore];

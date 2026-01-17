@@ -83,7 +83,7 @@ export const annotationSelectStyles = [
       font-weight: var(--font-semibold);
       text-transform: uppercase;
       color: var(--muted);
-      z-index: 1;
+      z-index: var(--z-base);
       box-sizing: border-box;
     }
 

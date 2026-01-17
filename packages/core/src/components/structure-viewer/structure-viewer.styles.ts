@@ -1,17 +1,19 @@
 import { css } from 'lit';
+import { tokens } from '../../styles/tokens';
+import { overlayMixins } from '../../styles/overlay-mixins';
 
-export const structureViewerStyles = css`
+const structureViewerStylesCore = css`
   :host {
     --protspace-viewer-width: 100%;
     --protspace-viewer-height: 100%;
-    --protspace-viewer-bg: #ffffff;
-    --protspace-viewer-border: #d9e2ec;
+    --protspace-viewer-bg: var(--surface);
+    --protspace-viewer-border: var(--border);
     --protspace-viewer-border-radius: 6px;
-    --protspace-viewer-header-bg: #f6f8fb;
-    --protspace-viewer-text: #334155;
-    --protspace-viewer-text-muted: #5b6b7a;
+    --protspace-viewer-header-bg: var(--disabled-bg);
+    --protspace-viewer-text: var(--text-primary);
+    --protspace-viewer-text-muted: var(--text-secondary);
     --protspace-viewer-error: #c53030;
-    --protspace-viewer-loading: #00a3e0;
+    --protspace-viewer-loading: var(--primary);
 
     display: flex;
     flex-direction: column;
@@ -120,30 +122,17 @@ export const structureViewerStyles = css`
     border-radius: 0 0 6px 6px;
   }
 
+  /* Base loading overlay styles provided by overlayMixins */
   .loading-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
+    /* Extend with column layout for text */
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
     background: rgba(255, 255, 255, 0.9);
-    z-index: 10;
-  }
-
-  .loading-spinner {
-    width: 2.5rem;
-    height: 2.5rem;
-    border: 2px solid #e5e7eb;
-    border-top: 2px solid var(--protspace-viewer-loading);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 1rem;
   }
 
   .loading-text {
     color: var(--protspace-viewer-text-muted);
     font-size: 0.875rem;
+    margin-top: 1rem;
   }
 
   .error-container {
@@ -154,7 +143,7 @@ export const structureViewerStyles = css`
     align-items: center;
     justify-content: center;
     background: var(--protspace-viewer-bg);
-    z-index: 10;
+    z-index: var(--z-overlay);
     padding: 2rem;
     border-radius: 0 0 6px 6px;
     text-align: center;
@@ -174,7 +163,7 @@ export const structureViewerStyles = css`
     align-items: center;
     justify-content: center;
     background: var(--protspace-viewer-bg);
-    z-index: 5;
+    z-index: var(--z-canvas);
     padding: 2rem;
     text-align: center;
   }
@@ -201,7 +190,7 @@ export const structureViewerStyles = css`
     align-items: flex-start;
     justify-content: center;
     padding: 0.2rem 0.5rem;
-    background: #f6f8fb;
+    background: var(--disabled-bg);
     column-gap: 5px;
     border-top: 1px solid var(--protspace-viewer-border);
     font-size: 0.75rem;
@@ -213,16 +202,11 @@ export const structureViewerStyles = css`
     font-weight: 600;
   }
 
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
-  }
+  /* Spin animation provided by overlayMixins */
 
   /* Dark mode support */
   @media (prefers-color-scheme: dark) {
   }
 `;
+
+export const structureViewerStyles = [tokens, overlayMixins, structureViewerStylesCore];

@@ -55,6 +55,25 @@ export const tokens = css`
     --hint: #d6d7da;
     --scrollbar: #cbd5e0;
     --hover-bg: #f7fafc;
+    --hover-bg-alt: #f0f4f8;
+    --active-bg: #e6f1f8;
+    --disabled-bg: #f6f8fb;
+
+    /* Border Variations */
+    --border-hover: #b8c5d0;
+
+    /* Text Hierarchy */
+    --text-primary: #334155;
+    --text-secondary: #5b6b7a;
+    --text-tertiary: #4a5568;
+
+    /* Dark Mode Support (for future) */
+    --surface-dark: #1f2937;
+    --border-dark: #374151;
+
+    /* Accent Colors */
+    --accent-purple: #7c3aed;
+    --accent-gray: #979595ff;
 
     /* Shadows */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -90,7 +109,19 @@ export const tokens = css`
 
     /* Layout */
     --dropdown-offset: 0.3125rem; /* 5px */
-    --dropdown-z: 100;
+
+    /* Z-Index Scale */
+    --z-base: 1;
+    --z-canvas: 1;
+    --z-badges: 2;
+    --z-svg: 3;
+    --z-overlay: 10;
+    --z-tooltip: 20;
+    --z-dropdown: 100;
+    --z-modal: 1000;
+
+    /* Legacy aliases for backward compatibility */
+    --dropdown-z: var(--z-dropdown);
 
     /* Component sizing */
     --input-padding-y: 0.375rem; /* 6px */
