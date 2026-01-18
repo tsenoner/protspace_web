@@ -1644,14 +1644,7 @@ export class ProtspaceScatterplot extends LitElement {
             `
           : ''}
         ${this._isolationMode
-          ? html`
-              <div
-                class="isolation-indicator"
-                style="z-index: 10; bottom: 10px; right: 10px; position: absolute; background: rgba(59, 130, 246, 0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;"
-              >
-                ${this._plotData.length} points
-              </div>
-            `
+          ? html` <div class="isolation-indicator">${this._plotData.length} points</div> `
           : ''}
       </div>
     `;

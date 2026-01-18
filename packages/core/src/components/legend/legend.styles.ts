@@ -1,6 +1,7 @@
 import { css } from 'lit';
 import { tokens } from '../../styles/tokens';
 import { overlayMixins } from '../../styles/overlay-mixins';
+import { buttonMixin } from '../../styles/mixins';
 
 const legendStylesCore = css`
   :host {
@@ -94,23 +95,6 @@ const legendStylesCore = css`
     font-size: 1rem;
     color: var(--legend-text-color);
     margin: 0;
-  }
-
-  .customize-button {
-    background: none;
-    border: none;
-    color: var(--legend-text-secondary);
-    cursor: pointer;
-    padding: 0.3rem 0.5rem;
-    border-radius: 4px;
-    transition:
-      color 0.15s ease,
-      background-color 0.4s ease;
-  }
-
-  .customize-button:hover {
-    color: var(--text-light);
-    background-color: var(--accent-gray);
   }
 
   .legend-items {
@@ -221,28 +205,6 @@ const legendStylesCore = css`
     color: var(--legend-text-color);
     width: 100%;
     overflow-wrap: anywhere;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .legend-text {
-    }
-  }
-
-  .view-button {
-    background: none;
-    border: none;
-    color: var(--primary);
-    cursor: pointer;
-    font-size: 0.75rem;
-    font-weight: 500;
-    margin-left: 0.25rem;
-    padding: 0.125rem 0.25rem;
-    border-radius: 0.25rem;
-    transition: color 0.2s ease;
-  }
-
-  .view-button:hover {
-    color: var(--primary-hover);
   }
 
   .legend-count {
@@ -475,36 +437,6 @@ const legendStylesCore = css`
     margin: 0;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .modal-title {
-    }
-  }
-
-  .close-button {
-    background: none;
-    border: none;
-    color: var(--legend-text-secondary);
-    cursor: pointer;
-    padding: 0.4rem 0.5rem;
-    border-radius: 0.25rem;
-    transition: color 0.2s ease;
-  }
-  .close-button:hover {
-    color: var(--protspace-viewer-text);
-    background: rgba(0, 0, 0, 0.04);
-  }
-
-  .close-button:hover {
-    color: var(--legend-text-color);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .close-button {
-    }
-    .close-button:hover {
-    }
-  }
-
   .modal-description {
     font-size: 0.875rem;
     color: var(--legend-text-secondary);
@@ -551,22 +483,6 @@ const legendStylesCore = css`
     color: var(--legend-text-secondary);
   }
 
-  .other-item .extract-button {
-    background: none;
-    border: none;
-    color: var(--primary);
-    cursor: pointer;
-    font-size: 0.875rem;
-    font-weight: 500;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    transition: color 0.2s ease;
-  }
-
-  .other-item .extract-button:hover {
-    color: var(--primary-hover);
-  }
-
   .modal-footer {
     display: flex;
     justify-content: flex-end;
@@ -574,59 +490,8 @@ const legendStylesCore = css`
   }
 
   .modal-reset-button {
-    background: transparent;
-    border: 1px solid var(--danger);
-    color: var(--danger);
-    cursor: pointer;
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    font-size: 0.875rem;
     margin-inline-end: auto;
-  }
-
-  .modal-reset-button:hover {
-    background: var(--danger);
-    color: white;
-    box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
-  }
-
-  .modal-close-button {
-    background: var(--legend-hover-bg);
-    border: 1px solid var(--legend-border);
-    color: var(--legend-text-color);
-    cursor: pointer;
-    padding: 0.5rem 1.25rem;
-    border-radius: 0.5rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    font-size: 0.875rem;
-  }
-
-  .modal-close-button:hover {
-    background: var(--legend-hidden-bg);
-    border-color: var(--border-hover);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-  }
-
-  .extract-button {
-    background: var(--primary);
-    border: 1px solid var(--primary);
-    color: white;
-    cursor: pointer;
-    font-size: 0.875rem;
-    font-weight: 600;
-    padding: 0.5rem 1.5rem;
-    border-radius: 0.5rem;
-    transition: all 0.2s ease;
-  }
-
-  .extract-button:hover {
-    background: var(--primary-hover);
-    border-color: var(--primary-hover);
-    box-shadow: 0 2px 6px rgba(0, 163, 224, 0.3);
   }
 `;
 
-export const legendStyles = [tokens, overlayMixins, legendStylesCore];
+export const legendStyles = [tokens, overlayMixins, buttonMixin, legendStylesCore];

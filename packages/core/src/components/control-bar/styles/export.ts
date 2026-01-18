@@ -50,10 +50,6 @@ export const exportStyles = css`
     gap: var(--spacing-xs);
   }
 
-  .export-format-btn {
-    padding: var(--button-padding-y) var(--spacing-sm);
-  }
-
   .export-slider {
     width: 100%;
     height: 3px;
@@ -115,11 +111,5 @@ export const exportStyles = css`
 
   .export-action-btn {
     flex: 1;
-    padding: var(--button-padding-y) var(--spacing-md);
-    font-weight: var(--font-medium);
-  }
-
-  .export-reset-btn {
-    padding: var(--button-padding-y) var(--spacing-md);
   }
 `;

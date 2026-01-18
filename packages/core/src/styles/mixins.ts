@@ -35,44 +35,152 @@ export const inputMixin = css`
 `;
 
 /**
- * Base Button Component
- * Provides consistent styling and states for all button elements
+ * Comprehensive Button Variant System
+ * Provides consistent styling for all button types across the application
+ * Based on the legend component's excellent button designs
  */
 export const buttonMixin = css`
-  /* Base button component - shared across all buttons */
+  /* Base button styles - applies to all variants */
   .btn,
   button {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: var(--spacing-xs);
-    padding: var(--button-padding-y) var(--button-padding-x);
-    border: var(--border-width) solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--muted);
-    font-size: var(--text-base);
     cursor: pointer;
-    transition: var(--transition);
-    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+    font-size: var(--text-base);
+    line-height: 1.5;
+    border: none;
+    background: none;
     max-width: 100%;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    box-sizing: border-box;
   }
 
-  .btn:hover:not(:disabled),
-  button:hover:not(:disabled) {
-    background: var(--primary-light);
+  /* Primary variant - legend extract-button style */
+  .btn-primary,
+  button.btn-primary {
+    background: var(--primary);
+    border: 1px solid var(--primary);
+    color: var(--text-light);
+    padding: var(--button-padding-y) var(--button-padding-x);
+    border-radius: var(--radius);
+    font-weight: 500;
   }
 
+  .btn-primary:hover,
+  button.btn-primary:hover {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+    box-shadow: 0 2px 6px rgba(0, 163, 224, 0.3);
+  }
+
+  /* Secondary variant - legend modal-close-button style */
+  .btn-secondary,
+  button.btn-secondary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: var(--button-padding-y) var(--button-padding-x);
+    border-radius: var(--radius);
+    font-weight: 500;
+  }
+
+  .btn-secondary:hover,
+  button.btn-secondary:hover {
+    background: var(--hover-bg-alt);
+    border-color: var(--border-hover);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Danger variant - legend modal-reset-button style */
+  .btn-danger,
+  button.btn-danger {
+    background: transparent;
+    border: 1px solid var(--danger-border);
+    color: var(--danger);
+    padding: var(--button-padding-y) var(--button-padding-x);
+    border-radius: var(--radius);
+    font-weight: 500;
+  }
+
+  .btn-danger:hover,
+  button.btn-danger:hover {
+    background: var(--danger-hover);
+    border-color: var(--danger-hover);
+    color: var(--text-light);
+    box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+  }
+
+  /* Text-link variant - legend view-button style */
+  .btn-link,
+  button.btn-link {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-weight: 500;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+  }
+
+  .btn-link:hover,
+  button.btn-link:hover {
+    color: var(--primary-hover);
+  }
+
+  /* Icon-only variant - legend customize-button style */
+  .btn-icon,
+  button.btn-icon {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.3rem 0.5rem;
+    border-radius: 0.25rem;
+  }
+
+  .btn-icon:hover,
+  button.btn-icon:hover {
+    color: var(--text-light);
+    background: var(--accent-gray);
+  }
+
+  /* Icon-only close button - legend/structure-viewer close-button style */
+  .btn-close,
+  button.btn-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.5rem 0.7rem;
+    border-radius: 0.25rem;
+  }
+
+  .btn-close:hover,
+  button.btn-close:hover {
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  /* Compact variant - smaller padding for dense UIs */
+  .btn-compact,
+  button.btn-compact {
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: var(--text-sm);
+  }
+
+  /* Disabled state - applies to all variants */
   .btn:disabled,
-  button:disabled {
+  button:disabled,
+  .btn[disabled],
+  button[disabled] {
     opacity: 0.5;
     cursor: not-allowed;
+    pointer-events: none;
   }
 
-  /* Active/selected state - SAME EVERYWHERE: white text on blue background */
+  /* Legacy support - active/selected state maps to primary variant */
   .btn.active,
   .btn.selected,
   button.active,
@@ -89,11 +197,6 @@ export const buttonMixin = css`
   button.selected:hover:not(:disabled) {
     background: var(--primary-hover);
     border-color: var(--primary-hover);
-  }
-
-  /* Legacy support for existing classes */
-  .right-controls-button {
-    /* Inherits from button base styles above */
   }
 `;
 
@@ -198,7 +301,7 @@ export const dropdownMixin = css`
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
-    z-index: var(--dropdown-z);
+    z-index: var(--z-dropdown);
     display: flex;
     flex-direction: column;
     max-height: 50vh;

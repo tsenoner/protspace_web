@@ -28,7 +28,7 @@ function renderOtherItem(item: OtherItem, callbacks: OtherDialogCallbacks): Temp
         <span class="other-item-name">${toDisplayValue(item.value)}</span>
         <span class="other-item-count">(${item.count})</span>
       </div>
-      <button class="extract-button" @click=${() => callbacks.onExtract(item.value)}>
+      <button class="btn-link extract-button" @click=${() => callbacks.onExtract(item.value)}>
         Extract
       </button>
     </div>
@@ -73,7 +73,11 @@ export function renderOtherDialog(
       >
         <div class="modal-header">
           <h3 id="other-dialog-title" class="modal-title">Extract from 'Other' category</h3>
-          <button class="close-button" @click=${callbacks.onClose} aria-label="Close dialog">
+          <button
+            class="btn-close close-button"
+            @click=${callbacks.onClose}
+            aria-label="Close dialog"
+          >
             ${renderCloseIcon()}
           </button>
         </div>
@@ -88,7 +92,9 @@ export function renderOtherDialog(
         </div>
 
         <div class="modal-footer">
-          <button class="modal-close-button" @click=${callbacks.onClose}>Close</button>
+          <button class="btn-secondary modal-close-button" @click=${callbacks.onClose}>
+            Close
+          </button>
         </div>
       </div>
     </div>

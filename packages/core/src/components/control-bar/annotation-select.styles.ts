@@ -1,6 +1,6 @@
 import { css } from 'lit';
 import { tokens } from '../../styles/tokens';
-import { inputMixin, dropdownMixin } from '../../styles/mixins';
+import { buttonMixin, inputMixin, dropdownMixin } from '../../styles/mixins';
 
 /**
  * Annotation Select Component Styles
@@ -11,6 +11,7 @@ import { inputMixin, dropdownMixin } from '../../styles/mixins';
  */
 export const annotationSelectStyles = [
   tokens,
+  buttonMixin,
   inputMixin,
   dropdownMixin,
   css`
@@ -26,6 +27,8 @@ export const annotationSelectStyles = [
       width: 100%;
       max-width: 100%;
     }
+
+    /* Ensure dropdown-trigger padding matches (inherited from dropdownMixin) */
 
     /* Override dropdown menu to match projection dropdown exactly */
     .dropdown-menu {

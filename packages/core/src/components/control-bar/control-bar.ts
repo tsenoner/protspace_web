@@ -403,8 +403,8 @@ export class ProtspaceControlBar extends LitElement {
 
           <button
             class=${this.selectionMode
-              ? 'right-controls-button right-controls-select active'
-              : 'right-controls-select right-controls-button'}
+              ? 'btn-primary right-controls-button right-controls-select'
+              : 'btn-secondary right-controls-select right-controls-button'}
             ?disabled=${this._selectionDisabled}
             @click=${this.handleToggleSelectionMode}
             title=${this._selectionDisabled
@@ -433,7 +433,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Clear selections button -->
           <button
-            class="right-controls-button right-controls-clear"
+            class="btn-secondary right-controls-button right-controls-clear"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleClearSelections}
             title="Clear all selected proteins"
@@ -446,7 +446,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Isolate data button -->
           <button
-            class="right-controls-button right-controls-split"
+            class="btn-secondary right-controls-button right-controls-split"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleSplitData}
             title="Isolate selected proteins to focus on them"
@@ -470,7 +470,7 @@ export class ProtspaceControlBar extends LitElement {
                 <button
                   @click=${this.handleResetSplit}
                   title="Reset to original dataset"
-                  class="active"
+                  class="btn-secondary"
                 >
                   <svg class="icon" viewBox="0 0 24 24">
                     <path
@@ -545,10 +545,16 @@ export class ProtspaceControlBar extends LitElement {
                             ? html`
                                 <div class="filter-menu-list-item-options">
                                   <div class="filter-menu-list-item-options-selection">
-                                    <button @click=${() => this.selectAllValues(annotation)}>
+                                    <button
+                                      class="btn-compact"
+                                      @click=${() => this.selectAllValues(annotation)}
+                                    >
                                       Select all
                                     </button>
-                                    <button @click=${() => this.clearAllValues(annotation)}>
+                                    <button
+                                      class="btn-danger btn-compact"
+                                      @click=${() => this.clearAllValues(annotation)}
+                                    >
                                       None
                                     </button>
                                   </div>
@@ -594,7 +600,7 @@ export class ProtspaceControlBar extends LitElement {
                                   </div>
                                   <div class="filter-menu-list-item-options-done">
                                     <button
-                                      class="active"
+                                      class="btn-primary"
                                       @click=${() => this.toggleValueMenu(annotation)}
                                     >
                                       Done
@@ -608,13 +614,14 @@ export class ProtspaceControlBar extends LitElement {
                     </ul>
                     <div class="filter-menu-buttons">
                       <button
+                        class="btn-secondary"
                         @click=${() => {
                           this.showFilterMenu = false;
                         }}
                       >
                         Cancel
                       </button>
-                      <button @click=${this.applyFilters} class="active">Apply</button>
+                      <button class="btn-primary" @click=${this.applyFilters}>Apply</button>
                     </div>
                   </div>
                 `
@@ -654,7 +661,9 @@ export class ProtspaceControlBar extends LitElement {
                         <label class="export-option-label">Format</label>
                         <div class="export-format-options">
                           <button
-                            class="export-format-btn ${this.exportFormat === 'png' ? 'active' : ''}"
+                            class="btn-compact export-format-btn ${this.exportFormat === 'png'
+                              ? 'active'
+                              : ''}"
                             @click=${() => {
                               this.exportFormat = 'png';
                             }}
@@ -663,7 +672,9 @@ export class ProtspaceControlBar extends LitElement {
                             PNG
                           </button>
                           <button
-                            class="export-format-btn ${this.exportFormat === 'pdf' ? 'active' : ''}"
+                            class="btn-compact export-format-btn ${this.exportFormat === 'pdf'
+                              ? 'active'
+                              : ''}"
                             @click=${() => {
                               this.exportFormat = 'pdf';
                             }}
@@ -672,7 +683,7 @@ export class ProtspaceControlBar extends LitElement {
                             PDF
                           </button>
                           <button
-                            class="export-format-btn ${this.exportFormat === 'json'
+                            class="btn-compact export-format-btn ${this.exportFormat === 'json'
                               ? 'active'
                               : ''}"
                             @click=${() => {
@@ -683,7 +694,9 @@ export class ProtspaceControlBar extends LitElement {
                             JSON
                           </button>
                           <button
-                            class="export-format-btn ${this.exportFormat === 'ids' ? 'active' : ''}"
+                            class="btn-compact export-format-btn ${this.exportFormat === 'ids'
+                              ? 'active'
+                              : ''}"
                             @click=${() => {
                               this.exportFormat = 'ids';
                             }}
@@ -821,10 +834,16 @@ export class ProtspaceControlBar extends LitElement {
                             </div>
 
                             <div class="export-actions">
-                              <button class="export-reset-btn" @click=${this.resetExportSettings}>
+                              <button
+                                class="btn-danger export-reset-btn"
+                                @click=${this.resetExportSettings}
+                              >
                                 Reset
                               </button>
-                              <button class="export-action-btn active" @click=${this.handleExport}>
+                              <button
+                                class="btn-primary export-action-btn"
+                                @click=${this.handleExport}
+                              >
                                 <svg class="icon" viewBox="0 0 24 24">
                                   <path
                                     stroke-linecap="round"
@@ -837,7 +856,10 @@ export class ProtspaceControlBar extends LitElement {
                             </div>
                           `
                         : html`
-                            <button class="export-action-btn" @click=${this.handleExport}>
+                            <button
+                              class="btn-primary export-action-btn"
+                              @click=${this.handleExport}
+                            >
                               <svg class="icon" viewBox="0 0 24 24">
                                 <path
                                   stroke-linecap="round"
@@ -854,7 +876,7 @@ export class ProtspaceControlBar extends LitElement {
               : ''}
           </div>
           <div class="export-container right-controls-data">
-            <button @click=${this.openFileDialog} title="Import Data">
+            <button class="btn-secondary" @click=${this.openFileDialog} title="Import Data">
               <svg class="icon" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"

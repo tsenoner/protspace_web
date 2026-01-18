@@ -243,6 +243,21 @@ const scatterplotStylesCore = css`
     text-align: right;
     word-break: break-word;
   }
+
+  /* Isolation mode indicator */
+  .isolation-indicator {
+    position: absolute;
+    bottom: var(--spacing-md);
+    right: var(--spacing-md);
+    z-index: 10;
+    background: var(--primary);
+    color: var(--text-light);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius);
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    box-shadow: var(--shadow-md);
+  }
 `;
 
 export const scatterplotStyles = [tokens, overlayMixins, scatterplotStylesCore];

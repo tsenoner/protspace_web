@@ -47,7 +47,7 @@ export const tokens = css`
 
     /* Destructive Actions */
     --danger: #e42121;
-    --danger-hover: #c20909;
+    --danger-hover: #dc1f1f;
     --danger-border: #d06868;
 
     /* Additional UI Colors */
@@ -119,9 +119,6 @@ export const tokens = css`
     --z-tooltip: 20;
     --z-dropdown: 100;
     --z-modal: 1000;
-
-    /* Legacy aliases for backward compatibility */
-    --dropdown-z: var(--z-dropdown);
 
     /* Component sizing */
     --input-padding-y: 0.375rem; /* 6px */

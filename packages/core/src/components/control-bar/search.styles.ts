@@ -1,6 +1,6 @@
 import { css } from 'lit';
 import { tokens } from '../../styles/tokens';
-import { dropdownMixin } from '../../styles/mixins';
+import { dropdownMixin, buttonMixin } from '../../styles/mixins';
 
 /**
  * Protein Search Component Styles
@@ -10,6 +10,7 @@ import { dropdownMixin } from '../../styles/mixins';
 export const searchStyles = [
   tokens,
   dropdownMixin,
+  buttonMixin,
   css`
     :host {
       display: block;
@@ -47,19 +48,6 @@ export const searchStyles = [
       border-radius: 999px;
       font-size: var(--text-sm);
       white-space: nowrap;
-    }
-
-    .search-chip-remove {
-      padding: 0;
-      border: none;
-      background: transparent;
-      color: var(--muted);
-      font-weight: var(--font-bold);
-      cursor: pointer;
-    }
-
-    .search-chip-remove:hover {
-      color: var(--text-dark);
     }
 
     .search-input {
@@ -110,7 +98,7 @@ export const searchStyles = [
       border-radius: var(--radius);
       box-shadow: var(--shadow-lg);
       overflow-y: auto;
-      z-index: var(--dropdown-z);
+      z-index: var(--z-dropdown);
     }
 
     .search-suggestion {

@@ -46,7 +46,6 @@ export const filterStyles = css`
 
   .filter-menu-list-item > button {
     margin-left: var(--spacing-lg);
-    padding: var(--button-padding-y) var(--spacing-md);
   }
 
   .filter-menu-list-item-options {
@@ -71,22 +70,8 @@ export const filterStyles = css`
   }
 
   .filter-menu-list-item-options-selection > button {
-    padding: var(--spacing-xs) var(--spacing-md);
     flex: 1;
     min-width: 0;
-    /* Hover behavior inherited from buttonMixin */
-  }
-
-  /* Danger button styling for "None" button */
-  .filter-menu-list-item-options-selection > button:last-child {
-    background: var(--danger);
-    border-color: var(--danger-border);
-    color: var(--text-light);
-    font-weight: var(--font-bold);
-  }
-
-  .filter-menu-list-item-options-selection > button:last-child:hover:not(:disabled) {
-    background: var(--danger-hover);
   }
 
   .filter-menu-list-item-options-inputs {
@@ -138,19 +123,11 @@ export const filterStyles = css`
 
   .filter-menu-list-item-options-done > button {
     width: 100%;
-    padding: var(--button-padding-y) var(--spacing-lg);
-    font-weight: var(--font-bold);
-    /* Use .active class for primary button styling - inherits from buttonMixin */
   }
 
   .filter-menu-buttons {
     display: flex;
     justify-content: space-between;
     gap: var(--spacing-sm);
-  }
-
-  .filter-menu-buttons > button {
-    padding: var(--button-padding-y) var(--spacing-lg);
-    /* Hover behavior inherited from buttonMixin */
   }
 `;
