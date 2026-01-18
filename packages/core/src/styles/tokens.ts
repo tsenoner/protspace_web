@@ -86,6 +86,14 @@ export const tokens = css`
     --spacing-md: 0.75rem; /* 12px */
     --spacing-lg: 1rem; /* 16px */
 
+    /* Breakpoints (mobile-first approach) */
+    --breakpoint-xs: 550px; /* Mobile */
+    --breakpoint-sm: 600px; /* Small tablets */
+    --breakpoint-md: 800px; /* Tablets */
+    --breakpoint-lg: 950px; /* Small desktop */
+    --breakpoint-xl: 1200px; /* Desktop */
+    --breakpoint-2xl: 1450px; /* Large desktop */
+
     /* Border & Radius */
     --border-width: 1px;
     --radius: 0.25rem; /* 4px */

@@ -32,18 +32,6 @@ const structureViewerStylesCore = css`
     border-radius: 6px;
   }
 
-  @media (max-width: 950px) {
-    :host {
-      width: calc(50% - 6px);
-    }
-  }
-
-  @media (max-width: 550px) {
-    :host {
-      width: 100%;
-    }
-  }
-
   .header {
     display: flex;
     justify-content: space-between;
@@ -192,6 +180,22 @@ const structureViewerStylesCore = css`
   }
 
   /* Spin animation provided by overlayMixins */
+
+  /* ----------------------------- Responsive ------------------------------------ */
+
+  @media (max-width: 950px) {
+    /* --breakpoint-lg */
+    :host {
+      width: calc(50% - 6px);
+    }
+  }
+
+  @media (max-width: 550px) {
+    /* --breakpoint-xs */
+    :host {
+      width: 100%;
+    }
+  }
 `;
 
 export const structureViewerStyles = [

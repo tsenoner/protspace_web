@@ -10,6 +10,7 @@ import { css } from 'lit';
 export const responsiveStyles = css`
   /* Large screens: allow wrapping to multiple rows */
   @media (max-width: 1450px) {
+    /* --breakpoint-2xl */
     .control-bar {
       flex-wrap: wrap;
       gap: var(--spacing-sm);
@@ -41,6 +42,7 @@ export const responsiveStyles = css`
 
   /* Progressive shrinking: reduce padding when space is tight */
   @media (max-width: 1300px) {
+    /* Custom breakpoint (between --breakpoint-xl and --breakpoint-2xl) */
     .dropdown-trigger {
       min-width: 6rem;
       padding: var(--input-padding-y) var(--spacing-sm);
@@ -59,6 +61,7 @@ export const responsiveStyles = css`
 
   /* Trigger three-row layout earlier to prevent label hiding */
   @media (max-width: 1200px) {
+    /* --breakpoint-xl */
     .control-bar {
       flex-wrap: wrap;
       gap: var(--spacing-sm);
@@ -87,7 +90,12 @@ export const responsiveStyles = css`
       flex: 1;
       min-width: 0;
       max-width: none;
+    }
+
+    /* Allow text truncation in dropdowns but not clip menus */
+    .left-controls .dropdown-trigger {
       overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .projection-container .dropdown-trigger,
@@ -125,7 +133,12 @@ export const responsiveStyles = css`
       width: 100%;
       flex: 1;
       min-width: 0;
+    }
+
+    /* Allow text truncation in dropdown triggers but not clip menus */
+    .right-controls .dropdown-trigger {
       overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     /* Reset minimum widths for full-width layout */
@@ -141,6 +154,7 @@ export const responsiveStyles = css`
 
   /* Hide icons FIRST when space gets tight (before chevrons) */
   @media (max-width: 800px) {
+    /* --breakpoint-md */
     .right-controls .icon {
       display: none;
     }
@@ -153,6 +167,7 @@ export const responsiveStyles = css`
 
   /* Hide chevrons in right-controls as LAST RESORT */
   @media (max-width: 600px) {
+    /* --breakpoint-sm */
     .right-controls .chevron-down {
       display: none;
     }
@@ -165,6 +180,7 @@ export const responsiveStyles = css`
 
   /* Hide left-controls chevrons only as last resort */
   @media (max-width: 550px) {
+    /* --breakpoint-xs */
     .left-controls .chevron-down {
       display: none;
     }
@@ -177,6 +193,7 @@ export const responsiveStyles = css`
 
   /* Small screens: reduce margins to prevent search cutoff */
   @media (max-width: 950px) {
+    /* --breakpoint-lg */
     .control-bar {
       min-width: 0;
       padding: var(--spacing-sm);
