@@ -10,6 +10,7 @@ import type {
 } from './types';
 import { LEGEND_VALUES } from '@protspace/utils';
 import { toInternalValue } from '../legend/config';
+import { handleDropdownEscape, isAnyDropdownOpen } from '../../utils/dropdown-helpers';
 import './search';
 import './annotation-select';
 
@@ -52,6 +53,8 @@ export class ProtspaceControlBar extends LitElement {
   @state() private lastAppliedFilterConfig: Record<string, { enabled: boolean; values: string[] }> =
     {};
   @state() private openValueMenus: Record<string, boolean> = {};
+  @state() private projectionHighlightIndex: number = -1;
+  @state() private filterHighlightIndex: number = -1;
 
   // Export defaults - single source of truth
   static readonly EXPORT_DEFAULTS = {
@@ -93,13 +96,33 @@ export class ProtspaceControlBar extends LitElement {
 
   static styles = controlBarStyles;
 
-  private toggleProjectionMenu() {
+  private toggleProjectionMenu(event?: Event) {
+    event?.stopPropagation();
     this.showProjectionMenu = !this.showProjectionMenu;
+    if (this.showProjectionMenu) {
+      // Close other dropdowns when opening this one
+      this.showFilterMenu = false;
+      this.showExportMenu = false;
+      // Close annotation via event
+      this.shadowRoot
+        ?.querySelector('protspace-annotation-select')
+        ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
+      // Close search via event
+      this.shadowRoot
+        ?.querySelector('protspace-protein-search')
+        ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
+      // Initialize highlight to current selection or first item
+      const currentIndex = this.projections.findIndex((p) => p === this.selectedProjection);
+      this.projectionHighlightIndex = currentIndex >= 0 ? currentIndex : 0;
+    } else {
+      this.projectionHighlightIndex = -1;
+    }
   }
 
   private selectProjection(projection: string) {
     this.selectedProjection = projection;
     this.showProjectionMenu = false;
+    this.projectionHighlightIndex = -1;
 
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
@@ -125,6 +148,113 @@ export class ProtspaceControlBar extends LitElement {
       composed: true,
     });
     this.dispatchEvent(customEvent);
+  }
+
+  private handleProjectionKeydown(event: KeyboardEvent) {
+    if (!this.showProjectionMenu) {
+      // Handle trigger button keys
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        this.toggleProjectionMenu();
+      }
+      return;
+    }
+
+    this.handleDropdownKeydown(event, {
+      items: this.projections,
+      highlightIndex: this.projectionHighlightIndex,
+      onHighlightChange: (index) => {
+        this.projectionHighlightIndex = index;
+      },
+      onSelect: (index) => {
+        this.selectProjection(this.projections[index]);
+      },
+      onClose: () => {
+        this.showProjectionMenu = false;
+        this.projectionHighlightIndex = -1;
+      },
+      supportHomeEnd: true,
+    });
+  }
+
+  /**
+   * Shared keyboard navigation handler for all dropdowns
+   * Centralizes common keyboard navigation logic following DRY principle
+   */
+  private handleDropdownKeydown(
+    event: KeyboardEvent,
+    options: {
+      items: unknown[];
+      highlightIndex: number;
+      onHighlightChange: (index: number) => void;
+      onSelect: (index: number) => void;
+      onClose: () => void;
+      supportHomeEnd?: boolean;
+    },
+  ) {
+    const { items, highlightIndex, onHighlightChange, onSelect, onClose, supportHomeEnd } = options;
+
+    switch (event.key) {
+      case 'Escape':
+        handleDropdownEscape(event, onClose);
+        break;
+      case 'ArrowDown':
+        event.preventDefault();
+        if (items.length > 0) {
+          const nextIndex = Math.min(highlightIndex + 1, items.length - 1);
+          onHighlightChange(nextIndex);
+          this.scrollDropdownItemIntoView();
+        }
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        if (items.length > 0) {
+          const nextIndex = Math.max(highlightIndex - 1, 0);
+          onHighlightChange(nextIndex);
+          this.scrollDropdownItemIntoView();
+        }
+        break;
+      case 'Home':
+        if (supportHomeEnd) {
+          event.preventDefault();
+          if (items.length > 0) {
+            onHighlightChange(0);
+            this.scrollDropdownItemIntoView();
+          }
+        }
+        break;
+      case 'End':
+        if (supportHomeEnd) {
+          event.preventDefault();
+          if (items.length > 0) {
+            onHighlightChange(items.length - 1);
+            this.scrollDropdownItemIntoView();
+          }
+        }
+        break;
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        if (highlightIndex >= 0 && highlightIndex < items.length) {
+          onSelect(highlightIndex);
+        }
+        break;
+    }
+  }
+
+  /**
+   * Shared helper to scroll highlighted dropdown item into view
+   * Works for all dropdown types (.dropdown-item, .filter-menu-list-item)
+   */
+  private scrollDropdownItemIntoView() {
+    this.updateComplete.then(() => {
+      const highlighted =
+        this.shadowRoot?.querySelector('.dropdown-item.highlighted') ||
+        this.shadowRoot?.querySelector('.filter-menu-list-item.highlighted');
+      if (highlighted) {
+        highlighted.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
   }
 
   private handlePlaneChange(event: Event) {
@@ -261,8 +391,47 @@ export class ProtspaceControlBar extends LitElement {
     this.showExportMenu = false;
   }
 
-  private toggleExportMenu() {
+  private toggleExportMenu(event?: Event) {
+    event?.stopPropagation();
     this.showExportMenu = !this.showExportMenu;
+    if (this.showExportMenu) {
+      // Close other dropdowns when opening this one
+      this.showProjectionMenu = false;
+      this.showFilterMenu = false;
+      // Close annotation via event
+      this.shadowRoot
+        ?.querySelector('protspace-annotation-select')
+        ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
+      // Close search via event
+      this.shadowRoot
+        ?.querySelector('protspace-protein-search')
+        ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
+      // Auto-focus first format button when opening
+      this.updateComplete.then(() => {
+        const firstFormatBtn = this.shadowRoot?.querySelector(
+          '.export-format-btn',
+        ) as HTMLButtonElement | null;
+        firstFormatBtn?.focus();
+      });
+    }
+  }
+
+  private handleExportKeydown(event: KeyboardEvent) {
+    if (!this.showExportMenu) {
+      // Handle trigger button keys
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        this.toggleExportMenu();
+      }
+      return;
+    }
+
+    // Only handle Escape to close (native form navigation handles the rest)
+    if (event.key === 'Escape') {
+      handleDropdownEscape(event, () => {
+        this.showExportMenu = false;
+      });
+    }
   }
 
   private resetExportSettings() {
@@ -317,6 +486,7 @@ export class ProtspaceControlBar extends LitElement {
                 id="projection-trigger"
                 class="dropdown-trigger ${this.showProjectionMenu ? 'open' : ''}"
                 @click=${this.toggleProjectionMenu}
+                @keydown=${this.handleProjectionKeydown}
                 aria-haspopup="listbox"
                 aria-expanded=${this.showProjectionMenu}
               >
@@ -330,17 +500,26 @@ export class ProtspaceControlBar extends LitElement {
 
               ${this.showProjectionMenu
                 ? html`
-                    <div class="dropdown-menu align-left" role="listbox">
+                    <div
+                      class="dropdown-menu align-left"
+                      role="listbox"
+                      @keydown=${this.handleProjectionKeydown}
+                    >
                       <div class="dropdown-list">
                         ${this.projections.map(
-                          (projection) => html`
+                          (projection, index) => html`
                             <div
                               class="dropdown-item ${projection === this.selectedProjection
                                 ? 'selected'
+                                : ''} ${index === this.projectionHighlightIndex
+                                ? 'highlighted'
                                 : ''}"
                               role="option"
                               aria-selected=${projection === this.selectedProjection}
                               @click=${() => this.selectProjection(projection)}
+                              @mouseenter=${() => {
+                                this.projectionHighlightIndex = index;
+                              }}
                             >
                               ${projection}
                             </div>
@@ -489,6 +668,7 @@ export class ProtspaceControlBar extends LitElement {
             <button
               class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''}"
               @click=${this.toggleFilterMenu}
+              @keydown=${this.handleFilterKeydown}
               title="Filter Options"
             >
               <svg class="icon" viewBox="0 0 24 24">
@@ -502,15 +682,22 @@ export class ProtspaceControlBar extends LitElement {
 
             ${this.showFilterMenu
               ? html`
-                  <div class="filter-menu">
+                  <div class="filter-menu" @keydown=${this.handleFilterKeydown}>
                     <ul class="filter-menu-list">
-                      ${this.annotations.map((annotation) => {
+                      ${this.annotations.map((annotation, index) => {
                         const cfg = this.filterConfig[annotation] || {
                           enabled: false,
                           values: [],
                         };
                         const values = this.annotationValuesMap[annotation] || [];
-                        return html` <li class="filter-menu-list-item">
+                        return html` <li
+                          class="filter-menu-list-item ${index === this.filterHighlightIndex
+                            ? 'highlighted'
+                            : ''}"
+                          @mouseenter=${() => {
+                            this.filterHighlightIndex = index;
+                          }}
+                        >
                           <label
                             >${annotation}
                             <input
@@ -633,6 +820,7 @@ export class ProtspaceControlBar extends LitElement {
             <button
               class="dropdown-trigger ${this.showExportMenu ? 'open' : ''}"
               @click=${this.toggleExportMenu}
+              @keydown=${this.handleExportKeydown}
               title="Export Options"
             >
               <svg class="icon" viewBox="0 0 24 24">
@@ -650,7 +838,7 @@ export class ProtspaceControlBar extends LitElement {
 
             ${this.showExportMenu
               ? html`
-                  <div class="export-menu">
+                  <div class="export-menu" @keydown=${this.handleExportKeydown}>
                     <div class="export-menu-header">
                       <span>Export Options</span>
                     </div>
@@ -892,11 +1080,32 @@ export class ProtspaceControlBar extends LitElement {
     `;
   }
 
-  // Close export menu when clicking outside
   connectedCallback() {
     super.connectedCallback();
     document.addEventListener('click', this._onDocumentClick);
     document.addEventListener('keydown', this._onDocumentKeydown);
+
+    // Listen for annotation opening
+    this.addEventListener('annotation-opened', () => {
+      this.showProjectionMenu = false;
+      this.showFilterMenu = false;
+      this.showExportMenu = false;
+      // Close search when annotation opens
+      this.shadowRoot
+        ?.querySelector('protspace-protein-search')
+        ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
+    });
+
+    // Listen for search opening
+    this.addEventListener('search-opened', () => {
+      this.showProjectionMenu = false;
+      this.showFilterMenu = false;
+      this.showExportMenu = false;
+      // Close annotation when search opens
+      this.shadowRoot
+        ?.querySelector('protspace-annotation-select')
+        ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
+    });
 
     if (this.autoSync) {
       this._setupAutoSync();
@@ -932,11 +1141,25 @@ export class ProtspaceControlBar extends LitElement {
     if (inAriaModal) return;
 
     if (event.key === 'Escape') {
+      // Don't handle Escape if any dropdown is open (they handle it themselves)
+      if (
+        isAnyDropdownOpen({
+          projection: this.showProjectionMenu,
+          filter: this.showFilterMenu,
+          export: this.showExportMenu,
+        })
+      ) {
+        return;
+      }
+
+      // First priority: Clear selections if any exist
       if (this.selectedProteinsCount > 0) {
         event.preventDefault();
         event.stopPropagation();
         this.handleClearSelections();
-      } else if (this.selectionMode) {
+      }
+      // Second priority: Turn off selection mode
+      else if (this.selectionMode) {
         event.preventDefault();
         event.stopPropagation();
         this.handleToggleSelectionMode();
@@ -945,11 +1168,46 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private handleDocumentClick(event: Event) {
-    if (!this.contains(event.target as Node)) {
+    const path = (event as Event & { composedPath?: () => EventTarget[] }).composedPath?.() || [];
+
+    // Check if click is inside ANY open dropdown menu
+    const dropdownElements = [
+      this.shadowRoot?.querySelector('.dropdown-menu.align-left'), // Projection
+      this.shadowRoot?.querySelector('.filter-menu'), // Filter
+      this.shadowRoot?.querySelector('.export-menu'), // Export
+      // Get annotation-select element
+      this.shadowRoot?.querySelector('protspace-annotation-select'),
+      // Get search element
+      this.shadowRoot?.querySelector('protspace-protein-search'),
+    ].filter(Boolean);
+
+    const clickInsideDropdown = dropdownElements.some((el) => {
+      if (!el) return false;
+      // Check both the element itself and its shadow root contents
+      return path.includes(el) || (el as HTMLElement).contains(event.target as Node);
+    });
+
+    // Close ALL dropdowns if click is outside all dropdown menus
+    if (!clickInsideDropdown) {
+      // Close control-bar dropdowns
       this.showExportMenu = false;
       this.showFilterMenu = false;
       this.showProjectionMenu = false;
       this.openValueMenus = {};
+      this.projectionHighlightIndex = -1;
+      this.filterHighlightIndex = -1;
+
+      // Close annotation dropdown via custom event
+      const annotationSelect = this.shadowRoot?.querySelector('protspace-annotation-select');
+      if (annotationSelect) {
+        annotationSelect.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
+      }
+
+      // Close search suggestions via custom event
+      const searchElement = this.shadowRoot?.querySelector('protspace-protein-search');
+      if (searchElement) {
+        searchElement.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
+      }
     }
   }
 
@@ -1371,10 +1629,22 @@ export class ProtspaceControlBar extends LitElement {
     );
   }
 
-  private toggleFilterMenu() {
+  private toggleFilterMenu(event?: Event) {
+    event?.stopPropagation();
     const opening = !this.showFilterMenu;
     this.showFilterMenu = opening;
     if (opening) {
+      // Close other dropdowns when opening this one
+      this.showProjectionMenu = false;
+      this.showExportMenu = false;
+      // Close annotation via event
+      this.shadowRoot
+        ?.querySelector('protspace-annotation-select')
+        ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
+      // Close search via event
+      this.shadowRoot
+        ?.querySelector('protspace-protein-search')
+        ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
       // Restore last applied configuration if available
       if (this.lastAppliedFilterConfig && Object.keys(this.lastAppliedFilterConfig).length > 0) {
         const merged: typeof this.filterConfig = { ...this.filterConfig };
@@ -1386,7 +1656,79 @@ export class ProtspaceControlBar extends LitElement {
         this.filterConfig = merged;
         this.openValueMenus = {};
       }
+      // Initialize highlight to first item
+      this.filterHighlightIndex = 0;
+    } else {
+      this.filterHighlightIndex = -1;
     }
+  }
+
+  private handleFilterKeydown(event: KeyboardEvent) {
+    if (!this.showFilterMenu) {
+      // Handle trigger button keys
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        this.toggleFilterMenu();
+      }
+      return;
+    }
+
+    // Check if any submenu is open - if so, allow native checkbox navigation
+    const hasOpenSubmenu = Object.values(this.openValueMenus).some((isOpen) => isOpen);
+    if (hasOpenSubmenu) {
+      // Let Tab and Shift+Tab work naturally for checkboxes in submenu
+      if (event.key === 'Tab') {
+        return; // Allow default Tab behavior
+      }
+      // Escape closes the submenu
+      if (event.key === 'Escape') {
+        handleDropdownEscape(event, () => {
+          this.openValueMenus = {};
+        });
+        return;
+      }
+      return;
+    }
+
+    // Special handling for Space and Enter/ArrowRight in filter menu
+    if (event.key === ' ') {
+      event.preventDefault();
+      if (this.filterHighlightIndex >= 0 && this.filterHighlightIndex < this.annotations.length) {
+        const annotation = this.annotations[this.filterHighlightIndex];
+        const cfg = this.filterConfig[annotation] || { enabled: false, values: [] };
+        this.handleFilterToggle(annotation, !cfg.enabled);
+      }
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      if (this.filterHighlightIndex >= 0 && this.filterHighlightIndex < this.annotations.length) {
+        const annotation = this.annotations[this.filterHighlightIndex];
+        const cfg = this.filterConfig[annotation] || { enabled: false, values: [] };
+        if (cfg.enabled) {
+          this.toggleValueMenu(annotation);
+        }
+      }
+      return;
+    }
+
+    // Use shared dropdown keyboard handler for common keys
+    this.handleDropdownKeydown(event, {
+      items: this.annotations,
+      highlightIndex: this.filterHighlightIndex,
+      onHighlightChange: (index) => {
+        this.filterHighlightIndex = index;
+      },
+      onSelect: () => {
+        // Filter doesn't select on Enter, handled above
+      },
+      onClose: () => {
+        this.showFilterMenu = false;
+        this.filterHighlightIndex = -1;
+      },
+      supportHomeEnd: false,
+    });
   }
 
   private handleFilterToggle(annotation: string, enabled: boolean) {

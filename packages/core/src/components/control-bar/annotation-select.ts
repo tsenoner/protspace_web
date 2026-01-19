@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { annotationSelectStyles } from './annotation-select.styles';
+import { handleDropdownEscape } from '../../utils/dropdown-helpers';
 
 /**
  * Annotation categories as defined in the plan
@@ -57,38 +58,27 @@ export class ProtspaceAnnotationSelect extends LitElement {
   @state() private query: string = '';
   @state() private highlightIndex: number = -1;
 
-  // Stable listener for document clicks
-  private _onDocumentClick = (event: Event) => this.handleDocumentClick(event);
-
   connectedCallback() {
     super.connectedCallback();
-    document.addEventListener('click', this._onDocumentClick);
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    document.removeEventListener('click', this._onDocumentClick);
-  }
-
-  private handleDocumentClick(event: Event) {
-    // Check if click is outside the component
-    // For shadow DOM, we need to check if the click path includes this element
-    const eventWithPath = event as Event & { composedPath?: () => EventTarget[] };
-    const path = eventWithPath.composedPath?.() || [];
-    const clickedInside = path.includes(this) || this.contains(event.target as Node);
-
-    if (!clickedInside) {
+    // Listen for parent-initiated close
+    this.addEventListener('close-dropdown', () => {
       this.open = false;
       this.query = '';
       this.highlightIndex = -1;
-    }
+    });
   }
 
   private toggleDropdown(event?: Event) {
-    // Stop event propagation to prevent document click handler from interfering
     event?.stopPropagation();
     this.open = !this.open;
     if (this.open) {
+      // Notify parent to close its dropdowns
+      this.dispatchEvent(
+        new CustomEvent('annotation-opened', {
+          bubbles: true,
+          composed: true,
+        }),
+      );
       // Focus search input when opening
       this.updateComplete.then(() => {
         const searchInput = this.shadowRoot?.querySelector(
@@ -121,10 +111,11 @@ export class ProtspaceAnnotationSelect extends LitElement {
     const flatAnnotations = this.flattenGroupedAnnotations(filtered);
 
     if (event.key === 'Escape') {
-      event.preventDefault();
-      this.open = false;
-      this.query = '';
-      this.highlightIndex = -1;
+      handleDropdownEscape(event, () => {
+        this.open = false;
+        this.query = '';
+        this.highlightIndex = -1;
+      });
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
       if (flatAnnotations.length > 0) {

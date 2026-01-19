@@ -32,6 +32,13 @@ export const filterStyles = css`
     flex-direction: column;
     gap: var(--spacing-sm);
     width: 100%;
+    padding: var(--spacing-xs);
+    border-radius: var(--radius);
+    transition: var(--transition-fast);
+  }
+
+  .filter-menu-list-item.highlighted {
+    background: var(--primary-light);
   }
 
   .filter-menu-list-item > label {

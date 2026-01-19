@@ -75,6 +75,18 @@ export class ProtspaceProteinSearch extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener('keydown', this._handleBodyKeydown);
+    // Listen for parent-initiated close
+    this.addEventListener('close-search', () => {
+      this.searchSuggestions = [];
+      this.highlightedSuggestionIndex = -1;
+      this.searchQuery = '';
+      this.isInputFocused = false;
+      // Blur the input element to sync state
+      const input = this.shadowRoot?.querySelector(
+        '#protein-search-input',
+      ) as HTMLInputElement | null;
+      input?.blur();
+    });
   }
 
   disconnectedCallback(): void {
@@ -150,6 +162,13 @@ export class ProtspaceProteinSearch extends LitElement {
   private _onInputFocus() {
     this.isInputFocused = true;
     this._updateSuggestions();
+    // Notify parent to close other dropdowns
+    this.dispatchEvent(
+      new CustomEvent('search-opened', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private _onInputBlur() {

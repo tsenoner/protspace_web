@@ -26,7 +26,9 @@ export const inputMixin = css`
   .input-base:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px var(--focus-ring);
+    box-shadow:
+      0 0 0 1px var(--primary),
+      0 0 0 3px #e1f1fb;
   }
 
   select {
@@ -60,6 +62,15 @@ export const buttonMixin = css`
     box-sizing: border-box;
   }
 
+  /* Unified focus styling for all buttons - matches input focus */
+  .btn:focus-visible,
+  button:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 1px var(--primary),
+      0 0 0 3px #e1f1fb;
+  }
+
   /* Primary variant - legend extract-button style */
   .btn-primary,
   button.btn-primary {
@@ -78,6 +89,14 @@ export const buttonMixin = css`
     box-shadow: 0 2px 6px rgba(0, 163, 224, 0.3);
   }
 
+  .btn-primary:focus-visible:hover,
+  button.btn-primary:focus-visible:hover {
+    box-shadow:
+      0 0 0 1px var(--primary),
+      0 0 0 3px #e1f1fb,
+      0 2px 6px rgba(0, 163, 224, 0.3);
+  }
+
   /* Secondary variant - legend modal-close-button style */
   .btn-secondary,
   button.btn-secondary {
@@ -94,6 +113,14 @@ export const buttonMixin = css`
     background: var(--hover-bg-alt);
     border-color: var(--border-hover);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  }
+
+  .btn-secondary:focus-visible:hover,
+  button.btn-secondary:focus-visible:hover {
+    box-shadow:
+      0 0 0 1px var(--primary),
+      0 0 0 3px #e1f1fb,
+      0 2px 4px rgba(0, 0, 0, 0.08);
   }
 
   /* Danger variant - legend modal-reset-button style */
@@ -257,10 +284,17 @@ export const dropdownMixin = css`
     background: var(--hover-bg);
   }
 
-  .dropdown-trigger:focus {
+  .dropdown-trigger:focus-visible {
     outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px var(--focus-ring);
+    box-shadow:
+      0 0 0 1px var(--primary),
+      0 0 0 3px #e1f1fb;
+  }
+
+  .dropdown-trigger:focus-visible:hover {
+    box-shadow:
+      0 0 0 1px var(--primary),
+      0 0 0 3px #e1f1fb;
   }
 
   .dropdown-trigger.open {

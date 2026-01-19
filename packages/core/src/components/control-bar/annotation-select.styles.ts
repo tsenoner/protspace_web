@@ -58,8 +58,9 @@ export const annotationSelectStyles = [
 
     .annotation-search-input:focus {
       outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 2px var(--focus-ring);
+      box-shadow:
+        0 0 0 1px var(--primary),
+        0 0 0 3px #e1f1fb;
     }
 
     .annotation-list-container {
