@@ -691,36 +691,39 @@ export class ProtspaceControlBar extends LitElement {
                         };
                         const values = this.annotationValuesMap[annotation] || [];
                         return html` <li
-                          class="filter-menu-list-item ${index === this.filterHighlightIndex
+                          class="filter-menu-list-item ${cfg.enabled ? 'filter-enabled' : ''} ${index === this.filterHighlightIndex
                             ? 'highlighted'
                             : ''}"
                           @mouseenter=${() => {
                             this.filterHighlightIndex = index;
                           }}
                         >
-                          <label
-                            >${annotation}
-                            <input
-                              type="checkbox"
-                              .checked=${cfg.enabled}
-                              @change=${(e: Event) => {
-                                const target = e.target as HTMLInputElement;
-                                this.handleFilterToggle(annotation, target.checked);
-                              }}
-                            />
-                          </label>
+                          <div class="filter-item-header">
+                            <label class="filter-item-checkbox-label">
+                              <input
+                                type="checkbox"
+                                class="filter-item-checkbox"
+                                .checked=${cfg.enabled}
+                                @change=${(e: Event) => {
+                                  const target = e.target as HTMLInputElement;
+                                  this.handleFilterToggle(annotation, target.checked);
+                                }}
+                              />
+                              <span class="filter-item-name">${annotation}</span>
+                            </label>
+                            ${cfg.enabled && cfg.values && cfg.values.length > 0
+                              ? html`<span class="filter-item-badge"
+                                  >${cfg.values.length} selected</span
+                                >`
+                              : ''}
+                          </div>
                           <button
+                            class="btn-secondary filter-item-values-button"
                             ?disabled=${!cfg.enabled}
                             @click=${() => this.toggleValueMenu(annotation)}
                           >
-                            ${cfg.values && cfg.values.length > 0
-                              ? `${cfg.values.length} selected`
-                              : 'Select values'}
-                            <svg
-                              class="chevron-down"
-                              viewBox="0 0 24 24"
-                              style="vertical-align: middle;"
-                            >
+                            ${cfg.values && cfg.values.length > 0 ? 'Edit values' : 'Select values'}
+                            <svg class="chevron-down" viewBox="0 0 24 24">
                               <path
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
@@ -733,24 +736,25 @@ export class ProtspaceControlBar extends LitElement {
                                 <div class="filter-menu-list-item-options">
                                   <div class="filter-menu-list-item-options-selection">
                                     <button
-                                      class="btn-compact"
+                                      class="btn-danger"
+                                      @click=${() => this.clearAllValues(annotation)}
+                                    >
+                                      Clear all
+                                    </button>
+                                    <button
+                                      class="btn-secondary"
                                       @click=${() => this.selectAllValues(annotation)}
                                     >
                                       Select all
-                                    </button>
-                                    <button
-                                      class="btn-danger btn-compact"
-                                      @click=${() => this.clearAllValues(annotation)}
-                                    >
-                                      None
                                     </button>
                                   </div>
                                   <div class="filter-menu-list-item-options-inputs">
                                     ${values.some((v) => v === LEGEND_VALUES.NA_VALUE)
                                       ? html`
-                                          <label>
+                                          <label class="filter-value-label">
                                             <input
                                               type="checkbox"
+                                              class="filter-value-checkbox"
                                               .checked=${(cfg.values || []).includes(
                                                 LEGEND_VALUES.NA_VALUE,
                                               )}
@@ -761,7 +765,9 @@ export class ProtspaceControlBar extends LitElement {
                                                   (e.target as HTMLInputElement).checked,
                                                 )}
                                             />
-                                            <span>${LEGEND_VALUES.NA_DISPLAY}</span>
+                                            <span class="filter-value-text"
+                                              >${LEGEND_VALUES.NA_DISPLAY}</span
+                                            >
                                           </label>
                                         `
                                       : ''}
@@ -769,9 +775,10 @@ export class ProtspaceControlBar extends LitElement {
                                       new Set(values.filter((v) => v !== LEGEND_VALUES.NA_VALUE)),
                                     ).map(
                                       (v) => html`
-                                        <label>
+                                        <label class="filter-value-label">
                                           <input
                                             type="checkbox"
+                                            class="filter-value-checkbox"
                                             .checked=${(cfg.values || []).includes(String(v))}
                                             @change=${(e: Event) =>
                                               this.handleValueToggle(
@@ -780,7 +787,7 @@ export class ProtspaceControlBar extends LitElement {
                                                 (e.target as HTMLInputElement).checked,
                                               )}
                                           />
-                                          <span>${String(v)}</span>
+                                          <span class="filter-value-text">${String(v)}</span>
                                         </label>
                                       `,
                                     )}
