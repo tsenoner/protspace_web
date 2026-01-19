@@ -1587,8 +1587,18 @@ export class ProtspaceScatterplot extends LitElement {
     return String(value);
   }
 
+  private _getGeneName(point: PlotDataPoint | null): string | null {
+    if (!point) return null;
+    const values = point.annotationValues?.gene_name;
+    if (!values || values.length === 0) return null;
+    const filtered = values.map((value) => value.trim()).filter((value) => value.length > 0);
+    if (filtered.length === 0) return null;
+    return filtered.join(', ');
+  }
+
   render() {
     const config = this._mergedConfig;
+    const geneName = this._getGeneName(this._tooltipData?.protein ?? null);
 
     return html`
       <div class="container">
@@ -1619,9 +1629,7 @@ export class ProtspaceScatterplot extends LitElement {
                 60}px; z-index: 10;"
               >
                 <div class="tooltip-protein-id">${this._tooltipData.protein.id}</div>
-
-                <div class="tooltip-annotation-header">${this.selectedAnnotation}:</div>
-
+                ${geneName ? html`<div class="tooltip-gene-name">${geneName}</div>` : ''}
                 ${this._tooltipData.protein.annotationValues[this.selectedAnnotation].map(
                   (value) => html`<div class="tooltip-annotation">${value || 'N/A'}</div>`,
                 )}
