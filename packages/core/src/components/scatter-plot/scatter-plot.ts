@@ -1599,6 +1599,12 @@ export class ProtspaceScatterplot extends LitElement {
   render() {
     const config = this._mergedConfig;
     const geneName = this._getGeneName(this._tooltipData?.protein ?? null);
+    const tooltipAnnotationValues =
+      this._tooltipData?.protein.annotationValues[this.selectedAnnotation] ?? [];
+    const tooltipAnnotationScores =
+      this._tooltipData?.protein.annotationScores?.[this.selectedAnnotation] ?? [];
+    const selectedAnnotationLower = this.selectedAnnotation.toLowerCase();
+    const showScores = selectedAnnotationLower === 'pfam' || selectedAnnotationLower === 'cath';
 
     return html`
       <div class="container">
@@ -1630,9 +1636,12 @@ export class ProtspaceScatterplot extends LitElement {
               >
                 <div class="tooltip-protein-id">${this._tooltipData.protein.id}</div>
                 ${geneName ? html`<div class="tooltip-gene-name">${geneName}</div>` : ''}
-                ${this._tooltipData.protein.annotationValues[this.selectedAnnotation].map(
-                  (value) => html`<div class="tooltip-annotation">${value || 'N/A'}</div>`,
-                )}
+                ${tooltipAnnotationValues.map((value, idx) => {
+                  const score = showScores ? tooltipAnnotationScores[idx] : null;
+                  const scoreText =
+                    typeof score === 'number' && Number.isFinite(score) ? ` - ${score}` : '';
+                  return html`<div class="tooltip-annotation">${value || 'N/A'}${scoreText}</div>`;
+                })}
               </div>
             `
           : ''}
