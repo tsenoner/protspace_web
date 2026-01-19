@@ -62,8 +62,10 @@ export class ProtspaceControlBar extends LitElement {
     IMAGE_WIDTH: 2048,
     IMAGE_HEIGHT: 1024,
     LEGEND_WIDTH_PERCENT: 25,
-    LEGEND_FONT_SIZE_PX: 48,
+    LEGEND_FONT_SIZE_PX: 24,
     BASE_FONT_SIZE: 24, // Base size for scale factor calculation
+    MIN_LEGEND_FONT_SIZE_PX: 8,
+    MAX_LEGEND_FONT_SIZE_PX: 120,
     LOCK_ASPECT_RATIO: true,
   };
 
@@ -462,6 +464,33 @@ export class ProtspaceControlBar extends LitElement {
     if (this.exportLockAspectRatio && oldHeight > 0) {
       const ratio = newHeight / oldHeight;
       this.exportImageWidth = Math.round(this.exportImageWidth * ratio);
+    }
+  }
+
+  /**
+   * Clamp a value to a range
+   */
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  /**
+   * Handle number input blur - clamp value to range and update state
+   */
+  private handleNumberInputBlur(
+    e: Event,
+    min: number,
+    max: number,
+    setter: (value: number) => void,
+  ): void {
+    const input = e.target as HTMLInputElement;
+    const value = parseInt(input.value);
+    if (isNaN(value) || value < min) {
+      setter(min);
+    } else if (value > max) {
+      setter(max);
+    } else {
+      setter(value);
     }
   }
 
@@ -915,27 +944,20 @@ export class ProtspaceControlBar extends LitElement {
                                       class="export-option-value-input"
                                       min="800"
                                       max="8192"
-                                      step="128"
+                                      step="1"
                                       .value=${String(this.exportImageWidth)}
-                                      @input=${(e: Event) => {
+                                      @change=${(e: Event) => {
                                         const value = parseInt(
                                           (e.target as HTMLInputElement).value,
                                         );
                                         if (!isNaN(value)) {
-                                          this.handleWidthChange(
-                                            Math.max(800, Math.min(8192, value)),
-                                          );
+                                          this.handleWidthChange(this.clamp(value, 800, 8192));
                                         }
                                       }}
-                                      @blur=${(e: Event) => {
-                                        const input = e.target as HTMLInputElement;
-                                        const value = parseInt(input.value);
-                                        if (isNaN(value) || value < 800) {
-                                          this.handleWidthChange(800);
-                                        } else if (value > 8192) {
-                                          this.handleWidthChange(8192);
-                                        }
-                                      }}
+                                      @blur=${(e: Event) =>
+                                        this.handleNumberInputBlur(e, 800, 8192, (v) =>
+                                          this.handleWidthChange(v),
+                                        )}
                                     />
                                     <span class="export-option-value-unit">px</span>
                                   </div>
@@ -946,7 +968,7 @@ export class ProtspaceControlBar extends LitElement {
                                   class="export-slider"
                                   min="800"
                                   max="8192"
-                                  step="128"
+                                  step="1"
                                   .value=${String(this.exportImageWidth)}
                                   @input=${(e: Event) => {
                                     this.handleWidthChange(
@@ -969,27 +991,20 @@ export class ProtspaceControlBar extends LitElement {
                                       class="export-option-value-input"
                                       min="600"
                                       max="8192"
-                                      step="128"
+                                      step="1"
                                       .value=${String(this.exportImageHeight)}
-                                      @input=${(e: Event) => {
+                                      @change=${(e: Event) => {
                                         const value = parseInt(
                                           (e.target as HTMLInputElement).value,
                                         );
                                         if (!isNaN(value)) {
-                                          this.handleHeightChange(
-                                            Math.max(600, Math.min(8192, value)),
-                                          );
+                                          this.handleHeightChange(this.clamp(value, 600, 8192));
                                         }
                                       }}
-                                      @blur=${(e: Event) => {
-                                        const input = e.target as HTMLInputElement;
-                                        const value = parseInt(input.value);
-                                        if (isNaN(value) || value < 600) {
-                                          this.handleHeightChange(600);
-                                        } else if (value > 8192) {
-                                          this.handleHeightChange(8192);
-                                        }
-                                      }}
+                                      @blur=${(e: Event) =>
+                                        this.handleNumberInputBlur(e, 600, 8192, (v) =>
+                                          this.handleHeightChange(v),
+                                        )}
                                     />
                                     <span class="export-option-value-unit">px</span>
                                   </div>
@@ -1038,26 +1053,21 @@ export class ProtspaceControlBar extends LitElement {
                                     class="export-option-value-input"
                                     min="15"
                                     max="50"
-                                    step="5"
+                                    step="1"
                                     .value=${String(this.exportLegendWidthPercent)}
-                                    @input=${(e: Event) => {
+                                    @change=${(e: Event) => {
                                       const value = parseInt((e.target as HTMLInputElement).value);
                                       if (!isNaN(value)) {
-                                        this.exportLegendWidthPercent = Math.max(
-                                          15,
-                                          Math.min(50, value),
-                                        );
+                                        this.exportLegendWidthPercent = this.clamp(value, 15, 50);
                                       }
                                     }}
-                                    @blur=${(e: Event) => {
-                                      const input = e.target as HTMLInputElement;
-                                      const value = parseInt(input.value);
-                                      if (isNaN(value) || value < 15) {
-                                        this.exportLegendWidthPercent = 15;
-                                      } else if (value > 50) {
-                                        this.exportLegendWidthPercent = 50;
-                                      }
-                                    }}
+                                    @blur=${(e: Event) =>
+                                      this.handleNumberInputBlur(
+                                        e,
+                                        15,
+                                        50,
+                                        (v) => (this.exportLegendWidthPercent = v),
+                                      )}
                                   />
                                   <span class="export-option-value-unit">%</span>
                                 </div>
@@ -1068,7 +1078,7 @@ export class ProtspaceControlBar extends LitElement {
                                 class="export-slider"
                                 min="15"
                                 max="50"
-                                step="5"
+                                step="1"
                                 .value=${String(this.exportLegendWidthPercent)}
                                 @input=${(e: Event) => {
                                   this.exportLegendWidthPercent = parseInt(
@@ -1089,28 +1099,31 @@ export class ProtspaceControlBar extends LitElement {
                                   <input
                                     type="number"
                                     class="export-option-value-input"
-                                    min="12"
-                                    max="120"
-                                    step="2"
+                                    min=${ProtspaceControlBar.EXPORT_DEFAULTS
+                                      .MIN_LEGEND_FONT_SIZE_PX}
+                                    max=${ProtspaceControlBar.EXPORT_DEFAULTS
+                                      .MAX_LEGEND_FONT_SIZE_PX}
+                                    step="1"
                                     .value=${String(this.exportLegendFontSizePx)}
-                                    @input=${(e: Event) => {
+                                    @change=${(e: Event) => {
                                       const value = parseInt((e.target as HTMLInputElement).value);
                                       if (!isNaN(value)) {
-                                        this.exportLegendFontSizePx = Math.max(
-                                          12,
-                                          Math.min(120, value),
+                                        this.exportLegendFontSizePx = this.clamp(
+                                          value,
+                                          ProtspaceControlBar.EXPORT_DEFAULTS
+                                            .MIN_LEGEND_FONT_SIZE_PX,
+                                          ProtspaceControlBar.EXPORT_DEFAULTS
+                                            .MAX_LEGEND_FONT_SIZE_PX,
                                         );
                                       }
                                     }}
-                                    @blur=${(e: Event) => {
-                                      const input = e.target as HTMLInputElement;
-                                      const value = parseInt(input.value);
-                                      if (isNaN(value) || value < 12) {
-                                        this.exportLegendFontSizePx = 12;
-                                      } else if (value > 120) {
-                                        this.exportLegendFontSizePx = 120;
-                                      }
-                                    }}
+                                    @blur=${(e: Event) =>
+                                      this.handleNumberInputBlur(
+                                        e,
+                                        ProtspaceControlBar.EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
+                                        ProtspaceControlBar.EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
+                                        (v) => (this.exportLegendFontSizePx = v),
+                                      )}
                                   />
                                   <span class="export-option-value-unit">px</span>
                                 </div>
@@ -1119,9 +1132,9 @@ export class ProtspaceControlBar extends LitElement {
                                 type="range"
                                 id="export-legend-font"
                                 class="export-slider"
-                                min="12"
-                                max="120"
-                                step="2"
+                                min=${ProtspaceControlBar.EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
+                                max=${ProtspaceControlBar.EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
+                                step="1"
                                 .value=${String(this.exportLegendFontSizePx)}
                                 @input=${(e: Event) => {
                                   this.exportLegendFontSizePx = parseInt(
@@ -1130,8 +1143,14 @@ export class ProtspaceControlBar extends LitElement {
                                 }}
                               />
                               <div class="export-slider-labels">
-                                <span>12px</span>
-                                <span>120px</span>
+                                <span
+                                  >${ProtspaceControlBar.EXPORT_DEFAULTS
+                                    .MIN_LEGEND_FONT_SIZE_PX}px</span
+                                >
+                                <span
+                                  >${ProtspaceControlBar.EXPORT_DEFAULTS
+                                    .MAX_LEGEND_FONT_SIZE_PX}px</span
+                                >
                               </div>
                             </div>
 

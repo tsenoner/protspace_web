@@ -68,7 +68,9 @@ export interface ExportOptions {
 
 export class ProtSpaceExporter {
   // Configuration constants
-  private static readonly QUALITY_SCALE = 2; // Quality multiplier for PNG/PDF
+  private static readonly MAX_CANVAS_DIMENSION = 8192; // Browser limit
+  private static readonly MAX_CANVAS_AREA = 268435456; // Chrome: ~268M pixels
+  private static readonly SAFE_DIMENSION_MARGIN = 0.95; // 5% safety buffer
   private static readonly DEFAULT_LEGEND_SCALE = 1.0;
   private static readonly DEFAULT_BACKGROUND = '#ffffff';
   private static readonly PDF_MARGIN = 2; // mm
@@ -117,6 +119,39 @@ export class ProtSpaceExporter {
   }
 
   /**
+   * Validate that dimensions are within browser canvas limits
+   * Returns true if dimensions are safe, false otherwise
+   */
+  private static validateCanvasDimensions(
+    targetWidth: number,
+    targetHeight: number,
+  ): { isValid: boolean; reason?: string } {
+    const effectiveMaxDimension = Math.floor(
+      ProtSpaceExporter.MAX_CANVAS_DIMENSION * ProtSpaceExporter.SAFE_DIMENSION_MARGIN,
+    );
+
+    // Check dimension limits
+    if (targetWidth > effectiveMaxDimension || targetHeight > effectiveMaxDimension) {
+      return {
+        isValid: false,
+        reason: `Dimensions exceed browser limit of ${ProtSpaceExporter.MAX_CANVAS_DIMENSION}px per side. Maximum safe dimension: ${effectiveMaxDimension}px`,
+      };
+    }
+
+    // Check area limit
+    const totalPixels = targetWidth * targetHeight;
+    const maxSafeArea = ProtSpaceExporter.MAX_CANVAS_AREA * ProtSpaceExporter.SAFE_DIMENSION_MARGIN;
+    if (totalPixels > maxSafeArea) {
+      return {
+        isValid: false,
+        reason: `Total pixel area (${totalPixels.toLocaleString()}) exceeds browser limit (~${Math.floor(maxSafeArea).toLocaleString()} pixels)`,
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
    * Generate consistent export filename: protspace_{projection}_{annotation}_{date}.{ext}
    * Falls back gracefully if data is not available.
    */
@@ -158,12 +193,11 @@ export class ProtSpaceExporter {
 
   /**
    * Generate legend canvas for export
-   * Returns an object with the canvas and whether width was increased
    */
   private generateLegendCanvas(
     scatterCanvas: HTMLCanvasElement,
     options: ReturnType<typeof this.getOptionsWithDefaults>,
-  ): { canvas: HTMLCanvasElement; widthIncreased: boolean } {
+  ): HTMLCanvasElement {
     const legendItems = this.buildLegendItems(options);
     const legendExportState = this.readLegendExportState();
     const annotationNameFromLegend = legendExportState?.annotation;
@@ -171,15 +205,9 @@ export class ProtSpaceExporter {
     // Calculate legend width based on percentage of total image width
     // If legendWidthPercent is 25%, then legend takes 25% and scatterplot takes 75%
     const legendPercent = (options.legendWidthPercent || 25) / 100;
-    const targetLegendWidth = Math.round(
-      scatterCanvas.width * (legendPercent / (1 - legendPercent)),
-    );
+    const legendWidth = Math.round(scatterCanvas.width * (legendPercent / (1 - legendPercent)));
 
-    // Use the target width directly - don't check minimum required width
-    // The scale factor should already be calculated to fill this width
-    const legendWidth = targetLegendWidth;
-
-    const canvas = this.renderLegendToCanvas(
+    return this.renderLegendToCanvas(
       legendItems,
       legendWidth,
       scatterCanvas.height,
@@ -187,80 +215,151 @@ export class ProtSpaceExporter {
       annotationNameFromLegend || this.element.selectedAnnotation,
       options.legendScaleFactor,
     );
-
-    return {
-      canvas,
-      widthIncreased: false,
-    };
   }
 
   /**
-   * Capture scatterplot element as canvas with borders cropped out
-   * If targetWidth/targetHeight are provided, temporarily resizes the element to trigger proper re-render
+   * Capture scatterplot element as canvas using native high-resolution WebGL rendering.
+   * Falls back to html2canvas for older component versions without captureAtResolution.
    */
   private async captureScatterplotCanvas(
     scatterplotElement: HTMLElement,
-    scale: number,
-    backgroundColor: string,
     targetWidth?: number,
     targetHeight?: number,
+    backgroundColor: string = ProtSpaceExporter.DEFAULT_BACKGROUND,
   ): Promise<HTMLCanvasElement> {
-    const { default: html2canvas } = await import('html2canvas-pro');
+    // Cast to access the capture method
+    const scatterplot = scatterplotElement as HTMLElement & {
+      captureAtResolution?: (
+        width: number,
+        height: number,
+        options?: { dpr?: number; backgroundColor?: string },
+      ) => HTMLCanvasElement;
+    };
 
-    // Store original dimensions
-    const originalWidth = scatterplotElement.style.width;
-    const originalHeight = scatterplotElement.style.height;
-    const needsResize = targetWidth !== undefined || targetHeight !== undefined;
+    // Use current dimensions if not specified
+    const width = targetWidth ?? scatterplotElement.clientWidth;
+    const height = targetHeight ?? scatterplotElement.clientHeight;
 
-    try {
-      // Temporarily resize element if target dimensions specified
-      if (needsResize) {
-        if (targetWidth) scatterplotElement.style.width = `${targetWidth}px`;
-        if (targetHeight) scatterplotElement.style.height = `${targetHeight}px`;
+    // Validate dimensions
+    const validation = ProtSpaceExporter.validateCanvasDimensions(width, height);
+    if (!validation.isValid) {
+      throw new Error(`Export dimensions too large: ${validation.reason}`);
+    }
 
-        // Wait for the element to re-render at new dimensions
-        // This allows WebGL/Canvas to properly adjust the viewport
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Wait for any ResizeObserver callbacks to complete
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        await new Promise((resolve) => requestAnimationFrame(resolve));
+    // Use native high-resolution capture if available
+    if (typeof scatterplot.captureAtResolution === 'function') {
+      console.log(`📸 Native capture at ${width}×${height}`);
+      try {
+        const canvas = scatterplot.captureAtResolution(width, height, {
+          dpr: 1, // Use DPR=1 for exact pixel output
+          backgroundColor,
+        });
+        console.log('✅ Native capture complete');
+        return canvas;
+      } catch (error) {
+        console.warn('⚠️ Native capture failed, falling back to html2canvas:', error);
       }
+    } else {
+      console.warn('⚠️ captureAtResolution not available, using fallback');
+    }
 
-      // Capture at current element size (which is now the target size if resized)
-      const rawCanvas = await html2canvas(scatterplotElement, {
-        backgroundColor,
-        scale,
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        width: scatterplotElement.clientWidth,
-        height: scatterplotElement.clientHeight,
-        scrollX: -window.scrollX,
-        scrollY: -window.scrollY,
-        ignoreElements: (element) => this.shouldIgnoreElement(element),
-      });
+    // Fallback: Direct canvas capture (for older component versions)
+    return this.fallbackCanvasCapture(scatterplotElement, width, height, backgroundColor);
+  }
 
-      // Crop the 1px border from all sides
-      const borderWidth = 1 * scale;
-      return this.cropCanvas(
-        rawCanvas,
-        borderWidth,
-        borderWidth,
-        rawCanvas.width - borderWidth * 2,
-        rawCanvas.height - borderWidth * 2,
-      );
-    } finally {
-      // Restore original dimensions
-      if (needsResize) {
-        scatterplotElement.style.width = originalWidth;
-        scatterplotElement.style.height = originalHeight;
+  /**
+   * Fallback capture method using direct WebGL canvas copy and html2canvas.
+   * Used when native captureAtResolution is not available.
+   */
+  private async fallbackCanvasCapture(
+    scatterplotElement: HTMLElement,
+    width: number,
+    height: number,
+    backgroundColor: string,
+  ): Promise<HTMLCanvasElement> {
+    // Try direct WebGL canvas capture first (faster, simpler)
+    const webglCanvas = scatterplotElement.querySelector(
+      'canvas:not(.badges-canvas)',
+    ) as HTMLCanvasElement | null;
 
-        // Wait for restore to complete
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        await new Promise((resolve) => requestAnimationFrame(resolve));
+    if (webglCanvas) {
+      try {
+        const outputCanvas = document.createElement('canvas');
+        outputCanvas.width = width;
+        outputCanvas.height = height;
+
+        const ctx = outputCanvas.getContext('2d');
+        if (!ctx) {
+          throw new Error('Failed to create 2D context');
+        }
+
+        // Fill with background color
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw WebGL canvas with scaling
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(
+          webglCanvas,
+          0,
+          0,
+          webglCanvas.width,
+          webglCanvas.height,
+          0,
+          0,
+          width,
+          height,
+        );
+
+        // Also composite badges canvas if present
+        const badgesCanvas = scatterplotElement.querySelector(
+          'canvas.badges-canvas',
+        ) as HTMLCanvasElement | null;
+        if (badgesCanvas && badgesCanvas.width > 0) {
+          ctx.drawImage(
+            badgesCanvas,
+            0,
+            0,
+            badgesCanvas.width,
+            badgesCanvas.height,
+            0,
+            0,
+            width,
+            height,
+          );
+        }
+
+        return outputCanvas;
+      } catch (error) {
+        console.warn('Direct WebGL capture failed, falling back to html2canvas:', error);
       }
     }
+
+    // Last resort: html2canvas
+    const { default: html2canvas } = await import('html2canvas-pro');
+    const rawCanvas = await html2canvas(scatterplotElement, {
+      backgroundColor,
+      scale: 1,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      width: scatterplotElement.clientWidth,
+      height: scatterplotElement.clientHeight,
+      scrollX: -window.scrollX,
+      scrollY: -window.scrollY,
+      ignoreElements: (element) => this.shouldIgnoreElement(element),
+    });
+
+    // Crop the 1px border from all sides
+    const borderWidth = 1;
+    return this.cropCanvas(
+      rawCanvas,
+      borderWidth,
+      borderWidth,
+      rawCanvas.width - borderWidth * 2,
+      rawCanvas.height - borderWidth * 2,
+    );
   }
 
   /**
@@ -415,15 +514,13 @@ export class ProtSpaceExporter {
     // Capture scatterplot at target dimensions with quality scaling
     const scatterCanvas = await this.captureScatterplotCanvas(
       scatterplotElement,
-      ProtSpaceExporter.QUALITY_SCALE,
-      opts.backgroundColor,
       opts.targetWidth,
       opts.targetHeight,
+      opts.backgroundColor,
     );
 
     // Generate legend canvas
-    const legendResult = this.generateLegendCanvas(scatterCanvas, opts);
-    const legendCanvas = legendResult.canvas;
+    const legendCanvas = this.generateLegendCanvas(scatterCanvas, opts);
 
     // Composite scatterplot and legend
     // Use actual legend width to ensure it's not cut off
@@ -709,15 +806,13 @@ export class ProtSpaceExporter {
     // Capture scatterplot at target dimensions with quality scaling
     const scatterCanvas = await this.captureScatterplotCanvas(
       scatterplotElement,
-      ProtSpaceExporter.QUALITY_SCALE,
-      opts.backgroundColor,
       opts.targetWidth,
       opts.targetHeight,
+      opts.backgroundColor,
     );
 
     // Generate legend canvas
-    const legendResult = this.generateLegendCanvas(scatterCanvas, opts);
-    const legendCanvas = legendResult.canvas;
+    const legendCanvas = this.generateLegendCanvas(scatterCanvas, opts);
 
     // Convert to images
     const scatterImg = scatterCanvas.toDataURL('image/png', 1.0);

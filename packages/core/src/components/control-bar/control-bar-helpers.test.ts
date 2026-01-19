@@ -28,8 +28,10 @@ describe('control-bar-helpers', () => {
       expect(EXPORT_DEFAULTS.IMAGE_WIDTH).toBe(2048);
       expect(EXPORT_DEFAULTS.IMAGE_HEIGHT).toBe(1024);
       expect(EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT).toBe(25);
-      expect(EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX).toBe(48);
+      expect(EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX).toBe(24);
       expect(EXPORT_DEFAULTS.BASE_FONT_SIZE).toBe(24);
+      expect(EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX).toBe(8);
+      expect(EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX).toBe(120);
       expect(EXPORT_DEFAULTS.LOCK_ASPECT_RATIO).toBe(true);
     });
   });
