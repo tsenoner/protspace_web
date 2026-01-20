@@ -1,7 +1,6 @@
 import { css } from 'lit';
 import { tokens } from '../../styles/tokens';
 import { overlayMixins } from '../../styles/overlay-mixins';
-import { buttonMixin } from '../../styles/mixins';
 
 const structureViewerStylesCore = css`
   :host {
@@ -87,8 +86,20 @@ const structureViewerStylesCore = css`
   }
 
   .close-button {
+    background: none;
+    border: none;
     font-size: 1.25rem;
+    color: var(--protspace-viewer-text-muted);
+    cursor: pointer;
+    padding: 0.5rem 0.7rem;
     line-height: 1;
+    border-radius: 0.25rem;
+    transition: color 0.2s;
+  }
+
+  .close-button:hover {
+    color: var(--protspace-viewer-text);
+    background: rgba(0, 0, 0, 0.04);
   }
 
   .viewer-container {
@@ -198,9 +209,4 @@ const structureViewerStylesCore = css`
   }
 `;
 
-export const structureViewerStyles = [
-  tokens,
-  overlayMixins,
-  buttonMixin,
-  structureViewerStylesCore,
-];
+export const structureViewerStyles = [tokens, overlayMixins, structureViewerStylesCore];

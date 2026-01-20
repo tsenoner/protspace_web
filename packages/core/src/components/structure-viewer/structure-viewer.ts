@@ -323,9 +323,7 @@ export class ProtspaceStructureViewer extends LitElement {
               </div>
               <div class="header-actions">
                 ${this.showCloseButton
-                  ? html`
-                      <button class="btn-close close-button" @click=${this._handleClose}>✕</button>
-                    `
+                  ? html` <button class="close-button" @click=${this._handleClose}>✕</button> `
                   : ''}
               </div>
             </div>
