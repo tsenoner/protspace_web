@@ -8,6 +8,18 @@ import type {
   DataLoaderElement,
   StructureViewerElement,
 } from './types';
+import { LEGEND_VALUES } from '@protspace/utils';
+import { toInternalValue } from '../legend/config';
+import { handleDropdownEscape, isAnyDropdownOpen } from '../../utils/dropdown-helpers';
+import {
+  EXPORT_DEFAULTS,
+  calculateHeightFromWidth,
+  calculateWidthFromHeight,
+  isProjection3D,
+  getProjectionPlane,
+  toggleProteinSelection,
+  mergeProteinSelections,
+} from './control-bar-helpers';
 import './search';
 import './annotation-select';
 
@@ -45,37 +57,21 @@ export class ProtspaceControlBar extends LitElement {
   @state() private showExportMenu: boolean = false;
   @state() private showFilterMenu: boolean = false;
   @state() private showProjectionMenu: boolean = false;
-  @state() private annotationValuesMap: Record<string, (string | null)[]> = {};
-  @state() private filterConfig: Record<string, { enabled: boolean; values: (string | null)[] }> =
+  @state() private annotationValuesMap: Record<string, string[]> = {};
+  @state() private filterConfig: Record<string, { enabled: boolean; values: string[] }> = {};
+  @state() private lastAppliedFilterConfig: Record<string, { enabled: boolean; values: string[] }> =
     {};
-  @state() private lastAppliedFilterConfig: Record<
-    string,
-    { enabled: boolean; values: (string | null)[] }
-  > = {};
   @state() private openValueMenus: Record<string, boolean> = {};
-
-  // Export defaults - single source of truth
-  static readonly EXPORT_DEFAULTS = {
-    FORMAT: 'png' as const,
-    IMAGE_WIDTH: 2048,
-    IMAGE_HEIGHT: 1024,
-    LEGEND_WIDTH_PERCENT: 25,
-    LEGEND_FONT_SIZE_PX: 48,
-    BASE_FONT_SIZE: 24, // Base size for scale factor calculation
-    LOCK_ASPECT_RATIO: true,
-  };
+  @state() private projectionHighlightIndex: number = -1;
+  @state() private filterHighlightIndex: number = -1;
 
   // Export configuration state
-  @state() private exportFormat: 'png' | 'pdf' | 'json' | 'ids' =
-    ProtspaceControlBar.EXPORT_DEFAULTS.FORMAT;
-  @state() private exportImageWidth: number = ProtspaceControlBar.EXPORT_DEFAULTS.IMAGE_WIDTH;
-  @state() private exportImageHeight: number = ProtspaceControlBar.EXPORT_DEFAULTS.IMAGE_HEIGHT;
-  @state() private exportLegendWidthPercent: number =
-    ProtspaceControlBar.EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
-  @state() private exportLegendFontSizePx: number =
-    ProtspaceControlBar.EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX;
-  @state() private exportLockAspectRatio: boolean =
-    ProtspaceControlBar.EXPORT_DEFAULTS.LOCK_ASPECT_RATIO;
+  @state() private exportFormat: 'png' | 'pdf' | 'json' | 'ids' = EXPORT_DEFAULTS.FORMAT;
+  @state() private exportImageWidth: number = EXPORT_DEFAULTS.IMAGE_WIDTH;
+  @state() private exportImageHeight: number = EXPORT_DEFAULTS.IMAGE_HEIGHT;
+  @state() private exportLegendWidthPercent: number = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
+  @state() private exportLegendFontSizePx: number = EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX;
+  @state() private exportLockAspectRatio: boolean = EXPORT_DEFAULTS.LOCK_ASPECT_RATIO;
   private _scatterplotElement: ScatterplotElementLike | null = null;
 
   // Search state
@@ -94,13 +90,40 @@ export class ProtspaceControlBar extends LitElement {
 
   static styles = controlBarStyles;
 
-  private toggleProjectionMenu() {
+  /**
+   * Close all dropdowns except the specified one
+   */
+  private closeOtherDropdowns(except: 'projection' | 'filter' | 'export') {
+    if (except !== 'projection') this.showProjectionMenu = false;
+    if (except !== 'filter') this.showFilterMenu = false;
+    if (except !== 'export') this.showExportMenu = false;
+
+    // Close annotation dropdown via event
+    this.shadowRoot
+      ?.querySelector('protspace-annotation-select')
+      ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
+    // Close search via event
+    this.shadowRoot
+      ?.querySelector('protspace-protein-search')
+      ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
+  }
+
+  private toggleProjectionMenu(event?: Event) {
+    event?.stopPropagation();
     this.showProjectionMenu = !this.showProjectionMenu;
+    if (this.showProjectionMenu) {
+      this.closeOtherDropdowns('projection');
+      const currentIndex = this.projections.findIndex((p) => p === this.selectedProjection);
+      this.projectionHighlightIndex = currentIndex >= 0 ? currentIndex : 0;
+    } else {
+      this.projectionHighlightIndex = -1;
+    }
   }
 
   private selectProjection(projection: string) {
     this.selectedProjection = projection;
     this.showProjectionMenu = false;
+    this.projectionHighlightIndex = -1;
 
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
@@ -109,10 +132,8 @@ export class ProtspaceControlBar extends LitElement {
         (this._scatterplotElement as ScatterplotElementLike).selectedProjectionIndex =
           projectionIndex;
 
-        // If projection is 3D, keep current plane; otherwise, reset to XY
-        const meta = this.projectionsMeta.find((p) => p.name === this.selectedProjection);
-        const is3D = meta?.metadata?.dimension === 3;
-        const nextPlane: 'xy' | 'xz' | 'yz' = is3D ? this.projectionPlane : 'xy';
+        const is3D = isProjection3D(this.selectedProjection, this.projectionsMeta);
+        const nextPlane = getProjectionPlane(is3D, this.projectionPlane);
         if ('projectionPlane' in this._scatterplotElement) {
           (this._scatterplotElement as ScatterplotElementLike).projectionPlane = nextPlane;
         }
@@ -126,6 +147,113 @@ export class ProtspaceControlBar extends LitElement {
       composed: true,
     });
     this.dispatchEvent(customEvent);
+  }
+
+  private handleProjectionKeydown(event: KeyboardEvent) {
+    if (!this.showProjectionMenu) {
+      // Handle trigger button keys
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        this.toggleProjectionMenu();
+      }
+      return;
+    }
+
+    this.handleDropdownKeydown(event, {
+      items: this.projections,
+      highlightIndex: this.projectionHighlightIndex,
+      onHighlightChange: (index) => {
+        this.projectionHighlightIndex = index;
+      },
+      onSelect: (index) => {
+        this.selectProjection(this.projections[index]);
+      },
+      onClose: () => {
+        this.showProjectionMenu = false;
+        this.projectionHighlightIndex = -1;
+      },
+      supportHomeEnd: true,
+    });
+  }
+
+  /**
+   * Shared keyboard navigation handler for all dropdowns
+   * Centralizes common keyboard navigation logic following DRY principle
+   */
+  private handleDropdownKeydown(
+    event: KeyboardEvent,
+    options: {
+      items: unknown[];
+      highlightIndex: number;
+      onHighlightChange: (index: number) => void;
+      onSelect: (index: number) => void;
+      onClose: () => void;
+      supportHomeEnd?: boolean;
+    },
+  ) {
+    const { items, highlightIndex, onHighlightChange, onSelect, onClose, supportHomeEnd } = options;
+
+    switch (event.key) {
+      case 'Escape':
+        handleDropdownEscape(event, onClose);
+        break;
+      case 'ArrowDown':
+        event.preventDefault();
+        if (items.length > 0) {
+          const nextIndex = Math.min(highlightIndex + 1, items.length - 1);
+          onHighlightChange(nextIndex);
+          this.scrollDropdownItemIntoView();
+        }
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        if (items.length > 0) {
+          const nextIndex = Math.max(highlightIndex - 1, 0);
+          onHighlightChange(nextIndex);
+          this.scrollDropdownItemIntoView();
+        }
+        break;
+      case 'Home':
+        if (supportHomeEnd) {
+          event.preventDefault();
+          if (items.length > 0) {
+            onHighlightChange(0);
+            this.scrollDropdownItemIntoView();
+          }
+        }
+        break;
+      case 'End':
+        if (supportHomeEnd) {
+          event.preventDefault();
+          if (items.length > 0) {
+            onHighlightChange(items.length - 1);
+            this.scrollDropdownItemIntoView();
+          }
+        }
+        break;
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        if (highlightIndex >= 0 && highlightIndex < items.length) {
+          onSelect(highlightIndex);
+        }
+        break;
+    }
+  }
+
+  /**
+   * Shared helper to scroll highlighted dropdown item into view
+   * Works for all dropdown types (.dropdown-item, .filter-menu-list-item)
+   */
+  private scrollDropdownItemIntoView() {
+    this.updateComplete.then(() => {
+      const highlighted =
+        this.shadowRoot?.querySelector('.dropdown-item.highlighted') ||
+        this.shadowRoot?.querySelector('.filter-menu-list-item.highlighted');
+      if (highlighted) {
+        highlighted.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
   }
 
   private handlePlaneChange(event: Event) {
@@ -262,12 +390,40 @@ export class ProtspaceControlBar extends LitElement {
     this.showExportMenu = false;
   }
 
-  private toggleExportMenu() {
+  private toggleExportMenu(event?: Event) {
+    event?.stopPropagation();
     this.showExportMenu = !this.showExportMenu;
+    if (this.showExportMenu) {
+      this.closeOtherDropdowns('export');
+      this.updateComplete.then(() => {
+        const firstFormatBtn = this.shadowRoot?.querySelector(
+          '.export-format-options button',
+        ) as HTMLButtonElement | null;
+        firstFormatBtn?.focus();
+      });
+    }
+  }
+
+  private handleExportKeydown(event: KeyboardEvent) {
+    if (!this.showExportMenu) {
+      // Handle trigger button keys
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        this.toggleExportMenu();
+      }
+      return;
+    }
+
+    // Only handle Escape to close (native form navigation handles the rest)
+    if (event.key === 'Escape') {
+      handleDropdownEscape(event, () => {
+        this.showExportMenu = false;
+      });
+    }
   }
 
   private resetExportSettings() {
-    const defaults = ProtspaceControlBar.EXPORT_DEFAULTS;
+    const defaults = EXPORT_DEFAULTS;
     this.exportImageWidth = defaults.IMAGE_WIDTH;
     this.exportImageHeight = defaults.IMAGE_HEIGHT;
     this.exportLegendWidthPercent = defaults.LEGEND_WIDTH_PERCENT;
@@ -279,10 +435,8 @@ export class ProtspaceControlBar extends LitElement {
     const oldWidth = this.exportImageWidth;
     this.exportImageWidth = newWidth;
 
-    // Adjust height proportionally if aspect ratio is locked
-    if (this.exportLockAspectRatio && oldWidth > 0) {
-      const ratio = newWidth / oldWidth;
-      this.exportImageHeight = Math.round(this.exportImageHeight * ratio);
+    if (this.exportLockAspectRatio) {
+      this.exportImageHeight = calculateHeightFromWidth(newWidth, oldWidth, this.exportImageHeight);
     }
   }
 
@@ -290,10 +444,35 @@ export class ProtspaceControlBar extends LitElement {
     const oldHeight = this.exportImageHeight;
     this.exportImageHeight = newHeight;
 
-    // Adjust width proportionally if aspect ratio is locked
-    if (this.exportLockAspectRatio && oldHeight > 0) {
-      const ratio = newHeight / oldHeight;
-      this.exportImageWidth = Math.round(this.exportImageWidth * ratio);
+    if (this.exportLockAspectRatio) {
+      this.exportImageWidth = calculateWidthFromHeight(newHeight, oldHeight, this.exportImageWidth);
+    }
+  }
+
+  /**
+   * Clamp a value to a range
+   */
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  /**
+   * Handle number input blur - clamp value to range and update state
+   */
+  private handleNumberInputBlur(
+    e: Event,
+    min: number,
+    max: number,
+    setter: (value: number) => void,
+  ): void {
+    const input = e.target as HTMLInputElement;
+    const value = parseInt(input.value);
+    if (isNaN(value) || value < min) {
+      setter(min);
+    } else if (value > max) {
+      setter(max);
+    } else {
+      setter(value);
     }
   }
 
@@ -318,6 +497,7 @@ export class ProtspaceControlBar extends LitElement {
                 id="projection-trigger"
                 class="dropdown-trigger ${this.showProjectionMenu ? 'open' : ''}"
                 @click=${this.toggleProjectionMenu}
+                @keydown=${this.handleProjectionKeydown}
                 aria-haspopup="listbox"
                 aria-expanded=${this.showProjectionMenu}
               >
@@ -331,17 +511,26 @@ export class ProtspaceControlBar extends LitElement {
 
               ${this.showProjectionMenu
                 ? html`
-                    <div class="dropdown-menu align-left" role="listbox">
+                    <div
+                      class="dropdown-menu align-left"
+                      role="listbox"
+                      @keydown=${this.handleProjectionKeydown}
+                    >
                       <div class="dropdown-list">
                         ${this.projections.map(
-                          (projection) => html`
+                          (projection, index) => html`
                             <div
                               class="dropdown-item ${projection === this.selectedProjection
                                 ? 'selected'
+                                : ''} ${index === this.projectionHighlightIndex
+                                ? 'highlighted'
                                 : ''}"
                               role="option"
                               aria-selected=${projection === this.selectedProjection}
                               @click=${() => this.selectProjection(projection)}
+                              @mouseenter=${() => {
+                                this.projectionHighlightIndex = index;
+                              }}
                             >
                               ${projection}
                             </div>
@@ -355,9 +544,7 @@ export class ProtspaceControlBar extends LitElement {
           </div>
 
           ${(() => {
-            const meta = this.projectionsMeta.find((p) => p.name === this.selectedProjection);
-            const is3D = meta?.metadata?.dimension === 3;
-            return is3D
+            return isProjection3D(this.selectedProjection, this.projectionsMeta)
               ? html`
                   <div class="control-group">
                     <label for="plane-select">Plane:</label>
@@ -404,8 +591,8 @@ export class ProtspaceControlBar extends LitElement {
 
           <button
             class=${this.selectionMode
-              ? 'right-controls-button right-controls-select active'
-              : 'right-controls-select right-controls-button'}
+              ? 'btn-primary right-controls-button right-controls-select'
+              : 'btn-secondary right-controls-select right-controls-button'}
             ?disabled=${this._selectionDisabled}
             @click=${this.handleToggleSelectionMode}
             title=${this._selectionDisabled
@@ -434,7 +621,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Clear selections button -->
           <button
-            class="right-controls-button right-controls-clear"
+            class="btn-secondary right-controls-button right-controls-clear"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleClearSelections}
             title="Clear all selected proteins"
@@ -447,7 +634,7 @@ export class ProtspaceControlBar extends LitElement {
 
           <!-- Isolate data button -->
           <button
-            class="right-controls-button right-controls-split"
+            class="btn-secondary right-controls-button right-controls-split"
             ?disabled=${this.selectedProteinsCount === 0}
             @click=${this.handleSplitData}
             title="Isolate selected proteins to focus on them"
@@ -471,7 +658,7 @@ export class ProtspaceControlBar extends LitElement {
                 <button
                   @click=${this.handleResetSplit}
                   title="Reset to original dataset"
-                  class="active"
+                  class="btn-secondary"
                 >
                   <svg class="icon" viewBox="0 0 24 24">
                     <path
@@ -490,6 +677,7 @@ export class ProtspaceControlBar extends LitElement {
             <button
               class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''}"
               @click=${this.toggleFilterMenu}
+              @keydown=${this.handleFilterKeydown}
               title="Filter Options"
             >
               <svg class="icon" viewBox="0 0 24 24">
@@ -503,38 +691,48 @@ export class ProtspaceControlBar extends LitElement {
 
             ${this.showFilterMenu
               ? html`
-                  <div class="filter-menu">
+                  <div class="filter-menu" @keydown=${this.handleFilterKeydown}>
                     <ul class="filter-menu-list">
-                      ${this.annotations.map((annotation) => {
+                      ${this.annotations.map((annotation, index) => {
                         const cfg = this.filterConfig[annotation] || {
                           enabled: false,
                           values: [],
                         };
                         const values = this.annotationValuesMap[annotation] || [];
-                        return html` <li class="filter-menu-list-item">
-                          <label
-                            >${annotation}
-                            <input
-                              type="checkbox"
-                              .checked=${cfg.enabled}
-                              @change=${(e: Event) => {
-                                const target = e.target as HTMLInputElement;
-                                this.handleFilterToggle(annotation, target.checked);
-                              }}
-                            />
-                          </label>
+                        return html` <li
+                          class="filter-menu-list-item ${cfg.enabled
+                            ? 'filter-enabled'
+                            : ''} ${index === this.filterHighlightIndex ? 'highlighted' : ''}"
+                          @mouseenter=${() => {
+                            this.filterHighlightIndex = index;
+                          }}
+                        >
+                          <div class="filter-item-header">
+                            <label class="filter-item-checkbox-label">
+                              <input
+                                type="checkbox"
+                                class="filter-item-checkbox"
+                                .checked=${cfg.enabled}
+                                @change=${(e: Event) => {
+                                  const target = e.target as HTMLInputElement;
+                                  this.handleFilterToggle(annotation, target.checked);
+                                }}
+                              />
+                              <span class="filter-item-name">${annotation}</span>
+                            </label>
+                            ${cfg.enabled && cfg.values && cfg.values.length > 0
+                              ? html`<span class="filter-item-badge"
+                                  >${cfg.values.length} selected</span
+                                >`
+                              : ''}
+                          </div>
                           <button
+                            class="btn-secondary filter-item-values-button"
                             ?disabled=${!cfg.enabled}
                             @click=${() => this.toggleValueMenu(annotation)}
                           >
-                            ${cfg.values && cfg.values.length > 0
-                              ? `${cfg.values.length} selected`
-                              : 'Select values'}
-                            <svg
-                              class="chevron-down"
-                              viewBox="0 0 24 24"
-                              style="vertical-align: middle;"
-                            >
+                            ${cfg.values && cfg.values.length > 0 ? 'Edit values' : 'Select values'}
+                            <svg class="chevron-down" viewBox="0 0 24 24">
                               <path
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
@@ -546,32 +744,50 @@ export class ProtspaceControlBar extends LitElement {
                             ? html`
                                 <div class="filter-menu-list-item-options">
                                   <div class="filter-menu-list-item-options-selection">
-                                    <button @click=${() => this.selectAllValues(annotation)}>
-                                      Select all
+                                    <button
+                                      class="btn-danger"
+                                      @click=${() => this.clearAllValues(annotation)}
+                                    >
+                                      Clear all
                                     </button>
-                                    <button @click=${() => this.clearAllValues(annotation)}>
-                                      None
+                                    <button
+                                      class="btn-secondary"
+                                      @click=${() => this.selectAllValues(annotation)}
+                                    >
+                                      Select all
                                     </button>
                                   </div>
                                   <div class="filter-menu-list-item-options-inputs">
-                                    <label>
-                                      <input
-                                        type="checkbox"
-                                        .checked=${(cfg.values || []).includes(null)}
-                                        @change=${(e: Event) =>
-                                          this.handleValueToggle(
-                                            annotation,
-                                            null,
-                                            (e.target as HTMLInputElement).checked,
-                                          )}
-                                      />
-                                      <span>N/A</span>
-                                    </label>
-                                    ${Array.from(new Set(values.filter((v) => v != null))).map(
+                                    ${values.some((v) => v === LEGEND_VALUES.NA_VALUE)
+                                      ? html`
+                                          <label class="filter-value-label">
+                                            <input
+                                              type="checkbox"
+                                              class="filter-value-checkbox"
+                                              .checked=${(cfg.values || []).includes(
+                                                LEGEND_VALUES.NA_VALUE,
+                                              )}
+                                              @change=${(e: Event) =>
+                                                this.handleValueToggle(
+                                                  annotation,
+                                                  LEGEND_VALUES.NA_VALUE,
+                                                  (e.target as HTMLInputElement).checked,
+                                                )}
+                                            />
+                                            <span class="filter-value-text"
+                                              >${LEGEND_VALUES.NA_DISPLAY}</span
+                                            >
+                                          </label>
+                                        `
+                                      : ''}
+                                    ${Array.from(
+                                      new Set(values.filter((v) => v !== LEGEND_VALUES.NA_VALUE)),
+                                    ).map(
                                       (v) => html`
-                                        <label>
+                                        <label class="filter-value-label">
                                           <input
                                             type="checkbox"
+                                            class="filter-value-checkbox"
                                             .checked=${(cfg.values || []).includes(String(v))}
                                             @change=${(e: Event) =>
                                               this.handleValueToggle(
@@ -580,13 +796,16 @@ export class ProtspaceControlBar extends LitElement {
                                                 (e.target as HTMLInputElement).checked,
                                               )}
                                           />
-                                          <span>${String(v)}</span>
+                                          <span class="filter-value-text">${String(v)}</span>
                                         </label>
                                       `,
                                     )}
                                   </div>
                                   <div class="filter-menu-list-item-options-done">
-                                    <button @click=${() => this.toggleValueMenu(annotation)}>
+                                    <button
+                                      class="btn-primary"
+                                      @click=${() => this.toggleValueMenu(annotation)}
+                                    >
                                       Done
                                     </button>
                                   </div>
@@ -598,13 +817,14 @@ export class ProtspaceControlBar extends LitElement {
                     </ul>
                     <div class="filter-menu-buttons">
                       <button
+                        class="btn-secondary"
                         @click=${() => {
                           this.showFilterMenu = false;
                         }}
                       >
                         Cancel
                       </button>
-                      <button @click=${this.applyFilters} class="active">Apply</button>
+                      <button class="btn-primary" @click=${this.applyFilters}>Apply</button>
                     </div>
                   </div>
                 `
@@ -616,6 +836,7 @@ export class ProtspaceControlBar extends LitElement {
             <button
               class="dropdown-trigger ${this.showExportMenu ? 'open' : ''}"
               @click=${this.toggleExportMenu}
+              @keydown=${this.handleExportKeydown}
               title="Export Options"
             >
               <svg class="icon" viewBox="0 0 24 24">
@@ -633,7 +854,7 @@ export class ProtspaceControlBar extends LitElement {
 
             ${this.showExportMenu
               ? html`
-                  <div class="export-menu">
+                  <div class="export-menu" @keydown=${this.handleExportKeydown}>
                     <div class="export-menu-header">
                       <span>Export Options</span>
                     </div>
@@ -644,7 +865,9 @@ export class ProtspaceControlBar extends LitElement {
                         <label class="export-option-label">Format</label>
                         <div class="export-format-options">
                           <button
-                            class="export-format-btn ${this.exportFormat === 'png' ? 'active' : ''}"
+                            class="btn-secondary btn-compact ${this.exportFormat === 'png'
+                              ? 'active'
+                              : ''}"
                             @click=${() => {
                               this.exportFormat = 'png';
                             }}
@@ -653,7 +876,9 @@ export class ProtspaceControlBar extends LitElement {
                             PNG
                           </button>
                           <button
-                            class="export-format-btn ${this.exportFormat === 'pdf' ? 'active' : ''}"
+                            class="btn-secondary btn-compact ${this.exportFormat === 'pdf'
+                              ? 'active'
+                              : ''}"
                             @click=${() => {
                               this.exportFormat = 'pdf';
                             }}
@@ -662,7 +887,7 @@ export class ProtspaceControlBar extends LitElement {
                             PDF
                           </button>
                           <button
-                            class="export-format-btn ${this.exportFormat === 'json'
+                            class="btn-secondary btn-compact ${this.exportFormat === 'json'
                               ? 'active'
                               : ''}"
                             @click=${() => {
@@ -673,7 +898,9 @@ export class ProtspaceControlBar extends LitElement {
                             JSON
                           </button>
                           <button
-                            class="export-format-btn ${this.exportFormat === 'ids' ? 'active' : ''}"
+                            class="btn-secondary btn-compact ${this.exportFormat === 'ids'
+                              ? 'active'
+                              : ''}"
                             @click=${() => {
                               this.exportFormat = 'ids';
                             }}
@@ -691,9 +918,29 @@ export class ProtspaceControlBar extends LitElement {
                               <div class="export-option-group">
                                 <label class="export-option-label" for="export-width">
                                   Width
-                                  <span class="export-option-value"
-                                    >${this.exportImageWidth}px</span
-                                  >
+                                  <div class="export-option-value-wrapper">
+                                    <input
+                                      type="number"
+                                      class="export-option-value-input"
+                                      min="800"
+                                      max="8192"
+                                      step="1"
+                                      .value=${String(this.exportImageWidth)}
+                                      @change=${(e: Event) => {
+                                        const value = parseInt(
+                                          (e.target as HTMLInputElement).value,
+                                        );
+                                        if (!isNaN(value)) {
+                                          this.handleWidthChange(this.clamp(value, 800, 8192));
+                                        }
+                                      }}
+                                      @blur=${(e: Event) =>
+                                        this.handleNumberInputBlur(e, 800, 8192, (v) =>
+                                          this.handleWidthChange(v),
+                                        )}
+                                    />
+                                    <span class="export-option-value-unit">px</span>
+                                  </div>
                                 </label>
                                 <input
                                   type="range"
@@ -701,7 +948,7 @@ export class ProtspaceControlBar extends LitElement {
                                   class="export-slider"
                                   min="800"
                                   max="8192"
-                                  step="128"
+                                  step="1"
                                   .value=${String(this.exportImageWidth)}
                                   @input=${(e: Event) => {
                                     this.handleWidthChange(
@@ -718,9 +965,29 @@ export class ProtspaceControlBar extends LitElement {
                               <div class="export-option-group">
                                 <label class="export-option-label" for="export-height">
                                   Height
-                                  <span class="export-option-value"
-                                    >${this.exportImageHeight}px</span
-                                  >
+                                  <div class="export-option-value-wrapper">
+                                    <input
+                                      type="number"
+                                      class="export-option-value-input"
+                                      min="600"
+                                      max="8192"
+                                      step="1"
+                                      .value=${String(this.exportImageHeight)}
+                                      @change=${(e: Event) => {
+                                        const value = parseInt(
+                                          (e.target as HTMLInputElement).value,
+                                        );
+                                        if (!isNaN(value)) {
+                                          this.handleHeightChange(this.clamp(value, 600, 8192));
+                                        }
+                                      }}
+                                      @blur=${(e: Event) =>
+                                        this.handleNumberInputBlur(e, 600, 8192, (v) =>
+                                          this.handleHeightChange(v),
+                                        )}
+                                    />
+                                    <span class="export-option-value-unit">px</span>
+                                  </div>
                                 </label>
                                 <input
                                   type="range"
@@ -742,9 +1009,10 @@ export class ProtspaceControlBar extends LitElement {
                                 </div>
                               </div>
 
-                              <label class="export-aspect-lock">
+                              <label class="export-checkbox-label">
                                 <input
                                   type="checkbox"
+                                  class="export-checkbox"
                                   .checked=${this.exportLockAspectRatio}
                                   @change=${(e: Event) => {
                                     this.exportLockAspectRatio = (
@@ -752,16 +1020,37 @@ export class ProtspaceControlBar extends LitElement {
                                     ).checked;
                                   }}
                                 />
-                                Lock aspect ratio
+                                <span>Lock aspect ratio</span>
                               </label>
                             </div>
 
                             <div class="export-option-group">
                               <label class="export-option-label" for="export-legend-width">
                                 Legend Width
-                                <span class="export-option-value"
-                                  >${this.exportLegendWidthPercent}%</span
-                                >
+                                <div class="export-option-value-wrapper">
+                                  <input
+                                    type="number"
+                                    class="export-option-value-input"
+                                    min="15"
+                                    max="50"
+                                    step="1"
+                                    .value=${String(this.exportLegendWidthPercent)}
+                                    @change=${(e: Event) => {
+                                      const value = parseInt((e.target as HTMLInputElement).value);
+                                      if (!isNaN(value)) {
+                                        this.exportLegendWidthPercent = this.clamp(value, 15, 50);
+                                      }
+                                    }}
+                                    @blur=${(e: Event) =>
+                                      this.handleNumberInputBlur(
+                                        e,
+                                        15,
+                                        50,
+                                        (v) => (this.exportLegendWidthPercent = v),
+                                      )}
+                                  />
+                                  <span class="export-option-value-unit">%</span>
+                                </div>
                               </label>
                               <input
                                 type="range"
@@ -769,7 +1058,7 @@ export class ProtspaceControlBar extends LitElement {
                                 class="export-slider"
                                 min="15"
                                 max="50"
-                                step="5"
+                                step="1"
                                 .value=${String(this.exportLegendWidthPercent)}
                                 @input=${(e: Event) => {
                                   this.exportLegendWidthPercent = parseInt(
@@ -786,17 +1075,42 @@ export class ProtspaceControlBar extends LitElement {
                             <div class="export-option-group">
                               <label class="export-option-label" for="export-legend-font">
                                 Legend Font
-                                <span class="export-option-value"
-                                  >${this.exportLegendFontSizePx}px</span
-                                >
+                                <div class="export-option-value-wrapper">
+                                  <input
+                                    type="number"
+                                    class="export-option-value-input"
+                                    min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
+                                    max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
+                                    step="1"
+                                    .value=${String(this.exportLegendFontSizePx)}
+                                    @change=${(e: Event) => {
+                                      const value = parseInt((e.target as HTMLInputElement).value);
+                                      if (!isNaN(value)) {
+                                        this.exportLegendFontSizePx = this.clamp(
+                                          value,
+                                          EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
+                                          EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
+                                        );
+                                      }
+                                    }}
+                                    @blur=${(e: Event) =>
+                                      this.handleNumberInputBlur(
+                                        e,
+                                        EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
+                                        EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
+                                        (v) => (this.exportLegendFontSizePx = v),
+                                      )}
+                                  />
+                                  <span class="export-option-value-unit">px</span>
+                                </div>
                               </label>
                               <input
                                 type="range"
                                 id="export-legend-font"
                                 class="export-slider"
-                                min="12"
-                                max="120"
-                                step="2"
+                                min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
+                                max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
+                                step="1"
                                 .value=${String(this.exportLegendFontSizePx)}
                                 @input=${(e: Event) => {
                                   this.exportLegendFontSizePx = parseInt(
@@ -805,16 +1119,16 @@ export class ProtspaceControlBar extends LitElement {
                                 }}
                               />
                               <div class="export-slider-labels">
-                                <span>12px</span>
-                                <span>120px</span>
+                                <span>${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}px</span>
+                                <span>${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}px</span>
                               </div>
                             </div>
 
                             <div class="export-actions">
-                              <button class="export-reset-btn" @click=${this.resetExportSettings}>
+                              <button class="btn-danger" @click=${this.resetExportSettings}>
                                 Reset
                               </button>
-                              <button class="export-action-btn" @click=${this.handleExport}>
+                              <button class="btn-primary" @click=${this.handleExport}>
                                 <svg class="icon" viewBox="0 0 24 24">
                                   <path
                                     stroke-linecap="round"
@@ -827,7 +1141,10 @@ export class ProtspaceControlBar extends LitElement {
                             </div>
                           `
                         : html`
-                            <button class="export-action-btn" @click=${this.handleExport}>
+                            <button
+                              class="btn-primary export-action-btn"
+                              @click=${this.handleExport}
+                            >
                               <svg class="icon" viewBox="0 0 24 24">
                                 <path
                                   stroke-linecap="round"
@@ -844,7 +1161,7 @@ export class ProtspaceControlBar extends LitElement {
               : ''}
           </div>
           <div class="export-container right-controls-data">
-            <button @click=${this.openFileDialog} title="Import Data">
+            <button class="btn-secondary" @click=${this.openFileDialog} title="Import Data">
               <svg class="icon" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
@@ -860,11 +1177,32 @@ export class ProtspaceControlBar extends LitElement {
     `;
   }
 
-  // Close export menu when clicking outside
   connectedCallback() {
     super.connectedCallback();
     document.addEventListener('click', this._onDocumentClick);
     document.addEventListener('keydown', this._onDocumentKeydown);
+
+    // Listen for annotation opening
+    this.addEventListener('annotation-opened', () => {
+      this.showProjectionMenu = false;
+      this.showFilterMenu = false;
+      this.showExportMenu = false;
+      // Close search when annotation opens
+      this.shadowRoot
+        ?.querySelector('protspace-protein-search')
+        ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
+    });
+
+    // Listen for search opening
+    this.addEventListener('search-opened', () => {
+      this.showProjectionMenu = false;
+      this.showFilterMenu = false;
+      this.showExportMenu = false;
+      // Close annotation when search opens
+      this.shadowRoot
+        ?.querySelector('protspace-annotation-select')
+        ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
+    });
 
     if (this.autoSync) {
       this._setupAutoSync();
@@ -900,11 +1238,25 @@ export class ProtspaceControlBar extends LitElement {
     if (inAriaModal) return;
 
     if (event.key === 'Escape') {
+      // Don't handle Escape if any dropdown is open (they handle it themselves)
+      if (
+        isAnyDropdownOpen({
+          projection: this.showProjectionMenu,
+          filter: this.showFilterMenu,
+          export: this.showExportMenu,
+        })
+      ) {
+        return;
+      }
+
+      // First priority: Clear selections if any exist
       if (this.selectedProteinsCount > 0) {
         event.preventDefault();
         event.stopPropagation();
         this.handleClearSelections();
-      } else if (this.selectionMode) {
+      }
+      // Second priority: Turn off selection mode
+      else if (this.selectionMode) {
         event.preventDefault();
         event.stopPropagation();
         this.handleToggleSelectionMode();
@@ -913,11 +1265,46 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private handleDocumentClick(event: Event) {
-    if (!this.contains(event.target as Node)) {
+    const path = (event as Event & { composedPath?: () => EventTarget[] }).composedPath?.() || [];
+
+    // Check if click is inside ANY open dropdown menu
+    const dropdownElements = [
+      this.shadowRoot?.querySelector('.dropdown-menu.align-left'), // Projection
+      this.shadowRoot?.querySelector('.filter-menu'), // Filter
+      this.shadowRoot?.querySelector('.export-menu'), // Export
+      // Get annotation-select element
+      this.shadowRoot?.querySelector('protspace-annotation-select'),
+      // Get search element
+      this.shadowRoot?.querySelector('protspace-protein-search'),
+    ].filter(Boolean);
+
+    const clickInsideDropdown = dropdownElements.some((el) => {
+      if (!el) return false;
+      // Check both the element itself and its shadow root contents
+      return path.includes(el) || (el as HTMLElement).contains(event.target as Node);
+    });
+
+    // Close ALL dropdowns if click is outside all dropdown menus
+    if (!clickInsideDropdown) {
+      // Close control-bar dropdowns
       this.showExportMenu = false;
       this.showFilterMenu = false;
       this.showProjectionMenu = false;
       this.openValueMenus = {};
+      this.projectionHighlightIndex = -1;
+      this.filterHighlightIndex = -1;
+
+      // Close annotation dropdown via custom event
+      const annotationSelect = this.shadowRoot?.querySelector('protspace-annotation-select');
+      if (annotationSelect) {
+        annotationSelect.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
+      }
+
+      // Close search suggestions via custom event
+      const searchElement = this.shadowRoot?.querySelector('protspace-protein-search');
+      if (searchElement) {
+        searchElement.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
+      }
     }
   }
 
@@ -958,11 +1345,6 @@ export class ProtspaceControlBar extends LitElement {
       } else if (attempts < 10) {
         // Retry up to 10 times with increasing delay
         setTimeout(() => trySetup(attempts + 1), 100 + attempts * 50);
-      } else {
-        console.warn(
-          '❌ Control bar could not find scatterplot element:',
-          this.scatterplotSelector,
-        );
       }
     };
 
@@ -990,19 +1372,7 @@ export class ProtspaceControlBar extends LitElement {
     }
     // Update annotation value options for filter UI
     try {
-      const annotations = data.annotations || {};
-      const map: Record<string, (string | null)[]> = {};
-      Object.keys(annotations).forEach((k) => {
-        const vals = annotations[k]?.values as (string | null)[] | undefined;
-        if (Array.isArray(vals)) map[k] = vals;
-      });
-      this.annotationValuesMap = map;
-      // Initialize filter config entries for new annotations (preserve existing selections)
-      const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
-      Object.keys(map).forEach((k) => {
-        if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
-      });
-      this.filterConfig = nextConfig;
+      this._initializeFilterConfig(data);
     } catch (e) {
       console.error(e);
     }
@@ -1016,26 +1386,18 @@ export class ProtspaceControlBar extends LitElement {
     }>;
     const { proteinId, modifierKeys } = customEvent.detail;
     if (!proteinId) return;
-    const currentSelection = new Set(this.selectedIdsChips);
-    const isCurrentlySelected = currentSelection.has(proteinId);
+
     let newSelection: string[];
 
     // Toggle mode: When selectionMode is active OR modifier keys are pressed
     if (this.selectionMode || modifierKeys.ctrl || modifierKeys.meta) {
-      if (isCurrentlySelected) {
-        currentSelection.delete(proteinId);
-      } else {
-        currentSelection.add(proteinId);
-      }
-      newSelection = Array.from(currentSelection);
+      newSelection = toggleProteinSelection(proteinId, this.selectedIdsChips);
     }
     // Replace mode: No modifier keys and selectionMode inactive
     else {
-      if (isCurrentlySelected && currentSelection.size === 1) {
-        newSelection = [];
-      } else {
-        newSelection = [proteinId];
-      }
+      const isOnlySelected =
+        this.selectedIdsChips.length === 1 && this.selectedIdsChips[0] === proteinId;
+      newSelection = isOnlySelected ? [] : [proteinId];
     }
     this.selectedIdsChips = newSelection;
     this.selectedProteinsCount = newSelection.length;
@@ -1130,6 +1492,27 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
+  /**
+   * Build annotation values map and initialize filter config from data
+   */
+  private _initializeFilterConfig(data: ProtspaceData) {
+    const annotations = data.annotations || {};
+    const map: Record<string, string[]> = {};
+    Object.keys(annotations).forEach((k) => {
+      const vals = annotations[k]?.values as (string | null)[] | undefined;
+      if (Array.isArray(vals)) {
+        map[k] = vals.map(toInternalValue);
+      }
+    });
+    this.annotationValuesMap = map;
+
+    const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
+    Object.keys(map).forEach((k) => {
+      if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
+    });
+    this.filterConfig = nextConfig;
+  }
+
   private _syncWithScatterplot() {
     if (this._scatterplotElement && 'getCurrentData' in this._scatterplotElement) {
       const scatterplot = this._scatterplotElement as ScatterplotElementLike;
@@ -1142,18 +1525,7 @@ export class ProtspaceControlBar extends LitElement {
 
         // Build annotation values map for filter UI
         try {
-          const annotations = data.annotations || {};
-          const map: Record<string, (string | null)[]> = {};
-          Object.keys(annotations).forEach((k) => {
-            const vals = annotations[k]?.values as (string | null)[] | undefined;
-            if (Array.isArray(vals)) map[k] = vals;
-          });
-          this.annotationValuesMap = map;
-          const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
-          Object.keys(map).forEach((k) => {
-            if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
-          });
-          this.filterConfig = nextConfig;
+          this._initializeFilterConfig(data);
         } catch (e) {
           console.error(e);
         }
@@ -1299,17 +1671,10 @@ export class ProtspaceControlBar extends LitElement {
     const customEvent = event as CustomEvent<{ proteinIds: string[]; isMultiple: boolean }>;
     const ids = Array.isArray(customEvent.detail?.proteinIds) ? customEvent.detail.proteinIds : [];
 
-    let newSelection: string[];
-    // When selectionMode is active, append brushed selections to existing selection
-    if (this.selectionMode) {
-      const currentSelection = new Set(this.selectedIdsChips);
-      ids.forEach((id) => currentSelection.add(id));
-      newSelection = Array.from(currentSelection);
-    }
-    // When selectionMode is inactive, replace the selection
-    else {
-      newSelection = ids.slice();
-    }
+    // When selectionMode is active, merge with existing; otherwise replace
+    const newSelection = this.selectionMode
+      ? mergeProteinSelections(this.selectedIdsChips, ids)
+      : ids.slice();
 
     this.selectedIdsChips = newSelection;
     this.selectedProteinsCount = newSelection.length;
@@ -1333,10 +1698,12 @@ export class ProtspaceControlBar extends LitElement {
     );
   }
 
-  private toggleFilterMenu() {
+  private toggleFilterMenu(event?: Event) {
+    event?.stopPropagation();
     const opening = !this.showFilterMenu;
     this.showFilterMenu = opening;
     if (opening) {
+      this.closeOtherDropdowns('filter');
       // Restore last applied configuration if available
       if (this.lastAppliedFilterConfig && Object.keys(this.lastAppliedFilterConfig).length > 0) {
         const merged: typeof this.filterConfig = { ...this.filterConfig };
@@ -1348,7 +1715,78 @@ export class ProtspaceControlBar extends LitElement {
         this.filterConfig = merged;
         this.openValueMenus = {};
       }
+      this.filterHighlightIndex = 0;
+    } else {
+      this.filterHighlightIndex = -1;
     }
+  }
+
+  private handleFilterKeydown(event: KeyboardEvent) {
+    if (!this.showFilterMenu) {
+      // Handle trigger button keys
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        this.toggleFilterMenu();
+      }
+      return;
+    }
+
+    // Check if any submenu is open - if so, allow native checkbox navigation
+    const hasOpenSubmenu = Object.values(this.openValueMenus).some((isOpen) => isOpen);
+    if (hasOpenSubmenu) {
+      // Let Tab and Shift+Tab work naturally for checkboxes in submenu
+      if (event.key === 'Tab') {
+        return; // Allow default Tab behavior
+      }
+      // Escape closes the submenu
+      if (event.key === 'Escape') {
+        handleDropdownEscape(event, () => {
+          this.openValueMenus = {};
+        });
+        return;
+      }
+      return;
+    }
+
+    // Special handling for Space and Enter/ArrowRight in filter menu
+    if (event.key === ' ') {
+      event.preventDefault();
+      if (this.filterHighlightIndex >= 0 && this.filterHighlightIndex < this.annotations.length) {
+        const annotation = this.annotations[this.filterHighlightIndex];
+        const cfg = this.filterConfig[annotation] || { enabled: false, values: [] };
+        this.handleFilterToggle(annotation, !cfg.enabled);
+      }
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      if (this.filterHighlightIndex >= 0 && this.filterHighlightIndex < this.annotations.length) {
+        const annotation = this.annotations[this.filterHighlightIndex];
+        const cfg = this.filterConfig[annotation] || { enabled: false, values: [] };
+        if (cfg.enabled) {
+          this.toggleValueMenu(annotation);
+        }
+      }
+      return;
+    }
+
+    // Use shared dropdown keyboard handler for common keys
+    this.handleDropdownKeydown(event, {
+      items: this.annotations,
+      highlightIndex: this.filterHighlightIndex,
+      onHighlightChange: (index) => {
+        this.filterHighlightIndex = index;
+      },
+      onSelect: () => {
+        // Filter doesn't select on Enter, handled above
+      },
+      onClose: () => {
+        this.showFilterMenu = false;
+        this.filterHighlightIndex = -1;
+      },
+      supportHomeEnd: false,
+    });
   }
 
   private handleFilterToggle(annotation: string, enabled: boolean) {
@@ -1370,7 +1808,7 @@ export class ProtspaceControlBar extends LitElement {
     };
   }
 
-  private handleValueToggle(annotation: string, value: string | null, checked: boolean) {
+  private handleValueToggle(annotation: string, value: string, checked: boolean) {
     const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
@@ -1420,7 +1858,7 @@ export class ProtspaceControlBar extends LitElement {
       .filter(([, cfg]) => cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0)
       .map(([annotation, cfg]) => ({
         annotation,
-        values: cfg.values as (string | null)[],
+        values: cfg.values,
       }));
 
     if (activeFilters.length === 0) {
@@ -1445,11 +1883,13 @@ export class ProtspaceControlBar extends LitElement {
         const annotationValue = Array.isArray(annotationIdxData[i])
           ? (annotationIdxData[i] as number[])[0]
           : (annotationIdxData as number[])[i];
-        const v =
+        const rawValue =
           annotationValue != null && annotationValue >= 0 && annotationValue < valuesArr.length
             ? valuesArr[annotationValue]
             : null;
-        if (!values.some((allowed) => allowed === v)) {
+        // Normalize raw value to internal format for comparison
+        const normalizedValue = toInternalValue(rawValue);
+        if (!values.some((allowed) => allowed === normalizedValue)) {
           isMatch = false;
           break;
         }
@@ -1488,7 +1928,7 @@ export class ProtspaceControlBar extends LitElement {
     this.selectedAnnotation = customName;
     this.annotationValuesMap = {
       ...this.annotationValuesMap,
-      [customName]: newAnnotations[customName].values,
+      [customName]: newAnnotations[customName].values.map(toInternalValue),
     };
     // Annotation select component will automatically update via selectedAnnotation property binding
 

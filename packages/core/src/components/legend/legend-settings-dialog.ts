@@ -222,7 +222,9 @@ function renderDialogHeader(callbacks: SettingsDialogCallbacks): TemplateResult 
   return html`
     <div class="modal-header">
       <h3 class="modal-title">Legend settings</h3>
-      <button class="close-button" @click=${callbacks.onClose}>${renderCloseIcon()}</button>
+      <button class="btn-close close-button" @click=${callbacks.onClose}>
+        ${renderCloseIcon()}
+      </button>
     </div>
   `;
 }
@@ -238,15 +240,15 @@ function renderDialogFooter(
     <div class="modal-footer">
       ${hasPersistedSettings
         ? html`<button
-            class="modal-reset-button"
+            class="btn-danger modal-reset-button"
             @click=${callbacks.onReset}
             title="Reset all settings to defaults and clear saved preferences"
           >
             Reset
           </button>`
         : nothing}
-      <button class="modal-close-button" @click=${callbacks.onClose}>Cancel</button>
-      <button class="extract-button" @click=${callbacks.onSave}>Save</button>
+      <button class="btn-secondary modal-close-button" @click=${callbacks.onClose}>Cancel</button>
+      <button class="btn-primary extract-button" @click=${callbacks.onSave}>Save</button>
     </div>
   `;
 }

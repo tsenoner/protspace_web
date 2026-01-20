@@ -1644,14 +1644,7 @@ export class ProtspaceScatterplot extends LitElement {
             `
           : ''}
         ${this._isolationMode
-          ? html`
-              <div
-                class="isolation-indicator"
-                style="z-index: 10; bottom: 10px; right: 10px; position: absolute; background: rgba(59, 130, 246, 0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;"
-              >
-                ${this._plotData.length} points
-              </div>
-            `
+          ? html` <div class="isolation-indicator">${this._plotData.length} points</div> `
           : ''}
       </div>
     `;
@@ -1836,6 +1829,74 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     return this.data;
+  }
+
+  /**
+   * Capture the scatterplot at a specific resolution for high-quality export.
+   * Renders directly to an off-screen WebGL canvas without affecting the display.
+   *
+   * @param width Target width in CSS pixels
+   * @param height Target height in CSS pixels
+   * @param options Export options (dpr, backgroundColor)
+   * @returns Canvas containing the rendered visualization
+   *
+   * @example
+   * const canvas = scatterplot.captureAtResolution(6000, 3000);
+   * const dataUrl = canvas.toDataURL('image/png');
+   */
+  public captureAtResolution(
+    width: number,
+    height: number,
+    options: { dpr?: number; backgroundColor?: string } = {},
+  ): HTMLCanvasElement {
+    if (!this._webglRenderer) {
+      throw new Error('WebGL renderer not initialized');
+    }
+
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      throw new Error('Width and height must be positive numbers');
+    }
+
+    const { dpr = 1, backgroundColor = '#ffffff' } = options;
+
+    // Capture WebGL content using native off-screen rendering
+    const webglCanvas = this._webglRenderer.renderToCanvas(width, height, dpr);
+
+    // Composite with badges canvas if present
+    const badgesCanvas = this._badgesCanvas;
+    if (badgesCanvas && badgesCanvas.width > 0 && badgesCanvas.height > 0) {
+      const ctx = webglCanvas.getContext('2d');
+      if (ctx) {
+        // Scale badges to match output dimensions
+        ctx.drawImage(
+          badgesCanvas,
+          0,
+          0,
+          badgesCanvas.width,
+          badgesCanvas.height,
+          0,
+          0,
+          webglCanvas.width,
+          webglCanvas.height,
+        );
+      }
+    }
+
+    // Apply background color if the canvas has transparency
+    if (backgroundColor && backgroundColor !== 'transparent') {
+      const outputCanvas = document.createElement('canvas');
+      outputCanvas.width = webglCanvas.width;
+      outputCanvas.height = webglCanvas.height;
+      const ctx = outputCanvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+        ctx.drawImage(webglCanvas, 0, 0);
+        return outputCanvas;
+      }
+    }
+
+    return webglCanvas;
   }
 }
 
