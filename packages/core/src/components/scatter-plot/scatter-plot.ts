@@ -5,6 +5,7 @@ import type { VisualizationData, PlotDataPoint, ScatterplotConfig } from '@prots
 import { DataProcessor } from '@protspace/utils';
 import { scatterplotStyles } from './scatter-plot.styles';
 import './projection-metadata';
+import './protspace-tips';
 import { DEFAULT_CONFIG } from './config';
 import { createStyleGetters } from './style-getters';
 import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer } from './webgl';
@@ -1522,6 +1523,8 @@ export class ProtspaceScatterplot extends LitElement {
         <protspace-projection-metadata
           .projection=${this.data?.projections[this.selectedProjectionIndex] ?? null}
         ></protspace-projection-metadata>
+
+        <protspace-tips></protspace-tips>
         ${this._tooltipData
           ? html`
               <div
