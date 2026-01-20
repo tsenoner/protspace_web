@@ -164,6 +164,13 @@ export const scatterplotStyles = css`
     margin-bottom: 0.25rem;
   }
 
+  .tooltip-protein-name {
+    font-weight: normal;
+    color: #334155;
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+  }
+
   .tooltip-annotation {
     font-size: 0.75rem;
     color: #5b6b7a;

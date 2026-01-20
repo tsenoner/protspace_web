@@ -1596,9 +1596,19 @@ export class ProtspaceScatterplot extends LitElement {
     return filtered.join(', ');
   }
 
+  private _getProteinName(point: PlotDataPoint | null): string | null {
+    if (!point) return null;
+    const values = point.annotationValues?.protein_name;
+    if (!values || values.length === 0) return null;
+    const filtered = values.map((value) => value.trim()).filter((value) => value.length > 0);
+    if (filtered.length === 0) return null;
+    return filtered.join(', ');
+  }
+
   render() {
     const config = this._mergedConfig;
     const geneName = this._getGeneName(this._tooltipData?.protein ?? null);
+    const proteinName = this._getProteinName(this._tooltipData?.protein ?? null);
     const tooltipAnnotationValues =
       this._tooltipData?.protein.annotationValues[this.selectedAnnotation] ?? [];
     const tooltipAnnotationScores =
@@ -1635,6 +1645,7 @@ export class ProtspaceScatterplot extends LitElement {
                 60}px; z-index: 10;"
               >
                 <div class="tooltip-protein-id">${this._tooltipData.protein.id}</div>
+                ${proteinName ? html`<div class="tooltip-protein-name">${proteinName}</div>` : ''}
                 ${geneName ? html`<div class="tooltip-gene-name">${geneName}</div>` : ''}
                 ${tooltipAnnotationValues.map((value, idx) => {
                   const score = showScores ? tooltipAnnotationScores[idx] : null;
