@@ -11,6 +11,15 @@ import type {
 import { LEGEND_VALUES } from '@protspace/utils';
 import { toInternalValue } from '../legend/config';
 import { handleDropdownEscape, isAnyDropdownOpen } from '../../utils/dropdown-helpers';
+import {
+  EXPORT_DEFAULTS,
+  calculateHeightFromWidth,
+  calculateWidthFromHeight,
+  isProjection3D,
+  getProjectionPlane,
+  toggleProteinSelection,
+  mergeProteinSelections,
+} from './control-bar-helpers';
 import './search';
 import './annotation-select';
 
@@ -56,30 +65,13 @@ export class ProtspaceControlBar extends LitElement {
   @state() private projectionHighlightIndex: number = -1;
   @state() private filterHighlightIndex: number = -1;
 
-  // Export defaults - single source of truth
-  static readonly EXPORT_DEFAULTS = {
-    FORMAT: 'png' as const,
-    IMAGE_WIDTH: 2048,
-    IMAGE_HEIGHT: 1024,
-    LEGEND_WIDTH_PERCENT: 25,
-    LEGEND_FONT_SIZE_PX: 24,
-    BASE_FONT_SIZE: 24, // Base size for scale factor calculation
-    MIN_LEGEND_FONT_SIZE_PX: 8,
-    MAX_LEGEND_FONT_SIZE_PX: 120,
-    LOCK_ASPECT_RATIO: true,
-  };
-
   // Export configuration state
-  @state() private exportFormat: 'png' | 'pdf' | 'json' | 'ids' =
-    ProtspaceControlBar.EXPORT_DEFAULTS.FORMAT;
-  @state() private exportImageWidth: number = ProtspaceControlBar.EXPORT_DEFAULTS.IMAGE_WIDTH;
-  @state() private exportImageHeight: number = ProtspaceControlBar.EXPORT_DEFAULTS.IMAGE_HEIGHT;
-  @state() private exportLegendWidthPercent: number =
-    ProtspaceControlBar.EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
-  @state() private exportLegendFontSizePx: number =
-    ProtspaceControlBar.EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX;
-  @state() private exportLockAspectRatio: boolean =
-    ProtspaceControlBar.EXPORT_DEFAULTS.LOCK_ASPECT_RATIO;
+  @state() private exportFormat: 'png' | 'pdf' | 'json' | 'ids' = EXPORT_DEFAULTS.FORMAT;
+  @state() private exportImageWidth: number = EXPORT_DEFAULTS.IMAGE_WIDTH;
+  @state() private exportImageHeight: number = EXPORT_DEFAULTS.IMAGE_HEIGHT;
+  @state() private exportLegendWidthPercent: number = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
+  @state() private exportLegendFontSizePx: number = EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX;
+  @state() private exportLockAspectRatio: boolean = EXPORT_DEFAULTS.LOCK_ASPECT_RATIO;
   private _scatterplotElement: ScatterplotElementLike | null = null;
 
   // Search state
@@ -98,22 +90,29 @@ export class ProtspaceControlBar extends LitElement {
 
   static styles = controlBarStyles;
 
+  /**
+   * Close all dropdowns except the specified one
+   */
+  private closeOtherDropdowns(except: 'projection' | 'filter' | 'export') {
+    if (except !== 'projection') this.showProjectionMenu = false;
+    if (except !== 'filter') this.showFilterMenu = false;
+    if (except !== 'export') this.showExportMenu = false;
+
+    // Close annotation dropdown via event
+    this.shadowRoot
+      ?.querySelector('protspace-annotation-select')
+      ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
+    // Close search via event
+    this.shadowRoot
+      ?.querySelector('protspace-protein-search')
+      ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
+  }
+
   private toggleProjectionMenu(event?: Event) {
     event?.stopPropagation();
     this.showProjectionMenu = !this.showProjectionMenu;
     if (this.showProjectionMenu) {
-      // Close other dropdowns when opening this one
-      this.showFilterMenu = false;
-      this.showExportMenu = false;
-      // Close annotation via event
-      this.shadowRoot
-        ?.querySelector('protspace-annotation-select')
-        ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
-      // Close search via event
-      this.shadowRoot
-        ?.querySelector('protspace-protein-search')
-        ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
-      // Initialize highlight to current selection or first item
+      this.closeOtherDropdowns('projection');
       const currentIndex = this.projections.findIndex((p) => p === this.selectedProjection);
       this.projectionHighlightIndex = currentIndex >= 0 ? currentIndex : 0;
     } else {
@@ -133,10 +132,8 @@ export class ProtspaceControlBar extends LitElement {
         (this._scatterplotElement as ScatterplotElementLike).selectedProjectionIndex =
           projectionIndex;
 
-        // If projection is 3D, keep current plane; otherwise, reset to XY
-        const meta = this.projectionsMeta.find((p) => p.name === this.selectedProjection);
-        const is3D = meta?.metadata?.dimension === 3;
-        const nextPlane: 'xy' | 'xz' | 'yz' = is3D ? this.projectionPlane : 'xy';
+        const is3D = isProjection3D(this.selectedProjection, this.projectionsMeta);
+        const nextPlane = getProjectionPlane(is3D, this.projectionPlane);
         if ('projectionPlane' in this._scatterplotElement) {
           (this._scatterplotElement as ScatterplotElementLike).projectionPlane = nextPlane;
         }
@@ -397,18 +394,7 @@ export class ProtspaceControlBar extends LitElement {
     event?.stopPropagation();
     this.showExportMenu = !this.showExportMenu;
     if (this.showExportMenu) {
-      // Close other dropdowns when opening this one
-      this.showProjectionMenu = false;
-      this.showFilterMenu = false;
-      // Close annotation via event
-      this.shadowRoot
-        ?.querySelector('protspace-annotation-select')
-        ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
-      // Close search via event
-      this.shadowRoot
-        ?.querySelector('protspace-protein-search')
-        ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
-      // Auto-focus first format button when opening
+      this.closeOtherDropdowns('export');
       this.updateComplete.then(() => {
         const firstFormatBtn = this.shadowRoot?.querySelector(
           '.export-format-options button',
@@ -437,7 +423,7 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private resetExportSettings() {
-    const defaults = ProtspaceControlBar.EXPORT_DEFAULTS;
+    const defaults = EXPORT_DEFAULTS;
     this.exportImageWidth = defaults.IMAGE_WIDTH;
     this.exportImageHeight = defaults.IMAGE_HEIGHT;
     this.exportLegendWidthPercent = defaults.LEGEND_WIDTH_PERCENT;
@@ -449,10 +435,8 @@ export class ProtspaceControlBar extends LitElement {
     const oldWidth = this.exportImageWidth;
     this.exportImageWidth = newWidth;
 
-    // Adjust height proportionally if aspect ratio is locked
-    if (this.exportLockAspectRatio && oldWidth > 0) {
-      const ratio = newWidth / oldWidth;
-      this.exportImageHeight = Math.round(this.exportImageHeight * ratio);
+    if (this.exportLockAspectRatio) {
+      this.exportImageHeight = calculateHeightFromWidth(newWidth, oldWidth, this.exportImageHeight);
     }
   }
 
@@ -460,10 +444,8 @@ export class ProtspaceControlBar extends LitElement {
     const oldHeight = this.exportImageHeight;
     this.exportImageHeight = newHeight;
 
-    // Adjust width proportionally if aspect ratio is locked
-    if (this.exportLockAspectRatio && oldHeight > 0) {
-      const ratio = newHeight / oldHeight;
-      this.exportImageWidth = Math.round(this.exportImageWidth * ratio);
+    if (this.exportLockAspectRatio) {
+      this.exportImageWidth = calculateWidthFromHeight(newHeight, oldHeight, this.exportImageWidth);
     }
   }
 
@@ -562,9 +544,7 @@ export class ProtspaceControlBar extends LitElement {
           </div>
 
           ${(() => {
-            const meta = this.projectionsMeta.find((p) => p.name === this.selectedProjection);
-            const is3D = meta?.metadata?.dimension === 3;
-            return is3D
+            return isProjection3D(this.selectedProjection, this.projectionsMeta)
               ? html`
                   <div class="control-group">
                     <label for="plane-select">Plane:</label>
@@ -1099,10 +1079,8 @@ export class ProtspaceControlBar extends LitElement {
                                   <input
                                     type="number"
                                     class="export-option-value-input"
-                                    min=${ProtspaceControlBar.EXPORT_DEFAULTS
-                                      .MIN_LEGEND_FONT_SIZE_PX}
-                                    max=${ProtspaceControlBar.EXPORT_DEFAULTS
-                                      .MAX_LEGEND_FONT_SIZE_PX}
+                                    min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
+                                    max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
                                     step="1"
                                     .value=${String(this.exportLegendFontSizePx)}
                                     @change=${(e: Event) => {
@@ -1110,18 +1088,16 @@ export class ProtspaceControlBar extends LitElement {
                                       if (!isNaN(value)) {
                                         this.exportLegendFontSizePx = this.clamp(
                                           value,
-                                          ProtspaceControlBar.EXPORT_DEFAULTS
-                                            .MIN_LEGEND_FONT_SIZE_PX,
-                                          ProtspaceControlBar.EXPORT_DEFAULTS
-                                            .MAX_LEGEND_FONT_SIZE_PX,
+                                          EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
+                                          EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
                                         );
                                       }
                                     }}
                                     @blur=${(e: Event) =>
                                       this.handleNumberInputBlur(
                                         e,
-                                        ProtspaceControlBar.EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
-                                        ProtspaceControlBar.EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
+                                        EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
+                                        EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
                                         (v) => (this.exportLegendFontSizePx = v),
                                       )}
                                   />
@@ -1132,8 +1108,8 @@ export class ProtspaceControlBar extends LitElement {
                                 type="range"
                                 id="export-legend-font"
                                 class="export-slider"
-                                min=${ProtspaceControlBar.EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
-                                max=${ProtspaceControlBar.EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
+                                min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
+                                max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
                                 step="1"
                                 .value=${String(this.exportLegendFontSizePx)}
                                 @input=${(e: Event) => {
@@ -1143,14 +1119,8 @@ export class ProtspaceControlBar extends LitElement {
                                 }}
                               />
                               <div class="export-slider-labels">
-                                <span
-                                  >${ProtspaceControlBar.EXPORT_DEFAULTS
-                                    .MIN_LEGEND_FONT_SIZE_PX}px</span
-                                >
-                                <span
-                                  >${ProtspaceControlBar.EXPORT_DEFAULTS
-                                    .MAX_LEGEND_FONT_SIZE_PX}px</span
-                                >
+                                <span>${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}px</span>
+                                <span>${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}px</span>
                               </div>
                             </div>
 
@@ -1375,11 +1345,6 @@ export class ProtspaceControlBar extends LitElement {
       } else if (attempts < 10) {
         // Retry up to 10 times with increasing delay
         setTimeout(() => trySetup(attempts + 1), 100 + attempts * 50);
-      } else {
-        console.warn(
-          '❌ Control bar could not find scatterplot element:',
-          this.scatterplotSelector,
-        );
       }
     };
 
@@ -1407,22 +1372,7 @@ export class ProtspaceControlBar extends LitElement {
     }
     // Update annotation value options for filter UI
     try {
-      const annotations = data.annotations || {};
-      const map: Record<string, string[]> = {};
-      Object.keys(annotations).forEach((k) => {
-        const vals = annotations[k]?.values as (string | null)[] | undefined;
-        if (Array.isArray(vals)) {
-          // Normalize values to internal format (N/A values become '__NA__')
-          map[k] = vals.map(toInternalValue);
-        }
-      });
-      this.annotationValuesMap = map;
-      // Initialize filter config entries for new annotations (preserve existing selections)
-      const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
-      Object.keys(map).forEach((k) => {
-        if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
-      });
-      this.filterConfig = nextConfig;
+      this._initializeFilterConfig(data);
     } catch (e) {
       console.error(e);
     }
@@ -1436,26 +1386,18 @@ export class ProtspaceControlBar extends LitElement {
     }>;
     const { proteinId, modifierKeys } = customEvent.detail;
     if (!proteinId) return;
-    const currentSelection = new Set(this.selectedIdsChips);
-    const isCurrentlySelected = currentSelection.has(proteinId);
+
     let newSelection: string[];
 
     // Toggle mode: When selectionMode is active OR modifier keys are pressed
     if (this.selectionMode || modifierKeys.ctrl || modifierKeys.meta) {
-      if (isCurrentlySelected) {
-        currentSelection.delete(proteinId);
-      } else {
-        currentSelection.add(proteinId);
-      }
-      newSelection = Array.from(currentSelection);
+      newSelection = toggleProteinSelection(proteinId, this.selectedIdsChips);
     }
     // Replace mode: No modifier keys and selectionMode inactive
     else {
-      if (isCurrentlySelected && currentSelection.size === 1) {
-        newSelection = [];
-      } else {
-        newSelection = [proteinId];
-      }
+      const isOnlySelected =
+        this.selectedIdsChips.length === 1 && this.selectedIdsChips[0] === proteinId;
+      newSelection = isOnlySelected ? [] : [proteinId];
     }
     this.selectedIdsChips = newSelection;
     this.selectedProteinsCount = newSelection.length;
@@ -1550,6 +1492,27 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
+  /**
+   * Build annotation values map and initialize filter config from data
+   */
+  private _initializeFilterConfig(data: ProtspaceData) {
+    const annotations = data.annotations || {};
+    const map: Record<string, string[]> = {};
+    Object.keys(annotations).forEach((k) => {
+      const vals = annotations[k]?.values as (string | null)[] | undefined;
+      if (Array.isArray(vals)) {
+        map[k] = vals.map(toInternalValue);
+      }
+    });
+    this.annotationValuesMap = map;
+
+    const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
+    Object.keys(map).forEach((k) => {
+      if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
+    });
+    this.filterConfig = nextConfig;
+  }
+
   private _syncWithScatterplot() {
     if (this._scatterplotElement && 'getCurrentData' in this._scatterplotElement) {
       const scatterplot = this._scatterplotElement as ScatterplotElementLike;
@@ -1562,21 +1525,7 @@ export class ProtspaceControlBar extends LitElement {
 
         // Build annotation values map for filter UI
         try {
-          const annotations = data.annotations || {};
-          const map: Record<string, string[]> = {};
-          Object.keys(annotations).forEach((k) => {
-            const vals = annotations[k]?.values as (string | null)[] | undefined;
-            if (Array.isArray(vals)) {
-              // Normalize values to internal format (N/A values become '__NA__')
-              map[k] = vals.map(toInternalValue);
-            }
-          });
-          this.annotationValuesMap = map;
-          const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
-          Object.keys(map).forEach((k) => {
-            if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
-          });
-          this.filterConfig = nextConfig;
+          this._initializeFilterConfig(data);
         } catch (e) {
           console.error(e);
         }
@@ -1722,17 +1671,10 @@ export class ProtspaceControlBar extends LitElement {
     const customEvent = event as CustomEvent<{ proteinIds: string[]; isMultiple: boolean }>;
     const ids = Array.isArray(customEvent.detail?.proteinIds) ? customEvent.detail.proteinIds : [];
 
-    let newSelection: string[];
-    // When selectionMode is active, append brushed selections to existing selection
-    if (this.selectionMode) {
-      const currentSelection = new Set(this.selectedIdsChips);
-      ids.forEach((id) => currentSelection.add(id));
-      newSelection = Array.from(currentSelection);
-    }
-    // When selectionMode is inactive, replace the selection
-    else {
-      newSelection = ids.slice();
-    }
+    // When selectionMode is active, merge with existing; otherwise replace
+    const newSelection = this.selectionMode
+      ? mergeProteinSelections(this.selectedIdsChips, ids)
+      : ids.slice();
 
     this.selectedIdsChips = newSelection;
     this.selectedProteinsCount = newSelection.length;
@@ -1761,17 +1703,7 @@ export class ProtspaceControlBar extends LitElement {
     const opening = !this.showFilterMenu;
     this.showFilterMenu = opening;
     if (opening) {
-      // Close other dropdowns when opening this one
-      this.showProjectionMenu = false;
-      this.showExportMenu = false;
-      // Close annotation via event
-      this.shadowRoot
-        ?.querySelector('protspace-annotation-select')
-        ?.dispatchEvent(new CustomEvent('close-dropdown', { bubbles: false }));
-      // Close search via event
-      this.shadowRoot
-        ?.querySelector('protspace-protein-search')
-        ?.dispatchEvent(new CustomEvent('close-search', { bubbles: false }));
+      this.closeOtherDropdowns('filter');
       // Restore last applied configuration if available
       if (this.lastAppliedFilterConfig && Object.keys(this.lastAppliedFilterConfig).length > 0) {
         const merged: typeof this.filterConfig = { ...this.filterConfig };
@@ -1783,7 +1715,6 @@ export class ProtspaceControlBar extends LitElement {
         this.filterConfig = merged;
         this.openValueMenus = {};
       }
-      // Initialize highlight to first item
       this.filterHighlightIndex = 0;
     } else {
       this.filterHighlightIndex = -1;

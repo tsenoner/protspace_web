@@ -6,7 +6,7 @@ import type {
   ProtspaceStructureViewer,
   DataLoader,
 } from '@protspace/core';
-import { ProtspaceControlBar } from '@protspace/core';
+import { ProtspaceControlBar, EXPORT_DEFAULTS } from '@protspace/core';
 import { createExporter, showNotification } from '@protspace/utils';
 
 // Export initialization function that can be called when the component mounts
@@ -579,20 +579,22 @@ export async function initializeDemo() {
 
       try {
         const exporter = createExporter(plotElement);
-        const DEFAULTS = ProtspaceControlBar.EXPORT_DEFAULTS;
 
         // Calculate scatterplot dimensions (excluding legend)
-        const legendPercent = (legendWidthPercent ?? DEFAULTS.LEGEND_WIDTH_PERCENT) / 100;
-        const targetWidth = Math.round((imageWidth ?? DEFAULTS.IMAGE_WIDTH) * (1 - legendPercent));
-        const targetHeight = imageHeight ?? DEFAULTS.IMAGE_HEIGHT;
+        const legendPercent = (legendWidthPercent ?? EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT) / 100;
+        const targetWidth = Math.round(
+          (imageWidth ?? EXPORT_DEFAULTS.IMAGE_WIDTH) * (1 - legendPercent),
+        );
+        const targetHeight = imageHeight ?? EXPORT_DEFAULTS.IMAGE_HEIGHT;
 
         // Export options
         const options = {
           targetWidth,
           targetHeight,
-          legendWidthPercent: legendWidthPercent ?? DEFAULTS.LEGEND_WIDTH_PERCENT,
+          legendWidthPercent: legendWidthPercent ?? EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT,
           legendScaleFactor:
-            (legendFontSizePx ?? DEFAULTS.LEGEND_FONT_SIZE_PX) / DEFAULTS.BASE_FONT_SIZE,
+            (legendFontSizePx ?? EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX) /
+            EXPORT_DEFAULTS.BASE_FONT_SIZE,
           includeSelection: selectedProteins.length > 0,
           backgroundColor: 'white',
         };

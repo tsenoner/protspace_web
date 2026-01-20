@@ -248,19 +248,14 @@ export class ProtSpaceExporter {
 
     // Use native high-resolution capture if available
     if (typeof scatterplot.captureAtResolution === 'function') {
-      console.log(`📸 Native capture at ${width}×${height}`);
       try {
-        const canvas = scatterplot.captureAtResolution(width, height, {
+        return scatterplot.captureAtResolution(width, height, {
           dpr: 1, // Use DPR=1 for exact pixel output
           backgroundColor,
         });
-        console.log('✅ Native capture complete');
-        return canvas;
-      } catch (error) {
-        console.warn('⚠️ Native capture failed, falling back to html2canvas:', error);
+      } catch {
+        // Fall through to fallback capture
       }
-    } else {
-      console.warn('⚠️ captureAtResolution not available, using fallback');
     }
 
     // Fallback: Direct canvas capture (for older component versions)
@@ -331,8 +326,8 @@ export class ProtSpaceExporter {
         }
 
         return outputCanvas;
-      } catch (error) {
-        console.warn('Direct WebGL capture failed, falling back to html2canvas:', error);
+      } catch {
+        // Fall through to html2canvas fallback
       }
     }
 
@@ -377,8 +372,7 @@ export class ProtSpaceExporter {
     croppedCanvas.height = height;
     const ctx = croppedCanvas.getContext('2d');
     if (!ctx) {
-      console.error('Could not get 2D context for cropped canvas');
-      return sourceCanvas;
+      return sourceCanvas; // Fallback to source if context unavailable
     }
     ctx.drawImage(sourceCanvas, x, y, width, height, 0, 0, width, height);
     return croppedCanvas;
