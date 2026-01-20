@@ -138,59 +138,6 @@ export const scatterplotStyles = css`
     gap: 0.25rem;
   }
 
-  .tooltip {
-    position: absolute;
-    z-index: 20;
-    padding: 0.5rem;
-    background: var(--protspace-tooltip-bg);
-    border: 1px solid var(--protspace-tooltip-border);
-    border-radius: 0.375rem;
-    box-shadow: var(--protspace-tooltip-shadow);
-    font-size: 0.875rem;
-    max-width: 200px;
-    word-wrap: break-word;
-    pointer-events: none;
-  }
-
-  .tooltip-protein-id {
-    font-weight: bold;
-    margin-bottom: 0.25rem;
-  }
-
-  .tooltip-gene-name {
-    font-weight: normal;
-    color: #334155;
-    font-size: 0.75rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .tooltip-protein-name {
-    font-weight: normal;
-    color: #334155;
-    font-size: 0.75rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .tooltip-annotation {
-    font-size: 0.75rem;
-    color: #5b6b7a;
-  }
-
-  .tooltip-annotation-header {
-    font-size: 0.75rem;
-    color: #5b6b7a;
-    margin-bottom: 0.125rem;
-  }
-
-  .tooltip-hint {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    margin-top: 0.25rem;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
   /* Duplicate stack spiderfy UI (SVG overlay) */
 
   .dup-spiderfy {
