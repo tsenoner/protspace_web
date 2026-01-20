@@ -90,7 +90,10 @@ export class ProtspaceTips extends LitElement {
           <div class="tips-group">
             <h4 class="tips-group-title">Data Exploration</h4>
             <ul class="tips-list">
-              <li>Hover over points to see detailed information</li>
+              <li>
+                Hover over points to see protein details: <strong>Accession ID</strong>, Protein
+                Name, Gene Name, and the current data label
+              </li>
               <li>Use the legend to filter by categories</li>
               <li>Switch between XY, XZ, and YZ projections</li>
             </ul>
