@@ -82,14 +82,16 @@ protspace-data-loader:hover {
 
 @media (max-width: 1050px) {
   .visualization-container {
-    grid-template-rows: calc(100vh - 190px);
+    height: calc(100vh - 120px);
+    min-height: 0;
   }
 }
 
 @media (max-width: 950px) {
   .visualization-container {
     grid-template-columns: 1fr;
-    grid-template-rows: 24rem calc(100vh - 84px);
+    grid-template-rows: 24rem 1fr;
+    height: calc(100vh - 120px);
   }
 
   .right-panel {

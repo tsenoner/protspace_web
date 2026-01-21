@@ -83,6 +83,8 @@ export default defineConfig({
       //   collapsed: true,
       //   items: [
       //     { text: 'Installation', link: '/developers/installation' },
+      //     { text: 'Architecture', link: '/developers/architecture' },
+      //     { text: 'Style Architecture', link: '/developers/style-architecture' },
       //     { text: 'Embedding Components', link: '/developers/embedding' },
       //     { text: 'API Reference', link: '/developers/api/' },
       //     { text: 'Contributing', link: '/developers/contributing' },

@@ -83,7 +83,7 @@ export class LegendRenderer {
           ${actions.onReverse
             ? html`
                 <button
-                  class="customize-button reverse-button"
+                  class="btn-icon customize-button reverse-button"
                   title="Reverse z-order (keep Other last)"
                   aria-label="Reverse z-order (keep Other last)"
                   @click=${actions.onReverse}
@@ -100,7 +100,7 @@ export class LegendRenderer {
               `
             : null}
           <button
-            class="customize-button"
+            class="btn-icon customize-button"
             title="Legend settings"
             aria-label="Legend settings"
             @click=${actions.onCustomize}
@@ -206,7 +206,7 @@ export class LegendRenderer {
   static renderItemActions(item: LegendItem, onViewOther: (e: Event) => void): TemplateResult {
     if (item.value === LEGEND_VALUES.OTHER) {
       return html`
-        <button class="view-button" @click=${onViewOther} title="Extract items from Other">
+        <button class="btn-link view-button" @click=${onViewOther} title="Extract items from Other">
           (view)
         </button>
       `;
