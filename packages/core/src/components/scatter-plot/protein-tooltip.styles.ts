@@ -49,8 +49,23 @@ export const proteinTooltipStyles = css`
 
   .tooltip-protein-id {
     font-size: 1rem;
-    font-weight: 700;
     color: #0f172a;
+  }
+
+  .tooltip-protein-id-main {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .tooltip-uniprot-separator {
+    font-size: 1rem;
+    color: #94a3b8;
+  }
+
+  .tooltip-uniprot-id {
+    font-size: 1rem;
+    font-weight: 400;
+    color: #475569;
   }
 
   .tooltip-gene-name {
