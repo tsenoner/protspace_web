@@ -56,18 +56,23 @@ export class ProtspaceProteinTooltip extends LitElement {
    * Extract gene name from protein annotations
    */
   private _getGeneName(protein: PlotDataPoint): string | null {
-    const geneNames =
-      protein.annotationValues['gene_name'] || protein.annotationValues['Gene name'];
-    return geneNames?.[0] || null;
+    const values = protein.annotationValues?.gene_name || protein.annotationValues?.['Gene name'];
+    if (!values || values.length === 0) return null;
+    const filtered = values.map((value) => value.trim()).filter((value) => value.length > 0);
+    if (filtered.length === 0) return null;
+    return filtered.join(', ');
   }
 
   /**
    * Extract protein name from protein annotations
    */
   private _getProteinName(protein: PlotDataPoint): string | null {
-    const proteinNames =
-      protein.annotationValues['protein_name'] || protein.annotationValues['Protein name'];
-    return proteinNames?.[0] || null;
+    const values =
+      protein.annotationValues?.protein_name || protein.annotationValues?.['Protein name'];
+    if (!values || values.length === 0) return null;
+    const filtered = values.map((value) => value.trim()).filter((value) => value.length > 0);
+    if (filtered.length === 0) return null;
+    return filtered.join(', ');
   }
 }
 

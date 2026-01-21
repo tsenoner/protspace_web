@@ -6,6 +6,7 @@ import { DataProcessor } from '@protspace/utils';
 import { scatterplotStyles } from './scatter-plot.styles';
 import './projection-metadata';
 import './protspace-tips';
+import './protein-tooltip';
 import { DEFAULT_CONFIG } from './config';
 import { createStyleGetters } from './style-getters';
 import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer } from './webgl';
@@ -1471,34 +1472,47 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
-  private _getGeneName(point: PlotDataPoint | null): string | null {
-    if (!point) return null;
-    const values = point.annotationValues?.gene_name;
-    if (!values || values.length === 0) return null;
-    const filtered = values.map((value) => value.trim()).filter((value) => value.length > 0);
-    if (filtered.length === 0) return null;
-    return filtered.join(', ');
-  }
+  private _getTooltipStyle() {
+    if (!this._tooltipData) return '';
 
-  private _getProteinName(point: PlotDataPoint | null): string | null {
-    if (!point) return null;
-    const values = point.annotationValues?.protein_name;
-    if (!values || values.length === 0) return null;
-    const filtered = values.map((value) => value.trim()).filter((value) => value.length > 0);
-    if (filtered.length === 0) return null;
-    return filtered.join(', ');
+    const { x, y } = this._tooltipData;
+    const config = this._mergedConfig;
+    const padding = 15;
+    const tooltipMaxWidth = 350;
+    const tooltipApproxHeight = 160;
+
+    let left = x + 15;
+    let top = y - 60;
+    let transform = '';
+
+    // Horizontal adjustment: if it goes off the right edge, flip to the left side
+    if (left + tooltipMaxWidth > config.width) {
+      // Position anchor at x - 15 and use translateX(-100%) to pull it to the left
+      // this ensures the right edge of the tooltip is close to the mouse regardless of width
+      left = x - 15;
+      transform = 'translateX(-100%)';
+    }
+
+    // Keep within horizontal bounds (left side)
+    if (!transform && left < padding) {
+      left = padding;
+    } else if (transform && left - tooltipMaxWidth < padding) {
+      // If flipped to the left and would go off the left edge, clamp it
+      left = tooltipMaxWidth + padding;
+    }
+
+    // Vertical adjustment: keep within vertical bounds
+    if (top < padding) {
+      top = padding;
+    } else if (top + tooltipApproxHeight > config.height) {
+      top = config.height - tooltipApproxHeight - padding;
+    }
+
+    return `left: ${left}px; top: ${top}px;${transform ? ` transform: ${transform};` : ''}`;
   }
 
   render() {
     const config = this._mergedConfig;
-    const geneName = this._getGeneName(this._tooltipData?.protein ?? null);
-    const proteinName = this._getProteinName(this._tooltipData?.protein ?? null);
-    const tooltipAnnotationValues =
-      this._tooltipData?.protein.annotationValues[this.selectedAnnotation] ?? [];
-    const tooltipAnnotationScores =
-      this._tooltipData?.protein.annotationScores?.[this.selectedAnnotation] ?? [];
-    const selectedAnnotationLower = this.selectedAnnotation.toLowerCase();
-    const showScores = selectedAnnotationLower === 'pfam' || selectedAnnotationLower === 'cath';
 
     return html`
       <div class="container">
@@ -1525,23 +1539,18 @@ export class ProtspaceScatterplot extends LitElement {
         ></protspace-projection-metadata>
 
         <protspace-tips></protspace-tips>
+
         ${this._tooltipData
           ? html`
-              <div
-                class="tooltip"
-                style="left: ${this._tooltipData.x + 10}px; top: ${this._tooltipData.y -
-                60}px; z-index: 10;"
+              <protspace-protein-tooltip
+                class="visible"
+                style="${this._getTooltipStyle()}"
+                .protein=${this._tooltipData.protein}
+                .selectedAnnotation=${this.selectedAnnotation}
+                .showScores=${this.selectedAnnotation.toLowerCase() === 'pfam' ||
+                this.selectedAnnotation.toLowerCase() === 'cath'}
               >
-                <div class="tooltip-protein-id">${this._tooltipData.protein.id}</div>
-                ${proteinName ? html`<div class="tooltip-protein-name">${proteinName}</div>` : ''}
-                ${geneName ? html`<div class="tooltip-gene-name">${geneName}</div>` : ''}
-                ${tooltipAnnotationValues.map((value, idx) => {
-                  const score = showScores ? tooltipAnnotationScores[idx] : null;
-                  const scoreText =
-                    typeof score === 'number' && Number.isFinite(score) ? ` - ${score}` : '';
-                  return html`<div class="tooltip-annotation">${value || 'N/A'}${scoreText}</div>`;
-                })}
-              </div>
+              </protspace-protein-tooltip>
             `
           : ''}
         ${this.selectionMode || this.selectedProteinIds.length > 0

@@ -27,8 +27,9 @@ export const proteinTooltipStyles = css`
       var(--protspace-tooltip-shadow, 0 6px 16px rgba(0, 0, 0, 0.08)),
       0 10px 40px rgba(0, 0, 0, 0.1);
     font-size: 0.875rem;
-    min-width: 180px;
-    max-width: 280px;
+    min-width: 200px;
+    max-width: 350px;
+    width: max-content;
     word-wrap: break-word;
     overflow: hidden;
   }
@@ -67,8 +68,11 @@ export const proteinTooltipStyles = css`
     font-size: 0.8125rem;
     line-height: 1.4;
     margin-bottom: 0.125rem;
-    display: flex;
-    gap: 0.25rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .tooltip-content .label {
