@@ -103,6 +103,16 @@ export const itemStyles = css`
     overflow-wrap: anywhere;
   }
 
+  .legend-item-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .legend-item-actions protspace-color-picker {
+    flex-shrink: 0;
+  }
+
   .legend-count {
     font-size: 0.875rem;
     color: var(--legend-text-secondary);

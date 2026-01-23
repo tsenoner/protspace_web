@@ -40,9 +40,13 @@ import {
 import {
   renderSettingsDialog,
   initializeAnnotationSortMode,
+  renderColorDialog,
   type SettingsDialogState,
   type SettingsDialogCallbacks,
+  type ColorDialogState,
+  type ColorDialogCallbacks,
 } from './legend-settings-dialog';
+import { getVisualEncoding } from './visual-encoding';
 import { renderOtherDialog } from './legend-other-dialog';
 import { createFocusTrap } from './focus-trap';
 
@@ -55,6 +59,7 @@ import type {
   OtherItem,
   ScatterplotData,
   LegendPersistedSettings,
+  PersistedCategoryData,
   LegendErrorEventDetail,
 } from './types';
 
@@ -115,6 +120,7 @@ export class ProtspaceLegend extends LitElement {
   @state() private _annotationSortModes: Record<string, LegendSortMode> = {};
   @state() private _showOtherDialog = false;
   @state() private _showSettingsDialog = false;
+  @state() private _showColorDialog = false;
   @state() private _statusMessage = '';
 
   // Pending extract/merge values for next update cycle.
@@ -129,13 +135,17 @@ export class ProtspaceLegend extends LitElement {
     shapeSize: number;
     enableDuplicateStackUI: boolean;
     annotationSortModes: Record<string, LegendSortMode>;
+    colorItems: Array<{ value: string; label: string; color: string }>;
   } = {
     maxVisibleValues: LEGEND_DEFAULTS.maxVisibleValues,
     includeShapes: LEGEND_DEFAULTS.includeShapes,
     shapeSize: LEGEND_DEFAULTS.symbolSize,
     enableDuplicateStackUI: false,
     annotationSortModes: {},
+    colorItems: [],
   };
+
+  @state() private _colorDialogItems: Array<{ value: string; label: string; color: string }> = [];
 
   @query('#legend-settings-dialog')
   private _settingsDialogEl?: HTMLDivElement;
@@ -782,6 +792,13 @@ export class ProtspaceLegend extends LitElement {
 
   private async _handleCustomize(): Promise<void> {
     const scatterplot = this._scatterplotController.scatterplot;
+    const colorItems = this._sortedLegendItems
+      .filter((item) => item.value !== LEGEND_VALUES.OTHER)
+      .map((item) => ({
+        value: item.value,
+        label: toDisplayValue(item.value),
+        color: item.color,
+      }));
     this._dialogSettings = {
       maxVisibleValues: this.maxVisibleValues,
       includeShapes: this.includeShapes,
@@ -792,6 +809,7 @@ export class ProtspaceLegend extends LitElement {
           'config' in scatterplot &&
           (scatterplot as { config?: Record<string, unknown> }).config?.enableDuplicateStackUI,
       ),
+      colorItems,
     };
 
     this._showSettingsDialog = true;
@@ -802,12 +820,47 @@ export class ProtspaceLegend extends LitElement {
     this._settingsDialogEl?.focus();
   }
 
+  private _handleOpenColorPanel(): void {
+    this._colorDialogItems = this._sortedLegendItems
+      .filter((item) => item.value !== LEGEND_VALUES.OTHER)
+      .map((item) => ({
+        value: item.value,
+        label: toDisplayValue(item.value),
+        color: item.color,
+      }));
+    this._showColorDialog = true;
+    this.requestUpdate();
+  }
+
   private _handleSettingsSave(): void {
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
     this.includeShapes = this._dialogSettings.includeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
     this._annotationSortModes = this._dialogSettings.annotationSortModes;
     this._showSettingsDialog = false;
+
+    if (this._dialogSettings.colorItems.length > 0) {
+      const colorMap = new Map(
+        this._dialogSettings.colorItems.map((item) => [item.value, item.color]),
+      );
+      this._legendItems = this._legendItems.map((item) =>
+        colorMap.has(item.value)
+          ? { ...item, color: colorMap.get(item.value) ?? item.color }
+          : item,
+      );
+
+      const categories: Record<string, PersistedCategoryData> = {};
+      this._legendItems.forEach((item) => {
+        if (item.value !== LEGEND_VALUES.OTHER) {
+          categories[item.value] = {
+            zOrder: item.zOrder,
+            color: item.color,
+            shape: item.shape,
+          };
+        }
+      });
+      this._persistenceController.setPendingCategories(categories);
+    }
 
     // Don't clear _legendItems - we want to preserve current zOrders when switching sort modes.
     // This ensures switching to manual mode keeps the current display order.
@@ -821,8 +874,52 @@ export class ProtspaceLegend extends LitElement {
     this.requestUpdate();
   }
 
+  private _handleColorDialogSave(): void {
+    if (this._colorDialogItems.length > 0) {
+      this._legendItems = this._applyColorMapToLegendItems(
+        new Map(this._colorDialogItems.map((item) => [item.value, item.color])),
+      );
+      this._syncLegendColorsToPersistence();
+    }
+
+    this._showColorDialog = false;
+    this._updateLegendItems();
+    this._scatterplotController.syncHiddenValues();
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
+  private _handleColorDialogReset(): void {
+    this._legendItems = this._legendItems.map((item) => {
+      if (item.value === LEGEND_VALUES.OTHER) {
+        return item;
+      }
+      const displayLabel = toDisplayValue(item.value);
+      const slot = this._processorContext.slotTracker.getSlot(displayLabel);
+      const encoding = getVisualEncoding(slot, this._effectiveIncludeShapes, displayLabel);
+      return { ...item, color: encoding.color };
+    });
+
+    this._colorDialogItems = this._colorDialogItems.map((item) => {
+      const displayLabel = item.label;
+      const slot = this._processorContext.slotTracker.getSlot(displayLabel);
+      const encoding = getVisualEncoding(slot, this._effectiveIncludeShapes, displayLabel);
+      return { ...item, color: encoding.color };
+    });
+
+    this._syncLegendColorsToPersistence();
+    this._updateLegendItems();
+    this._scatterplotController.syncHiddenValues();
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
   private _handleSettingsClose(): void {
     this._showSettingsDialog = false;
+  }
+
+  private _handleColorDialogClose(): void {
+    this._showColorDialog = false;
   }
 
   private _handleSettingsReset(): void {
@@ -858,6 +955,34 @@ export class ProtspaceLegend extends LitElement {
     }
   }
 
+  private _handleColorDialogKeydown(e: KeyboardEvent): void {
+    if (e.key === 'Enter') {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      this._handleColorDialogSave();
+    }
+  }
+
+  private _applyColorMapToLegendItems(colorMap: Map<string, string>): LegendItem[] {
+    return this._legendItems.map((item) =>
+      colorMap.has(item.value) ? { ...item, color: colorMap.get(item.value) ?? item.color } : item,
+    );
+  }
+
+  private _syncLegendColorsToPersistence(): void {
+    const categories: Record<string, PersistedCategoryData> = {};
+    this._legendItems.forEach((item) => {
+      if (item.value !== LEGEND_VALUES.OTHER) {
+        categories[item.value] = {
+          zOrder: item.zOrder,
+          color: item.color,
+          shape: item.shape,
+        };
+      }
+    });
+    this._persistenceController.setPendingCategories(categories);
+  }
+
   // ─────────────────────────────────────────────────────────────────
   // Rendering
   // ─────────────────────────────────────────────────────────────────
@@ -873,12 +998,13 @@ export class ProtspaceLegend extends LitElement {
         ${LegendRenderer.renderHeader(title, {
           onReverse: () => this._reverseZOrder(),
           onCustomize: () => this._handleCustomize(),
+          onColorPanel: () => this._handleOpenColorPanel(),
         })}
         ${LegendRenderer.renderLegendContent(this._sortedLegendItems, (item, index) =>
           this._renderLegendItem(item, index),
         )}
       </div>
-      ${this._renderOtherDialog()} ${this._renderSettingsDialog()}
+      ${this._renderOtherDialog()} ${this._renderSettingsDialog()} ${this._renderColorDialog()}
     `;
   }
 
@@ -949,6 +1075,7 @@ export class ProtspaceLegend extends LitElement {
       annotationSortModes: this._dialogSettings.annotationSortModes,
       isMultilabelAnnotation: this._isMultilabelAnnotation(),
       hasPersistedSettings: this._persistenceController.hasPersistedSettings(),
+      colorItems: this._dialogSettings.colorItems,
     };
 
     const callbacks: SettingsDialogCallbacks = {
@@ -970,6 +1097,14 @@ export class ProtspaceLegend extends LitElement {
           annotationSortModes: { ...this._dialogSettings.annotationSortModes, [annotation]: mode },
         };
       },
+      onColorChange: (value, color) => {
+        this._dialogSettings = {
+          ...this._dialogSettings,
+          colorItems: this._dialogSettings.colorItems.map((item) =>
+            item.value === value ? { ...item, color } : item,
+          ),
+        };
+      },
       onSave: () => this._handleSettingsSave(),
       onClose: () => this._handleSettingsClose(),
       onReset: () => this._handleSettingsReset(),
@@ -977,6 +1112,40 @@ export class ProtspaceLegend extends LitElement {
     };
 
     return renderSettingsDialog(state, callbacks);
+  }
+
+  private _renderColorDialog() {
+    if (!this._showColorDialog) return html``;
+
+    const state: ColorDialogState = {
+      colorItems: this._colorDialogItems,
+      hasColorOverrides: this._hasColorOverrides(this._colorDialogItems),
+    };
+
+    const callbacks: ColorDialogCallbacks = {
+      onColorChange: (value, color) => {
+        this._colorDialogItems = this._colorDialogItems.map((item) =>
+          item.value === value ? { ...item, color } : item,
+        );
+      },
+      onSave: () => this._handleColorDialogSave(),
+      onClose: () => this._handleColorDialogClose(),
+      onReset: () => this._handleColorDialogReset(),
+      onKeydown: (e) => this._handleColorDialogKeydown(e),
+    };
+
+    return renderColorDialog(state, callbacks);
+  }
+
+  private _hasColorOverrides(
+    items: Array<{ value: string; label: string; color: string }>,
+  ): boolean {
+    return items.some((item) => {
+      const displayLabel = item.label;
+      const slot = this._processorContext.slotTracker.getSlot(displayLabel);
+      const encoding = getVisualEncoding(slot, this._effectiveIncludeShapes, displayLabel);
+      return encoding.color !== item.color;
+    });
   }
 }
 

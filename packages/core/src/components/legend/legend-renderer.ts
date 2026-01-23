@@ -74,6 +74,7 @@ export class LegendRenderer {
     actions: {
       onReverse?: () => void;
       onCustomize: () => void;
+      onColorPanel?: () => void;
     },
   ): TemplateResult {
     return html`
@@ -94,6 +95,31 @@ export class LegendRenderer {
                       stroke-linejoin="round"
                       stroke-width="2"
                       d="M7 16V4m0 0L3 8m4-4l4 4m6-2v12m0 0l4-4m-4 4l-4-4"
+                    />
+                  </svg>
+                </button>
+              `
+            : null}
+          ${actions.onColorPanel
+            ? html`
+                <button
+                  class="btn-icon customize-button"
+                  title="Legend colors"
+                  aria-label="Legend colors"
+                  @click=${actions.onColorPanel}
+                >
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M16.862 4.487a2 2 0 012.828 2.828l-8.486 8.486a4 4 0 01-1.414.944l-2.736.912a.75.75 0 01-.948-.948l.912-2.736a4 4 0 01.944-1.414l8.486-8.486z"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19.5 7.5l-3-3"
                     />
                   </svg>
                 </button>
@@ -206,9 +232,15 @@ export class LegendRenderer {
   static renderItemActions(item: LegendItem, onViewOther: (e: Event) => void): TemplateResult {
     if (item.value === LEGEND_VALUES.OTHER) {
       return html`
-        <button class="btn-link view-button" @click=${onViewOther} title="Extract items from Other">
-          (view)
-        </button>
+        <span class="legend-item-actions">
+          <button
+            class="btn-link view-button"
+            @click=${onViewOther}
+            title="Extract items from Other"
+          >
+            (view)
+          </button>
+        </span>
       `;
     }
 

@@ -195,6 +195,62 @@ export const modalStyles = css`
     accent-color: var(--primary);
   }
 
+  .color-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .color-settings-header {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--legend-text-color);
+  }
+
+  .color-settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .color-settings-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--legend-hover-bg);
+    border-radius: 8px;
+    border: 1px solid var(--legend-border);
+  }
+
+  .color-settings-label {
+    font-size: 0.875rem;
+    color: var(--legend-text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .color-settings-swatch {
+    width: 34px;
+    height: 28px;
+    padding: 0;
+    border-radius: 6px;
+    border: 1px solid var(--legend-border);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .color-settings-input {
+    width: 96px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--legend-border);
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+  }
+
   /* Special styling for the reverse checkbox */
   .other-items-list-item-sorting-container-item-container label:has(input[type='checkbox']) {
     margin-left: 8px;
