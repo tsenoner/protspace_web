@@ -23,9 +23,10 @@ export const modalStyles = css`
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
+    position: relative;
   }
 
-  .modal-content > div {
+  .modal-content > div:not(.color-palette-toast) {
     width: 100%;
   }
 
@@ -249,6 +250,69 @@ export const modalStyles = css`
     border: 1px solid var(--legend-border);
     font-size: 0.8125rem;
     text-transform: uppercase;
+  }
+
+  .color-palette-section {
+    margin-top: 8px;
+  }
+
+  .color-palette-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 6px;
+  }
+
+  .color-palette-select {
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    padding: 0 8px;
+    background: var(--legend-bg);
+    color: var(--legend-text-color);
+    border: 1px solid var(--legend-border);
+    border-radius: 6px;
+  }
+
+  .color-palette-apply {
+    height: 32px;
+    white-space: nowrap;
+  }
+
+  .color-palette-preview {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(8px, 1fr));
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  .color-palette-swatch {
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    height: 12px;
+    border-radius: 2px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+  }
+
+  .color-palette-swatch:hover,
+  .color-palette-swatch:focus-visible {
+    border-color: var(--legend-text-color);
+    outline: none;
+  }
+
+  .color-palette-toast {
+    position: absolute;
+    padding: 3px 6px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    font-size: 0.7rem;
+    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+    white-space: nowrap;
+    width: fit-content;
   }
 
   /* Special styling for the reverse checkbox */

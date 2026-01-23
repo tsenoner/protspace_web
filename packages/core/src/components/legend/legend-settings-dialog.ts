@@ -352,7 +352,6 @@ export function renderSettingsDialog(
         <div class="other-items-list">
           ${renderMaxVisibleInput(state, callbacks)} ${renderShapeSizeInput(state, callbacks)}
           ${renderCheckboxOptions(state, callbacks)} ${renderSortingSection(state, callbacks)}
-          ${renderColorManagementSection(state.colorItems, callbacks.onColorChange)}
         </div>
 
         ${renderDialogFooter(callbacks, state.hasPersistedSettings)}
@@ -364,14 +363,74 @@ export function renderSettingsDialog(
 export interface ColorDialogState {
   colorItems: Array<{ value: string; label: string; color: string }>;
   hasColorOverrides: boolean;
+  paletteOptions: PaletteOption[];
+  selectedPaletteId: string;
+  statusMessage: string;
+  toastPosition?: { x: number; y: number };
 }
 
 export interface ColorDialogCallbacks {
   onColorChange: (value: string, color: string) => void;
+  onPaletteSelect: (paletteId: string) => void;
+  onApplyPalette: () => void;
+  onPaletteColorCopy: (color: string, event: MouseEvent) => void;
   onSave: () => void;
   onClose: () => void;
   onReset: () => void;
   onKeydown: (e: KeyboardEvent) => void;
+}
+
+export interface PaletteOption {
+  id: string;
+  label: string;
+  colors: string[];
+}
+
+function renderPaletteSection(
+  state: ColorDialogState,
+  callbacks: ColorDialogCallbacks,
+): TemplateResult {
+  if (!state.paletteOptions || state.paletteOptions.length === 0) return html``;
+
+  const selected =
+    state.paletteOptions.find((option) => option.id === state.selectedPaletteId) ??
+    state.paletteOptions[0];
+
+  return html`
+    <div class="color-palette-section">
+      <div class="color-settings-header">Palettes</div>
+      <div class="color-palette-row">
+        <select
+          class="color-palette-select"
+          @change=${(e: Event) => callbacks.onPaletteSelect((e.target as HTMLSelectElement).value)}
+        >
+          ${state.paletteOptions.map(
+            (option) => html`
+              <option value=${option.id} ?selected=${option.id === state.selectedPaletteId}>
+                ${option.label}
+              </option>
+            `,
+          )}
+        </select>
+        <button class="btn-secondary color-palette-apply" @click=${callbacks.onApplyPalette}>
+          Apply palette
+        </button>
+      </div>
+      <div class="color-palette-preview" aria-hidden="true">
+        ${selected.colors.map(
+          (color) => html`
+            <button
+              class="color-palette-swatch"
+              type="button"
+              title=${`Copy ${color}`}
+              style="background:${color}"
+              @click=${(e: MouseEvent) => callbacks.onPaletteColorCopy(color, e)}
+            ></button>
+          `,
+        )}
+      </div>
+    </div>
+  `;
 }
 
 export function renderColorDialog(
@@ -395,8 +454,22 @@ export function renderColorDialog(
         aria-modal="true"
       >
         ${renderDialogHeader('Legend colors', callbacks.onClose)}
+        ${state.statusMessage
+          ? html`
+              <div
+                class="color-palette-toast"
+                role="status"
+                style=${state.toastPosition
+                  ? `left:${state.toastPosition.x}px; top:${state.toastPosition.y}px;`
+                  : ''}
+              >
+                ${state.statusMessage}
+              </div>
+            `
+          : nothing}
 
         <div class="other-items-list">
+          ${renderPaletteSection(state, callbacks)}
           ${renderColorManagementSection(state.colorItems, callbacks.onColorChange)}
         </div>
 

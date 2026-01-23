@@ -11,6 +11,7 @@ import {
   toDisplayValue,
 } from './config';
 import { legendStyles } from './legend.styles';
+import { COLOR_SCHEMES } from '@protspace/utils';
 
 // Controllers
 import { ScatterplotSyncController, PersistenceController, DragController } from './controllers';
@@ -45,6 +46,7 @@ import {
   type SettingsDialogCallbacks,
   type ColorDialogState,
   type ColorDialogCallbacks,
+  type PaletteOption,
 } from './legend-settings-dialog';
 import { getVisualEncoding } from './visual-encoding';
 import { renderOtherDialog } from './legend-other-dialog';
@@ -146,9 +148,14 @@ export class ProtspaceLegend extends LitElement {
   };
 
   @state() private _colorDialogItems: Array<{ value: string; label: string; color: string }> = [];
+  @state() private _selectedPaletteId = 'kellys';
+  @state() private _colorDialogMessage = '';
+  @state() private _colorDialogToastPosition: { x: number; y: number } | null = null;
 
   @query('#legend-settings-dialog')
   private _settingsDialogEl?: HTMLDivElement;
+  @query('#legend-color-dialog')
+  private _colorDialogEl?: HTMLDivElement;
 
   // Instance-specific processor context (avoids global state conflicts)
   private _processorContext: LegendProcessorContext = createProcessorContext();
@@ -1114,12 +1121,145 @@ export class ProtspaceLegend extends LitElement {
     return renderSettingsDialog(state, callbacks);
   }
 
+  private _getPaletteOptions(): PaletteOption[] {
+    return [
+      { id: 'kellys', label: 'Default: Kelly (max contrast)', colors: [...COLOR_SCHEMES.kellys] },
+      {
+        id: 'okabeIto',
+        label: 'Color-blind safe: Okabe-Ito',
+        colors: [...COLOR_SCHEMES.okabeIto],
+      },
+      {
+        id: 'tolBright',
+        label: 'Color-blind safe: Tol Bright',
+        colors: [...COLOR_SCHEMES.tolBright],
+      },
+      { id: 'set2', label: 'Categorical: Set2 (soft)', colors: [...COLOR_SCHEMES.set2] },
+      { id: 'dark2', label: 'Categorical: Dark2 (vivid)', colors: [...COLOR_SCHEMES.dark2] },
+      {
+        id: 'tableau10',
+        label: 'Categorical: Tableau 10',
+        colors: [...COLOR_SCHEMES.tableau10],
+      },
+      { id: 'rainbow', label: 'Rainbow (HSV)', colors: this._generateRainbowColors(10) },
+    ];
+  }
+
+  private _applyPaletteToColorDialogItems(paletteId: string): void {
+    if (this._colorDialogItems.length === 0) return;
+    const colors = this._resolvePaletteColors(paletteId, this._colorDialogItems.length);
+    if (colors.length === 0) return;
+
+    this._colorDialogItems = this._colorDialogItems.map((item, index) => ({
+      ...item,
+      color: colors[index % colors.length],
+    }));
+  }
+
+  private _resolvePaletteColors(paletteId: string, count: number): string[] {
+    if (paletteId === 'rainbow') {
+      return this._generateRainbowColors(Math.max(count, 1));
+    }
+
+    const palette = this._getPaletteOptions().find((option) => option.id === paletteId);
+    return palette?.colors ?? [];
+  }
+
+  private _generateRainbowColors(count: number): string[] {
+    const colors: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const hue = (i / Math.max(count, 1)) * 360;
+      colors.push(this._hslToHex(hue, 90, 50));
+    }
+    return colors;
+  }
+
+  private _hslToHex(hue: number, saturation: number, lightness: number): string {
+    const sat = saturation / 100;
+    const light = lightness / 100;
+
+    const c = (1 - Math.abs(2 * light - 1)) * sat;
+    const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+    const m = light - c / 2;
+
+    let r = 0;
+    let g = 0;
+    let b = 0;
+
+    if (hue >= 0 && hue < 60) {
+      r = c;
+      g = x;
+    } else if (hue >= 60 && hue < 120) {
+      r = x;
+      g = c;
+    } else if (hue >= 120 && hue < 180) {
+      g = c;
+      b = x;
+    } else if (hue >= 180 && hue < 240) {
+      g = x;
+      b = c;
+    } else if (hue >= 240 && hue < 300) {
+      r = x;
+      b = c;
+    } else {
+      r = c;
+      b = x;
+    }
+
+    const toHex = (value: number) =>
+      Math.round((value + m) * 255)
+        .toString(16)
+        .padStart(2, '0');
+
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+
+  private async _copyPaletteColor(color: string, event?: MouseEvent): Promise<void> {
+    if (event && this._colorDialogEl) {
+      const rect = this._colorDialogEl.getBoundingClientRect();
+      const x = Math.max(0, event.clientX - rect.left + 8);
+      const y = Math.max(0, event.clientY - rect.top + 8);
+      this._colorDialogToastPosition = { x, y };
+    }
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(color);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = color;
+        textArea.setAttribute('readonly', 'true');
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      this._announceStatus(`Copied ${color}`);
+      this._colorDialogMessage = color;
+      setTimeout(() => {
+        this._colorDialogMessage = '';
+      }, 1500);
+    } catch (error) {
+      this._announceStatus('Copy failed');
+      this._colorDialogMessage = 'Failed';
+      setTimeout(() => {
+        this._colorDialogMessage = '';
+      }, 1500);
+      this._dispatchError('Failed to copy palette color', 'rendering', error as Error);
+    }
+  }
+
   private _renderColorDialog() {
     if (!this._showColorDialog) return html``;
 
     const state: ColorDialogState = {
       colorItems: this._colorDialogItems,
       hasColorOverrides: this._hasColorOverrides(this._colorDialogItems),
+      paletteOptions: this._getPaletteOptions(),
+      selectedPaletteId: this._selectedPaletteId,
+      statusMessage: this._colorDialogMessage,
+      toastPosition: this._colorDialogToastPosition ?? undefined,
     };
 
     const callbacks: ColorDialogCallbacks = {
@@ -1127,6 +1267,15 @@ export class ProtspaceLegend extends LitElement {
         this._colorDialogItems = this._colorDialogItems.map((item) =>
           item.value === value ? { ...item, color } : item,
         );
+      },
+      onPaletteSelect: (paletteId) => {
+        this._selectedPaletteId = paletteId;
+      },
+      onApplyPalette: () => {
+        this._applyPaletteToColorDialogItems(this._selectedPaletteId);
+      },
+      onPaletteColorCopy: (color, event) => {
+        void this._copyPaletteColor(color, event);
       },
       onSave: () => this._handleColorDialogSave(),
       onClose: () => this._handleColorDialogClose(),
