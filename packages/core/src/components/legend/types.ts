@@ -83,26 +83,9 @@ export interface LegendDataInput {
   annotations?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
 }
 
-export type LegendSortMode =
-  | 'size-asc'
-  | 'size-desc'
-  | 'alpha-asc'
-  | 'alpha-desc'
-  | 'manual'
-  | 'manual-reverse';
-
-export interface PersistedCategoryData {
-  zOrder: number;
-  color: string;
-  shape: string;
-}
-
-export interface LegendPersistedSettings {
-  maxVisibleValues: number;
-  includeShapes: boolean;
-  shapeSize: number;
-  sortMode: LegendSortMode;
-  hiddenValues: string[];
-  categories: Record<string, PersistedCategoryData>;
-  enableDuplicateStackUI: boolean;
-}
+// Re-export from @protspace/utils for backward compatibility
+export type {
+  LegendSortMode,
+  PersistedCategoryData,
+  LegendPersistedSettings,
+} from '@protspace/utils';

@@ -5,9 +5,17 @@ import type {
   ProtspaceLegend,
   ProtspaceStructureViewer,
   DataLoader,
+  DataLoadedEventDetail,
+  BundleSettings,
 } from '@protspace/core';
 import { ProtspaceControlBar, EXPORT_DEFAULTS } from '@protspace/core';
-import { createExporter, showNotification } from '@protspace/utils';
+import {
+  createExporter,
+  showNotification,
+  exportParquetBundle,
+  generateBundleFilename,
+  generateDatasetHash,
+} from '@protspace/utils';
 
 // Export initialization function that can be called when the component mounts
 export async function initializeDemo() {
@@ -549,12 +557,27 @@ export async function initializeDemo() {
     });
 
     // Handle successful data loading
-    dataLoader.addEventListener('data-loaded', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { data } = customEvent.detail;
+    dataLoader.addEventListener('data-loaded', async (event: Event) => {
+      const customEvent = event as CustomEvent<DataLoadedEventDetail>;
+      const { data, settings } = customEvent.detail;
 
-      // Load the new data into all components
-      loadNewData(data);
+      // Load the new data into all components (must complete before applying settings)
+      await loadNewData(data);
+
+      // Apply file-based settings to legend if present
+      // Compute dataset hash upfront since the legend's proteinIds aren't set yet
+      if (settings && legendElement) {
+        const datasetHash = generateDatasetHash(data.protein_ids);
+        legendElement.setFileSettings(settings, datasetHash);
+      } else if (legendElement) {
+        // Clear file settings if loading a file without settings
+        legendElement.setFileSettings(null);
+      }
+
+      // Update control bar to indicate file has custom settings
+      if (controlBar) {
+        controlBar.hasFileSettings = settings !== null;
+      }
     });
 
     // Handle data loading errors
@@ -574,10 +597,44 @@ export async function initializeDemo() {
     // Handle export
     controlBar.addEventListener('export', async (event: Event) => {
       const customEvent = event as CustomEvent;
-      const { type, imageWidth, imageHeight, legendWidthPercent, legendFontSizePx } =
-        customEvent.detail;
+      const {
+        type,
+        imageWidth,
+        imageHeight,
+        legendWidthPercent,
+        legendFontSizePx,
+        includeSettings,
+      } = customEvent.detail;
 
       try {
+        // Handle parquet export separately
+        if (type === 'parquet') {
+          const currentData = plotElement.getCurrentData();
+          if (!currentData) {
+            throw new Error('No data available for export');
+          }
+
+          // Get settings from legend if includeSettings is true
+          let settings: BundleSettings | undefined;
+          if (includeSettings && legendElement) {
+            settings = legendElement.getAllPersistedSettings();
+          }
+
+          // Generate filename based on current projection
+          const projectionName =
+            currentData.projections?.[plotElement.selectedProjectionIndex]?.name;
+          const filename = generateBundleFilename(projectionName, includeSettings);
+
+          // Export the bundle
+          exportParquetBundle(currentData, filename, {
+            includeSettings,
+            settings,
+          });
+
+          showNotification(`Exported ${filename}`, { type: 'success' });
+          return;
+        }
+
         const exporter = createExporter(plotElement);
 
         // Calculate scatterplot dimensions (excluding legend)
