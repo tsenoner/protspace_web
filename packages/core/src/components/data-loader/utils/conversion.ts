@@ -1,8 +1,138 @@
 import type { Annotation, VisualizationData } from '@protspace/utils';
-import { COLOR_SCHEMES } from '@protspace/utils';
+import { COLOR_SCHEMES, sanitizeValue } from '@protspace/utils';
 import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
 import type { Rows } from './types';
+
+/** Column names that should be excluded when identifying annotation columns */
+const ID_COLUMNS = [
+  'projection_name',
+  'x',
+  'y',
+  'z',
+  'identifier',
+  'protein_id',
+  'id',
+  'uniprot',
+  'entry',
+] as const;
+
+/** Creates a set of ID columns including the detected protein ID column */
+function getIdColumnsSet(proteinIdCol: string): Set<string> {
+  return new Set([...ID_COLUMNS, proteinIdCol]);
+}
+
+/**
+ * Builds a metadata map from projections metadata rows.
+ * Extracts all fields except projection_name/name and sanitizes values.
+ */
+function buildProjectionsMetadataMap(
+  projectionsMetadata?: Rows,
+): Map<string, Record<string, unknown>> {
+  const metadataMap = new Map<string, Record<string, unknown>>();
+  if (projectionsMetadata && projectionsMetadata.length > 0) {
+    for (const metaRow of projectionsMetadata) {
+      const projName = metaRow.projection_name || metaRow.name;
+      if (projName) {
+        const metadata: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(metaRow)) {
+          if (key !== 'projection_name' && key !== 'name') {
+            metadata[key] = sanitizeValue(value);
+          }
+        }
+        metadataMap.set(String(projName), metadata);
+      }
+    }
+  }
+  return metadataMap;
+}
+
+/**
+ * Builds a coordinate map from projection rows.
+ * Maps protein IDs to their [x, y] or [x, y, z] coordinates.
+ */
+function buildCoordinateMap(
+  projectionRows: Rows,
+  proteinIdCol: string,
+): Map<string, [number, number] | [number, number, number]> {
+  const coordMap = new Map<string, [number, number] | [number, number, number]>();
+  for (const row of projectionRows) {
+    const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
+    const x = Number(row.x) || 0;
+    const y = Number(row.y) || 0;
+    const zValue = row.z;
+    const z = zValue == null ? null : Number(zValue);
+    if (z !== null && !Number.isNaN(z)) {
+      coordMap.set(proteinId, [x, y, z]);
+    } else {
+      coordMap.set(proteinId, [x, y]);
+    }
+  }
+  return coordMap;
+}
+
+/**
+ * Extracts annotations from rows (synchronous version).
+ * Sorts values by frequency to ensure most common categories get distinct colors.
+ */
+function extractAnnotations(
+  sourceRows: Rows,
+  columnNames: string[],
+  proteinIdCol: string,
+  uniqueProteinIds: string[],
+): {
+  annotations: Record<string, Annotation>;
+  annotation_data: Record<string, number[][]>;
+} {
+  const allIdColumns = getIdColumnsSet(proteinIdCol);
+  const annotationColumns = columnNames.filter((col) => !allIdColumns.has(col));
+
+  const annotations: Record<string, Annotation> = {};
+  const annotation_data: Record<string, number[][]> = {};
+
+  for (const annotationCol of annotationColumns) {
+    const annotationMap = new Map<string, string[]>();
+    const valueCountMap = new Map<string, number>();
+
+    for (const row of sourceRows) {
+      const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
+      const value = row[annotationCol];
+
+      if (value == null) {
+        annotationMap.set(proteinId, []);
+      } else {
+        const valueArray = String(value).split(';');
+        annotationMap.set(proteinId, valueArray);
+        // Count occurrences for frequency-based sorting
+        for (const v of valueArray) {
+          valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
+        }
+      }
+    }
+
+    // Sort unique values by frequency (most frequent first)
+    // This ensures the most common categories get the most distinct colors (slots 0, 1, 2...)
+    const uniqueValues = Array.from(valueCountMap.keys()).sort(
+      (a, b) => (valueCountMap.get(b) || 0) - (valueCountMap.get(a) || 0),
+    );
+
+    const valueToIndex = new Map<string | null, number>();
+    uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
+
+    const colors = generateColors(uniqueValues.length);
+    const shapes = generateShapes(uniqueValues.length);
+
+    const annotationDataArray = uniqueProteinIds.map((proteinId) => {
+      const value = annotationMap.get(proteinId);
+      return (value ?? []).map((v) => valueToIndex.get(v) ?? -1);
+    });
+
+    annotations[annotationCol] = { values: uniqueValues, colors, shapes };
+    annotation_data[annotationCol] = annotationDataArray;
+  }
+
+  return { annotations, annotation_data };
+}
 
 export function convertParquetToVisualizationData(
   rows: Rows,
@@ -74,39 +204,11 @@ function convertBundleFormatData(
     ),
   );
 
-  // Build metadata map from projectionsMetadata
-  const metadataMap = new Map<string, Record<string, unknown>>();
-  if (projectionsMetadata && projectionsMetadata.length > 0) {
-    for (const metaRow of projectionsMetadata) {
-      const projName = metaRow.projection_name || metaRow.name;
-      if (projName) {
-        // Extract all metadata fields except projection_name/name
-        const metadata: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(metaRow)) {
-          if (key !== 'projection_name' && key !== 'name') {
-            metadata[key] = value;
-          }
-        }
-        metadataMap.set(String(projName), metadata);
-      }
-    }
-  }
+  const metadataMap = buildProjectionsMetadataMap(projectionsMetadata);
 
   const projections = [] as VisualizationData['projections'];
   for (const [projectionName, projectionRows] of projectionGroups.entries()) {
-    const coordMap = new Map<string, [number, number] | [number, number, number]>();
-    for (const row of projectionRows) {
-      const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-      const x = Number(row.x) || 0;
-      const y = Number(row.y) || 0;
-      const zValue = row.z;
-      const z = zValue == null ? null : Number(zValue);
-      if (z !== null && !Number.isNaN(z)) {
-        coordMap.set(proteinId, [x, y, z]);
-      } else {
-        coordMap.set(proteinId, [x, y]);
-      }
-    }
+    const coordMap = buildCoordinateMap(projectionRows, proteinIdCol);
     const projectionData = uniqueProteinIds.map((proteinId) => coordMap.get(proteinId) || [0, 0]);
     const has3D = projectionData.some((p) => p.length === 3);
 
@@ -124,66 +226,13 @@ function convertBundleFormatData(
     });
   }
 
-  const allIdColumns = new Set([
-    'projection_name',
-    'x',
-    'y',
-    'z',
-    'identifier',
-    'protein_id',
-    'id',
-    'uniprot',
-    'entry',
-    proteinIdCol,
-  ]);
-
-  const annotationColumns = columnNames.filter((col) => !allIdColumns.has(col));
-
-  const annotations: Record<string, Annotation> = {};
-  const annotation_data: Record<string, number[][]> = {};
-
   const baseProjectionData = projectionGroups.values().next().value || rows;
-
-  for (const annotationCol of annotationColumns) {
-    const annotationMap = new Map<string, string[]>();
-    const valueCountMap = new Map<string, number>();
-
-    for (const row of baseProjectionData) {
-      const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-      const value = row[annotationCol];
-
-      if (value == null) {
-        annotationMap.set(proteinId, []);
-      } else {
-        const valueArray = String(value).split(';');
-        annotationMap.set(proteinId, valueArray);
-        // Count occurrences for frequency-based sorting
-        for (const v of valueArray) {
-          valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
-        }
-      }
-    }
-
-    // Sort unique values by frequency (most frequent first)
-    // This ensures the most common categories get the most distinct colors (slots 0, 1, 2...)
-    const uniqueValues = Array.from(valueCountMap.keys()).sort(
-      (a, b) => (valueCountMap.get(b) || 0) - (valueCountMap.get(a) || 0),
-    );
-
-    const valueToIndex = new Map<string | null, number>();
-    uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
-
-    const colors = generateColors(uniqueValues.length);
-    const shapes = generateShapes(uniqueValues.length);
-
-    const annotationDataArray = uniqueProteinIds.map((proteinId) => {
-      const value = annotationMap.get(proteinId);
-      return (value ?? []).map((v) => valueToIndex.get(v) ?? -1);
-    });
-
-    annotations[annotationCol] = { values: uniqueValues, colors, shapes };
-    annotation_data[annotationCol] = annotationDataArray;
-  }
+  const { annotations, annotation_data } = extractAnnotations(
+    baseProjectionData,
+    columnNames,
+    proteinIdCol,
+    uniqueProteinIds,
+  );
 
   return { protein_ids: uniqueProteinIds, projections, annotations, annotation_data };
 }
@@ -221,39 +270,11 @@ async function convertBundleFormatDataOptimized(
 
   const uniqueProteinIds = Array.from(uniqueProteinIdsSet);
 
-  // Build metadata map from projectionsMetadata
-  const metadataMap = new Map<string, Record<string, unknown>>();
-  if (projectionsMetadata && projectionsMetadata.length > 0) {
-    for (const metaRow of projectionsMetadata) {
-      const projName = metaRow.projection_name || metaRow.name;
-      if (projName) {
-        // Extract all metadata fields except projection_name/name
-        const metadata: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(metaRow)) {
-          if (key !== 'projection_name' && key !== 'name') {
-            metadata[key] = value;
-          }
-        }
-        metadataMap.set(String(projName), metadata);
-      }
-    }
-  }
+  const metadataMap = buildProjectionsMetadataMap(projectionsMetadata);
 
   const projections = [] as VisualizationData['projections'];
   for (const [projectionName, projectionRows] of projectionGroups.entries()) {
-    const coordMap = new Map<string, [number, number] | [number, number, number]>();
-    for (const row of projectionRows) {
-      const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-      const x = Number(row.x) || 0;
-      const y = Number(row.y) || 0;
-      const zValue = row.z;
-      const z = zValue == null ? null : Number(zValue);
-      if (z !== null && !Number.isNaN(z)) {
-        coordMap.set(proteinId, [x, y, z]);
-      } else {
-        coordMap.set(proteinId, [x, y]);
-      }
-    }
+    const coordMap = buildCoordinateMap(projectionRows, proteinIdCol);
     const projectionData: Array<[number, number] | [number, number, number]> = new Array(
       uniqueProteinIds.length,
     );
@@ -511,18 +532,7 @@ export async function extractAnnotationsOptimized(
   annotations: Record<string, Annotation>;
   annotation_data: Record<string, number[][]>;
 }> {
-  const allIdColumns = new Set([
-    'projection_name',
-    'x',
-    'y',
-    'z',
-    'identifier',
-    'protein_id',
-    'id',
-    'uniprot',
-    'entry',
-    proteinIdCol,
-  ]);
+  const allIdColumns = getIdColumnsSet(proteinIdCol);
   const annotationColumns = columnNames.filter((c) => !allIdColumns.has(c));
 
   const annotations: Record<string, Annotation> = {};

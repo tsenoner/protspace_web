@@ -74,4 +74,15 @@ export const layoutStyles = css`
     background-color: var(--surface);
     padding-right: calc(var(--spacing-lg) + var(--spacing-md));
   }
+
+  /* Settings indicator for files with custom legend settings */
+  .settings-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--text-sm);
+    font-weight: var(--font-bold);
+    color: var(--primary);
+    margin-left: 2px;
+  }
 `;
