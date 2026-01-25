@@ -49,6 +49,9 @@ jobs:
       - name: Type check
         run: pnpm type-check
 
+      - name: Check for unused code
+        run: pnpm knip
+
       - name: Build
         run: pnpm build
 
