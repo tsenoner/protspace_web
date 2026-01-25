@@ -1,0 +1,86 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.ts"],
+      "project": ["scripts/**/*.ts"],
+      // TODO: Remove these dependencies from package.json, then delete this ignoreDependencies array
+      "ignoreDependencies": [
+        "@types/three", // Not used anywhere
+        "esbuild" // Not used anywhere
+      ]
+    },
+    "packages/core": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
+      // TODO: Delete these files, then remove this ignore array
+      "ignore": [
+        "src/styles/index.ts", // Unused barrel export - imports go directly to tokens.ts/mixins.ts
+        "src/components/data-loader/index.ts", // Unused barrel export
+        "src/components/legend/index.ts", // Unused barrel export
+        "src/components/scatter-plot/index.ts", // Unused barrel export
+        "src/components/scatter-plot/interaction-handler.ts", // Old D3-based interaction code, replaced by WebGL
+        "src/components/scatter-plot/renderer.ts", // Old D3-based renderer, replaced by WebGL
+        "src/components/scatter-plot/webgl/renderer/index.ts" // Unused barrel export
+      ],
+      // TODO: Remove these dependencies from packages/core/package.json, then delete this ignoreDependencies array
+      "ignoreDependencies": [
+        "apache-arrow", // Not imported anywhere
+        "@typescript-eslint/eslint-plugin", // Uses root eslint config
+        "@typescript-eslint/parser" // Uses root eslint config
+      ]
+    },
+    "packages/utils": {
+      "project": ["src/**/*.ts"],
+      // TODO: Remove these dependencies from packages/utils/package.json, then delete this ignoreDependencies array
+      "ignoreDependencies": [
+        "d3-scale-chromatic", // Not imported anywhere
+        "html2canvas", // Replaced by html2canvas-pro (dynamic import)
+        "@types/d3-scale-chromatic" // Types for unused dependency
+      ]
+    },
+    "packages/react-bridge": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+      // TODO: This package is mostly empty. Either populate it or remove these unused devDependencies
+      "ignoreDependencies": [
+        "@protspace/core", // Listed as devDep but should be peerDep only
+        "@types/d3", // Not used (package is empty)
+        "@types/react", // Not used (package is empty)
+        "@types/react-dom", // Not used (package is empty)
+        "@typescript-eslint/eslint-plugin", // Uses root eslint config
+        "@typescript-eslint/parser", // Uses root eslint config
+        "react", // Listed as devDep but should be peerDep only
+        "react-dom" // Listed as devDep but should be peerDep only
+      ]
+    },
+    "app": {
+      "entry": ["src/main.tsx"],
+      "project": ["src/**/*.{ts,tsx}"],
+      // TODO: Decide if this file is needed - it provides JSX types for web components
+      "ignore": ["src/custom-elements.d.ts"],
+      // TODO: Remove these dependencies from app/package.json, then delete this ignoreDependencies array
+      // The app uses the root eslint.config.mjs, so these local eslint deps are not needed
+      "ignoreDependencies": [
+        "@eslint/js",
+        "@tailwindcss/typography", // Check if actually used in tailwind.config.ts
+        "eslint",
+        "eslint-plugin-react-hooks",
+        "eslint-plugin-react-refresh",
+        "globals",
+        "typescript-eslint"
+      ]
+    }
+  },
+  "ignoreWorkspaces": ["docs"],
+  // TODO: Set to false and fix unused exports
+  "ignoreExportsUsedInFile": true,
+  // TODO: Remove this rules section to enable export/type checking, then fix reported issues:
+  // - Remove unused exports (e.g., buttonVariants, CardHeader, toast, Tooltip components in app/src/components/ui/)
+  // - Remove unused exports in packages/core (ProtspaceAnnotationSelect, ProtspaceProteinSearch, data-loader utils, etc.)
+  // - Remove unused type exports (ButtonProps, ControlBarState, various internal types)
+  "rules": {
+    "exports": "off",
+    "types": "off"
+  }
+}
