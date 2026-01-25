@@ -83,7 +83,8 @@ export interface LegendDataInput {
   annotations?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
 }
 
-// Re-export from @protspace/utils for backward compatibility
+// Internal re-exports from @protspace/utils for legend component implementation
+// External consumers should import directly from @protspace/utils
 export type {
   LegendSortMode,
   PersistedCategoryData,

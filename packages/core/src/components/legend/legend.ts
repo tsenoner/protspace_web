@@ -1035,6 +1035,3 @@ declare global {
     'protspace-legend': ProtspaceLegend;
   }
 }
-
-// Re-export types for external use
-export type { LegendPersistedSettings } from './types';

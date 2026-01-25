@@ -1,12 +1,11 @@
 import '@protspace/core'; // Registers all web components
-import type { VisualizationData } from '@protspace/utils';
+import type { VisualizationData, BundleSettings } from '@protspace/utils';
 import type {
   ProtspaceScatterplot,
   ProtspaceLegend,
   ProtspaceStructureViewer,
   DataLoader,
   DataLoadedEventDetail,
-  BundleSettings,
 } from '@protspace/core';
 import { ProtspaceControlBar, EXPORT_DEFAULTS } from '@protspace/core';
 import {

@@ -2,17 +2,11 @@ import { parquetReadObjects } from 'hyparquet';
 import {
   BUNDLE_DELIMITER_BYTES,
   findBundleDelimiterPositions,
-  isParquetBundle,
   isValidBundleSettings,
   type BundleSettings,
-  type LegendPersistedSettings,
 } from '@protspace/utils';
 import type { Rows, GenericRow } from './types';
 import { assertValidParquetMagic, validateMergedBundleRows } from './validation';
-
-// Re-export for consumers
-export type { BundleSettings, LegendPersistedSettings };
-export { isParquetBundle, findBundleDelimiterPositions };
 
 /**
  * Result of extracting data from a parquetbundle.

@@ -12,11 +12,8 @@ export type { ProtspaceScatterplot } from './components/scatter-plot/scatter-plo
 export type { ProtspaceLegend } from './components/legend/legend';
 export type { ProtspaceStructureViewer } from './components/structure-viewer/structure-viewer';
 
-// Utilities for data loading (used by React app for importing bundles)
+// Utilities for data loading
 export { readFileOptimized } from './components/data-loader/utils/file-io';
-export {
-  isParquetBundle,
-  extractRowsFromParquetBundle,
-} from './components/data-loader/utils/bundle';
-export type { BundleExtractionResult, BundleSettings } from './components/data-loader/utils/bundle';
+export { extractRowsFromParquetBundle } from './components/data-loader/utils/bundle';
+export type { BundleExtractionResult } from './components/data-loader/utils/bundle';
 export { convertParquetToVisualizationDataOptimized } from './components/data-loader/utils/conversion';

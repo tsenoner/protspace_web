@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { BUNDLE_DELIMITER } from '@protspace/utils';
 import {
+  BUNDLE_DELIMITER,
   isParquetBundle,
   findBundleDelimiterPositions,
-  extractRowsFromParquetBundle,
   type BundleSettings,
-} from './bundle';
+} from '@protspace/utils';
+import { extractRowsFromParquetBundle } from './bundle';
 
 // Helper to create a mock parquet-like buffer with PAR1 magic bytes
 function createMockParquetBuffer(content: string = 'test'): ArrayBuffer {

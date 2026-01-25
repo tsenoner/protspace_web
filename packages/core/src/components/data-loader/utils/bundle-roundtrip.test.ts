@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { extractRowsFromParquetBundle, isParquetBundle } from './bundle';
+import { extractRowsFromParquetBundle } from './bundle';
 import { convertParquetToVisualizationData } from './conversion';
-import { createParquetBundle, countBundleDelimiters } from '@protspace/utils';
+import { createParquetBundle, countBundleDelimiters, isParquetBundle } from '@protspace/utils';
 
 /**
  * Round-trip integration tests for parquetbundle files.

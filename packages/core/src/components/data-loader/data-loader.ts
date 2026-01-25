@@ -2,11 +2,10 @@ import type { PropertyValues } from 'lit';
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { parquetReadObjects } from 'hyparquet';
-import type { VisualizationData } from '@protspace/utils';
+import { isParquetBundle, type VisualizationData, type BundleSettings } from '@protspace/utils';
 import { dataLoaderStyles } from './data-loader.styles';
 import { readFileOptimized } from './utils/file-io';
-import { isParquetBundle, extractRowsFromParquetBundle } from './utils/bundle';
-import type { BundleSettings } from './utils/bundle';
+import { extractRowsFromParquetBundle } from './utils/bundle';
 import { convertParquetToVisualizationDataOptimized } from './utils/conversion';
 import {
   assertWithinFileSizeLimit,
