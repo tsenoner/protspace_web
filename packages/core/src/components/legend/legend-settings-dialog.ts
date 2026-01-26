@@ -15,7 +15,6 @@ export interface SettingsDialogState {
   annotationSortModes: Record<string, LegendSortMode>;
   isMultilabelAnnotation: boolean;
   hasPersistedSettings: boolean;
-  colorItems: Array<{ value: string; label: string; color: string }>;
 }
 
 /**
@@ -27,7 +26,6 @@ export interface SettingsDialogCallbacks {
   onIncludeShapesChange: (checked: boolean) => void;
   onEnableDuplicateStackUIChange: (checked: boolean) => void;
   onSortModeChange: (annotation: string, mode: LegendSortMode) => void;
-  onColorChange: (value: string, color: string) => void;
   onSave: () => void;
   onClose: () => void;
   onReset: () => void;
@@ -218,54 +216,6 @@ function renderSortingSection(
 }
 
 /**
- * Renders the color management section
- */
-function renderColorManagementSection(
-  colorItems: Array<{ value: string; label: string; color: string }>,
-  onColorChange: (value: string, color: string) => void,
-): TemplateResult {
-  if (colorItems.length === 0) return html``;
-
-  const handleTextInput = (value: string, colorInput: string) => {
-    const normalized = colorInput.startsWith('#') ? colorInput : `#${colorInput}`;
-    const isValid = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(normalized);
-    if (isValid) {
-      onColorChange(value, normalized);
-    }
-  };
-
-  return html`
-    <div class="color-settings">
-      <div class="color-settings-header">Category colors</div>
-      <div class="color-settings-list">
-        ${colorItems.map(
-          (item) => html`
-            <div class="color-settings-row">
-              <span class="color-settings-label" title=${item.label}>${item.label}</span>
-              <input
-                class="color-settings-swatch"
-                type="color"
-                .value=${item.color}
-                @input=${(e: Event) =>
-                  onColorChange(item.value, (e.target as HTMLInputElement).value)}
-              />
-              <input
-                class="color-settings-input"
-                type="text"
-                .value=${item.color}
-                spellcheck="false"
-                @input=${(e: Event) =>
-                  handleTextInput(item.value, (e.target as HTMLInputElement).value)}
-              />
-            </div>
-          `,
-        )}
-      </div>
-    </div>
-  `;
-}
-
-/**
  * Renders the dialog header with close button
  */
 function renderDialogHeader(title: string, onClose: () => void): TemplateResult {
@@ -355,137 +305,6 @@ export function renderSettingsDialog(
         </div>
 
         ${renderDialogFooter(callbacks, state.hasPersistedSettings)}
-      </div>
-    </div>
-  `;
-}
-
-export interface ColorDialogState {
-  colorItems: Array<{ value: string; label: string; color: string }>;
-  hasColorOverrides: boolean;
-  paletteOptions: PaletteOption[];
-  selectedPaletteId: string;
-  statusMessage: string;
-  toastPosition?: { x: number; y: number };
-}
-
-export interface ColorDialogCallbacks {
-  onColorChange: (value: string, color: string) => void;
-  onPaletteSelect: (paletteId: string) => void;
-  onApplyPalette: () => void;
-  onPaletteColorCopy: (color: string, event: MouseEvent) => void;
-  onSave: () => void;
-  onClose: () => void;
-  onReset: () => void;
-  onKeydown: (e: KeyboardEvent) => void;
-}
-
-export interface PaletteOption {
-  id: string;
-  label: string;
-  colors: string[];
-}
-
-function renderPaletteSection(
-  state: ColorDialogState,
-  callbacks: ColorDialogCallbacks,
-): TemplateResult {
-  if (!state.paletteOptions || state.paletteOptions.length === 0) return html``;
-
-  const selected =
-    state.paletteOptions.find((option) => option.id === state.selectedPaletteId) ??
-    state.paletteOptions[0];
-
-  return html`
-    <div class="color-palette-section">
-      <div class="color-settings-header">Palettes</div>
-      <div class="color-palette-row">
-        <select
-          class="color-palette-select"
-          @change=${(e: Event) => callbacks.onPaletteSelect((e.target as HTMLSelectElement).value)}
-        >
-          ${state.paletteOptions.map(
-            (option) => html`
-              <option value=${option.id} ?selected=${option.id === state.selectedPaletteId}>
-                ${option.label}
-              </option>
-            `,
-          )}
-        </select>
-        <button class="btn-secondary color-palette-apply" @click=${callbacks.onApplyPalette}>
-          Apply palette
-        </button>
-      </div>
-      <div class="color-palette-preview" aria-hidden="true">
-        ${selected.colors.map(
-          (color) => html`
-            <button
-              class="color-palette-swatch"
-              type="button"
-              title=${`Copy ${color}`}
-              style="background:${color}"
-              @click=${(e: MouseEvent) => callbacks.onPaletteColorCopy(color, e)}
-            ></button>
-          `,
-        )}
-      </div>
-    </div>
-  `;
-}
-
-export function renderColorDialog(
-  state: ColorDialogState,
-  callbacks: ColorDialogCallbacks,
-): TemplateResult {
-  return html`
-    <div
-      class="modal-overlay"
-      part="dialog-overlay"
-      @click=${callbacks.onClose}
-      @keydown=${callbacks.onKeydown}
-    >
-      <div
-        id="legend-color-dialog"
-        class="modal-content"
-        part="dialog-content"
-        tabindex="-1"
-        @click=${(e: Event) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        ${renderDialogHeader('Legend colors', callbacks.onClose)}
-        ${state.statusMessage
-          ? html`
-              <div
-                class="color-palette-toast"
-                role="status"
-                style=${state.toastPosition
-                  ? `left:${state.toastPosition.x}px; top:${state.toastPosition.y}px;`
-                  : ''}
-              >
-                ${state.statusMessage}
-              </div>
-            `
-          : nothing}
-
-        <div class="other-items-list">
-          ${renderPaletteSection(state, callbacks)}
-          ${renderColorManagementSection(state.colorItems, callbacks.onColorChange)}
-        </div>
-
-        <div class="modal-footer">
-          ${state.hasColorOverrides
-            ? html`
-                <button class="btn-danger modal-reset-button" @click=${callbacks.onReset}>
-                  Reset colors
-                </button>
-              `
-            : nothing}
-          <button class="btn-secondary modal-close-button" @click=${callbacks.onClose}>
-            Cancel
-          </button>
-          <button class="btn-primary extract-button" @click=${callbacks.onSave}>Save</button>
-        </div>
       </div>
     </div>
   `;

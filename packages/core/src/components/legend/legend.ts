@@ -11,7 +11,6 @@ import {
   toDisplayValue,
 } from './config';
 import { legendStyles } from './legend.styles';
-import { COLOR_SCHEMES } from '@protspace/utils';
 
 // Controllers
 import { ScatterplotSyncController, PersistenceController, DragController } from './controllers';
@@ -41,14 +40,9 @@ import {
 import {
   renderSettingsDialog,
   initializeAnnotationSortMode,
-  renderColorDialog,
   type SettingsDialogState,
   type SettingsDialogCallbacks,
-  type ColorDialogState,
-  type ColorDialogCallbacks,
-  type PaletteOption,
 } from './legend-settings-dialog';
-import { getVisualEncoding } from './visual-encoding';
 import { renderOtherDialog } from './legend-other-dialog';
 import { createFocusTrap } from './focus-trap';
 
@@ -122,8 +116,9 @@ export class ProtspaceLegend extends LitElement {
   @state() private _annotationSortModes: Record<string, LegendSortMode> = {};
   @state() private _showOtherDialog = false;
   @state() private _showSettingsDialog = false;
-  @state() private _showColorDialog = false;
   @state() private _statusMessage = '';
+  @state() private _colorPickerItem: string | null = null;
+  @state() private _colorPickerPosition: { x: number; y: number } | null = null;
 
   // Pending extract/merge values for next update cycle.
   // undefined = no pending operation, string = value to extract/merge (including '__NA__' for N/A)
@@ -137,25 +132,16 @@ export class ProtspaceLegend extends LitElement {
     shapeSize: number;
     enableDuplicateStackUI: boolean;
     annotationSortModes: Record<string, LegendSortMode>;
-    colorItems: Array<{ value: string; label: string; color: string }>;
   } = {
     maxVisibleValues: LEGEND_DEFAULTS.maxVisibleValues,
     includeShapes: LEGEND_DEFAULTS.includeShapes,
     shapeSize: LEGEND_DEFAULTS.symbolSize,
     enableDuplicateStackUI: false,
     annotationSortModes: {},
-    colorItems: [],
   };
-
-  @state() private _colorDialogItems: Array<{ value: string; label: string; color: string }> = [];
-  @state() private _selectedPaletteId = 'kellys';
-  @state() private _colorDialogMessage = '';
-  @state() private _colorDialogToastPosition: { x: number; y: number } | null = null;
 
   @query('#legend-settings-dialog')
   private _settingsDialogEl?: HTMLDivElement;
-  @query('#legend-color-dialog')
-  private _colorDialogEl?: HTMLDivElement;
 
   // Instance-specific processor context (avoids global state conflicts)
   private _processorContext: LegendProcessorContext = createProcessorContext();
@@ -216,7 +202,14 @@ export class ProtspaceLegend extends LitElement {
 
   private _onWindowKeydownCapture = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
-      // Close Other dialog first if open
+      // Close color picker first if open
+      if (this._colorPickerItem !== null) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        this._colorPickerItem = null;
+        return;
+      }
+      // Close Other dialog second if open
       if (this._showOtherDialog) {
         e.stopImmediatePropagation();
         e.preventDefault();
@@ -359,11 +352,14 @@ export class ProtspaceLegend extends LitElement {
   }
 
   updated(changedProperties: Map<string, unknown>): void {
-    // Handle keyboard events for dialogs
+    // Handle keyboard events for dialogs and color picker
     const dialogsChanged =
-      changedProperties.has('_showSettingsDialog') || changedProperties.has('_showOtherDialog');
+      changedProperties.has('_showSettingsDialog') ||
+      changedProperties.has('_showOtherDialog') ||
+      changedProperties.has('_colorPickerItem');
     if (dialogsChanged) {
-      const anyDialogOpen = this._showSettingsDialog || this._showOtherDialog;
+      const anyDialogOpen =
+        this._showSettingsDialog || this._showOtherDialog || this._colorPickerItem !== null;
       if (anyDialogOpen) {
         window.addEventListener('keydown', this._onWindowKeydownCapture, true);
       } else {
@@ -799,13 +795,6 @@ export class ProtspaceLegend extends LitElement {
 
   private async _handleCustomize(): Promise<void> {
     const scatterplot = this._scatterplotController.scatterplot;
-    const colorItems = this._sortedLegendItems
-      .filter((item) => item.value !== LEGEND_VALUES.OTHER)
-      .map((item) => ({
-        value: item.value,
-        label: toDisplayValue(item.value),
-        color: item.color,
-      }));
     this._dialogSettings = {
       maxVisibleValues: this.maxVisibleValues,
       includeShapes: this.includeShapes,
@@ -816,7 +805,6 @@ export class ProtspaceLegend extends LitElement {
           'config' in scatterplot &&
           (scatterplot as { config?: Record<string, unknown> }).config?.enableDuplicateStackUI,
       ),
-      colorItems,
     };
 
     this._showSettingsDialog = true;
@@ -827,15 +815,27 @@ export class ProtspaceLegend extends LitElement {
     this._settingsDialogEl?.focus();
   }
 
-  private _handleOpenColorPanel(): void {
-    this._colorDialogItems = this._sortedLegendItems
-      .filter((item) => item.value !== LEGEND_VALUES.OTHER)
-      .map((item) => ({
-        value: item.value,
-        label: toDisplayValue(item.value),
-        color: item.color,
-      }));
-    this._showColorDialog = true;
+  private _handleSymbolClick(item: LegendItem, event: MouseEvent): void {
+    event.stopPropagation();
+
+    // Close if clicking the same item
+    if (this._colorPickerItem === item.value) {
+      this._colorPickerItem = null;
+      return;
+    }
+
+    // Calculate position relative to the legend container
+    const container = this.shadowRoot?.querySelector('.legend-container');
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+
+    this._colorPickerPosition = {
+      x: targetRect.left - containerRect.left + targetRect.width + 8,
+      y: targetRect.top - containerRect.top,
+    };
+    this._colorPickerItem = item.value;
     this.requestUpdate();
   }
 
@@ -845,29 +845,6 @@ export class ProtspaceLegend extends LitElement {
     this.shapeSize = this._dialogSettings.shapeSize;
     this._annotationSortModes = this._dialogSettings.annotationSortModes;
     this._showSettingsDialog = false;
-
-    if (this._dialogSettings.colorItems.length > 0) {
-      const colorMap = new Map(
-        this._dialogSettings.colorItems.map((item) => [item.value, item.color]),
-      );
-      this._legendItems = this._legendItems.map((item) =>
-        colorMap.has(item.value)
-          ? { ...item, color: colorMap.get(item.value) ?? item.color }
-          : item,
-      );
-
-      const categories: Record<string, PersistedCategoryData> = {};
-      this._legendItems.forEach((item) => {
-        if (item.value !== LEGEND_VALUES.OTHER) {
-          categories[item.value] = {
-            zOrder: item.zOrder,
-            color: item.color,
-            shape: item.shape,
-          };
-        }
-      });
-      this._persistenceController.setPendingCategories(categories);
-    }
 
     // Don't clear _legendItems - we want to preserve current zOrders when switching sort modes.
     // This ensures switching to manual mode keeps the current display order.
@@ -881,42 +858,17 @@ export class ProtspaceLegend extends LitElement {
     this.requestUpdate();
   }
 
-  private _handleColorDialogSave(): void {
-    if (this._colorDialogItems.length > 0) {
-      this._legendItems = this._applyColorMapToLegendItems(
-        new Map(this._colorDialogItems.map((item) => [item.value, item.color])),
-      );
-      this._syncLegendColorsToPersistence();
-    }
+  private _handleColorChange(value: string, newColor: string): void {
+    // Update the color immediately
+    this._legendItems = this._legendItems.map((item) =>
+      item.value === value ? { ...item, color: newColor } : item,
+    );
 
-    this._showColorDialog = false;
-    this._updateLegendItems();
-    this._scatterplotController.syncHiddenValues();
-    this._persistenceController.saveSettings();
-    this.requestUpdate();
-  }
-
-  private _handleColorDialogReset(): void {
-    this._legendItems = this._legendItems.map((item) => {
-      if (item.value === LEGEND_VALUES.OTHER) {
-        return item;
-      }
-      const displayLabel = toDisplayValue(item.value);
-      const slot = this._processorContext.slotTracker.getSlot(displayLabel);
-      const encoding = getVisualEncoding(slot, this._effectiveIncludeShapes, displayLabel);
-      return { ...item, color: encoding.color };
-    });
-
-    this._colorDialogItems = this._colorDialogItems.map((item) => {
-      const displayLabel = item.label;
-      const slot = this._processorContext.slotTracker.getSlot(displayLabel);
-      const encoding = getVisualEncoding(slot, this._effectiveIncludeShapes, displayLabel);
-      return { ...item, color: encoding.color };
-    });
-
+    // Sync to persistence
     this._syncLegendColorsToPersistence();
-    this._updateLegendItems();
-    this._scatterplotController.syncHiddenValues();
+
+    // Update scatterplot and save
+    this._scatterplotController.dispatchColorMappingChange();
     this._persistenceController.saveSettings();
     this.requestUpdate();
   }
@@ -925,13 +877,12 @@ export class ProtspaceLegend extends LitElement {
     this._showSettingsDialog = false;
   }
 
-  private _handleColorDialogClose(): void {
-    this._showColorDialog = false;
-  }
-
   private _handleSettingsReset(): void {
+    // Remove localStorage and clear pending categories
     this._persistenceController.removeSettings();
+    this._persistenceController.clearPendingCategories();
 
+    // Reset all settings to defaults
     this.maxVisibleValues = LEGEND_DEFAULTS.maxVisibleValues;
     this.includeShapes = LEGEND_DEFAULTS.includeShapes;
     this.shapeSize = LEGEND_DEFAULTS.symbolSize;
@@ -942,7 +893,13 @@ export class ProtspaceLegend extends LitElement {
     };
 
     this._hiddenValues = [];
+
+    // Reset slot tracker so colors are reassigned from scratch
+    this._processorContext.slotTracker.reset();
+
+    // Clear legend items so processor creates fresh ones with default colors
     this._legendItems = [];
+
     this._showSettingsDialog = false;
 
     this._scatterplotController.updateConfig({
@@ -951,6 +908,7 @@ export class ProtspaceLegend extends LitElement {
     });
 
     this._updateLegendItems();
+    this._scatterplotController.dispatchColorMappingChange();
     this.requestUpdate();
   }
 
@@ -960,20 +918,6 @@ export class ProtspaceLegend extends LitElement {
       e.preventDefault();
       this._handleSettingsSave();
     }
-  }
-
-  private _handleColorDialogKeydown(e: KeyboardEvent): void {
-    if (e.key === 'Enter') {
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      this._handleColorDialogSave();
-    }
-  }
-
-  private _applyColorMapToLegendItems(colorMap: Map<string, string>): LegendItem[] {
-    return this._legendItems.map((item) =>
-      colorMap.has(item.value) ? { ...item, color: colorMap.get(item.value) ?? item.color } : item,
-    );
   }
 
   private _syncLegendColorsToPersistence(): void {
@@ -998,20 +942,26 @@ export class ProtspaceLegend extends LitElement {
     const title = this.annotationData.name || this.annotationName || 'Legend';
 
     return html`
-      <div class="legend-container" part="container">
+      <div
+        class="legend-container"
+        part="container"
+        @click=${() => {
+          this._colorPickerItem = null;
+        }}
+      >
         <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
           ${this._statusMessage}
         </div>
         ${LegendRenderer.renderHeader(title, {
           onReverse: () => this._reverseZOrder(),
           onCustomize: () => this._handleCustomize(),
-          onColorPanel: () => this._handleOpenColorPanel(),
         })}
         ${LegendRenderer.renderLegendContent(this._sortedLegendItems, (item, index) =>
           this._renderLegendItem(item, index),
         )}
+        ${this._renderColorPicker()}
       </div>
-      ${this._renderOtherDialog()} ${this._renderSettingsDialog()} ${this._renderColorDialog()}
+      ${this._renderOtherDialog()} ${this._renderSettingsDialog()}
     `;
   }
 
@@ -1038,6 +988,10 @@ export class ProtspaceLegend extends LitElement {
           this._showOtherDialog = true;
         },
         onKeyDown: (e: KeyboardEvent) => this._handleItemKeyDown(e, item, sortedIndex),
+        onSymbolClick:
+          item.value !== LEGEND_VALUES.OTHER
+            ? (e: MouseEvent) => this._handleSymbolClick(item, e)
+            : undefined,
       },
       this._effectiveIncludeShapes,
       LEGEND_STYLES.legendDisplaySize,
@@ -1082,7 +1036,6 @@ export class ProtspaceLegend extends LitElement {
       annotationSortModes: this._dialogSettings.annotationSortModes,
       isMultilabelAnnotation: this._isMultilabelAnnotation(),
       hasPersistedSettings: this._persistenceController.hasPersistedSettings(),
-      colorItems: this._dialogSettings.colorItems,
     };
 
     const callbacks: SettingsDialogCallbacks = {
@@ -1104,14 +1057,6 @@ export class ProtspaceLegend extends LitElement {
           annotationSortModes: { ...this._dialogSettings.annotationSortModes, [annotation]: mode },
         };
       },
-      onColorChange: (value, color) => {
-        this._dialogSettings = {
-          ...this._dialogSettings,
-          colorItems: this._dialogSettings.colorItems.map((item) =>
-            item.value === value ? { ...item, color } : item,
-          ),
-        };
-      },
       onSave: () => this._handleSettingsSave(),
       onClose: () => this._handleSettingsClose(),
       onReset: () => this._handleSettingsReset(),
@@ -1121,180 +1066,46 @@ export class ProtspaceLegend extends LitElement {
     return renderSettingsDialog(state, callbacks);
   }
 
-  private _getPaletteOptions(): PaletteOption[] {
-    return [
-      { id: 'kellys', label: 'Default: Kelly (max contrast)', colors: [...COLOR_SCHEMES.kellys] },
-      {
-        id: 'okabeIto',
-        label: 'Color-blind safe: Okabe-Ito',
-        colors: [...COLOR_SCHEMES.okabeIto],
-      },
-      {
-        id: 'tolBright',
-        label: 'Color-blind safe: Tol Bright',
-        colors: [...COLOR_SCHEMES.tolBright],
-      },
-      { id: 'set2', label: 'Categorical: Set2 (soft)', colors: [...COLOR_SCHEMES.set2] },
-      { id: 'dark2', label: 'Categorical: Dark2 (vivid)', colors: [...COLOR_SCHEMES.dark2] },
-      {
-        id: 'tableau10',
-        label: 'Categorical: Tableau 10',
-        colors: [...COLOR_SCHEMES.tableau10],
-      },
-      { id: 'rainbow', label: 'Rainbow (HSV)', colors: this._generateRainbowColors(10) },
-    ];
-  }
-
-  private _applyPaletteToColorDialogItems(paletteId: string): void {
-    if (this._colorDialogItems.length === 0) return;
-    const colors = this._resolvePaletteColors(paletteId, this._colorDialogItems.length);
-    if (colors.length === 0) return;
-
-    this._colorDialogItems = this._colorDialogItems.map((item, index) => ({
-      ...item,
-      color: colors[index % colors.length],
-    }));
-  }
-
-  private _resolvePaletteColors(paletteId: string, count: number): string[] {
-    if (paletteId === 'rainbow') {
-      return this._generateRainbowColors(Math.max(count, 1));
+  private _renderColorPicker() {
+    if (this._colorPickerItem === null || !this._colorPickerPosition) {
+      return html``;
     }
 
-    const palette = this._getPaletteOptions().find((option) => option.id === paletteId);
-    return palette?.colors ?? [];
-  }
+    const item = this._legendItems.find((i) => i.value === this._colorPickerItem);
+    if (!item) return html``;
 
-  private _generateRainbowColors(count: number): string[] {
-    const colors: string[] = [];
-    for (let i = 0; i < count; i++) {
-      const hue = (i / Math.max(count, 1)) * 360;
-      colors.push(this._hslToHex(hue, 90, 50));
-    }
-    return colors;
-  }
+    const displayLabel = toDisplayValue(item.value);
 
-  private _hslToHex(hue: number, saturation: number, lightness: number): string {
-    const sat = saturation / 100;
-    const light = lightness / 100;
-
-    const c = (1 - Math.abs(2 * light - 1)) * sat;
-    const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
-    const m = light - c / 2;
-
-    let r = 0;
-    let g = 0;
-    let b = 0;
-
-    if (hue >= 0 && hue < 60) {
-      r = c;
-      g = x;
-    } else if (hue >= 60 && hue < 120) {
-      r = x;
-      g = c;
-    } else if (hue >= 120 && hue < 180) {
-      g = c;
-      b = x;
-    } else if (hue >= 180 && hue < 240) {
-      g = x;
-      b = c;
-    } else if (hue >= 240 && hue < 300) {
-      r = x;
-      b = c;
-    } else {
-      r = c;
-      b = x;
-    }
-
-    const toHex = (value: number) =>
-      Math.round((value + m) * 255)
-        .toString(16)
-        .padStart(2, '0');
-
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-  }
-
-  private async _copyPaletteColor(color: string, event?: MouseEvent): Promise<void> {
-    if (event && this._colorDialogEl) {
-      const rect = this._colorDialogEl.getBoundingClientRect();
-      const x = Math.max(0, event.clientX - rect.left + 8);
-      const y = Math.max(0, event.clientY - rect.top + 8);
-      this._colorDialogToastPosition = { x, y };
-    }
-    try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(color);
-      } else {
-        const textArea = document.createElement('textarea');
-        textArea.value = color;
-        textArea.setAttribute('readonly', 'true');
-        textArea.style.position = 'fixed';
-        textArea.style.opacity = '0';
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-      }
-      this._announceStatus(`Copied ${color}`);
-      this._colorDialogMessage = color;
-      setTimeout(() => {
-        this._colorDialogMessage = '';
-      }, 1500);
-    } catch (error) {
-      this._announceStatus('Copy failed');
-      this._colorDialogMessage = 'Failed';
-      setTimeout(() => {
-        this._colorDialogMessage = '';
-      }, 1500);
-      this._dispatchError('Failed to copy palette color', 'rendering', error as Error);
-    }
-  }
-
-  private _renderColorDialog() {
-    if (!this._showColorDialog) return html``;
-
-    const state: ColorDialogState = {
-      colorItems: this._colorDialogItems,
-      hasColorOverrides: this._hasColorOverrides(this._colorDialogItems),
-      paletteOptions: this._getPaletteOptions(),
-      selectedPaletteId: this._selectedPaletteId,
-      statusMessage: this._colorDialogMessage,
-      toastPosition: this._colorDialogToastPosition ?? undefined,
-    };
-
-    const callbacks: ColorDialogCallbacks = {
-      onColorChange: (value, color) => {
-        this._colorDialogItems = this._colorDialogItems.map((item) =>
-          item.value === value ? { ...item, color } : item,
-        );
-      },
-      onPaletteSelect: (paletteId) => {
-        this._selectedPaletteId = paletteId;
-      },
-      onApplyPalette: () => {
-        this._applyPaletteToColorDialogItems(this._selectedPaletteId);
-      },
-      onPaletteColorCopy: (color, event) => {
-        void this._copyPaletteColor(color, event);
-      },
-      onSave: () => this._handleColorDialogSave(),
-      onClose: () => this._handleColorDialogClose(),
-      onReset: () => this._handleColorDialogReset(),
-      onKeydown: (e) => this._handleColorDialogKeydown(e),
-    };
-
-    return renderColorDialog(state, callbacks);
-  }
-
-  private _hasColorOverrides(
-    items: Array<{ value: string; label: string; color: string }>,
-  ): boolean {
-    return items.some((item) => {
-      const displayLabel = item.label;
-      const slot = this._processorContext.slotTracker.getSlot(displayLabel);
-      const encoding = getVisualEncoding(slot, this._effectiveIncludeShapes, displayLabel);
-      return encoding.color !== item.color;
-    });
+    return html`
+      <div
+        class="color-picker-popover"
+        style="left: ${this._colorPickerPosition.x}px; top: ${this._colorPickerPosition.y}px;"
+        @click=${(e: Event) => e.stopPropagation()}
+      >
+        <div class="color-picker-header">${displayLabel}</div>
+        <div class="color-picker-content">
+          <input
+            type="color"
+            class="color-picker-swatch"
+            .value=${item.color}
+            @input=${(e: Event) =>
+              this._handleColorChange(item.value, (e.target as HTMLInputElement).value)}
+          />
+          <input
+            type="text"
+            class="color-picker-input"
+            .value=${item.color.toUpperCase()}
+            spellcheck="false"
+            @input=${(e: Event) => {
+              const value = (e.target as HTMLInputElement).value;
+              if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                this._handleColorChange(item.value, value);
+              }
+            }}
+          />
+        </div>
+      </div>
+    `;
   }
 }
 

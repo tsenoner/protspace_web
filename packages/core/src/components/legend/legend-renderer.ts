@@ -74,7 +74,6 @@ export class LegendRenderer {
     actions: {
       onReverse?: () => void;
       onCustomize: () => void;
-      onColorPanel?: () => void;
     },
   ): TemplateResult {
     return html`
@@ -95,25 +94,6 @@ export class LegendRenderer {
                       stroke-linejoin="round"
                       stroke-width="2"
                       d="M7 16V4m0 0L3 8m4-4l4 4m6-2v12m0 0l4-4m-4 4l-4-4"
-                    />
-                  </svg>
-                </button>
-              `
-            : null}
-          ${actions.onColorPanel
-            ? html`
-                <button
-                  class="btn-icon customize-button"
-                  title="Legend colors"
-                  aria-label="Legend colors"
-                  @click=${actions.onColorPanel}
-                >
-                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path
-                      d="M8 5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3m4 3a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3M5.5 7a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m.5 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3"
-                    />
-                    <path
-                      d="M16 8c0 3.15-1.866 2.585-3.567 2.07C11.42 9.763 10.465 9.473 10 10c-.603.683-.475 1.819-.351 2.92C9.826 14.495 9.996 16 8 16a8 8 0 1 1 8-8m-8 7c.611 0 .654-.171.655-.176.078-.146.124-.464.07-1.119-.014-.168-.037-.37-.061-.591-.052-.464-.112-1.005-.118-1.462-.01-.707.083-1.61.704-2.314.369-.417.845-.578 1.272-.618.404-.038.812.026 1.16.104.343.077.702.186 1.025.284l.028.008c.346.105.658.199.953.266.653.148.904.083.991.024C14.717 9.38 15 9.161 15 8a7 7 0 1 0-7 7"
                     />
                   </svg>
                 </button>
@@ -196,17 +176,25 @@ export class LegendRenderer {
     isItemSelected: boolean,
     includeShapes: boolean = true,
     size: number = LEGEND_DEFAULTS.symbolSize,
+    onSymbolClick?: (e: MouseEvent) => void,
   ): TemplateResult {
+    const symbolContent =
+      item.value === LEGEND_VALUES.OTHER
+        ? this.renderSymbol('circle', '#888', size)
+        : this.renderSymbol(
+            includeShapes ? item.shape : 'circle',
+            item.color,
+            size,
+            isItemSelected,
+          );
+
     return html`
-      <div class="mr-2" part="symbol">
-        ${item.value === LEGEND_VALUES.OTHER
-          ? this.renderSymbol('circle', '#888', size)
-          : this.renderSymbol(
-              includeShapes ? item.shape : 'circle',
-              item.color,
-              size,
-              isItemSelected,
-            )}
+      <div
+        class="mr-2 ${onSymbolClick ? 'legend-symbol-clickable' : ''}"
+        part="symbol"
+        @click=${onSymbolClick ? onSymbolClick : undefined}
+      >
+        ${symbolContent}
       </div>
     `;
   }
@@ -258,6 +246,7 @@ export class LegendRenderer {
       onDragEnd: () => void;
       onViewOther: (e: Event) => void;
       onKeyDown?: (e: KeyboardEvent) => void;
+      onSymbolClick?: (e: MouseEvent) => void;
     },
     includeShapes: boolean = true,
     symbolSize: number = LEGEND_DEFAULTS.symbolSize,
@@ -285,7 +274,13 @@ export class LegendRenderer {
       >
         <div class="legend-item-content">
           ${this.renderDragHandle()}
-          ${this.renderItemSymbol(item, isItemSelected, includeShapes, symbolSize)}
+          ${this.renderItemSymbol(
+            item,
+            isItemSelected,
+            includeShapes,
+            symbolSize,
+            eventHandlers.onSymbolClick,
+          )}
           ${this.renderItemText(item, otherItemsCount)}
           ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>
