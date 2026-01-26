@@ -45,3 +45,40 @@ export function removeStorageItem(key: string): boolean {
     return false;
   }
 }
+
+/**
+ * Remove all localStorage entries for a specific dataset hash.
+ * This is used when importing a parquetbundle with settings to ensure
+ * the imported settings are the only source of truth.
+ *
+ * Keys follow pattern: protspace:{component}:{hash}:{context?}
+ *
+ * @param datasetHash - The dataset hash to match
+ * @returns The number of keys removed
+ */
+export function removeAllStorageItemsByHash(datasetHash: string): number {
+  try {
+    const keysToRemove: string[] = [];
+    const prefix = `${STORAGE_PREFIX}:`;
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(prefix)) {
+        // Parse key to check if it contains this hash
+        const parts = key.split(':');
+        // parts[0] = 'protspace', parts[1] = component, parts[2] = hash
+        if (parts.length >= 3 && parts[2] === datasetHash) {
+          keysToRemove.push(key);
+        }
+      }
+    }
+
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
+
+    return keysToRemove.length;
+  } catch {
+    return 0;
+  }
+}

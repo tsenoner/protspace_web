@@ -457,6 +457,56 @@ export class ProtspaceLegend extends LitElement {
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // File-based Persistence (parquetbundle export/import)
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Get all annotation settings for export to a parquetbundle.
+   * Returns settings for all annotations that have been configured.
+   *
+   * @returns Record mapping annotation names to their persisted settings
+   */
+  public getAllPersistedSettings(): Record<string, LegendPersistedSettings> {
+    const annotationNames = Object.keys(this.data?.annotations ?? {});
+    return this._persistenceController.getAllSettingsForExport(annotationNames);
+  }
+
+  /**
+   * Set file-based settings loaded from a parquetbundle.
+   * These will be applied when switching to annotations that have settings.
+   * Also persists all settings to localStorage so they're available for future exports.
+   *
+   * @param settings - All annotation settings from the file, or null to clear
+   * @param datasetHash - Optional dataset hash for localStorage keys (required when
+   *                      the component's hash isn't yet computed from the new data)
+   */
+  public setFileSettings(
+    settings: Record<string, LegendPersistedSettings> | null,
+    datasetHash?: string,
+  ): void {
+    this._persistenceController.setFileSettings(settings, datasetHash);
+
+    // If current annotation has file settings, reload to apply them
+    if (settings?.[this.selectedAnnotation]) {
+      this._persistenceController.loadSettings();
+    }
+  }
+
+  /**
+   * Check if file-based settings are currently loaded.
+   */
+  public get hasFileSettings(): boolean {
+    return this._persistenceController.hasFileSettings;
+  }
+
+  /**
+   * Check if file settings exist for a specific annotation.
+   */
+  public hasFileSettingsForAnnotation(annotation: string): boolean {
+    return this._persistenceController.hasFileSettingsForAnnotation(annotation);
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // Data Handling
   // ─────────────────────────────────────────────────────────────────
 
@@ -985,3 +1035,6 @@ declare global {
     'protspace-legend': ProtspaceLegend;
   }
 }
+
+// Re-export types for external use
+export type { LegendPersistedSettings } from './types';
