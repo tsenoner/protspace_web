@@ -105,4 +105,5 @@ export interface LegendPersistedSettings {
   hiddenValues: string[];
   categories: Record<string, PersistedCategoryData>;
   enableDuplicateStackUI: boolean;
+  selectedPaletteId: string;
 }

@@ -102,6 +102,7 @@ export function createDefaultSettings(selectedAnnotation: string): LegendPersist
     hiddenValues: [],
     categories: {},
     enableDuplicateStackUI: LEGEND_DEFAULTS.enableDuplicateStackUI,
+    selectedPaletteId: 'kellys',
   };
 }
 

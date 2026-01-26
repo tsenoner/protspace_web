@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
+import { COLOR_SCHEMES } from '@protspace/utils';
 
 // Configuration and styles
 import {
@@ -119,6 +120,7 @@ export class ProtspaceLegend extends LitElement {
   @state() private _statusMessage = '';
   @state() private _colorPickerItem: string | null = null;
   @state() private _colorPickerPosition: { x: number; y: number } | null = null;
+  @state() private _selectedPaletteId = 'kellys';
 
   // Pending extract/merge values for next update cycle.
   // undefined = no pending operation, string = value to extract/merge (including '__NA__' for N/A)
@@ -132,12 +134,14 @@ export class ProtspaceLegend extends LitElement {
     shapeSize: number;
     enableDuplicateStackUI: boolean;
     annotationSortModes: Record<string, LegendSortMode>;
+    selectedPaletteId: string;
   } = {
     maxVisibleValues: LEGEND_DEFAULTS.maxVisibleValues,
     includeShapes: LEGEND_DEFAULTS.includeShapes,
     shapeSize: LEGEND_DEFAULTS.symbolSize,
     enableDuplicateStackUI: false,
     annotationSortModes: {},
+    selectedPaletteId: 'kellys',
   };
 
   @query('#legend-settings-dialog')
@@ -173,6 +177,7 @@ export class ProtspaceLegend extends LitElement {
       shapeSize: this.shapeSize,
       sortMode: this._annotationSortModes[this.selectedAnnotation] ?? 'size-desc',
       enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
+      selectedPaletteId: this._selectedPaletteId,
     }),
   });
 
@@ -622,6 +627,7 @@ export class ProtspaceLegend extends LitElement {
       this.includeShapes = settings.includeShapes;
       this.shapeSize = settings.shapeSize;
       this._hiddenValues = settings.hiddenValues;
+      this._selectedPaletteId = settings.selectedPaletteId ?? 'kellys';
 
       this._annotationSortModes = {
         ...this._annotationSortModes,
@@ -805,6 +811,7 @@ export class ProtspaceLegend extends LitElement {
           'config' in scatterplot &&
           (scatterplot as { config?: Record<string, unknown> }).config?.enableDuplicateStackUI,
       ),
+      selectedPaletteId: this._selectedPaletteId,
     };
 
     this._showSettingsDialog = true;
@@ -844,6 +851,7 @@ export class ProtspaceLegend extends LitElement {
     this.includeShapes = this._dialogSettings.includeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
     this._annotationSortModes = this._dialogSettings.annotationSortModes;
+    this._selectedPaletteId = this._dialogSettings.selectedPaletteId;
     this._showSettingsDialog = false;
 
     // Don't clear _legendItems - we want to preserve current zOrders when switching sort modes.
@@ -873,6 +881,28 @@ export class ProtspaceLegend extends LitElement {
     this.requestUpdate();
   }
 
+  private _handlePaletteChange(paletteId: string): void {
+    // Update dialog state
+    this._dialogSettings = {
+      ...this._dialogSettings,
+      selectedPaletteId: paletteId,
+    };
+
+    // Update component state
+    this._selectedPaletteId = paletteId;
+
+    // Apply palette colors to all legend items (excluding special categories)
+    this._applyPaletteColors(paletteId);
+
+    // Sync to persistence
+    this._syncLegendColorsToPersistence();
+
+    // Update scatterplot and save
+    this._scatterplotController.dispatchColorMappingChange();
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
   private _handleSettingsClose(): void {
     this._showSettingsDialog = false;
   }
@@ -886,6 +916,7 @@ export class ProtspaceLegend extends LitElement {
     this.maxVisibleValues = LEGEND_DEFAULTS.maxVisibleValues;
     this.includeShapes = LEGEND_DEFAULTS.includeShapes;
     this.shapeSize = LEGEND_DEFAULTS.symbolSize;
+    this._selectedPaletteId = 'kellys';
 
     this._annotationSortModes = {
       ...this._annotationSortModes,
@@ -918,6 +949,23 @@ export class ProtspaceLegend extends LitElement {
       e.preventDefault();
       this._handleSettingsSave();
     }
+  }
+
+  private _applyPaletteColors(paletteId: string): void {
+    // Get the color palette
+    const palette = COLOR_SCHEMES[paletteId as keyof typeof COLOR_SCHEMES] || COLOR_SCHEMES.kellys;
+
+    // Apply palette colors to all legend items (excluding special categories like "Others" and "N/A")
+    this._legendItems = this._legendItems.map((item, index) => {
+      // Skip special categories (Others, N/A) as they have fixed colors
+      if (item.value === LEGEND_VALUES.OTHERS || item.value === LEGEND_VALUES.NA_DISPLAY) {
+        return item;
+      }
+
+      // Apply palette color based on slot/index
+      const colorIndex = index % palette.length;
+      return { ...item, color: palette[colorIndex] };
+    });
   }
 
   private _syncLegendColorsToPersistence(): void {
@@ -1036,6 +1084,7 @@ export class ProtspaceLegend extends LitElement {
       annotationSortModes: this._dialogSettings.annotationSortModes,
       isMultilabelAnnotation: this._isMultilabelAnnotation(),
       hasPersistedSettings: this._persistenceController.hasPersistedSettings(),
+      selectedPaletteId: this._dialogSettings.selectedPaletteId,
     };
 
     const callbacks: SettingsDialogCallbacks = {
@@ -1057,6 +1106,7 @@ export class ProtspaceLegend extends LitElement {
           annotationSortModes: { ...this._dialogSettings.annotationSortModes, [annotation]: mode },
         };
       },
+      onPaletteChange: (paletteId) => this._handlePaletteChange(paletteId),
       onSave: () => this._handleSettingsSave(),
       onClose: () => this._handleSettingsClose(),
       onReset: () => this._handleSettingsReset(),

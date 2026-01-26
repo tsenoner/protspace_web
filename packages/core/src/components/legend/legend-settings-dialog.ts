@@ -2,6 +2,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_ANNOTATIONS } from './config';
 import type { LegendSortMode } from './types';
 import { renderCloseIcon } from './legend-other-dialog';
+import { COLOR_SCHEMES } from '@protspace/utils';
 
 /**
  * Settings dialog state interface
@@ -15,6 +16,7 @@ export interface SettingsDialogState {
   annotationSortModes: Record<string, LegendSortMode>;
   isMultilabelAnnotation: boolean;
   hasPersistedSettings: boolean;
+  selectedPaletteId: string;
 }
 
 /**
@@ -26,6 +28,7 @@ export interface SettingsDialogCallbacks {
   onIncludeShapesChange: (checked: boolean) => void;
   onEnableDuplicateStackUIChange: (checked: boolean) => void;
   onSortModeChange: (annotation: string, mode: LegendSortMode) => void;
+  onPaletteChange: (paletteId: string) => void;
   onSave: () => void;
   onClose: () => void;
   onReset: () => void;
@@ -216,6 +219,67 @@ function renderSortingSection(
 }
 
 /**
+ * Color palette metadata
+ */
+const PALETTE_INFO: Record<string, { label: string; description: string }> = {
+  kellys: { label: "Kelly's Colors", description: 'Maximum contrast (default)' },
+  okabeIto: { label: 'Okabe-Ito', description: 'Colorblind-safe' },
+  tolBright: { label: 'Tol Bright', description: 'Colorblind-safe' },
+  set2: { label: 'Set2', description: 'Categorical' },
+  dark2: { label: 'Dark2', description: 'Categorical' },
+  tableau10: { label: 'Tableau 10', description: 'Categorical' },
+};
+
+/**
+ * Renders the color palette section
+ */
+function renderPaletteSection(
+  state: SettingsDialogState,
+  callbacks: SettingsDialogCallbacks,
+): TemplateResult {
+  const handlePaletteChange = (e: Event) => {
+    const select = e.target as HTMLSelectElement;
+    callbacks.onPaletteChange(select.value);
+  };
+
+  // Get the selected palette colors
+  const selectedPalette =
+    COLOR_SCHEMES[state.selectedPaletteId as keyof typeof COLOR_SCHEMES] || COLOR_SCHEMES.kellys;
+
+  return html`
+    <div class="color-palette-section">
+      <div class="color-palette-title">Color Palette</div>
+      <div class="color-palette-row">
+        <select
+          class="color-palette-select"
+          .value=${state.selectedPaletteId}
+          @change=${handlePaletteChange}
+        >
+          ${Object.entries(PALETTE_INFO).map(
+            ([id, info]) => html`
+              <option value=${id} .selected=${state.selectedPaletteId === id}>
+                ${info.label} - ${info.description}
+              </option>
+            `,
+          )}
+        </select>
+      </div>
+      <div class="color-palette-preview">
+        ${selectedPalette.map(
+          (color) => html`
+            <div
+              class="color-palette-swatch"
+              style="background-color: ${color}"
+              title=${color}
+            ></div>
+          `,
+        )}
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Renders the dialog header with close button
  */
 function renderDialogHeader(title: string, onClose: () => void): TemplateResult {
@@ -301,7 +365,8 @@ export function renderSettingsDialog(
 
         <div class="other-items-list">
           ${renderMaxVisibleInput(state, callbacks)} ${renderShapeSizeInput(state, callbacks)}
-          ${renderCheckboxOptions(state, callbacks)} ${renderSortingSection(state, callbacks)}
+          ${renderCheckboxOptions(state, callbacks)} ${renderPaletteSection(state, callbacks)}
+          ${renderSortingSection(state, callbacks)}
         </div>
 
         ${renderDialogFooter(callbacks, state.hasPersistedSettings)}
