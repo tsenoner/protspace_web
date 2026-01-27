@@ -201,6 +201,125 @@ export const itemStyles = css`
     border-color: var(--accent-purple);
   }
 
+  /* Symbol Picker Sections (Color + Shape side by side) */
+  .symbol-picker-sections {
+    display: flex;
+    gap: 16px;
+  }
+
+  .symbol-picker-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .symbol-picker-section-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--legend-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Shape Swatch Container */
+  .shape-swatch-container {
+    position: relative;
+  }
+
+  /* Shape Picker Swatch (similar to color swatch) */
+  .shape-picker-swatch {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--legend-border);
+    border-radius: 4px;
+    background: var(--legend-bg);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .shape-picker-swatch:hover:not(:disabled) {
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+  }
+
+  .shape-picker-swatch.active {
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+  }
+
+  .shape-picker-swatch.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .shape-picker-swatch svg {
+    display: block;
+  }
+
+  /* Shape Picker Dropdown */
+  .shape-picker-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: calc(var(--z-modal) + 1);
+    background: var(--legend-bg);
+    border: 1px solid var(--legend-border);
+    border-radius: 6px;
+    padding: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Shape Picker Grid */
+  .shape-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+
+  .shape-picker-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--legend-border);
+    border-radius: 4px;
+    background: var(--legend-bg);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    color: var(--legend-text-secondary);
+  }
+
+  .shape-picker-item svg {
+    display: block;
+  }
+
+  .shape-picker-item:hover {
+    border-color: var(--accent-purple);
+    background: var(--legend-hover-bg);
+    color: var(--accent-purple);
+  }
+
+  .shape-picker-item.selected {
+    border-color: var(--accent-purple);
+    background: rgba(139, 92, 246, 0.1);
+    color: var(--accent-purple);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+  }
+
+  /* Note for disabled shape picker (multilabel) */
+  .symbol-picker-note {
+    font-size: 0.7rem;
+    color: var(--legend-text-secondary);
+    margin-top: 8px;
+    font-style: italic;
+  }
+
   .legend-text {
     font-size: 0.875rem;
     color: var(--legend-text-color);

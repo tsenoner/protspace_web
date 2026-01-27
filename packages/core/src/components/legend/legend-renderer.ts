@@ -174,19 +174,16 @@ export class LegendRenderer {
   static renderItemSymbol(
     item: LegendItem,
     isItemSelected: boolean,
-    includeShapes: boolean = true,
+    _includeShapes: boolean = true,
     size: number = LEGEND_DEFAULTS.symbolSize,
     onSymbolClick?: (e: MouseEvent) => void,
   ): TemplateResult {
+    // Always show the item's actual shape - custom shapes should be visible
+    // regardless of the global includeShapes setting
     const symbolContent =
       item.value === LEGEND_VALUES.OTHER
         ? this.renderSymbol('circle', '#888', size)
-        : this.renderSymbol(
-            includeShapes ? item.shape : 'circle',
-            item.color,
-            size,
-            isItemSelected,
-          );
+        : this.renderSymbol(item.shape, item.color, size, isItemSelected);
 
     return html`
       <div

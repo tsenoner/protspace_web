@@ -10,7 +10,10 @@ import {
   LEGEND_VALUES,
   LEGEND_EVENTS,
   toDisplayValue,
+  SHAPE_PATH_GENERATORS,
 } from './config';
+
+import type { PointShape } from '@protspace/utils';
 import { legendStyles } from './legend.styles';
 
 // Controllers
@@ -120,6 +123,7 @@ export class ProtspaceLegend extends LitElement {
   @state() private _statusMessage = '';
   @state() private _colorPickerItem: string | null = null;
   @state() private _colorPickerPosition: { x: number; y: number } | null = null;
+  @state() private _showShapePicker = false;
   @state() private _selectedPaletteId = 'kellys';
 
   // Pending extract/merge values for next update cycle.
@@ -219,6 +223,7 @@ export class ProtspaceLegend extends LitElement {
         e.preventDefault();
         this._flushColorChangeDebounce();
         this._colorPickerItem = null;
+        this._showShapePicker = false;
         return;
       }
       // Close Other dialog second if open
@@ -868,6 +873,7 @@ export class ProtspaceLegend extends LitElement {
     if (this._colorPickerItem === item.value) {
       this._flushColorChangeDebounce();
       this._colorPickerItem = null;
+      this._showShapePicker = false;
       return;
     }
 
@@ -886,6 +892,7 @@ export class ProtspaceLegend extends LitElement {
       y: targetRect.top - containerRect.top,
     };
     this._colorPickerItem = item.value;
+    this._showShapePicker = false; // Reset shape picker when opening new item
     this.requestUpdate();
   }
 
@@ -940,6 +947,25 @@ export class ProtspaceLegend extends LitElement {
       this._handleColorChange(value, newColor);
       this._colorChangeDebounceTimer = null;
     }, 150);
+  }
+
+  private _handleShapeChange(value: string, newShape: PointShape): void {
+    // Update the shape immediately
+    this._legendItems = this._legendItems.map((item) =>
+      item.value === value ? { ...item, shape: newShape } : item,
+    );
+
+    // Close the shape picker dropdown
+    this._showShapePicker = false;
+
+    // Sync to persistence
+    this._syncLegendColorsToPersistence();
+
+    // Update scatterplot and save (shape change, no z-order change)
+    this._scatterplotController.dispatchColorMappingChange(true);
+    this._scatterplotController.syncShapes();
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
   }
 
   private _handlePaletteChange(paletteId: string): void {
@@ -1057,6 +1083,7 @@ export class ProtspaceLegend extends LitElement {
         @click=${() => {
           this._flushColorChangeDebounce();
           this._colorPickerItem = null;
+          this._showShapePicker = false;
         }}
       >
         <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
@@ -1181,6 +1208,34 @@ export class ProtspaceLegend extends LitElement {
     if (!item) return html``;
 
     const displayLabel = toDisplayValue(item.value);
+    const isMultilabel = this._isMultilabelAnnotation();
+    const availableShapes: PointShape[] = [
+      'circle',
+      'square',
+      'diamond',
+      'triangle-up',
+      'triangle-down',
+      'plus',
+    ];
+
+    // Render shape swatch SVG (outline only, no fill)
+    const renderShapeSwatch = (shape: string, disabled: boolean = false) => {
+      const pathGenerator =
+        SHAPE_PATH_GENERATORS[shape as PointShape] || SHAPE_PATH_GENERATORS.circle;
+      const size = 20;
+      const canvasSize = 28;
+      const centerOffset = canvasSize / 2;
+      const path = pathGenerator(size);
+      const strokeColor = disabled ? '#999' : '#333';
+
+      return html`
+        <svg width="${canvasSize}" height="${canvasSize}" viewBox="0 0 ${canvasSize} ${canvasSize}">
+          <g transform="translate(${centerOffset}, ${centerOffset})">
+            <path d="${path}" fill="none" stroke="${strokeColor}" stroke-width="1.5" />
+          </g>
+        </svg>
+      `;
+    };
 
     return html`
       <div
@@ -1189,27 +1244,100 @@ export class ProtspaceLegend extends LitElement {
         @click=${(e: Event) => e.stopPropagation()}
       >
         <div class="color-picker-header">${displayLabel}</div>
-        <div class="color-picker-content">
-          <input
-            type="color"
-            class="color-picker-swatch"
-            .value=${item.color}
-            @input=${(e: Event) =>
-              this._handleColorChangeDebounced(item.value, (e.target as HTMLInputElement).value)}
-          />
-          <input
-            type="text"
-            class="color-picker-input"
-            .value=${item.color.toUpperCase()}
-            spellcheck="false"
-            @input=${(e: Event) => {
-              const value = (e.target as HTMLInputElement).value;
-              if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
-                this._handleColorChange(item.value, value);
-              }
-            }}
-          />
+        <div class="symbol-picker-sections">
+          <!-- Color Section -->
+          <div class="symbol-picker-section">
+            <div class="symbol-picker-section-label">Color</div>
+            <input
+              type="color"
+              class="color-picker-swatch"
+              .value=${item.color}
+              @input=${(e: Event) =>
+                this._handleColorChangeDebounced(item.value, (e.target as HTMLInputElement).value)}
+            />
+          </div>
+          <!-- Shape Section -->
+          <div class="symbol-picker-section">
+            <div class="symbol-picker-section-label">Shape</div>
+            <div class="shape-swatch-container">
+              ${isMultilabel
+                ? html`
+                    <button
+                      type="button"
+                      class="shape-picker-swatch disabled"
+                      title="Shape selection disabled for multilabel annotations"
+                      disabled
+                    >
+                      ${renderShapeSwatch(item.shape, true)}
+                    </button>
+                  `
+                : html`
+                    <button
+                      type="button"
+                      class="shape-picker-swatch ${this._showShapePicker ? 'active' : ''}"
+                      title="Click to change shape"
+                      @click=${(e: Event) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this._showShapePicker = !this._showShapePicker;
+                      }}
+                    >
+                      ${renderShapeSwatch(item.shape)}
+                    </button>
+                    ${this._showShapePicker
+                      ? html`
+                          <div class="shape-picker-dropdown">
+                            <div class="shape-picker-grid">
+                              ${availableShapes.map((shape) => {
+                                const isSelected = item.shape === shape;
+                                const pathGenerator = SHAPE_PATH_GENERATORS[shape];
+                                const size = 14;
+                                const canvasSize = 20;
+                                const centerOffset = canvasSize / 2;
+                                const path = pathGenerator(size);
+                                const isOutlineOnly = shape === 'plus';
+
+                                return html`
+                                  <button
+                                    type="button"
+                                    class="shape-picker-item ${isSelected ? 'selected' : ''}"
+                                    title="${shape}"
+                                    @click=${(e: Event) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      this._handleShapeChange(item.value, shape);
+                                    }}
+                                  >
+                                    <svg
+                                      width="${canvasSize}"
+                                      height="${canvasSize}"
+                                      viewBox="0 0 ${canvasSize} ${canvasSize}"
+                                    >
+                                      <g transform="translate(${centerOffset}, ${centerOffset})">
+                                        <path
+                                          d="${path}"
+                                          fill="${isOutlineOnly ? 'none' : 'currentColor'}"
+                                          stroke="currentColor"
+                                          stroke-width="${isOutlineOnly ? 1.5 : 1}"
+                                        />
+                                      </g>
+                                    </svg>
+                                  </button>
+                                `;
+                              })}
+                            </div>
+                          </div>
+                        `
+                      : null}
+                  `}
+            </div>
+          </div>
         </div>
+        ${isMultilabel
+          ? html`<div class="symbol-picker-note">
+              Shapes unavailable for multilabel annotations
+            </div>`
+          : null}
       </div>
     `;
   }
