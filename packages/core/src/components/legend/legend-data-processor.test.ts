@@ -577,6 +577,106 @@ describe('legend-data-processor', () => {
       );
       expect(items[0].color).toBe('#existing');
     });
+
+    it('applies shapes from persistedCategories', () => {
+      const topItems: Array<[string, number]> = [
+        ['category1', 10],
+        ['category2', 5],
+      ];
+      const persistedCategories = {
+        category1: { zOrder: 0, color: '#custom1', shape: 'diamond' },
+        category2: { zOrder: 1, color: '#custom2', shape: 'triangle-up' },
+      };
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        [],
+        false,
+        'size-desc',
+        new Map(),
+        persistedCategories,
+      );
+      expect(items[0].shape).toBe('diamond');
+      expect(items[1].shape).toBe('triangle-up');
+    });
+
+    it('preserves shapes from existing items when no persisted categories', () => {
+      const topItems: Array<[string, number]> = [['category1', 10]];
+      const existing: LegendItem[] = [
+        {
+          value: 'category1',
+          color: '#existing',
+          shape: 'square',
+          count: 10,
+          isVisible: true,
+          zOrder: 0,
+        },
+      ];
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        existing,
+        false,
+        'size-desc',
+        new Map(),
+        {}, // empty persisted
+      );
+      expect(items[0].shape).toBe('square');
+    });
+
+    it('prefers persisted shapes over existing shapes', () => {
+      const topItems: Array<[string, number]> = [['category1', 10]];
+      const existing: LegendItem[] = [
+        {
+          value: 'category1',
+          color: '#existing',
+          shape: 'square',
+          count: 10,
+          isVisible: true,
+          zOrder: 0,
+        },
+      ];
+      const persistedCategories = {
+        category1: { zOrder: 0, color: '#persisted', shape: 'diamond' },
+      };
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        existing,
+        false,
+        'size-desc',
+        new Map(),
+        persistedCategories,
+      );
+      expect(items[0].shape).toBe('diamond');
+    });
+
+    it('preserves shapes when only persisted shape is set (no persisted color)', () => {
+      const topItems: Array<[string, number]> = [['category1', 10]];
+      const persistedCategories = {
+        category1: { zOrder: 0, color: '', shape: 'triangle-down' },
+      };
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        [],
+        false,
+        'size-desc',
+        new Map(),
+        persistedCategories,
+      );
+      expect(items[0].shape).toBe('triangle-down');
+      // Color should fall back to default encoding since persisted.color is empty
+      expect(items[0].color).toBeDefined();
+    });
   });
 
   describe('processLegendItems', () => {
