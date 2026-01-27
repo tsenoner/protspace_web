@@ -243,6 +243,14 @@ export class ProtspaceLegend extends LitElement {
     }
   };
 
+  private _onWindowClick = () => {
+    if (this._colorPickerItem !== null) {
+      this._flushColorChangeDebounce();
+      this._colorPickerItem = null;
+      this._showShapePicker = false;
+    }
+  };
+
   private _handleItemKeyDown(e: KeyboardEvent, item: LegendItem, itemIndex: number): void {
     switch (e.key) {
       case 'ArrowDown':
@@ -347,6 +355,7 @@ export class ProtspaceLegend extends LitElement {
 
   disconnectedCallback(): void {
     window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
+    window.removeEventListener('click', this._onWindowClick);
     this._cleanupFocusTrap();
     this._cleanupColorChangeDebounce();
     super.disconnectedCallback();
@@ -404,6 +413,15 @@ export class ProtspaceLegend extends LitElement {
         window.addEventListener('keydown', this._onWindowKeydownCapture, true);
       } else {
         window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
+      }
+    }
+
+    // Handle global click for color picker (close on click outside)
+    if (changedProperties.has('_colorPickerItem')) {
+      if (this._colorPickerItem !== null) {
+        window.addEventListener('click', this._onWindowClick);
+      } else {
+        window.removeEventListener('click', this._onWindowClick);
       }
     }
 
