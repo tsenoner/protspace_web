@@ -51,6 +51,42 @@ export const itemStyles = css`
     position: relative;
   }
 
+  /* Sortable.js classes for enhanced drag and drop UX */
+
+  /* Ghost class - placeholder/gap shown where item will be dropped */
+  .legend-item-ghost {
+    opacity: 0.4;
+    background: var(--accent-purple);
+    border: 2px dashed var(--accent-purple);
+    border-radius: 0.5rem;
+  }
+
+  /* Chosen class - applied to the item when it's picked up */
+  .legend-item-chosen {
+    background: var(--legend-hover-bg);
+    cursor: grabbing;
+  }
+
+  /* Drag class - applied to the dragging element (ghost) */
+  .legend-item-drag {
+    background: var(--legend-bg);
+    box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2);
+    border: 2px solid var(--accent-purple);
+    border-radius: 0.5rem;
+    opacity: 0.95;
+    cursor: grabbing;
+    transform: rotate(2deg);
+  }
+
+  /* Fallback class - for older browsers */
+  .legend-item-fallback {
+    background: var(--legend-bg);
+    box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2);
+    border: 2px solid var(--accent-purple);
+    border-radius: 0.5rem;
+    opacity: 0.95;
+  }
+
   .legend-item.selected {
     box-shadow: 0 0 0 2px var(--legend-selected-ring);
   }
@@ -80,6 +116,12 @@ export const itemStyles = css`
     border-radius: 0.25rem;
     cursor: grab;
     color: var(--legend-text-secondary);
+    transition: all 0.15s ease;
+  }
+
+  .drag-handle:hover {
+    color: var(--accent-purple);
+    background: rgba(139, 92, 246, 0.1);
   }
 
   .drag-handle:active {

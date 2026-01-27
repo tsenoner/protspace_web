@@ -250,15 +250,21 @@ export class ProtspaceScatterplot extends LitElement {
     const customEvent = event as CustomEvent;
     this._colorMapping = customEvent.detail.colorMapping;
     this._shapeMapping = customEvent.detail.shapeMapping;
+    const colorOnly = customEvent.detail.colorOnly ?? false;
+
     // Force fresh style getters to use new color/shape mapping
     this._styleGettersCache = null;
 
     // Trigger render (z-order is handled in WebGL depth; avoid CPU-sorting on every zoom/pan)
     if (this._plotData.length > 0) {
-      // Force webgl update and invalidate virtualization cache to re-sort visible points
-      this._webglRenderer?.invalidatePositionCache();
+      // For color-only changes, we don't need to invalidate positions or re-sort points
+      // Only invalidate style cache to update colors
+      if (!colorOnly) {
+        // Z-order changed: need to invalidate positions and re-sort
+        this._webglRenderer?.invalidatePositionCache();
+        this._invalidateVirtualizationCache();
+      }
       this._webglRenderer?.invalidateStyleCache();
-      this._invalidateVirtualizationCache();
       this._renderPlot();
     }
   };

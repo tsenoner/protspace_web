@@ -1564,13 +1564,36 @@ export class WebGLRenderer {
     // With depth testing disabled (to ensure overlaps are drawn), we preserve z-order using
     // the painter's algorithm: draw far -> near. This requires reordering the points, so
     // whenever styles update we must also update positions to keep all parallel buffers aligned.
-    if (updateStyles) {
+    // However, if only colors changed (not depths), we can skip re-sorting and position updates.
+    let needsReorder = updatePositions;
+    if (updateStyles && !updatePositions) {
+      // Check if depths have actually changed by sampling first few points
+      // If depths are the same, we can skip re-sorting (color-only update optimization)
+      const sampleSize = Math.min(100, points.length);
+      let depthsChanged = false;
+      for (let i = 0; i < sampleSize && i < this.currentPointCount; i++) {
+        const point = points[i];
+        const opacity = this.style.getOpacity(point);
+        if (opacity === 0) continue;
+        const newDepth = this.style.getDepth(point);
+        // Compare with stored depth (note: depths array is in sorted order after last render)
+        if (Math.abs(newDepth - this.depths[i]) > 1e-6) {
+          depthsChanged = true;
+          break;
+        }
+      }
+      if (depthsChanged) {
+        needsReorder = true;
+        updatePositions = true;
+      }
+    } else if (updateStyles) {
+      needsReorder = true;
       updatePositions = true;
     }
 
     let idx = 0;
 
-    if (updateStyles) {
+    if (needsReorder) {
       const staged: Array<{ point: PlotDataPoint; opacity: number; depth: number }> = [];
       for (let i = 0; i < points.length && staged.length < maxPoints; i++) {
         const point = points[i];
@@ -1628,8 +1651,51 @@ export class WebGLRenderer {
 
         idx++;
       }
+    } else if (updateStyles) {
+      // Color-only update: no reordering needed, just update color/shape buffers
+      for (let i = 0; i < points.length && idx < maxPoints; i++) {
+        const point = points[i];
+        const opacity = this.style.getOpacity(point);
+        if (opacity === 0) continue;
+
+        if (this.trackRenderedPointIds) {
+          this.renderedPointIds.add(point.id);
+        }
+
+        // Update only style buffers (colors, shapes, sizes)
+        const pointColors = this.style.getColors(point);
+        const [r, g, b] = resolveColor(pointColors[0] ?? '#888888');
+        const size = Math.sqrt(this.style.getPointSize(point)) / POINT_SIZE_DIVISOR;
+        const shapeType = this.style.getShape(point);
+        const shapeIndex = getShapeIndex(shapeType);
+
+        this.colors[idx * 4] = r;
+        this.colors[idx * 4 + 1] = g;
+        this.colors[idx * 4 + 2] = b;
+        this.colors[idx * 4 + 3] = Math.min(1, Math.max(0, opacity));
+        const basePointSize = Math.max(MIN_POINT_SIZE, size * 2 * this.dpr);
+        this.sizes[idx] = shapeIndex === 2 ? basePointSize * DIAMOND_SIZE_SCALE : basePointSize;
+        this.labelCounts[idx] = pointColors.length;
+        this.shapes[idx] = shapeIndex;
+
+        // Fill label color texture data
+        for (let j = 0; j < MAX_LABELS; j++) {
+          if (j < pointColors.length) {
+            const [lr, lg, lb] = resolveColor(pointColors[j]);
+            const texIndex = (idx * MAX_LABELS + j) * 4;
+            if (texIndex < this.labelColorData.length) {
+              this.labelColorData[texIndex] = Math.round(lr * 255);
+              this.labelColorData[texIndex + 1] = Math.round(lg * 255);
+              this.labelColorData[texIndex + 2] = Math.round(lb * 255);
+              this.labelColorData[texIndex + 3] = 255;
+            }
+          }
+        }
+
+        idx++;
+      }
     } else {
-      // No reordering: preserve prior GPU buffer ordering.
+      // No reordering and no style updates: only update positions if needed
       for (let i = 0; i < points.length && idx < maxPoints; i++) {
         const point = points[i];
         const opacity = this.style.getOpacity(point);

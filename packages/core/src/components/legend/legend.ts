@@ -147,11 +147,17 @@ export class ProtspaceLegend extends LitElement {
   @query('#legend-settings-dialog')
   private _settingsDialogEl?: HTMLDivElement;
 
+  @query('.legend-items')
+  private _legendItemsEl?: HTMLDivElement;
+
   // Instance-specific processor context (avoids global state conflicts)
   private _processorContext: LegendProcessorContext = createProcessorContext();
 
   // Focus trap cleanup function (stored for proper cleanup)
   private _focusTrapCleanup: (() => void) | null = null;
+
+  // Debounce timer for color picker updates
+  private _colorChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ─────────────────────────────────────────────────────────────────
   // Controllers
@@ -211,6 +217,7 @@ export class ProtspaceLegend extends LitElement {
       if (this._colorPickerItem !== null) {
         e.stopImmediatePropagation();
         e.preventDefault();
+        this._flushColorChangeDebounce();
         this._colorPickerItem = null;
         return;
       }
@@ -336,7 +343,30 @@ export class ProtspaceLegend extends LitElement {
   disconnectedCallback(): void {
     window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
     this._cleanupFocusTrap();
+    this._cleanupColorChangeDebounce();
     super.disconnectedCallback();
+  }
+
+  private _cleanupColorChangeDebounce(): void {
+    if (this._colorChangeDebounceTimer !== null) {
+      clearTimeout(this._colorChangeDebounceTimer);
+      this._colorChangeDebounceTimer = null;
+    }
+  }
+
+  private _flushColorChangeDebounce(): void {
+    if (this._colorChangeDebounceTimer !== null) {
+      clearTimeout(this._colorChangeDebounceTimer);
+      this._colorChangeDebounceTimer = null;
+      // The color has already been updated in the UI by _handleColorChangeDebounced
+      // We just need to trigger the scatterplot sync
+      if (this._colorPickerItem !== null) {
+        const item = this._legendItems.find((i) => i.value === this._colorPickerItem);
+        if (item) {
+          this._handleColorChange(item.value, item.color);
+        }
+      }
+    }
   }
 
   private _cleanupFocusTrap(): void {
@@ -436,6 +466,15 @@ export class ProtspaceLegend extends LitElement {
     // Update sorted items cache when legend items change
     if (changedProperties.has('_legendItems')) {
       this._sortedLegendItems = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
+
+      // Initialize or reinitialize Sortable when legend items change
+      if (this._legendItemsEl && this._sortedLegendItems.length > 0) {
+        requestAnimationFrame(() => {
+          if (this._legendItemsEl) {
+            this._dragController.initialize(this._legendItemsEl);
+          }
+        });
+      }
     }
   }
 
@@ -827,9 +866,13 @@ export class ProtspaceLegend extends LitElement {
 
     // Close if clicking the same item
     if (this._colorPickerItem === item.value) {
+      this._flushColorChangeDebounce();
       this._colorPickerItem = null;
       return;
     }
+
+    // Flush any pending changes when switching to a different item
+    this._flushColorChangeDebounce();
 
     // Calculate position relative to the legend container
     const container = this.shadowRoot?.querySelector('.legend-container');
@@ -875,10 +918,28 @@ export class ProtspaceLegend extends LitElement {
     // Sync to persistence
     this._syncLegendColorsToPersistence();
 
-    // Update scatterplot and save
-    this._scatterplotController.dispatchColorMappingChange();
+    // Update scatterplot and save (color-only change, no z-order change)
+    this._scatterplotController.dispatchColorMappingChange(true);
     this._persistenceController.saveSettings();
     this.requestUpdate();
+  }
+
+  private _handleColorChangeDebounced(value: string, newColor: string): void {
+    // Clear any pending debounce timer
+    this._cleanupColorChangeDebounce();
+
+    // Update the color in the UI immediately for visual feedback
+    const item = this._legendItems.find((i) => i.value === value);
+    if (item) {
+      item.color = newColor;
+      this.requestUpdate();
+    }
+
+    // Debounce the expensive operations (scatterplot update)
+    this._colorChangeDebounceTimer = setTimeout(() => {
+      this._handleColorChange(value, newColor);
+      this._colorChangeDebounceTimer = null;
+    }, 150);
   }
 
   private _handlePaletteChange(paletteId: string): void {
@@ -897,8 +958,8 @@ export class ProtspaceLegend extends LitElement {
     // Sync to persistence
     this._syncLegendColorsToPersistence();
 
-    // Update scatterplot and save
-    this._scatterplotController.dispatchColorMappingChange();
+    // Update scatterplot and save (color-only change, no z-order change)
+    this._scatterplotController.dispatchColorMappingChange(true);
     this._persistenceController.saveSettings();
     this.requestUpdate();
   }
@@ -994,6 +1055,7 @@ export class ProtspaceLegend extends LitElement {
         class="legend-container"
         part="container"
         @click=${() => {
+          this._flushColorChangeDebounce();
           this._colorPickerItem = null;
         }}
       >
@@ -1015,9 +1077,7 @@ export class ProtspaceLegend extends LitElement {
 
   private _renderLegendItem(item: LegendItem, sortedIndex: number) {
     const selected = isItemSelected(item, this.selectedItems);
-    const itemIndex = this._legendItems.findIndex((i) => i.value === item.value);
-    const isDragging = this._dragController.isDragging(itemIndex);
-    const classes = getItemClasses(item, selected, isDragging);
+    const classes = getItemClasses(item, selected, false);
     const otherCount = item.value === LEGEND_VALUES.OTHER ? this._otherItems.length : undefined;
 
     return LegendRenderer.renderLegendItem(
@@ -1027,10 +1087,6 @@ export class ProtspaceLegend extends LitElement {
       {
         onClick: () => this._handleItemClick(item.value),
         onDoubleClick: () => this._handleItemDoubleClick(item.value),
-        onDragStart: () => this._dragController.handleDragStart(item),
-        onDragOver: (e: DragEvent) => this._dragController.handleDragOver(e, item),
-        onDrop: (e: DragEvent) => this._dragController.handleDrop(e, item),
-        onDragEnd: () => this._dragController.handleDragEnd(),
         onViewOther: (e: Event) => {
           e.stopPropagation();
           this._showOtherDialog = true;
@@ -1139,7 +1195,7 @@ export class ProtspaceLegend extends LitElement {
             class="color-picker-swatch"
             .value=${item.color}
             @input=${(e: Event) =>
-              this._handleColorChange(item.value, (e.target as HTMLInputElement).value)}
+              this._handleColorChangeDebounced(item.value, (e.target as HTMLInputElement).value)}
           />
           <input
             type="text"

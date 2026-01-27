@@ -240,10 +240,6 @@ export class LegendRenderer {
     eventHandlers: {
       onClick: () => void;
       onDoubleClick: () => void;
-      onDragStart: () => void;
-      onDragOver: (e: DragEvent) => void;
-      onDrop: (e: DragEvent) => void;
-      onDragEnd: () => void;
       onViewOther: (e: Event) => void;
       onKeyDown?: (e: KeyboardEvent) => void;
       onSymbolClick?: (e: MouseEvent) => void;
@@ -266,11 +262,6 @@ export class LegendRenderer {
         @click=${eventHandlers.onClick}
         @dblclick=${eventHandlers.onDoubleClick}
         @keydown=${eventHandlers.onKeyDown}
-        draggable="true"
-        @dragstart=${eventHandlers.onDragStart}
-        @dragover=${eventHandlers.onDragOver}
-        @drop=${eventHandlers.onDrop}
-        @dragend=${eventHandlers.onDragEnd}
       >
         <div class="legend-item-content">
           ${this.renderDragHandle()}

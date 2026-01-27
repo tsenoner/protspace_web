@@ -1,6 +1,7 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import Sortable from 'sortablejs';
 import type { LegendItem, LegendSortMode } from '../types';
-import { LEGEND_DEFAULTS, LEGEND_VALUES } from '../config';
+import { LEGEND_VALUES } from '../config';
 
 /**
  * Callback interface for drag events
@@ -14,133 +15,126 @@ export interface DragCallbacks {
 }
 
 /**
- * Reactive controller for managing drag and drop functionality.
- * Handles reordering legend items.
+ * Reactive controller for managing drag and drop functionality using Sortable.js.
+ * Provides smooth animations, clear drop indicators, and reliable reordering.
  */
 export class DragController implements ReactiveController {
   private callbacks: DragCallbacks;
-
-  private _draggedItemIndex: number = -1;
-  private _dragTimeout: number | null = null;
+  private host: ReactiveControllerHost;
+  private sortableInstance: Sortable | null = null;
 
   constructor(host: ReactiveControllerHost, callbacks: DragCallbacks) {
+    this.host = host;
     this.callbacks = callbacks;
     host.addController(this);
   }
 
   hostConnected(): void {
-    // No initialization needed
+    // Sortable will be initialized when the container is ready
   }
 
   hostDisconnected(): void {
-    this._clearTimeout();
+    this.destroy();
   }
 
   /**
-   * Get the currently dragged item index
+   * Initialize Sortable on the legend items container
    */
-  get draggedItemIndex(): number {
-    return this._draggedItemIndex;
-  }
-
-  /**
-   * Check if an item is currently being dragged
-   */
-  isDragging(itemIndex: number): boolean {
-    return this._draggedItemIndex === itemIndex && this._draggedItemIndex !== -1;
-  }
-
-  /**
-   * Handle drag start
-   */
-  handleDragStart(item: LegendItem): void {
-    const legendItems = this.callbacks.getLegendItems();
-    const index = legendItems.findIndex((i) => i.value === item.value);
-    this._draggedItemIndex = index !== -1 ? index : -1;
-    this._clearTimeout();
-  }
-
-  /**
-   * Handle drag over another item
-   */
-  handleDragOver(event: DragEvent, targetItem: LegendItem): void {
-    event.preventDefault();
-
-    if (this._draggedItemIndex === -1) return;
-
-    const legendItems = this.callbacks.getLegendItems();
-    const targetIndex = legendItems.findIndex((i) => i.value === targetItem.value);
-    if (this._draggedItemIndex === targetIndex) return;
-
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'move';
+  initialize(container: HTMLElement): void {
+    if (this.sortableInstance) {
+      this.destroy();
     }
 
-    this._clearTimeout();
-    this._dragTimeout = window.setTimeout(() => {
-      this._performReorder(targetItem);
-    }, LEGEND_DEFAULTS.dragTimeout);
+    this.sortableInstance = new Sortable(container, {
+      animation: 200,
+      easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      ghostClass: 'legend-item-ghost',
+      chosenClass: 'legend-item-chosen',
+      dragClass: 'legend-item-drag',
+      handle: '.drag-handle',
+      forceFallback: false,
+      fallbackClass: 'legend-item-fallback',
+      fallbackOnBody: false,
+      swapThreshold: 0.65,
+      direction: 'vertical',
+
+      onEnd: (evt) => {
+        const oldIndex = evt.oldIndex;
+        const newIndex = evt.newIndex;
+
+        // No reordering if indices are the same or invalid
+        if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
+          return;
+        }
+
+        // Get current legend items
+        const legendItems = this.callbacks.getLegendItems();
+
+        // Check if dropping on "Other" - handle merge
+        const targetItem = legendItems[newIndex];
+        const draggedItem = legendItems[oldIndex];
+
+        if (
+          targetItem?.value === LEGEND_VALUES.OTHER &&
+          draggedItem?.value !== LEGEND_VALUES.OTHER
+        ) {
+          // Merge the dragged item to Other
+          this.callbacks.onMergeToOther?.(draggedItem.value);
+
+          // Revert the DOM change since we're merging, not reordering
+          if (evt.item.parentElement) {
+            this.sortableInstance?.option('disabled', true);
+            // Force re-render by requesting update on host
+            this.host.requestUpdate();
+            requestAnimationFrame(() => {
+              this.sortableInstance?.option('disabled', false);
+            });
+          }
+          return;
+        }
+
+        // Perform reordering
+        const newItems = [...legendItems];
+        const [movedItem] = newItems.splice(oldIndex, 1);
+        newItems.splice(newIndex, 0, movedItem);
+
+        // Update z-orders
+        const reorderedItems = newItems.map((item, idx) => ({
+          ...item,
+          zOrder: idx,
+        }));
+
+        this.callbacks.setLegendItems(reorderedItems);
+
+        // Switch to manual sort mode when user manually reorders
+        this.callbacks.onSortModeChange?.('manual');
+        this.callbacks.onReorder();
+      },
+    });
   }
 
   /**
-   * Handle drop on a target item
+   * Destroy the Sortable instance
    */
-  handleDrop(event: DragEvent, targetItem: LegendItem): void {
-    event.preventDefault();
-
-    // If dropping on "Other", merge the dragged item into Other
-    if (targetItem.value === LEGEND_VALUES.OTHER && this._draggedItemIndex !== -1) {
-      const legendItems = this.callbacks.getLegendItems();
-      const draggedItem = legendItems[this._draggedItemIndex];
-      // Allow merging any item except "Other" itself (N/A items use '__NA__' as value)
-      if (draggedItem && draggedItem.value !== LEGEND_VALUES.OTHER) {
-        this.callbacks.onMergeToOther?.(draggedItem.value);
-      }
+  destroy(): void {
+    if (this.sortableInstance) {
+      this.sortableInstance.destroy();
+      this.sortableInstance = null;
     }
-
-    this.handleDragEnd();
   }
 
   /**
-   * Handle drag end
+   * Get the Sortable instance (for testing or advanced use)
    */
-  handleDragEnd(): void {
-    this._draggedItemIndex = -1;
-    this._clearTimeout();
+  getInstance(): Sortable | null {
+    return this.sortableInstance;
   }
 
-  private _performReorder(targetItem: LegendItem): void {
-    const legendItems = this.callbacks.getLegendItems();
-    const targetIdx = legendItems.findIndex((i) => i.value === targetItem.value);
-
-    if (this._draggedItemIndex === -1 || targetIdx === -1) return;
-
-    // Don't reorder onto "Other" - that's handled by handleDrop for merge
-    if (targetItem.value === LEGEND_VALUES.OTHER) return;
-
-    const newItems = [...legendItems];
-    const [movedItem] = newItems.splice(this._draggedItemIndex, 1);
-
-    const adjustedTargetIdx = targetIdx > this._draggedItemIndex ? targetIdx - 1 : targetIdx;
-    newItems.splice(adjustedTargetIdx, 0, movedItem);
-
-    const reorderedItems = newItems.map((item, idx) => ({
-      ...item,
-      zOrder: idx,
-    }));
-
-    this.callbacks.setLegendItems(reorderedItems);
-    this._draggedItemIndex = adjustedTargetIdx;
-
-    // Switch to manual sort mode when user manually reorders
-    this.callbacks.onSortModeChange?.('manual');
-    this.callbacks.onReorder();
-  }
-
-  private _clearTimeout(): void {
-    if (this._dragTimeout) {
-      clearTimeout(this._dragTimeout);
-      this._dragTimeout = null;
-    }
+  /**
+   * Check if an item is currently being dragged (kept for backward compatibility)
+   */
+  isDragging(_itemIndex: number): boolean {
+    // With Sortable.js, we use CSS classes instead
+    return false;
   }
 }
