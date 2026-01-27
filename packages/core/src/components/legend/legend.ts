@@ -163,6 +163,11 @@ export class ProtspaceLegend extends LitElement {
   // Debounce timer for color picker updates
   private _colorChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Track where mousedown occurred for click-outside detection
+  private _mouseDownOutsideColorPicker = false;
+  private _mouseDownOutsideSettings = false;
+  private _mouseDownOutsideOther = false;
+
   // ─────────────────────────────────────────────────────────────────
   // Controllers
   // ─────────────────────────────────────────────────────────────────
@@ -243,11 +248,25 @@ export class ProtspaceLegend extends LitElement {
     }
   };
 
-  private _onWindowClick = () => {
-    if (this._colorPickerItem !== null) {
+  private _onWindowMouseDown = (e: MouseEvent) => {
+    if (this._colorPickerItem === null) return;
+
+    // Check if mousedown is outside the color picker
+    const colorPicker = this.shadowRoot?.querySelector('.color-picker-popover');
+    if (colorPicker && !colorPicker.contains(e.target as Node)) {
+      this._mouseDownOutsideColorPicker = true;
+    } else {
+      this._mouseDownOutsideColorPicker = false;
+    }
+  };
+
+  private _onWindowMouseUp = () => {
+    // Only close if mousedown also occurred outside
+    if (this._colorPickerItem !== null && this._mouseDownOutsideColorPicker) {
       this._flushColorChangeDebounce();
       this._colorPickerItem = null;
       this._showShapePicker = false;
+      this._mouseDownOutsideColorPicker = false;
     }
   };
 
@@ -355,7 +374,8 @@ export class ProtspaceLegend extends LitElement {
 
   disconnectedCallback(): void {
     window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
-    window.removeEventListener('click', this._onWindowClick);
+    window.removeEventListener('mousedown', this._onWindowMouseDown);
+    window.removeEventListener('mouseup', this._onWindowMouseUp);
     this._cleanupFocusTrap();
     this._cleanupColorChangeDebounce();
     super.disconnectedCallback();
@@ -416,12 +436,15 @@ export class ProtspaceLegend extends LitElement {
       }
     }
 
-    // Handle global click for color picker (close on click outside)
+    // Handle global mousedown/mouseup for color picker (close on press outside)
     if (changedProperties.has('_colorPickerItem')) {
       if (this._colorPickerItem !== null) {
-        window.addEventListener('click', this._onWindowClick);
+        window.addEventListener('mousedown', this._onWindowMouseDown);
+        window.addEventListener('mouseup', this._onWindowMouseUp);
       } else {
-        window.removeEventListener('click', this._onWindowClick);
+        window.removeEventListener('mousedown', this._onWindowMouseDown);
+        window.removeEventListener('mouseup', this._onWindowMouseUp);
+        this._mouseDownOutsideColorPicker = false;
       }
     }
 
@@ -1010,6 +1033,42 @@ export class ProtspaceLegend extends LitElement {
 
   private _handleSettingsClose(): void {
     this._showSettingsDialog = false;
+    this._mouseDownOutsideSettings = false;
+  }
+
+  private _handleSettingsOverlayMouseDown(e: MouseEvent): void {
+    // Check if mousedown is on the overlay (not inside dialog content)
+    const dialogContent = this.shadowRoot?.querySelector('#legend-settings-dialog');
+    if (dialogContent && !dialogContent.contains(e.target as Node)) {
+      this._mouseDownOutsideSettings = true;
+    } else {
+      this._mouseDownOutsideSettings = false;
+    }
+  }
+
+  private _handleSettingsOverlayMouseUp(): void {
+    // Only close if mousedown also occurred outside the dialog content
+    if (this._mouseDownOutsideSettings) {
+      this._handleSettingsClose();
+    }
+  }
+
+  private _handleOtherOverlayMouseDown(e: MouseEvent): void {
+    // Check if mousedown is on the overlay (not inside dialog content)
+    const dialogContent = this.shadowRoot?.querySelector('#legend-other-dialog');
+    if (dialogContent && !dialogContent.contains(e.target as Node)) {
+      this._mouseDownOutsideOther = true;
+    } else {
+      this._mouseDownOutsideOther = false;
+    }
+  }
+
+  private _handleOtherOverlayMouseUp(): void {
+    // Only close if mousedown also occurred outside the dialog content
+    if (this._mouseDownOutsideOther) {
+      this._showOtherDialog = false;
+      this._mouseDownOutsideOther = false;
+    }
   }
 
   private _handleSettingsReset(): void {
@@ -1157,7 +1216,10 @@ export class ProtspaceLegend extends LitElement {
         onExtract: (value) => this._handleExtractFromOther(value),
         onClose: () => {
           this._showOtherDialog = false;
+          this._mouseDownOutsideOther = false;
         },
+        onOverlayMouseDown: (e) => this._handleOtherOverlayMouseDown(e),
+        onOverlayMouseUp: () => this._handleOtherOverlayMouseUp(),
       },
     );
   }
@@ -1211,6 +1273,8 @@ export class ProtspaceLegend extends LitElement {
       onClose: () => this._handleSettingsClose(),
       onReset: () => this._handleSettingsReset(),
       onKeydown: (e) => this._handleDialogKeydown(e),
+      onOverlayMouseDown: (e) => this._handleSettingsOverlayMouseDown(e),
+      onOverlayMouseUp: () => this._handleSettingsOverlayMouseUp(),
     };
 
     return renderSettingsDialog(state, callbacks);
@@ -1259,6 +1323,7 @@ export class ProtspaceLegend extends LitElement {
         class="color-picker-popover"
         style="left: ${this._colorPickerPosition.x}px; top: ${this._colorPickerPosition.y}px;"
         @click=${(e: Event) => e.stopPropagation()}
+        @mousedown=${(e: Event) => e.stopPropagation()}
       >
         <div class="color-picker-header">${displayLabel}</div>
         <div class="symbol-picker-sections">

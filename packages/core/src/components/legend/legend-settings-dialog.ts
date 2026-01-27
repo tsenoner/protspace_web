@@ -33,6 +33,8 @@ export interface SettingsDialogCallbacks {
   onClose: () => void;
   onReset: () => void;
   onKeydown: (e: KeyboardEvent) => void;
+  onOverlayMouseDown: (e: MouseEvent) => void;
+  onOverlayMouseUp: () => void;
 }
 
 /**
@@ -349,7 +351,8 @@ export function renderSettingsDialog(
     <div
       class="modal-overlay"
       part="dialog-overlay"
-      @click=${callbacks.onClose}
+      @mousedown=${callbacks.onOverlayMouseDown}
+      @mouseup=${callbacks.onOverlayMouseUp}
       @keydown=${callbacks.onKeydown}
     >
       <div
@@ -357,7 +360,7 @@ export function renderSettingsDialog(
         class="modal-content"
         part="dialog-content"
         tabindex="-1"
-        @click=${(e: Event) => e.stopPropagation()}
+        @mousedown=${(e: Event) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
