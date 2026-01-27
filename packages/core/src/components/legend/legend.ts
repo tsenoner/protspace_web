@@ -204,7 +204,6 @@ export class ProtspaceLegend extends LitElement {
     onReorder: () => {
       this._scatterplotController.dispatchZOrderChange();
       this._persistenceController.saveSettings();
-      this.requestUpdate();
     },
     onMergeToOther: (value) => this._handleMergeToOther(value),
     onSortModeChange: (mode) => {
@@ -212,7 +211,6 @@ export class ProtspaceLegend extends LitElement {
         ...this._annotationSortModes,
         [this.selectedAnnotation]: mode,
       };
-      this.requestUpdate();
     },
   });
 
@@ -512,15 +510,12 @@ export class ProtspaceLegend extends LitElement {
     // Update sorted items cache when legend items change
     if (changedProperties.has('_legendItems')) {
       this._sortedLegendItems = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
+    }
 
-      // Initialize or reinitialize Sortable when legend items change
-      if (this._legendItemsEl && this._sortedLegendItems.length > 0) {
-        requestAnimationFrame(() => {
-          if (this._legendItemsEl) {
-            this._dragController.initialize(this._legendItemsEl);
-          }
-        });
-      }
+    // Initialize Sortable when container becomes available
+    // The controller handles preventing duplicate initialization
+    if (this._legendItemsEl && this._sortedLegendItems.length > 0) {
+      this._dragController.initialize(this._legendItemsEl);
     }
   }
 

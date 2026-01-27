@@ -39,6 +39,14 @@ describe('DragController', () => {
     mockContainer = document.createElement('div');
     mockContainer.className = 'legend-items';
 
+    // Add mock legend item elements with data-value attributes
+    mockLegendItems.forEach((item) => {
+      const el = document.createElement('div');
+      el.className = 'legend-item';
+      el.setAttribute('data-value', item.value);
+      mockContainer.appendChild(el);
+    });
+
     controller = new DragController(mockHost, mockCallbacks);
   });
 
@@ -49,15 +57,27 @@ describe('DragController', () => {
 
     it('should initialize Sortable instance on container', () => {
       controller.initialize(mockContainer);
-      const instance = controller.getInstance();
-      expect(instance).not.toBeNull();
+      expect(controller.getInstance()).not.toBeNull();
+      expect(controller.isInitialized()).toBe(true);
     });
 
-    it('should destroy previous instance before reinitializing', () => {
+    it('should not reinitialize on same container', () => {
       controller.initialize(mockContainer);
       const firstInstance = controller.getInstance();
 
       controller.initialize(mockContainer);
+      const secondInstance = controller.getInstance();
+
+      // Should be the same instance (not reinitialized)
+      expect(firstInstance).toBe(secondInstance);
+    });
+
+    it('should reinitialize on different container', () => {
+      controller.initialize(mockContainer);
+      const firstInstance = controller.getInstance();
+
+      const newContainer = document.createElement('div');
+      controller.initialize(newContainer);
       const secondInstance = controller.getInstance();
 
       expect(firstInstance).not.toBe(secondInstance);
@@ -71,6 +91,7 @@ describe('DragController', () => {
 
       controller.hostDisconnected();
       expect(controller.getInstance()).toBeNull();
+      expect(controller.isInitialized()).toBe(false);
     });
 
     it('should handle destroy when no instance exists', () => {
@@ -78,10 +99,20 @@ describe('DragController', () => {
     });
   });
 
-  describe('isDragging', () => {
-    it('should always return false (uses CSS classes instead)', () => {
-      expect(controller.isDragging(0)).toBe(false);
-      expect(controller.isDragging(1)).toBe(false);
+  describe('isInitialized', () => {
+    it('should return false before initialization', () => {
+      expect(controller.isInitialized()).toBe(false);
+    });
+
+    it('should return true after initialization', () => {
+      controller.initialize(mockContainer);
+      expect(controller.isInitialized()).toBe(true);
+    });
+
+    it('should return false after destroy', () => {
+      controller.initialize(mockContainer);
+      controller.destroy();
+      expect(controller.isInitialized()).toBe(false);
     });
   });
 });

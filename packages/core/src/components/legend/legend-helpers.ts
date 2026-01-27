@@ -122,6 +122,8 @@ export function getItemClasses(item: LegendItem, isSelected: boolean, isDragging
   if (!item.isVisible) classes.push('hidden');
   if (isDragging) classes.push('dragging');
   if (isSelected) classes.push('selected');
+  // Add class for "Other" item to prevent dragging (used by Sortable filter)
+  if (item.value === LEGEND_VALUES.OTHER) classes.push('legend-item-other');
 
   return classes.join(' ');
 }

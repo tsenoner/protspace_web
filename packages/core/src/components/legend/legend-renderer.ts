@@ -251,6 +251,7 @@ export class LegendRenderer {
         class="${itemClasses}"
         part="item"
         role="option"
+        data-value="${item.value}"
         aria-selected="${item.isVisible}"
         aria-label="${displayLabel}: ${item.count} items${!item.isVisible ? ' (hidden)' : ''}"
         tabindex="${itemIndex === 0 ? '0' : '-1'}"
