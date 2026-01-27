@@ -174,7 +174,6 @@ export class LegendRenderer {
   static renderItemSymbol(
     item: LegendItem,
     isItemSelected: boolean,
-    _includeShapes: boolean = true,
     size: number = LEGEND_DEFAULTS.symbolSize,
     onSymbolClick?: (e: MouseEvent) => void,
   ): TemplateResult {
@@ -241,7 +240,6 @@ export class LegendRenderer {
       onKeyDown?: (e: KeyboardEvent) => void;
       onSymbolClick?: (e: MouseEvent) => void;
     },
-    includeShapes: boolean = true,
     symbolSize: number = LEGEND_DEFAULTS.symbolSize,
     otherItemsCount?: number,
     itemIndex?: number,
@@ -262,13 +260,7 @@ export class LegendRenderer {
       >
         <div class="legend-item-content">
           ${this.renderDragHandle()}
-          ${this.renderItemSymbol(
-            item,
-            isItemSelected,
-            includeShapes,
-            symbolSize,
-            eventHandlers.onSymbolClick,
-          )}
+          ${this.renderItemSymbol(item, isItemSelected, symbolSize, eventHandlers.onSymbolClick)}
           ${this.renderItemText(item, otherItemsCount)}
           ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>

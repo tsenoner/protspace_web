@@ -1124,7 +1124,6 @@ export class ProtspaceLegend extends LitElement {
             ? (e: MouseEvent) => this._handleSymbolClick(item, e)
             : undefined,
       },
-      this._effectiveIncludeShapes,
       LEGEND_STYLES.legendDisplaySize,
       otherCount,
       sortedIndex,
