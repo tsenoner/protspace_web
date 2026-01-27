@@ -101,9 +101,9 @@ void main() {
     // Match d3.symbolDiamond proportions (same mapping as D3's "tan30" constant, i.e. sqrt(1/3))
     discard_fragment = abs(coord.x) * SQRT3 + abs(coord.y) > 1.0;
   } else if (v_shape < 3.5) { // Triangle Up
-    discard_fragment = coord.y < -0.5 || abs(coord.x) * SQRT3 > 1.0 + coord.y;
+    discard_fragment = abs(coord.x) * SQRT3 > 1.0 + coord.y;
   } else if (v_shape < 4.5) { // Triangle Down
-    discard_fragment = coord.y > 0.5 || abs(coord.x) * SQRT3 > 1.0 - coord.y;
+    discard_fragment = abs(coord.x) * SQRT3 > 1.0 - coord.y;
   } else { // Plus
     float thickness = 0.35;
     bool inVertical = abs(coord.x) < thickness;
@@ -153,21 +153,21 @@ void main() {
   } else if (v_shape < 2.5) { // Diamond
     edgeDist = 1.0 - (abs(coord.x) * SQRT3 + abs(coord.y));
   } else if (v_shape < 3.5) { // Triangle Up
-    // Inside region (see discard logic above):
-    //   y >= -0.5 and abs(x)*SQRT3 <= 1 + y, also clipped to the point quad [-1,1]^2.
-    float eBottom = coord.y + 0.5;
-    float eSides = 1.0 + coord.y - abs(coord.x) * SQRT3;
-    float eTop = 1.0 - coord.y;
-    float eLR = 1.0 - abs(coord.x);
-    edgeDist = min(min(eBottom, eSides), min(eTop, eLR));
+    // Inside region: abs(x)*SQRT3 <= 1 + y, clipped to point quad [-1,1]^2.
+    // Triangle apex at (0, -1), slanted sides meet point sprite at (±1, sqrt(3)-1).
+    // Perpendicular distance to slanted edge (normalized by edge length factor 2).
+    float eSides = (1.0 + coord.y - abs(coord.x) * SQRT3) / 2.0;
+    float eBottom = 1.0 - coord.y;  // distance to y = 1 (point sprite bottom)
+    float eLR = 1.0 - abs(coord.x); // distance to x = ±1 (point sprite sides)
+    edgeDist = min(eSides, min(eBottom, eLR));
   } else if (v_shape < 4.5) { // Triangle Down
-    // Inside region:
-    //   y <= 0.5 and abs(x)*SQRT3 <= 1 - y, also clipped to the point quad [-1,1]^2.
-    float eTop = 0.5 - coord.y;
-    float eSides = 1.0 - coord.y - abs(coord.x) * SQRT3;
-    float eBottom = 1.0 + coord.y;
-    float eLR = 1.0 - abs(coord.x);
-    edgeDist = min(min(eTop, eSides), min(eBottom, eLR));
+    // Inside region: abs(x)*SQRT3 <= 1 - y, clipped to point quad [-1,1]^2.
+    // Triangle apex at (0, 1), slanted sides meet point sprite at (±1, -(sqrt(3)-1)).
+    // Perpendicular distance to slanted edge (normalized by edge length factor 2).
+    float eSides = (1.0 - coord.y - abs(coord.x) * SQRT3) / 2.0;
+    float eTop = 1.0 + coord.y;     // distance to y = -1 (point sprite top)
+    float eLR = 1.0 - abs(coord.x); // distance to x = ±1 (point sprite sides)
+    edgeDist = min(eSides, min(eTop, eLR));
   } else { // Plus
     float thickness = 0.35;
     bool inVertical = abs(coord.x) < thickness;
