@@ -8,6 +8,11 @@ import { DEFAULT_CONFIG } from './config';
 import { createStyleGetters } from './style-getters';
 import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer } from './webgl';
 import { QuadtreeIndex } from './quadtree-index';
+import {
+  WebglRenderPerfRunner,
+  type PerfDatasetInfo,
+  type RenderWebGLTrigger,
+} from './webgl-render-perf';
 
 // Visualization is only needed for viewport culling on very large datasets.
 // For <= MAX_POINTS_DIRECT_RENDER we can render the full set once and then pan/zoom via uniforms
@@ -118,6 +123,8 @@ export class ProtspaceScatterplot extends LitElement {
   // Spiderfy interaction can lose native 'click' due to d3.zoom gesture handling in some browsers.
   // Track press/release to reliably treat spiderfy node interactions like normal point clicks.
   private _spiderfyPressByPointerId = new Map<number, { x: number; y: number; t: number }>();
+
+  private _webglRenderPerf = new WebglRenderPerfRunner(this);
 
   // Computed properties with caching
   private get _scales(): ScalePair | null {
@@ -306,6 +313,10 @@ export class ProtspaceScatterplot extends LitElement {
       this._webglRenderer?.invalidateStyleCache();
       if (changedProperties.has('data')) {
         this.resetZoom();
+      }
+
+      if (changedProperties.has('data') && this.data) {
+        this._webglRenderPerf.maybeAutoRunFromUrl();
       }
 
       // Dispatch data-change event for auto-sync with control bar and other components
@@ -514,7 +525,7 @@ export class ProtspaceScatterplot extends LitElement {
           }
           this._zoomRafId = requestAnimationFrame(() => {
             this._zoomRafId = null;
-            this._renderWebGL();
+            this._renderWebGL('zoom');
             // During active zoom/pan, defer duplicate badge DOM updates to keep interactions smooth.
             this._updateSelectionOverlays({ duplicateImmediate: false });
           });
@@ -736,23 +747,28 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     if (this._canvas && this._webglRenderer) {
-      this._renderWebGL();
+      this._renderWebGL('plot');
       this._setupCanvasEventHandling();
     }
   }
 
-  private _renderWebGL() {
-    if (!this._webglRenderer || !this._scales) return;
+  private _renderWebGL(trigger: RenderWebGLTrigger = 'unknown') {
+    const perfToken = this._webglRenderPerf.start(trigger);
+
     const points = this._getPointsForRendering();
-    if (points.length === 0) {
-      this._webglRenderer.clear();
-      return;
-    }
-    // Only track exact rendered IDs when we might truncate the dataset.
-    // For typical datasets, tracking adds significant per-render overhead.
-    this._webglRenderer.setTrackRenderedPointIds(points.length > MAX_POINTS_DIRECT_RENDER);
-    this._webglRenderer.render(points);
+
+    this._webglRenderer!.setTrackRenderedPointIds(points.length > MAX_POINTS_DIRECT_RENDER);
+    this._webglRenderer!.render(points);
     this._mainGroup?.selectAll('.protein-point').remove();
+
+    this._webglRenderPerf.stop(perfToken, points.length);
+  }
+
+  public async runWebGLRenderPerfMeasurements(
+    iterations?: number,
+    options?: { download?: boolean; dataset?: PerfDatasetInfo },
+  ) {
+    return this._webglRenderPerf.runWebGLRenderPerfMeasurements(iterations, options);
   }
 
   private _getPointsForRendering(): PlotDataPoint[] {
