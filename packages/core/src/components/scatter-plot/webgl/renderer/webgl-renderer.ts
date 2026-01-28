@@ -101,9 +101,9 @@ void main() {
     // Match d3.symbolDiamond proportions (same mapping as D3's "tan30" constant, i.e. sqrt(1/3))
     discard_fragment = abs(coord.x) * SQRT3 + abs(coord.y) > 1.0;
   } else if (v_shape < 3.5) { // Triangle Up
-    discard_fragment = coord.y < -0.5 || abs(coord.x) * SQRT3 > 1.0 + coord.y;
+    discard_fragment = abs(coord.x) * SQRT3 > 1.0 + coord.y;
   } else if (v_shape < 4.5) { // Triangle Down
-    discard_fragment = coord.y > 0.5 || abs(coord.x) * SQRT3 > 1.0 - coord.y;
+    discard_fragment = abs(coord.x) * SQRT3 > 1.0 - coord.y;
   } else { // Plus
     float thickness = 0.35;
     bool inVertical = abs(coord.x) < thickness;
@@ -153,21 +153,21 @@ void main() {
   } else if (v_shape < 2.5) { // Diamond
     edgeDist = 1.0 - (abs(coord.x) * SQRT3 + abs(coord.y));
   } else if (v_shape < 3.5) { // Triangle Up
-    // Inside region (see discard logic above):
-    //   y >= -0.5 and abs(x)*SQRT3 <= 1 + y, also clipped to the point quad [-1,1]^2.
-    float eBottom = coord.y + 0.5;
-    float eSides = 1.0 + coord.y - abs(coord.x) * SQRT3;
-    float eTop = 1.0 - coord.y;
-    float eLR = 1.0 - abs(coord.x);
-    edgeDist = min(min(eBottom, eSides), min(eTop, eLR));
+    // Inside region: abs(x)*SQRT3 <= 1 + y, clipped to point quad [-1,1]^2.
+    // Triangle apex at (0, -1), slanted sides meet point sprite at (±1, sqrt(3)-1).
+    // Perpendicular distance to slanted edge (normalized by edge length factor 2).
+    float eSides = (1.0 + coord.y - abs(coord.x) * SQRT3) / 2.0;
+    float eBottom = 1.0 - coord.y;  // distance to y = 1 (point sprite bottom)
+    float eLR = 1.0 - abs(coord.x); // distance to x = ±1 (point sprite sides)
+    edgeDist = min(eSides, min(eBottom, eLR));
   } else if (v_shape < 4.5) { // Triangle Down
-    // Inside region:
-    //   y <= 0.5 and abs(x)*SQRT3 <= 1 - y, also clipped to the point quad [-1,1]^2.
-    float eTop = 0.5 - coord.y;
-    float eSides = 1.0 - coord.y - abs(coord.x) * SQRT3;
-    float eBottom = 1.0 + coord.y;
-    float eLR = 1.0 - abs(coord.x);
-    edgeDist = min(min(eTop, eSides), min(eBottom, eLR));
+    // Inside region: abs(x)*SQRT3 <= 1 - y, clipped to point quad [-1,1]^2.
+    // Triangle apex at (0, 1), slanted sides meet point sprite at (±1, -(sqrt(3)-1)).
+    // Perpendicular distance to slanted edge (normalized by edge length factor 2).
+    float eSides = (1.0 - coord.y - abs(coord.x) * SQRT3) / 2.0;
+    float eTop = 1.0 + coord.y;     // distance to y = -1 (point sprite top)
+    float eLR = 1.0 - abs(coord.x); // distance to x = ±1 (point sprite sides)
+    edgeDist = min(eSides, min(eTop, eLR));
   } else { // Plus
     float thickness = 0.35;
     bool inVertical = abs(coord.x) < thickness;
@@ -1564,13 +1564,36 @@ export class WebGLRenderer {
     // With depth testing disabled (to ensure overlaps are drawn), we preserve z-order using
     // the painter's algorithm: draw far -> near. This requires reordering the points, so
     // whenever styles update we must also update positions to keep all parallel buffers aligned.
-    if (updateStyles) {
+    // However, if only colors changed (not depths), we can skip re-sorting and position updates.
+    let needsReorder = updatePositions;
+    if (updateStyles && !updatePositions) {
+      // Check if depths have actually changed by sampling first few points
+      // If depths are the same, we can skip re-sorting (color-only update optimization)
+      const sampleSize = Math.min(100, points.length);
+      let depthsChanged = false;
+      for (let i = 0; i < sampleSize && i < this.currentPointCount; i++) {
+        const point = points[i];
+        const opacity = this.style.getOpacity(point);
+        if (opacity === 0) continue;
+        const newDepth = this.style.getDepth(point);
+        // Compare with stored depth (note: depths array is in sorted order after last render)
+        if (Math.abs(newDepth - this.depths[i]) > 1e-6) {
+          depthsChanged = true;
+          break;
+        }
+      }
+      if (depthsChanged) {
+        needsReorder = true;
+        updatePositions = true;
+      }
+    } else if (updateStyles) {
+      needsReorder = true;
       updatePositions = true;
     }
 
     let idx = 0;
 
-    if (updateStyles) {
+    if (needsReorder) {
       const staged: Array<{ point: PlotDataPoint; opacity: number; depth: number }> = [];
       for (let i = 0; i < points.length && staged.length < maxPoints; i++) {
         const point = points[i];
@@ -1628,8 +1651,51 @@ export class WebGLRenderer {
 
         idx++;
       }
+    } else if (updateStyles) {
+      // Color-only update: no reordering needed, just update color/shape buffers
+      for (let i = 0; i < points.length && idx < maxPoints; i++) {
+        const point = points[i];
+        const opacity = this.style.getOpacity(point);
+        if (opacity === 0) continue;
+
+        if (this.trackRenderedPointIds) {
+          this.renderedPointIds.add(point.id);
+        }
+
+        // Update only style buffers (colors, shapes, sizes)
+        const pointColors = this.style.getColors(point);
+        const [r, g, b] = resolveColor(pointColors[0] ?? '#888888');
+        const size = Math.sqrt(this.style.getPointSize(point)) / POINT_SIZE_DIVISOR;
+        const shapeType = this.style.getShape(point);
+        const shapeIndex = getShapeIndex(shapeType);
+
+        this.colors[idx * 4] = r;
+        this.colors[idx * 4 + 1] = g;
+        this.colors[idx * 4 + 2] = b;
+        this.colors[idx * 4 + 3] = Math.min(1, Math.max(0, opacity));
+        const basePointSize = Math.max(MIN_POINT_SIZE, size * 2 * this.dpr);
+        this.sizes[idx] = shapeIndex === 2 ? basePointSize * DIAMOND_SIZE_SCALE : basePointSize;
+        this.labelCounts[idx] = pointColors.length;
+        this.shapes[idx] = shapeIndex;
+
+        // Fill label color texture data
+        for (let j = 0; j < MAX_LABELS; j++) {
+          if (j < pointColors.length) {
+            const [lr, lg, lb] = resolveColor(pointColors[j]);
+            const texIndex = (idx * MAX_LABELS + j) * 4;
+            if (texIndex < this.labelColorData.length) {
+              this.labelColorData[texIndex] = Math.round(lr * 255);
+              this.labelColorData[texIndex + 1] = Math.round(lg * 255);
+              this.labelColorData[texIndex + 2] = Math.round(lb * 255);
+              this.labelColorData[texIndex + 3] = 255;
+            }
+          }
+        }
+
+        idx++;
+      }
     } else {
-      // No reordering: preserve prior GPU buffer ordering.
+      // No reordering and no style updates: only update positions if needed
       for (let i = 0; i < points.length && idx < maxPoints; i++) {
         const point = points[i];
         const opacity = this.style.getOpacity(point);

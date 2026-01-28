@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
+import { COLOR_SCHEMES } from '@protspace/utils';
 
 // Configuration and styles
 import {
@@ -9,7 +10,10 @@ import {
   LEGEND_VALUES,
   LEGEND_EVENTS,
   toDisplayValue,
+  SHAPE_PATH_GENERATORS,
 } from './config';
+
+import type { PointShape } from '@protspace/utils';
 import { legendStyles } from './legend.styles';
 
 // Controllers
@@ -55,6 +59,7 @@ import type {
   OtherItem,
   ScatterplotData,
   LegendPersistedSettings,
+  PersistedCategoryData,
   LegendErrorEventDetail,
 } from './types';
 
@@ -116,6 +121,10 @@ export class ProtspaceLegend extends LitElement {
   @state() private _showOtherDialog = false;
   @state() private _showSettingsDialog = false;
   @state() private _statusMessage = '';
+  @state() private _colorPickerItem: string | null = null;
+  @state() private _colorPickerPosition: { x: number; y: number } | null = null;
+  @state() private _showShapePicker = false;
+  @state() private _selectedPaletteId = 'kellys';
 
   // Pending extract/merge values for next update cycle.
   // undefined = no pending operation, string = value to extract/merge (including '__NA__' for N/A)
@@ -129,22 +138,35 @@ export class ProtspaceLegend extends LitElement {
     shapeSize: number;
     enableDuplicateStackUI: boolean;
     annotationSortModes: Record<string, LegendSortMode>;
+    selectedPaletteId: string;
   } = {
     maxVisibleValues: LEGEND_DEFAULTS.maxVisibleValues,
     includeShapes: LEGEND_DEFAULTS.includeShapes,
     shapeSize: LEGEND_DEFAULTS.symbolSize,
     enableDuplicateStackUI: false,
     annotationSortModes: {},
+    selectedPaletteId: 'kellys',
   };
 
   @query('#legend-settings-dialog')
   private _settingsDialogEl?: HTMLDivElement;
+
+  @query('.legend-items')
+  private _legendItemsEl?: HTMLDivElement;
 
   // Instance-specific processor context (avoids global state conflicts)
   private _processorContext: LegendProcessorContext = createProcessorContext();
 
   // Focus trap cleanup function (stored for proper cleanup)
   private _focusTrapCleanup: (() => void) | null = null;
+
+  // Debounce timer for color picker updates
+  private _colorChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Track where mousedown occurred for click-outside detection
+  private _mouseDownOutsideColorPicker = false;
+  private _mouseDownOutsideSettings = false;
+  private _mouseDownOutsideOther = false;
 
   // ─────────────────────────────────────────────────────────────────
   // Controllers
@@ -170,6 +192,7 @@ export class ProtspaceLegend extends LitElement {
       shapeSize: this.shapeSize,
       sortMode: this._annotationSortModes[this.selectedAnnotation] ?? 'size-desc',
       enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
+      selectedPaletteId: this._selectedPaletteId,
     }),
   });
 
@@ -181,7 +204,6 @@ export class ProtspaceLegend extends LitElement {
     onReorder: () => {
       this._scatterplotController.dispatchZOrderChange();
       this._persistenceController.saveSettings();
-      this.requestUpdate();
     },
     onMergeToOther: (value) => this._handleMergeToOther(value),
     onSortModeChange: (mode) => {
@@ -189,7 +211,6 @@ export class ProtspaceLegend extends LitElement {
         ...this._annotationSortModes,
         [this.selectedAnnotation]: mode,
       };
-      this.requestUpdate();
     },
   });
 
@@ -199,7 +220,16 @@ export class ProtspaceLegend extends LitElement {
 
   private _onWindowKeydownCapture = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
-      // Close Other dialog first if open
+      // Close color picker first if open
+      if (this._colorPickerItem !== null) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        this._flushColorChangeDebounce();
+        this._colorPickerItem = null;
+        this._showShapePicker = false;
+        return;
+      }
+      // Close Other dialog second if open
       if (this._showOtherDialog) {
         e.stopImmediatePropagation();
         e.preventDefault();
@@ -213,6 +243,28 @@ export class ProtspaceLegend extends LitElement {
         this._handleSettingsClose();
         return;
       }
+    }
+  };
+
+  private _onWindowMouseDown = (e: MouseEvent) => {
+    if (this._colorPickerItem === null) return;
+
+    // Check if mousedown is outside the color picker
+    const colorPicker = this.shadowRoot?.querySelector('.color-picker-popover');
+    if (colorPicker && !colorPicker.contains(e.target as Node)) {
+      this._mouseDownOutsideColorPicker = true;
+    } else {
+      this._mouseDownOutsideColorPicker = false;
+    }
+  };
+
+  private _onWindowMouseUp = () => {
+    // Only close if mousedown also occurred outside
+    if (this._colorPickerItem !== null && this._mouseDownOutsideColorPicker) {
+      this._flushColorChangeDebounce();
+      this._colorPickerItem = null;
+      this._showShapePicker = false;
+      this._mouseDownOutsideColorPicker = false;
     }
   };
 
@@ -320,8 +372,33 @@ export class ProtspaceLegend extends LitElement {
 
   disconnectedCallback(): void {
     window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
+    window.removeEventListener('mousedown', this._onWindowMouseDown);
+    window.removeEventListener('mouseup', this._onWindowMouseUp);
     this._cleanupFocusTrap();
+    this._cleanupColorChangeDebounce();
     super.disconnectedCallback();
+  }
+
+  private _cleanupColorChangeDebounce(): void {
+    if (this._colorChangeDebounceTimer !== null) {
+      clearTimeout(this._colorChangeDebounceTimer);
+      this._colorChangeDebounceTimer = null;
+    }
+  }
+
+  private _flushColorChangeDebounce(): void {
+    if (this._colorChangeDebounceTimer !== null) {
+      clearTimeout(this._colorChangeDebounceTimer);
+      this._colorChangeDebounceTimer = null;
+      // The color has already been updated in the UI by _handleColorChangeDebounced
+      // We just need to trigger the scatterplot sync
+      if (this._colorPickerItem !== null) {
+        const item = this._legendItems.find((i) => i.value === this._colorPickerItem);
+        if (item) {
+          this._handleColorChange(item.value, item.color);
+        }
+      }
+    }
   }
 
   private _cleanupFocusTrap(): void {
@@ -342,15 +419,30 @@ export class ProtspaceLegend extends LitElement {
   }
 
   updated(changedProperties: Map<string, unknown>): void {
-    // Handle keyboard events for dialogs
+    // Handle keyboard events for dialogs and color picker
     const dialogsChanged =
-      changedProperties.has('_showSettingsDialog') || changedProperties.has('_showOtherDialog');
+      changedProperties.has('_showSettingsDialog') ||
+      changedProperties.has('_showOtherDialog') ||
+      changedProperties.has('_colorPickerItem');
     if (dialogsChanged) {
-      const anyDialogOpen = this._showSettingsDialog || this._showOtherDialog;
+      const anyDialogOpen =
+        this._showSettingsDialog || this._showOtherDialog || this._colorPickerItem !== null;
       if (anyDialogOpen) {
         window.addEventListener('keydown', this._onWindowKeydownCapture, true);
       } else {
         window.removeEventListener('keydown', this._onWindowKeydownCapture, true);
+      }
+    }
+
+    // Handle global mousedown/mouseup for color picker (close on press outside)
+    if (changedProperties.has('_colorPickerItem')) {
+      if (this._colorPickerItem !== null) {
+        window.addEventListener('mousedown', this._onWindowMouseDown);
+        window.addEventListener('mouseup', this._onWindowMouseUp);
+      } else {
+        window.removeEventListener('mousedown', this._onWindowMouseDown);
+        window.removeEventListener('mouseup', this._onWindowMouseUp);
+        this._mouseDownOutsideColorPicker = false;
       }
     }
 
@@ -418,6 +510,12 @@ export class ProtspaceLegend extends LitElement {
     // Update sorted items cache when legend items change
     if (changedProperties.has('_legendItems')) {
       this._sortedLegendItems = [...this._legendItems].sort((a, b) => a.zOrder - b.zOrder);
+    }
+
+    // Initialize Sortable when container becomes available
+    // The controller handles preventing duplicate initialization
+    if (this._legendItemsEl && this._sortedLegendItems.length > 0) {
+      this._dragController.initialize(this._legendItemsEl);
     }
   }
 
@@ -609,6 +707,7 @@ export class ProtspaceLegend extends LitElement {
       this.includeShapes = settings.includeShapes;
       this.shapeSize = settings.shapeSize;
       this._hiddenValues = settings.hiddenValues;
+      this._selectedPaletteId = settings.selectedPaletteId ?? 'kellys';
 
       this._annotationSortModes = {
         ...this._annotationSortModes,
@@ -792,6 +891,7 @@ export class ProtspaceLegend extends LitElement {
           'config' in scatterplot &&
           (scatterplot as { config?: Record<string, unknown> }).config?.enableDuplicateStackUI,
       ),
+      selectedPaletteId: this._selectedPaletteId,
     };
 
     this._showSettingsDialog = true;
@@ -802,11 +902,42 @@ export class ProtspaceLegend extends LitElement {
     this._settingsDialogEl?.focus();
   }
 
+  private _handleSymbolClick(item: LegendItem, event: MouseEvent): void {
+    event.stopPropagation();
+
+    // Close if clicking the same item
+    if (this._colorPickerItem === item.value) {
+      this._flushColorChangeDebounce();
+      this._colorPickerItem = null;
+      this._showShapePicker = false;
+      return;
+    }
+
+    // Flush any pending changes when switching to a different item
+    this._flushColorChangeDebounce();
+
+    // Calculate position relative to the legend container
+    const container = this.shadowRoot?.querySelector('.legend-container');
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+
+    this._colorPickerPosition = {
+      x: targetRect.left - containerRect.left + targetRect.width + 8,
+      y: targetRect.top - containerRect.top,
+    };
+    this._colorPickerItem = item.value;
+    this._showShapePicker = false; // Reset shape picker when opening new item
+    this.requestUpdate();
+  }
+
   private _handleSettingsSave(): void {
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
     this.includeShapes = this._dialogSettings.includeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
     this._annotationSortModes = this._dialogSettings.annotationSortModes;
+    this._selectedPaletteId = this._dialogSettings.selectedPaletteId;
     this._showSettingsDialog = false;
 
     // Don't clear _legendItems - we want to preserve current zOrders when switching sort modes.
@@ -821,16 +952,130 @@ export class ProtspaceLegend extends LitElement {
     this.requestUpdate();
   }
 
+  private _handleColorChange(value: string, newColor: string): void {
+    // Update the color immediately
+    this._legendItems = this._legendItems.map((item) =>
+      item.value === value ? { ...item, color: newColor } : item,
+    );
+
+    // Sync to persistence
+    this._syncLegendColorsToPersistence();
+
+    // Update scatterplot and save (color-only change, no z-order change)
+    this._scatterplotController.dispatchColorMappingChange(true);
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
+  private _handleColorChangeDebounced(value: string, newColor: string): void {
+    // Clear any pending debounce timer
+    this._cleanupColorChangeDebounce();
+
+    // Update the color in the UI immediately for visual feedback
+    const item = this._legendItems.find((i) => i.value === value);
+    if (item) {
+      item.color = newColor;
+      this.requestUpdate();
+    }
+
+    // Debounce the expensive operations (scatterplot update)
+    this._colorChangeDebounceTimer = setTimeout(() => {
+      this._handleColorChange(value, newColor);
+      this._colorChangeDebounceTimer = null;
+    }, 150);
+  }
+
+  private _handleShapeChange(value: string, newShape: PointShape): void {
+    // Update the shape immediately
+    this._legendItems = this._legendItems.map((item) =>
+      item.value === value ? { ...item, shape: newShape } : item,
+    );
+
+    // Close the shape picker dropdown
+    this._showShapePicker = false;
+
+    // Sync to persistence
+    this._syncLegendColorsToPersistence();
+
+    // Update scatterplot and save (shape change, no z-order change)
+    this._scatterplotController.dispatchColorMappingChange(true);
+    this._scatterplotController.syncShapes();
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
+  private _handlePaletteChange(paletteId: string): void {
+    // Update dialog state
+    this._dialogSettings = {
+      ...this._dialogSettings,
+      selectedPaletteId: paletteId,
+    };
+
+    // Update component state
+    this._selectedPaletteId = paletteId;
+
+    // Apply palette colors to all legend items (excluding special categories)
+    this._applyPaletteColors(paletteId);
+
+    // Sync to persistence
+    this._syncLegendColorsToPersistence();
+
+    // Update scatterplot and save (color-only change, no z-order change)
+    this._scatterplotController.dispatchColorMappingChange(true);
+    this._persistenceController.saveSettings();
+    this.requestUpdate();
+  }
+
   private _handleSettingsClose(): void {
     this._showSettingsDialog = false;
+    this._mouseDownOutsideSettings = false;
+  }
+
+  private _handleSettingsOverlayMouseDown(e: MouseEvent): void {
+    // Check if mousedown is on the overlay (not inside dialog content)
+    const dialogContent = this.shadowRoot?.querySelector('#legend-settings-dialog');
+    if (dialogContent && !dialogContent.contains(e.target as Node)) {
+      this._mouseDownOutsideSettings = true;
+    } else {
+      this._mouseDownOutsideSettings = false;
+    }
+  }
+
+  private _handleSettingsOverlayMouseUp(): void {
+    // Only close if mousedown also occurred outside the dialog content
+    if (this._mouseDownOutsideSettings) {
+      this._handleSettingsClose();
+    }
+  }
+
+  private _handleOtherOverlayMouseDown(e: MouseEvent): void {
+    // Check if mousedown is on the overlay (not inside dialog content)
+    const dialogContent = this.shadowRoot?.querySelector('#legend-other-dialog');
+    if (dialogContent && !dialogContent.contains(e.target as Node)) {
+      this._mouseDownOutsideOther = true;
+    } else {
+      this._mouseDownOutsideOther = false;
+    }
+  }
+
+  private _handleOtherOverlayMouseUp(): void {
+    // Only close if mousedown also occurred outside the dialog content
+    if (this._mouseDownOutsideOther) {
+      this._showOtherDialog = false;
+      this._mouseDownOutsideOther = false;
+    }
   }
 
   private _handleSettingsReset(): void {
+    // Remove localStorage and clear pending categories
     this._persistenceController.removeSettings();
+    this._persistenceController.clearPendingCategories();
 
+    // Reset all settings to defaults
     this.maxVisibleValues = LEGEND_DEFAULTS.maxVisibleValues;
     this.includeShapes = LEGEND_DEFAULTS.includeShapes;
     this.shapeSize = LEGEND_DEFAULTS.symbolSize;
+    this._selectedPaletteId = 'kellys';
 
     this._annotationSortModes = {
       ...this._annotationSortModes,
@@ -838,7 +1083,13 @@ export class ProtspaceLegend extends LitElement {
     };
 
     this._hiddenValues = [];
+
+    // Reset slot tracker so colors are reassigned from scratch
+    this._processorContext.slotTracker.reset();
+
+    // Clear legend items so processor creates fresh ones with default colors
     this._legendItems = [];
+
     this._showSettingsDialog = false;
 
     this._scatterplotController.updateConfig({
@@ -847,6 +1098,7 @@ export class ProtspaceLegend extends LitElement {
     });
 
     this._updateLegendItems();
+    this._scatterplotController.dispatchColorMappingChange();
     this.requestUpdate();
   }
 
@@ -858,6 +1110,37 @@ export class ProtspaceLegend extends LitElement {
     }
   }
 
+  private _applyPaletteColors(paletteId: string): void {
+    // Get the color palette
+    const palette = COLOR_SCHEMES[paletteId as keyof typeof COLOR_SCHEMES] || COLOR_SCHEMES.kellys;
+
+    // Apply palette colors to all legend items (excluding special categories like "Others" and "N/A")
+    this._legendItems = this._legendItems.map((item, index) => {
+      // Skip special categories (Others, N/A) as they have fixed colors
+      if (item.value === LEGEND_VALUES.OTHERS || item.value === LEGEND_VALUES.NA_DISPLAY) {
+        return item;
+      }
+
+      // Apply palette color based on slot/index
+      const colorIndex = index % palette.length;
+      return { ...item, color: palette[colorIndex] };
+    });
+  }
+
+  private _syncLegendColorsToPersistence(): void {
+    const categories: Record<string, PersistedCategoryData> = {};
+    this._legendItems.forEach((item) => {
+      if (item.value !== LEGEND_VALUES.OTHER) {
+        categories[item.value] = {
+          zOrder: item.zOrder,
+          color: item.color,
+          shape: item.shape,
+        };
+      }
+    });
+    this._persistenceController.setPendingCategories(categories);
+  }
+
   // ─────────────────────────────────────────────────────────────────
   // Rendering
   // ─────────────────────────────────────────────────────────────────
@@ -866,7 +1149,15 @@ export class ProtspaceLegend extends LitElement {
     const title = this.annotationData.name || this.annotationName || 'Legend';
 
     return html`
-      <div class="legend-container" part="container">
+      <div
+        class="legend-container"
+        part="container"
+        @click=${() => {
+          this._flushColorChangeDebounce();
+          this._colorPickerItem = null;
+          this._showShapePicker = false;
+        }}
+      >
         <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
           ${this._statusMessage}
         </div>
@@ -877,6 +1168,7 @@ export class ProtspaceLegend extends LitElement {
         ${LegendRenderer.renderLegendContent(this._sortedLegendItems, (item, index) =>
           this._renderLegendItem(item, index),
         )}
+        ${this._renderColorPicker()}
       </div>
       ${this._renderOtherDialog()} ${this._renderSettingsDialog()}
     `;
@@ -884,9 +1176,7 @@ export class ProtspaceLegend extends LitElement {
 
   private _renderLegendItem(item: LegendItem, sortedIndex: number) {
     const selected = isItemSelected(item, this.selectedItems);
-    const itemIndex = this._legendItems.findIndex((i) => i.value === item.value);
-    const isDragging = this._dragController.isDragging(itemIndex);
-    const classes = getItemClasses(item, selected, isDragging);
+    const classes = getItemClasses(item, selected, false);
     const otherCount = item.value === LEGEND_VALUES.OTHER ? this._otherItems.length : undefined;
 
     return LegendRenderer.renderLegendItem(
@@ -896,17 +1186,16 @@ export class ProtspaceLegend extends LitElement {
       {
         onClick: () => this._handleItemClick(item.value),
         onDoubleClick: () => this._handleItemDoubleClick(item.value),
-        onDragStart: () => this._dragController.handleDragStart(item),
-        onDragOver: (e: DragEvent) => this._dragController.handleDragOver(e, item),
-        onDrop: (e: DragEvent) => this._dragController.handleDrop(e, item),
-        onDragEnd: () => this._dragController.handleDragEnd(),
         onViewOther: (e: Event) => {
           e.stopPropagation();
           this._showOtherDialog = true;
         },
         onKeyDown: (e: KeyboardEvent) => this._handleItemKeyDown(e, item, sortedIndex),
+        onSymbolClick:
+          item.value !== LEGEND_VALUES.OTHER
+            ? (e: MouseEvent) => this._handleSymbolClick(item, e)
+            : undefined,
       },
-      this._effectiveIncludeShapes,
       LEGEND_STYLES.legendDisplaySize,
       otherCount,
       sortedIndex,
@@ -922,7 +1211,10 @@ export class ProtspaceLegend extends LitElement {
         onExtract: (value) => this._handleExtractFromOther(value),
         onClose: () => {
           this._showOtherDialog = false;
+          this._mouseDownOutsideOther = false;
         },
+        onOverlayMouseDown: (e) => this._handleOtherOverlayMouseDown(e),
+        onOverlayMouseUp: () => this._handleOtherOverlayMouseUp(),
       },
     );
   }
@@ -949,6 +1241,7 @@ export class ProtspaceLegend extends LitElement {
       annotationSortModes: this._dialogSettings.annotationSortModes,
       isMultilabelAnnotation: this._isMultilabelAnnotation(),
       hasPersistedSettings: this._persistenceController.hasPersistedSettings(),
+      selectedPaletteId: this._dialogSettings.selectedPaletteId,
     };
 
     const callbacks: SettingsDialogCallbacks = {
@@ -970,13 +1263,160 @@ export class ProtspaceLegend extends LitElement {
           annotationSortModes: { ...this._dialogSettings.annotationSortModes, [annotation]: mode },
         };
       },
+      onPaletteChange: (paletteId) => this._handlePaletteChange(paletteId),
       onSave: () => this._handleSettingsSave(),
       onClose: () => this._handleSettingsClose(),
       onReset: () => this._handleSettingsReset(),
       onKeydown: (e) => this._handleDialogKeydown(e),
+      onOverlayMouseDown: (e) => this._handleSettingsOverlayMouseDown(e),
+      onOverlayMouseUp: () => this._handleSettingsOverlayMouseUp(),
     };
 
     return renderSettingsDialog(state, callbacks);
+  }
+
+  private _renderColorPicker() {
+    if (this._colorPickerItem === null || !this._colorPickerPosition) {
+      return html``;
+    }
+
+    const item = this._legendItems.find((i) => i.value === this._colorPickerItem);
+    if (!item) return html``;
+
+    const displayLabel = toDisplayValue(item.value);
+    const isMultilabel = this._isMultilabelAnnotation();
+    const availableShapes: PointShape[] = [
+      'circle',
+      'square',
+      'diamond',
+      'triangle-up',
+      'triangle-down',
+      'plus',
+    ];
+
+    // Render shape swatch SVG (outline only, no fill)
+    const renderShapeSwatch = (shape: string, disabled: boolean = false) => {
+      const pathGenerator =
+        SHAPE_PATH_GENERATORS[shape as PointShape] || SHAPE_PATH_GENERATORS.circle;
+      const size = 20;
+      const canvasSize = 28;
+      const centerOffset = canvasSize / 2;
+      const path = pathGenerator(size);
+      const strokeColor = disabled ? '#999' : '#333';
+
+      return html`
+        <svg width="${canvasSize}" height="${canvasSize}" viewBox="0 0 ${canvasSize} ${canvasSize}">
+          <g transform="translate(${centerOffset}, ${centerOffset})">
+            <path d="${path}" fill="none" stroke="${strokeColor}" stroke-width="1.5" />
+          </g>
+        </svg>
+      `;
+    };
+
+    return html`
+      <div
+        class="color-picker-popover"
+        style="left: ${this._colorPickerPosition.x}px; top: ${this._colorPickerPosition.y}px;"
+        @click=${(e: Event) => e.stopPropagation()}
+        @mousedown=${(e: Event) => e.stopPropagation()}
+      >
+        <div class="color-picker-header">${displayLabel}</div>
+        <div class="symbol-picker-sections">
+          <!-- Color Section -->
+          <div class="symbol-picker-section">
+            <div class="symbol-picker-section-label">Color</div>
+            <input
+              type="color"
+              class="color-picker-swatch"
+              .value=${item.color}
+              @input=${(e: Event) =>
+                this._handleColorChangeDebounced(item.value, (e.target as HTMLInputElement).value)}
+            />
+          </div>
+          <!-- Shape Section -->
+          <div class="symbol-picker-section">
+            <div class="symbol-picker-section-label">Shape</div>
+            <div class="shape-swatch-container">
+              ${isMultilabel
+                ? html`
+                    <button
+                      type="button"
+                      class="shape-picker-swatch disabled"
+                      title="Shape selection disabled for multilabel annotations"
+                      disabled
+                    >
+                      ${renderShapeSwatch(item.shape, true)}
+                    </button>
+                  `
+                : html`
+                    <button
+                      type="button"
+                      class="shape-picker-swatch ${this._showShapePicker ? 'active' : ''}"
+                      title="Click to change shape"
+                      @click=${(e: Event) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this._showShapePicker = !this._showShapePicker;
+                      }}
+                    >
+                      ${renderShapeSwatch(item.shape)}
+                    </button>
+                    ${this._showShapePicker
+                      ? html`
+                          <div class="shape-picker-dropdown">
+                            <div class="shape-picker-grid">
+                              ${availableShapes.map((shape) => {
+                                const isSelected = item.shape === shape;
+                                const pathGenerator = SHAPE_PATH_GENERATORS[shape];
+                                const size = 14;
+                                const canvasSize = 20;
+                                const centerOffset = canvasSize / 2;
+                                const path = pathGenerator(size);
+                                const isOutlineOnly = shape === 'plus';
+
+                                return html`
+                                  <button
+                                    type="button"
+                                    class="shape-picker-item ${isSelected ? 'selected' : ''}"
+                                    title="${shape}"
+                                    @click=${(e: Event) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      this._handleShapeChange(item.value, shape);
+                                    }}
+                                  >
+                                    <svg
+                                      width="${canvasSize}"
+                                      height="${canvasSize}"
+                                      viewBox="0 0 ${canvasSize} ${canvasSize}"
+                                    >
+                                      <g transform="translate(${centerOffset}, ${centerOffset})">
+                                        <path
+                                          d="${path}"
+                                          fill="${isOutlineOnly ? 'none' : 'currentColor'}"
+                                          stroke="currentColor"
+                                          stroke-width="${isOutlineOnly ? 1.5 : 1}"
+                                        />
+                                      </g>
+                                    </svg>
+                                  </button>
+                                `;
+                              })}
+                            </div>
+                          </div>
+                        `
+                      : null}
+                  `}
+            </div>
+          </div>
+        </div>
+        ${isMultilabel
+          ? html`<div class="symbol-picker-note">
+              Shapes unavailable for multilabel annotations
+            </div>`
+          : null}
+      </div>
+    `;
   }
 }
 

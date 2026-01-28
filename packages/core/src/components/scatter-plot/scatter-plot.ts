@@ -4,6 +4,9 @@ import * as d3 from 'd3';
 import type { VisualizationData, PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
 import { DataProcessor } from '@protspace/utils';
 import { scatterplotStyles } from './scatter-plot.styles';
+import './projection-metadata';
+import './protspace-tips';
+import './protein-tooltip';
 import { DEFAULT_CONFIG } from './config';
 import { createStyleGetters } from './style-getters';
 import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer } from './webgl';
@@ -247,15 +250,21 @@ export class ProtspaceScatterplot extends LitElement {
     const customEvent = event as CustomEvent;
     this._colorMapping = customEvent.detail.colorMapping;
     this._shapeMapping = customEvent.detail.shapeMapping;
+    const colorOnly = customEvent.detail.colorOnly ?? false;
+
     // Force fresh style getters to use new color/shape mapping
     this._styleGettersCache = null;
 
     // Trigger render (z-order is handled in WebGL depth; avoid CPU-sorting on every zoom/pan)
     if (this._plotData.length > 0) {
-      // Force webgl update and invalidate virtualization cache to re-sort visible points
-      this._webglRenderer?.invalidatePositionCache();
+      // For color-only changes, we don't need to invalidate positions or re-sort points
+      // Only invalidate style cache to update colors
+      if (!colorOnly) {
+        // Z-order changed: need to invalidate positions and re-sort
+        this._webglRenderer?.invalidatePositionCache();
+        this._invalidateVirtualizationCache();
+      }
       this._webglRenderer?.invalidateStyleCache();
-      this._invalidateVirtualizationCache();
       this._renderPlot();
     }
   };
@@ -1469,122 +1478,43 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
-  private _getCurrentProjectionMetadata(): Record<string, unknown> | undefined {
-    if (!this.data || !this.data.projections[this.selectedProjectionIndex]) {
-      return undefined;
-    }
-    return this.data.projections[this.selectedProjectionIndex].metadata;
-  }
+  private _getTooltipStyle() {
+    if (!this._tooltipData) return '';
 
-  private _renderProjectionMetadata() {
-    const metadata = this._getCurrentProjectionMetadata();
-    if (!metadata || Object.keys(metadata).length === 0) {
-      return '';
-    }
+    const { x, y } = this._tooltipData;
+    const config = this._mergedConfig;
+    const padding = 15;
+    const tooltipMaxWidth = 350;
+    const tooltipApproxHeight = 160;
 
-    // Filter out dimension, dimensions, and projection name fields
-    let displayMetadata = Object.entries(metadata).filter(([key]) => {
-      const lowerKey = key.toLowerCase();
-      return lowerKey !== 'dimension' && lowerKey !== 'dimensions' && lowerKey !== 'name';
-    });
+    let left = x + 15;
+    let top = y - 60;
+    let transform = '';
 
-    // Parse JSON fields (like "info", "info_json", etc.)
-    const parsedMetadata: Array<[string, unknown]> = [];
-    for (const [key, value] of displayMetadata) {
-      const lowerKey = key.toLowerCase();
-      if (
-        (lowerKey === 'info' || lowerKey === 'info_json' || lowerKey.includes('json')) &&
-        typeof value === 'string'
-      ) {
-        try {
-          const parsed = JSON.parse(value);
-          if (typeof parsed === 'object' && parsed !== null) {
-            // Flatten the JSON object into individual fields
-            for (const [subKey, subValue] of Object.entries(parsed)) {
-              parsedMetadata.push([subKey, subValue]);
-            }
-            continue; // Skip adding the original JSON string
-          }
-        } catch {
-          // If parsing fails, keep the original value
-        }
-      }
-      parsedMetadata.push([key, value]);
+    // Horizontal adjustment: if it goes off the right edge, flip to the left side
+    if (left + tooltipMaxWidth > config.width) {
+      // Position anchor at x - 15 and use translateX(-100%) to pull it to the left
+      // this ensures the right edge of the tooltip is close to the mouse regardless of width
+      left = x - 15;
+      transform = 'translateX(-100%)';
     }
 
-    if (parsedMetadata.length === 0) {
-      return '';
+    // Keep within horizontal bounds (left side)
+    if (!transform && left < padding) {
+      left = padding;
+    } else if (transform && left - tooltipMaxWidth < padding) {
+      // If flipped to the left and would go off the left edge, clamp it
+      left = tooltipMaxWidth + padding;
     }
 
-    return html`
-      <div class="projection-metadata">
-        <div class="projection-metadata-label">
-          <span>Projection Metadata</span>
-        </div>
-        <div class="projection-metadata-content">
-          ${parsedMetadata.map(
-            ([key, value]) => html`
-              <div class="projection-metadata-item">
-                <span class="projection-metadata-key">${this._formatMetadataKey(key)}:</span>
-                <span class="projection-metadata-value"
-                  >${this._formatMetadataValue(value, key)}</span
-                >
-              </div>
-            `,
-          )}
-        </div>
-      </div>
-    `;
-  }
-
-  private _formatMetadataKey(key: string): string {
-    // Convert snake_case or camelCase to Title Case
-    return key
-      .replace(/_/g, ' ')
-      .replace(/([A-Z])/g, ' $1')
-      .split(' ')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ')
-      .trim();
-  }
-
-  private _formatMetadataValue(value: unknown, key?: string): string {
-    if (value == null) return 'N/A';
-
-    const lowerKey = key?.toLowerCase() || '';
-    const isVarianceRatio =
-      lowerKey.includes('explained_variance') || lowerKey.includes('variance_ratio');
-
-    // Handle arrays
-    if (Array.isArray(value)) {
-      const formattedValues = value.map((item) => {
-        if (typeof item === 'number') {
-          if (item % 1 === 0) return item.toString();
-          return isVarianceRatio ? item.toFixed(2) : item.toFixed(3);
-        }
-        return String(item);
-      });
-      return formattedValues.join(', ');
+    // Vertical adjustment: keep within vertical bounds
+    if (top < padding) {
+      top = padding;
+    } else if (top + tooltipApproxHeight > config.height) {
+      top = config.height - tooltipApproxHeight - padding;
     }
 
-    if (typeof value === 'number') {
-      // Format numbers with appropriate precision
-      if (value % 1 === 0) {
-        return value.toString();
-      }
-      // Use 2 decimal places for explained variance ratio
-      if (isVarianceRatio) {
-        return value.toFixed(2);
-      }
-      return value.toFixed(3);
-    }
-    if (typeof value === 'boolean') {
-      return value ? 'Yes' : 'No';
-    }
-    if (typeof value === 'object') {
-      return JSON.stringify(value);
-    }
-    return String(value);
+    return `left: ${left}px; top: ${top}px;${transform ? ` transform: ${transform};` : ''}`;
   }
 
   render() {
@@ -1610,22 +1540,23 @@ export class ProtspaceScatterplot extends LitElement {
           style="position: absolute; top: 0; left: 0; max-width: ${config.width}px; max-height: ${config.height}px; z-index: 3; background: transparent;"
         ></svg>
 
-        ${this._renderProjectionMetadata()}
+        <protspace-projection-metadata
+          .projection=${this.data?.projections[this.selectedProjectionIndex] ?? null}
+        ></protspace-projection-metadata>
+
+        <protspace-tips></protspace-tips>
+
         ${this._tooltipData
           ? html`
-              <div
-                class="tooltip"
-                style="left: ${this._tooltipData.x + 10}px; top: ${this._tooltipData.y -
-                60}px; z-index: 10;"
+              <protspace-protein-tooltip
+                class="visible"
+                style="${this._getTooltipStyle()}"
+                .protein=${this._tooltipData.protein}
+                .selectedAnnotation=${this.selectedAnnotation}
+                .showScores=${this.selectedAnnotation.toLowerCase() === 'pfam' ||
+                this.selectedAnnotation.toLowerCase() === 'cath'}
               >
-                <div class="tooltip-protein-id">${this._tooltipData.protein.id}</div>
-
-                <div class="tooltip-annotation-header">${this.selectedAnnotation}:</div>
-
-                ${this._tooltipData.protein.annotationValues[this.selectedAnnotation].map(
-                  (value) => html`<div class="tooltip-annotation">${value || 'N/A'}</div>`,
-                )}
-              </div>
+              </protspace-protein-tooltip>
             `
           : ''}
         ${this.selectionMode || this.selectedProteinIds.length > 0

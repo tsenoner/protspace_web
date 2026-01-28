@@ -15,6 +15,8 @@ export interface OtherDialogState {
 export interface OtherDialogCallbacks {
   onExtract: (value: string) => void;
   onClose: () => void;
+  onOverlayMouseDown: (e: MouseEvent) => void;
+  onOverlayMouseUp: () => void;
 }
 
 /**
@@ -60,13 +62,18 @@ export function renderOtherDialog(
   callbacks: OtherDialogCallbacks,
 ): TemplateResult {
   return html`
-    <div class="modal-overlay" part="dialog-overlay" @click=${callbacks.onClose}>
+    <div
+      class="modal-overlay"
+      part="dialog-overlay"
+      @mousedown=${callbacks.onOverlayMouseDown}
+      @mouseup=${callbacks.onOverlayMouseUp}
+    >
       <div
         id="legend-other-dialog"
         class="modal-content"
         part="dialog-content"
         tabindex="-1"
-        @click=${(e: Event) => e.stopPropagation()}
+        @mousedown=${(e: Event) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="other-dialog-title"

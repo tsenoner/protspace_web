@@ -86,13 +86,14 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     }
   }
 
-  if (shapeMap && styleConfig.useShapes) {
-    // Use legend-provided shape mapping (frequency-sorted)
+  if (shapeMap) {
+    // Use legend-provided shape mapping - always apply custom shapes from legend
+    // regardless of useShapes setting (custom shapes override global setting)
     for (const [key, shape] of Object.entries(shapeMap)) {
       valueToShape.set(key, normalizeShapeName(shape));
     }
   } else if (annotation && Array.isArray(annotation.values) && styleConfig.useShapes) {
-    // Fallback to annotation.shapes from data
+    // Fallback to annotation.shapes from data (only when useShapes is enabled)
     for (let i = 0; i < annotation.values.length; i++) {
       const v = annotation.values[i];
       const k = normalizeToKey(v);
@@ -122,7 +123,6 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   };
 
   const getPointShape = (point: PlotDataPoint): string => {
-    if (styleConfig.useShapes === false) return 'circle';
     if (!data || !styleConfig.selectedAnnotation) return 'circle';
 
     const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
@@ -137,7 +137,14 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     if (annotationValue && otherValuesSet.has(annotationValue)) return 'circle';
 
     const k = normalizeToKey(annotationValue);
-    return valueToShape.get(k) ?? 'circle';
+    // Check if we have a custom shape from the legend mapping
+    const customShape = valueToShape.get(k);
+    if (customShape) return customShape;
+
+    // If useShapes is false and no custom shape, return circle
+    if (styleConfig.useShapes === false) return 'circle';
+
+    return 'circle';
   };
 
   const getColors = (point: PlotDataPoint): string[] => {

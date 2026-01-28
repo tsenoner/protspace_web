@@ -119,38 +119,6 @@ const scatterplotStylesCore = css`
     gap: 0.25rem;
   }
 
-  /* Base tooltip styles provided by overlayMixins */
-  .tooltip {
-    /* Extend base tooltip with scatter-plot-specific styles */
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-  }
-
-  .tooltip-protein-id {
-    font-weight: bold;
-    margin-bottom: 0.25rem;
-  }
-
-  .tooltip-annotation {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-  }
-
-  .tooltip-annotation-header {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.125rem;
-  }
-
-  .tooltip-hint {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    margin-top: 0.25rem;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
   /* Duplicate stack spiderfy UI (SVG overlay) */
 
   .dup-spiderfy {
@@ -173,90 +141,6 @@ const scatterplotStylesCore = css`
     stroke-width: 1.5px;
     pointer-events: all;
     cursor: pointer;
-  }
-
-  .projection-metadata {
-    position: absolute;
-    top: 0.5rem;
-    left: 0.5rem;
-    z-index: var(--z-overlay);
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid var(--protspace-tooltip-border);
-    border-radius: 0.375rem;
-    box-shadow: var(--protspace-tooltip-shadow);
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s ease-in-out;
-  }
-
-  .projection-metadata-label {
-    padding: 0.375rem 0.625rem;
-    font-weight: 500;
-    color: #475569;
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    white-space: nowrap;
-  }
-
-  .projection-metadata-content {
-    max-height: 0;
-    overflow: hidden;
-    opacity: 0;
-    transition:
-      max-height 0.3s ease-in-out,
-      opacity 0.2s ease-in-out,
-      padding 0.3s ease-in-out;
-    padding: 0 0.75rem;
-  }
-
-  .projection-metadata:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  }
-
-  .projection-metadata:hover .projection-metadata-content {
-    max-height: 500px;
-    opacity: 1;
-    padding: 0.5rem 0.75rem 0.625rem;
-  }
-
-  .projection-metadata-item {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin-bottom: 0.25rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-  }
-
-  .projection-metadata-item:last-child {
-    margin-bottom: 0;
-  }
-
-  .projection-metadata-key {
-    font-weight: 500;
-    color: var(--muted);
-  }
-
-  .projection-metadata-value {
-    color: var(--muted);
-    text-align: right;
-    word-break: break-word;
-  }
-
-  /* Isolation mode indicator */
-  .isolation-indicator {
-    position: absolute;
-    bottom: var(--spacing-md);
-    right: var(--spacing-md);
-    z-index: 10;
-    background: var(--primary);
-    color: var(--text-light);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--radius);
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-    box-shadow: var(--shadow-md);
   }
 `;
 

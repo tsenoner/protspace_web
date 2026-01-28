@@ -165,12 +165,13 @@ export class ScatterplotSyncController implements ReactiveController {
 
   /**
    * Dispatch color/shape mapping change event
+   * @param colorOnly - If true, indicates only colors changed (not z-order), allowing optimization
    */
-  dispatchColorMappingChange(): void {
+  dispatchColorMappingChange(colorOnly: boolean = false): void {
     const { colorMapping, shapeMapping } = buildColorShapeMappings(this.callbacks.getLegendItems());
 
     const event = new CustomEvent(LEGEND_EVENTS.COLORMAPPING_CHANGE, {
-      detail: { colorMapping, shapeMapping },
+      detail: { colorMapping, shapeMapping, colorOnly },
       bubbles: !this._scatterplotElement,
     });
 

@@ -28,6 +28,7 @@ export interface PersistenceCallbacks {
     shapeSize: number;
     sortMode: LegendSortMode;
     enableDuplicateStackUI: boolean;
+    selectedPaletteId: string;
   };
 }
 
@@ -147,6 +148,7 @@ export class PersistenceController implements ReactiveController {
       hiddenValues: this.callbacks.getHiddenValues(),
       categories,
       enableDuplicateStackUI: currentSettings.enableDuplicateStackUI,
+      selectedPaletteId: currentSettings.selectedPaletteId,
     };
 
     setStorageItem(key, settings);

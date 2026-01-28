@@ -51,7 +51,7 @@ const Explore = () => {
   return (
     <div className="h-screen w-full bg-[#f4f4f4] flex flex-col overflow-y-auto">
       <div className="h-16 flex-none z-50">
-        <Header />
+        <Header variant="light" />
       </div>
       <div className="explore-wrapper flex-1 relative min-h-[600px]">
         <div className="explore-container h-full">
