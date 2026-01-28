@@ -8,6 +8,7 @@ import type {
 } from '@protspace/core';
 import { ProtspaceControlBar, EXPORT_DEFAULTS } from '@protspace/core';
 import { createExporter, showNotification } from '@protspace/utils';
+import { maybeRunWebglPerfSuite } from './webgl-perf-suite';
 
 // Export initialization function that can be called when the component mounts
 export async function initializeDemo() {
@@ -569,7 +570,13 @@ export async function initializeDemo() {
 
     // Try to load data from file, but don't fail if it doesn't work
     // The user can still drag and drop the file manually
-    loadDataFromFile();
+
+    const shouldRunPerfSuite = new URLSearchParams(window.location.search).get('webglPerf') === '1';
+    if (shouldRunPerfSuite) {
+      void maybeRunWebglPerfSuite({ plotElement, dataLoader });
+    } else {
+      loadDataFromFile();
+    }
 
     // Handle export
     controlBar.addEventListener('export', async (event: Event) => {

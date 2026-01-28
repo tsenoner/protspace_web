@@ -308,6 +308,23 @@ export class WebGLRenderer {
   private styleSignature: string | null = null;
   private gammaPipelineAvailable = true;
   private warnedGammaFallback = false;
+  private contextLost = false;
+  private readonly handleContextLost = (event: Event) => {
+    event.preventDefault();
+    this.markContextLost();
+    this.onContextLost?.();
+  };
+  private readonly handleContextRestored = () => {
+    this.contextLost = false;
+    this.resetRendererState();
+    if (this.lastRenderedPoints && this.lastRenderedPoints.length > 0) {
+      requestAnimationFrame(() => {
+        if (!this.contextLost) {
+          this.render(this.lastRenderedPoints ?? []);
+        }
+      });
+    }
+  };
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -315,7 +332,16 @@ export class WebGLRenderer {
     private getTransform: () => d3.ZoomTransform,
     private getConfig: () => ScatterplotConfig,
     private style: WebGLStyleGetters,
-  ) {}
+    private onContextLost?: () => void,
+  ) {
+    this.canvas.addEventListener('webglcontextlost', this.handleContextLost, { passive: false });
+    this.canvas.addEventListener('webglcontextrestored', this.handleContextRestored);
+  }
+
+  destroy() {
+    this.canvas.removeEventListener('webglcontextlost', this.handleContextLost);
+    this.canvas.removeEventListener('webglcontextrestored', this.handleContextRestored);
+  }
 
   // ============================================================================
   // Public API
@@ -390,6 +416,7 @@ export class WebGLRenderer {
   }
 
   resize(width: number, height: number) {
+    if (this.isContextLost()) return;
     const dpr = window.devicePixelRatio || 1;
     this.dpr = dpr;
     const physicalWidth = Math.max(1, Math.floor(width * dpr));
@@ -537,7 +564,7 @@ export class WebGLRenderer {
 
     const gl = this.ensureGL();
     const scales = this.getScales();
-    if (!gl || !scales) return;
+    if (!gl || !scales || this.isContextLost()) return;
 
     const config = this.getConfig();
     const width = config.width ?? 800;
@@ -591,6 +618,13 @@ export class WebGLRenderer {
 
     // Pass 1: Render to linear RGB framebuffer
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer.framebuffer);
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    if (status !== gl.FRAMEBUFFER_COMPLETE) {
+      this.handleGammaFallback('framebuffer incomplete during render');
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      this.renderDirect(transform);
+      return;
+    }
     gl.viewport(0, 0, framebuffer.width, framebuffer.height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -1312,6 +1346,16 @@ export class WebGLRenderer {
   // ============================================================================
 
   private ensureGL(): WebGL2RenderingContext | null {
+    if (this.contextLost) return null;
+    if (this.gl) {
+      if (this.gl.isContextLost && this.gl.isContextLost()) {
+        this.markContextLost();
+        return null;
+      }
+      if (!this.isRendererStateValid(this.gl)) {
+        this.resetRendererState();
+      }
+    }
     if (this.gl && this.pointProgram && this.pointAttribLocations && this.pointUniformLocations) {
       return this.gl;
     }
@@ -1379,6 +1423,63 @@ export class WebGLRenderer {
     }
 
     return gl;
+  }
+
+  private isRendererStateValid(gl: WebGL2RenderingContext): boolean {
+    if (!this.pointProgram || !gl.isProgram(this.pointProgram)) return false;
+    if (this.pointVao && !gl.isVertexArray(this.pointVao)) return false;
+    if (this.dataPositionBuffer && !gl.isBuffer(this.dataPositionBuffer)) return false;
+    if (this.sizeBuffer && !gl.isBuffer(this.sizeBuffer)) return false;
+    if (this.colorBuffer && !gl.isBuffer(this.colorBuffer)) return false;
+    if (this.depthBuffer && !gl.isBuffer(this.depthBuffer)) return false;
+    if (this.labelCountBuffer && !gl.isBuffer(this.labelCountBuffer)) return false;
+    if (this.shapeBuffer && !gl.isBuffer(this.shapeBuffer)) return false;
+    if (this.labelColorTexture && !gl.isTexture(this.labelColorTexture)) return false;
+    return true;
+  }
+
+  private isContextLost(): boolean {
+    if (this.contextLost) return true;
+    const gl = this.gl;
+    if (gl?.isContextLost && gl.isContextLost()) {
+      this.markContextLost();
+      return true;
+    }
+    return false;
+  }
+
+  private markContextLost() {
+    if (this.contextLost) return;
+    this.contextLost = true;
+    this.resetRendererState();
+  }
+
+  private resetRendererState() {
+    this.gl = null;
+    this.pointProgram = null;
+    this.pointVao = null;
+    this.pointAttribLocations = null;
+    this.pointUniformLocations = null;
+    this.quadBuffer = null;
+    this.gammaCorrectionProgram = null;
+    this.gammaCorrectionUniformLocations = null;
+    this.linearFramebuffer = null;
+    this.dataPositionBuffer = null;
+    this.sizeBuffer = null;
+    this.colorBuffer = null;
+    this.depthBuffer = null;
+    this.labelCountBuffer = null;
+    this.shapeBuffer = null;
+    this.labelColorTexture = null;
+    this.gammaPipelineAvailable = true;
+    this.warnedGammaFallback = false;
+    this.buffersInitialized = false;
+    this.currentPointCount = 0;
+    this.positionsDirty = true;
+    this.stylesDirty = true;
+    this.lastDataSignature = null;
+    this.lastStyleSignature = null;
+    this.renderedPointIds.clear();
   }
 
   private initializePointShaders(gl: WebGL2RenderingContext): boolean {
