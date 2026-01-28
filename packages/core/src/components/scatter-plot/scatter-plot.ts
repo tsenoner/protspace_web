@@ -67,6 +67,7 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _zOrderMapping: Record<string, number> | null = null;
   @state() private _colorMapping: Record<string, string> | null = null;
   @state() private _shapeMapping: Record<string, string> | null = null;
+  @state() private _canvasKey = 0;
 
   // Queries
   @query('canvas') private _canvas?: HTMLCanvasElement;
@@ -177,6 +178,14 @@ export class ProtspaceScatterplot extends LitElement {
     );
   }
 
+  private _handleWebglContextLost = () => {
+    this._webglRenderer?.destroy();
+    this._webglRenderer = null;
+    this._canvasKey += 1;
+    this.requestUpdate();
+    void this.updateComplete.then(() => this._updateSizeAndRender());
+  };
+
   connectedCallback() {
     super.connectedCallback();
     this.resizeObserver.observe(this);
@@ -202,6 +211,7 @@ export class ProtspaceScatterplot extends LitElement {
     this._cancelDuplicateOverlayDebounce();
     this._cancelDuplicateStackCompute();
     this._clearDuplicateBadgesCanvas();
+    this._webglRenderer?.destroy();
 
     super.disconnectedCallback();
     this.removeEventListener('legend-zorder-change', this._handleZOrderChange);
@@ -431,6 +441,7 @@ export class ProtspaceScatterplot extends LitElement {
           getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
           getShape: (p: PlotDataPoint) => this._getPointShape(p),
         },
+        this._handleWebglContextLost,
       );
       this._updateStyleSignature();
       this._webglRenderer.setStyleSignature(this._styleSig);
@@ -559,6 +570,7 @@ export class ProtspaceScatterplot extends LitElement {
             getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
             getShape: (p: PlotDataPoint) => this._getPointShape(p),
           },
+          this._handleWebglContextLost,
         );
         this._updateStyleSignature();
         this._webglRenderer.setStyleSignature(this._styleSig);
@@ -1605,12 +1617,20 @@ export class ProtspaceScatterplot extends LitElement {
 
   render() {
     const config = this._mergedConfig;
+    const useAltCanvas = this._canvasKey % 2 === 1;
 
     return html`
       <div class="container">
         <!-- Canvas for high-performance rendering (always visible for better performance) -->
-        <canvas style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;">
-        </canvas>
+        ${useAltCanvas
+          ? html`<canvas
+              data-key="alt"
+              style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;"
+            ></canvas>`
+          : html`<canvas
+              data-key="base"
+              style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;"
+            ></canvas>`}
 
         <!-- Canvas overlay for duplicate count badges (faster than SVG for large numbers of badges) -->
         <canvas
