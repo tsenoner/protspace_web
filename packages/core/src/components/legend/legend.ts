@@ -466,12 +466,7 @@ export class ProtspaceLegend extends LitElement {
 
     // Update dataset hash when protein IDs change
     if (changedProperties.has('proteinIds') && this.proteinIds.length > 0) {
-      const hashChanged = this._persistenceController.updateDatasetHash(this.proteinIds);
-      // If hash changed and we have an annotation but settings weren't loaded yet,
-      // try loading now (handles case where proteinIds arrives after data/selectedAnnotation)
-      if (hashChanged && this.selectedAnnotation && !this._persistenceController.settingsLoaded) {
-        this._persistenceController.loadSettings();
-      }
+      this._persistenceController.updateDatasetHash(this.proteinIds);
     }
 
     // Handle data or annotation changes
@@ -587,6 +582,44 @@ export class ProtspaceLegend extends LitElement {
       // may not trigger _updateLegendItems if only _hiddenValues/sortMode changed
       this._rebuildLegendItems();
     }
+  }
+
+  /**
+   * Clear all legend state in preparation for loading a new dataset.
+   * This should be called before setting new data to ensure a clean slate.
+   *
+   * @param datasetHash - The hash of the NEW dataset (used to clear its localStorage entries)
+   */
+  public clearForNewDataset(datasetHash: string): void {
+    // Reset visual encoding state
+    this._processorContext.slotTracker.reset();
+
+    // Clear legend items and related state
+    this._legendItems = [];
+    this._sortedLegendItems = [];
+    this._otherItems = [];
+    this._hiddenValues = [];
+
+    // Clear persistence state for the new dataset
+    this._persistenceController.clearForNewDataset(datasetHash);
+
+    // Reset UI state
+    this._showSettingsDialog = false;
+    this._showOtherDialog = false;
+    this._colorPickerItem = null;
+
+    // Reset isolation state
+    this.isolationMode = false;
+    this.isolationHistory = [];
+
+    // Clear data properties
+    this.data = null;
+    this.selectedAnnotation = '';
+    this.annotationData = { name: '', values: [] };
+    this.annotationValues = [];
+    this.proteinIds = [];
+
+    this.requestUpdate();
   }
 
   /**

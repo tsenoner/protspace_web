@@ -92,6 +92,7 @@ describe('round-trip with real data files', () => {
           category1: { zOrder: 0, color: '#ff0000', shape: 'circle' },
         },
         enableDuplicateStackUI: false,
+        selectedPaletteId: 'kellys',
       },
     };
 

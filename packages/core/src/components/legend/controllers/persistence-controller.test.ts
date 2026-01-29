@@ -387,6 +387,7 @@ describe('PersistenceController', () => {
           file_cat1: { zOrder: 0, color: '#aaa', shape: 'diamond' },
         },
         enableDuplicateStackUI: true,
+        selectedPaletteId: 'kellys',
       },
       annotation2: {
         maxVisibleValues: 5,
@@ -396,6 +397,7 @@ describe('PersistenceController', () => {
         hiddenValues: [],
         categories: {},
         enableDuplicateStackUI: false,
+        selectedPaletteId: 'kellys',
       },
     };
 
@@ -409,9 +411,9 @@ describe('PersistenceController', () => {
         expect(controller.hasFileSettings).toBe(true);
       });
 
-      it('returns false after clearing file settings', () => {
+      it('returns false after clearing file settings with null', () => {
         controller.setFileSettings(fileSettings);
-        controller.clearFileSettings();
+        controller.setFileSettings(null);
         expect(controller.hasFileSettings).toBe(false);
       });
     });
@@ -567,19 +569,6 @@ describe('PersistenceController', () => {
         expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith(
           expect.objectContaining({ maxVisibleValues: 99 }),
         );
-      });
-    });
-
-    describe('updateDatasetHash clears file settings', () => {
-      it('clears file settings when dataset changes', () => {
-        controller.setFileSettings(fileSettings);
-        expect(controller.hasFileSettings).toBe(true);
-
-        controller.updateDatasetHash(['protein1']);
-        // File settings are still present initially
-
-        controller.updateDatasetHash(['protein2']); // Dataset changes
-        expect(controller.hasFileSettings).toBe(false);
       });
     });
 

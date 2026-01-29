@@ -147,6 +147,7 @@ describe('BundleSettings type', () => {
           human: { zOrder: 0, color: '#ff0000', shape: 'circle' },
         },
         enableDuplicateStackUI: false,
+        selectedPaletteId: 'kellys',
       },
     };
 
@@ -165,6 +166,7 @@ describe('BundleSettings type', () => {
         hiddenValues: [],
         categories: {},
         enableDuplicateStackUI: false,
+        selectedPaletteId: 'kellys',
       },
     };
 
@@ -183,6 +185,7 @@ describe('BundleSettings type', () => {
         hiddenValues: [],
         categories: {},
         enableDuplicateStackUI: false,
+        selectedPaletteId: 'kellys',
         // Future fields that might be added
         unknownField: 'some value',
         futureFeature: { nested: true },
@@ -208,6 +211,7 @@ describe('BundleSettings type', () => {
           human: { zOrder: 0, color: '#ff0000', shape: 'circle' },
         },
         enableDuplicateStackUI: false,
+        selectedPaletteId: 'kellys',
       },
       family: {
         maxVisibleValues: 5,
@@ -220,6 +224,7 @@ describe('BundleSettings type', () => {
           phosphatase: { zOrder: 0, color: '#0000ff', shape: 'diamond' },
         },
         enableDuplicateStackUI: true,
+        selectedPaletteId: 'kellys',
       },
     };
 

@@ -87,15 +87,12 @@ export class PersistenceController implements ReactiveController {
 
   /**
    * Update dataset hash from protein IDs.
-   * Clears file settings when dataset changes since they're dataset-specific.
    */
   updateDatasetHash(proteinIds: string[]): boolean {
     const newHash = generateDatasetHash(proteinIds);
     if (newHash !== this._datasetHash) {
       this._datasetHash = newHash;
       this._settingsLoaded = false;
-      // Clear file settings when dataset changes - they're specific to the original dataset
-      this.clearFileSettings();
       return true; // Hash changed
     }
     return false; // No change
@@ -327,9 +324,20 @@ export class PersistenceController implements ReactiveController {
   }
 
   /**
-   * Clear file-based settings (e.g., when loading a new dataset).
+   * Clear all persistence state in preparation for loading a new dataset.
+   * Removes localStorage entries for the specified dataset hash and resets internal state.
+   *
+   * @param datasetHash - The hash of the NEW dataset to clear localStorage for
    */
-  clearFileSettings(): void {
+  clearForNewDataset(datasetHash: string): void {
+    // Clear localStorage for the new dataset hash
+    removeAllStorageItemsByHash(datasetHash);
+
+    // Reset internal state
+    this._datasetHash = '';
+    this._selectedAnnotation = '';
+    this._settingsLoaded = false;
+    this._pendingCategories = {};
     this._fileSettings = null;
     this._appliedFileAnnotations.clear();
   }
@@ -356,6 +364,7 @@ export class PersistenceController implements ReactiveController {
       hiddenValues: this.callbacks.getHiddenValues(),
       categories: this._buildCategoriesFromItems(),
       enableDuplicateStackUI: currentSettings.enableDuplicateStackUI,
+      selectedPaletteId: currentSettings.selectedPaletteId,
     };
   }
 

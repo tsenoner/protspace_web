@@ -560,17 +560,21 @@ export async function initializeDemo() {
       const customEvent = event as CustomEvent<DataLoadedEventDetail>;
       const { data, settings } = customEvent.detail;
 
-      // Load the new data into all components (must complete before applying settings)
+      // Compute dataset hash upfront for clearing and settings
+      const datasetHash = generateDatasetHash(data.protein_ids);
+
+      // Clear all component state before loading new data
+      // This ensures a clean slate regardless of whether this is initial load or import
+      if (legendElement) {
+        legendElement.clearForNewDataset(datasetHash);
+      }
+
+      // Load the new data into all components
       await loadNewData(data);
 
       // Apply file-based settings to legend if present
-      // Compute dataset hash upfront since the legend's proteinIds aren't set yet
       if (settings && legendElement) {
-        const datasetHash = generateDatasetHash(data.protein_ids);
         legendElement.setFileSettings(settings, datasetHash);
-      } else if (legendElement) {
-        // Clear file settings if loading a file without settings
-        legendElement.setFileSettings(null);
       }
 
       // Update control bar to indicate file has custom settings
