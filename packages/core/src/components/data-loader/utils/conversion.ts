@@ -22,28 +22,62 @@ function getIdColumnsSet(proteinIdCol: string): Set<string> {
   return new Set([...ID_COLUMNS, proteinIdCol]);
 }
 
+/** Keys to exclude when building metadata */
+const METADATA_EXCLUDED_KEYS = new Set(['projection_name', 'name', 'info_json']);
+
+/**
+ * Parses the info_json field and returns its contents as sanitized metadata fields.
+ * This handles the round-trip case where metadata was serialized to JSON during export.
+ */
+function parseInfoJson(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'string' || !value) return {};
+
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed !== 'object' || parsed === null) return {};
+
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(parsed)) {
+      // Skip dimension as it's handled separately by convertBundleFormatData
+      if (key !== 'dimension') {
+        result[key] = sanitizeValue(val);
+      }
+    }
+    return result;
+  } catch {
+    // If parsing fails, return empty object
+    return {};
+  }
+}
+
 /**
  * Builds a metadata map from projections metadata rows.
- * Extracts all fields except projection_name/name and sanitizes values.
+ * Parses info_json field and spreads its contents into metadata.
  */
 function buildProjectionsMetadataMap(
   projectionsMetadata?: Rows,
 ): Map<string, Record<string, unknown>> {
   const metadataMap = new Map<string, Record<string, unknown>>();
-  if (projectionsMetadata && projectionsMetadata.length > 0) {
-    for (const metaRow of projectionsMetadata) {
-      const projName = metaRow.projection_name || metaRow.name;
-      if (projName) {
-        const metadata: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(metaRow)) {
-          if (key !== 'projection_name' && key !== 'name') {
-            metadata[key] = sanitizeValue(value);
-          }
-        }
-        metadataMap.set(String(projName), metadata);
+
+  if (!projectionsMetadata?.length) return metadataMap;
+
+  for (const metaRow of projectionsMetadata) {
+    const projName = metaRow.projection_name || metaRow.name;
+    if (!projName) continue;
+
+    // Start with parsed info_json fields (if present)
+    const metadata: Record<string, unknown> = parseInfoJson(metaRow.info_json);
+
+    // Add remaining fields (excluding projection identifiers and info_json)
+    for (const [key, value] of Object.entries(metaRow)) {
+      if (!METADATA_EXCLUDED_KEYS.has(key)) {
+        metadata[key] = sanitizeValue(value);
       }
     }
+
+    metadataMap.set(String(projName), metadata);
   }
+
   return metadataMap;
 }
 

@@ -236,16 +236,11 @@ export function exportParquetBundle(
 /**
  * Generate a filename for the exported bundle.
  *
- * @param projectionName - The current projection name
  * @param includeSettings - Whether settings are included
  * @returns Generated filename
  */
-export function generateBundleFilename(
-  projectionName: string = 'data',
-  includeSettings: boolean = false,
-): string {
+export function generateBundleFilename(includeSettings: boolean = false): string {
   const date = new Date().toISOString().split('T')[0];
-  const cleanProjection = projectionName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
   const suffix = includeSettings ? '_with_settings' : '';
-  return `protspace_${cleanProjection}${suffix}_${date}.parquetbundle`;
+  return `protspace${suffix}_${date}.parquetbundle`;
 }

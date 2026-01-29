@@ -619,10 +619,7 @@ export async function initializeDemo() {
             settings = legendElement.getAllPersistedSettings();
           }
 
-          // Generate filename based on current projection
-          const projectionName =
-            currentData.projections?.[plotElement.selectedProjectionIndex]?.name;
-          const filename = generateBundleFilename(projectionName, includeSettings);
+          const filename = generateBundleFilename(includeSettings);
 
           // Export the bundle
           exportParquetBundle(currentData, filename, {

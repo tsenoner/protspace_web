@@ -408,11 +408,7 @@ export class ProtspaceLegend extends LitElement {
       changedProperties.has('maxVisibleValues') ||
       changedProperties.has('includeShapes')
     ) {
-      this._updateLegendItems();
-
-      if (this._persistenceController.hasPendingCategories()) {
-        this._legendItems = this._persistenceController.applyPendingZOrder(this._legendItems);
-      }
+      this._rebuildLegendItems();
     }
 
     // Update sorted items cache when legend items change
@@ -486,9 +482,12 @@ export class ProtspaceLegend extends LitElement {
   ): void {
     this._persistenceController.setFileSettings(settings, datasetHash);
 
-    // If current annotation has file settings, reload to apply them
+    // If current annotation has file settings, reload and apply them immediately
     if (settings?.[this.selectedAnnotation]) {
       this._persistenceController.loadSettings();
+      // Force full UI update - property changes from _applyPersistedSettings
+      // may not trigger _updateLegendItems if only _hiddenValues/sortMode changed
+      this._rebuildLegendItems();
     }
   }
 
@@ -572,6 +571,18 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
   // Legend Item Processing
   // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Rebuild legend items and apply persisted z-order.
+   * Use when forcing a full rebuild outside the updated() lifecycle.
+   */
+  private _rebuildLegendItems(): void {
+    this._updateLegendItems();
+
+    if (this._persistenceController.hasPendingCategories()) {
+      this._legendItems = this._persistenceController.applyPendingZOrder(this._legendItems);
+    }
+  }
 
   private _updateLegendItems(): void {
     if (!this.annotationData?.values?.length || !this.annotationValues?.length) {

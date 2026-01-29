@@ -163,27 +163,21 @@ describe('bundle-writer', () => {
     });
 
     it('should generate filename without settings suffix', () => {
-      const filename = generateBundleFilename('PCA_2', false);
+      const filename = generateBundleFilename(false);
 
-      expect(filename).toBe('protspace_pca_2_2024-06-15.parquetbundle');
+      expect(filename).toBe('protspace_2024-06-15.parquetbundle');
     });
 
     it('should generate filename with settings suffix', () => {
-      const filename = generateBundleFilename('PCA_2', true);
+      const filename = generateBundleFilename(true);
 
-      expect(filename).toBe('protspace_pca_2_with_settings_2024-06-15.parquetbundle');
+      expect(filename).toBe('protspace_with_settings_2024-06-15.parquetbundle');
     });
 
-    it('should sanitize projection name', () => {
-      const filename = generateBundleFilename('UMAP (custom)', false);
+    it('should generate filename without settings by default', () => {
+      const filename = generateBundleFilename();
 
-      expect(filename).toBe('protspace_umap__custom__2024-06-15.parquetbundle');
-    });
-
-    it('should use default name when projection name is not provided', () => {
-      const filename = generateBundleFilename(undefined, false);
-
-      expect(filename).toBe('protspace_data_2024-06-15.parquetbundle');
+      expect(filename).toBe('protspace_2024-06-15.parquetbundle');
     });
   });
 });
