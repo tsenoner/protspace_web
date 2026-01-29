@@ -11,6 +11,11 @@ import { DEFAULT_CONFIG } from './config';
 import { createStyleGetters } from './style-getters';
 import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer } from './webgl';
 import { QuadtreeIndex } from './quadtree-index';
+import {
+  WebglRenderPerfRunner,
+  type PerfDatasetInfo,
+  type RenderWebGLTrigger,
+} from './webgl-render-perf';
 
 // Visualization is only needed for viewport culling on very large datasets.
 // For <= MAX_POINTS_DIRECT_RENDER we can render the full set once and then pan/zoom via uniforms
@@ -65,6 +70,7 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _zOrderMapping: Record<string, number> | null = null;
   @state() private _colorMapping: Record<string, string> | null = null;
   @state() private _shapeMapping: Record<string, string> | null = null;
+  @state() private _canvasKey = 0;
 
   // Queries
   @query('canvas') private _canvas?: HTMLCanvasElement;
@@ -122,6 +128,8 @@ export class ProtspaceScatterplot extends LitElement {
   // Track press/release to reliably treat spiderfy node interactions like normal point clicks.
   private _spiderfyPressByPointerId = new Map<number, { x: number; y: number; t: number }>();
 
+  private _webglRenderPerf = new WebglRenderPerfRunner(this);
+
   // Computed properties with caching
   private get _scales(): ScalePair | null {
     const config = this._mergedConfig;
@@ -173,6 +181,14 @@ export class ProtspaceScatterplot extends LitElement {
     );
   }
 
+  private _handleWebglContextLost = () => {
+    this._webglRenderer?.destroy();
+    this._webglRenderer = null;
+    this._canvasKey += 1;
+    this.requestUpdate();
+    void this.updateComplete.then(() => this._updateSizeAndRender());
+  };
+
   connectedCallback() {
     super.connectedCallback();
     this.resizeObserver.observe(this);
@@ -198,6 +214,7 @@ export class ProtspaceScatterplot extends LitElement {
     this._cancelDuplicateOverlayDebounce();
     this._cancelDuplicateStackCompute();
     this._clearDuplicateBadgesCanvas();
+    this._webglRenderer?.destroy();
 
     super.disconnectedCallback();
     this.removeEventListener('legend-zorder-change', this._handleZOrderChange);
@@ -317,6 +334,10 @@ export class ProtspaceScatterplot extends LitElement {
         this.resetZoom();
       }
 
+      if (changedProperties.has('data') && this.data) {
+        this._webglRenderPerf.maybeAutoRunFromUrl();
+      }
+
       // Dispatch data-change event for auto-sync with control bar and other components
       if (changedProperties.has('data') && this.data) {
         this.dispatchEvent(
@@ -429,6 +450,7 @@ export class ProtspaceScatterplot extends LitElement {
           getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
           getShape: (p: PlotDataPoint) => this._getPointShape(p),
         },
+        this._handleWebglContextLost,
       );
       this._updateStyleSignature();
       this._webglRenderer.setStyleSignature(this._styleSig);
@@ -523,7 +545,7 @@ export class ProtspaceScatterplot extends LitElement {
           }
           this._zoomRafId = requestAnimationFrame(() => {
             this._zoomRafId = null;
-            this._renderWebGL();
+            this._renderWebGL('zoom');
             // During active zoom/pan, defer duplicate badge DOM updates to keep interactions smooth.
             this._updateSelectionOverlays({ duplicateImmediate: false });
           });
@@ -557,6 +579,7 @@ export class ProtspaceScatterplot extends LitElement {
             getStrokeWidth: (p: PlotDataPoint) => this._getStrokeWidth(p),
             getShape: (p: PlotDataPoint) => this._getPointShape(p),
           },
+          this._handleWebglContextLost,
         );
         this._updateStyleSignature();
         this._webglRenderer.setStyleSignature(this._styleSig);
@@ -745,23 +768,28 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     if (this._canvas && this._webglRenderer) {
-      this._renderWebGL();
+      this._renderWebGL('plot');
       this._setupCanvasEventHandling();
     }
   }
 
-  private _renderWebGL() {
-    if (!this._webglRenderer || !this._scales) return;
+  private _renderWebGL(trigger: RenderWebGLTrigger = 'unknown') {
+    const perfToken = this._webglRenderPerf.start(trigger);
+
     const points = this._getPointsForRendering();
-    if (points.length === 0) {
-      this._webglRenderer.clear();
-      return;
-    }
-    // Only track exact rendered IDs when we might truncate the dataset.
-    // For typical datasets, tracking adds significant per-render overhead.
-    this._webglRenderer.setTrackRenderedPointIds(points.length > MAX_POINTS_DIRECT_RENDER);
-    this._webglRenderer.render(points);
+
+    this._webglRenderer!.setTrackRenderedPointIds(points.length > MAX_POINTS_DIRECT_RENDER);
+    this._webglRenderer!.render(points);
     this._mainGroup?.selectAll('.protein-point').remove();
+
+    this._webglRenderPerf.stop(perfToken, points.length);
+  }
+
+  public async runWebGLRenderPerfMeasurements(
+    iterations?: number,
+    options?: { download?: boolean; dataset?: PerfDatasetInfo },
+  ) {
+    return this._webglRenderPerf.runWebGLRenderPerfMeasurements(iterations, options);
   }
 
   private _getPointsForRendering(): PlotDataPoint[] {
@@ -1519,12 +1547,20 @@ export class ProtspaceScatterplot extends LitElement {
 
   render() {
     const config = this._mergedConfig;
+    const useAltCanvas = this._canvasKey % 2 === 1;
 
     return html`
       <div class="container">
         <!-- Canvas for high-performance rendering (always visible for better performance) -->
-        <canvas style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;">
-        </canvas>
+        ${useAltCanvas
+          ? html`<canvas
+              data-key="alt"
+              style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;"
+            ></canvas>`
+          : html`<canvas
+              data-key="base"
+              style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;"
+            ></canvas>`}
 
         <!-- Canvas overlay for duplicate count badges (faster than SVG for large numbers of badges) -->
         <canvas

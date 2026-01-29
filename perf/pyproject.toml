@@ -1,0 +1,10 @@
+[project]
+name = "protspace-web-perf"
+version = "0.1.0"
+description = "Perf plotting utilities for ProtSpace WebGL perf JSON outputs"
+requires-python = ">=3.10"
+dependencies = [
+  "matplotlib",
+  "numpy",
+]
+

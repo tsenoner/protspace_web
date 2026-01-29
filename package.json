@@ -16,6 +16,7 @@
     "docs:images": "pnpm docs:screenshots && pnpm docs:animations && pnpm docs:gifs",
     "test": "turbo test",
     "test:ci": "turbo test:ci",
+    "perf": "playwright test -c perf/playwright.config.ts perf/webgl-perf.spec.ts",
     "lint": "turbo lint",
     "lint:fix": "turbo lint -- --fix",
     "type-check": "turbo type-check",
