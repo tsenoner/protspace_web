@@ -23,6 +23,7 @@ vi.mock('@protspace/utils', () => ({
   getStorageItem: vi.fn(),
   setStorageItem: vi.fn(),
   removeStorageItem: vi.fn(),
+  removeAllStorageItemsByHash: vi.fn(),
   LEGEND_VALUES: {
     OTHER: 'Other',
     OTHERS: 'Others',
@@ -37,6 +38,7 @@ import {
   getStorageItem,
   setStorageItem,
   removeStorageItem,
+  removeAllStorageItemsByHash,
 } from '@protspace/utils';
 
 describe('PersistenceController', () => {
@@ -370,6 +372,246 @@ describe('PersistenceController', () => {
 
       expect(result[0].zOrder).toBe(1); // cat1: 0 -> 1
       expect(result[1].zOrder).toBe(0); // N/A: 1 -> 0 (from __NA__ key in categories)
+    });
+  });
+
+  describe('file-based persistence', () => {
+    const fileSettings = {
+      annotation1: {
+        maxVisibleValues: 20,
+        includeShapes: true,
+        shapeSize: 28,
+        sortMode: 'manual' as const,
+        hiddenValues: ['hidden_from_file'],
+        categories: {
+          file_cat1: { zOrder: 0, color: '#aaa', shape: 'diamond' },
+        },
+        enableDuplicateStackUI: true,
+        selectedPaletteId: 'kellys',
+      },
+      annotation2: {
+        maxVisibleValues: 5,
+        includeShapes: false,
+        shapeSize: 12,
+        sortMode: 'alpha-desc' as const,
+        hiddenValues: [],
+        categories: {},
+        enableDuplicateStackUI: false,
+        selectedPaletteId: 'kellys',
+      },
+    };
+
+    describe('hasFileSettings', () => {
+      it('returns false when no file settings are set', () => {
+        expect(controller.hasFileSettings).toBe(false);
+      });
+
+      it('returns true when file settings are set', () => {
+        controller.setFileSettings(fileSettings);
+        expect(controller.hasFileSettings).toBe(true);
+      });
+
+      it('returns false after clearing file settings with null', () => {
+        controller.setFileSettings(fileSettings);
+        controller.setFileSettings(null);
+        expect(controller.hasFileSettings).toBe(false);
+      });
+    });
+
+    describe('setFileSettings', () => {
+      it('stores file settings and makes them available', () => {
+        controller.setFileSettings(fileSettings);
+        expect(controller.hasFileSettings).toBe(true);
+        expect(controller.hasFileSettingsForAnnotation('annotation1')).toBe(true);
+        expect(controller.hasFileSettingsForAnnotation('annotation2')).toBe(true);
+        expect(controller.hasFileSettingsForAnnotation('unknown')).toBe(false);
+      });
+
+      it('clears file settings when passed null', () => {
+        controller.setFileSettings(fileSettings);
+        controller.setFileSettings(null);
+        expect(controller.hasFileSettings).toBe(false);
+      });
+
+      it('clears all existing localStorage items for the hash before persisting', () => {
+        controller.updateDatasetHash(['protein1']);
+
+        controller.setFileSettings(fileSettings, 'hash_protein1');
+
+        // Should clear all existing settings for this hash first
+        expect(removeAllStorageItemsByHash).toHaveBeenCalledWith('hash_protein1');
+
+        // Then persist each annotation's settings
+        expect(setStorageItem).toHaveBeenCalledWith(
+          'legend_hash_protein1_annotation1',
+          fileSettings.annotation1,
+        );
+        expect(setStorageItem).toHaveBeenCalledWith(
+          'legend_hash_protein1_annotation2',
+          fileSettings.annotation2,
+        );
+      });
+
+      it('clears existing settings using provided datasetHash when component hash not set', () => {
+        // Don't call updateDatasetHash - component hash is empty
+        const providedHash = 'external_hash_123';
+
+        controller.setFileSettings(fileSettings, providedHash);
+
+        expect(removeAllStorageItemsByHash).toHaveBeenCalledWith(providedHash);
+        expect(setStorageItem).toHaveBeenCalled();
+      });
+
+      it('does not clear or persist settings when null is passed', () => {
+        vi.clearAllMocks();
+
+        controller.setFileSettings(null);
+
+        expect(removeAllStorageItemsByHash).not.toHaveBeenCalled();
+        expect(setStorageItem).not.toHaveBeenCalled();
+      });
+
+      it('does not clear or persist settings when no hash is available', () => {
+        vi.clearAllMocks();
+        // Don't set dataset hash and don't provide one
+
+        controller.setFileSettings(fileSettings);
+
+        // Without a hash, clearing and persisting should be skipped
+        expect(removeAllStorageItemsByHash).not.toHaveBeenCalled();
+        expect(setStorageItem).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('loadSettings with file settings', () => {
+      it('prioritizes file settings over localStorage on first load', () => {
+        controller.updateDatasetHash(['protein1']);
+        controller.updateSelectedAnnotation('annotation1');
+        controller.setFileSettings(fileSettings);
+
+        // localStorage would return different settings
+        vi.mocked(getStorageItem).mockReturnValue({
+          maxVisibleValues: 10,
+          includeShapes: false,
+          shapeSize: 16,
+          sortMode: 'size-desc' as const,
+          hiddenValues: [],
+          categories: { local_cat: { zOrder: 0, color: '#000', shape: 'circle' } },
+          enableDuplicateStackUI: false,
+        });
+
+        controller.loadSettings();
+
+        // Should use file settings, not localStorage
+        expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith(
+          expect.objectContaining({
+            maxVisibleValues: 20,
+            includeShapes: true,
+            sortMode: 'manual',
+          }),
+        );
+      });
+
+      it('uses localStorage for annotations without file settings', () => {
+        controller.updateDatasetHash(['protein1']);
+        controller.updateSelectedAnnotation('annotation3'); // Not in file settings
+        controller.setFileSettings(fileSettings);
+
+        const localSettings = {
+          maxVisibleValues: 10,
+          includeShapes: false,
+          shapeSize: 16,
+          sortMode: 'size-desc' as const,
+          hiddenValues: [],
+          categories: {},
+          enableDuplicateStackUI: false,
+        };
+        vi.mocked(getStorageItem).mockReturnValue(localSettings);
+
+        controller.loadSettings();
+
+        // Should use localStorage since annotation3 is not in file settings
+        expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith(
+          expect.objectContaining({
+            maxVisibleValues: 10,
+            sortMode: 'size-desc',
+          }),
+        );
+      });
+
+      it('uses localStorage on subsequent loads for same annotation (after file settings applied once)', () => {
+        controller.updateDatasetHash(['protein1']);
+        controller.updateSelectedAnnotation('annotation1');
+        controller.setFileSettings(fileSettings);
+
+        // First load uses file settings
+        controller.loadSettings();
+        expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith(
+          expect.objectContaining({ maxVisibleValues: 20 }),
+        );
+
+        vi.clearAllMocks();
+
+        // Simulate a change that triggers reload
+        const localSettings = {
+          maxVisibleValues: 99,
+          includeShapes: false,
+          shapeSize: 16,
+          sortMode: 'size-desc' as const,
+          hiddenValues: [],
+          categories: {},
+          enableDuplicateStackUI: false,
+        };
+        vi.mocked(getStorageItem).mockReturnValue(localSettings);
+
+        // Second load uses localStorage
+        controller.loadSettings();
+        expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith(
+          expect.objectContaining({ maxVisibleValues: 99 }),
+        );
+      });
+    });
+
+    describe('getCurrentSettingsForExport', () => {
+      it('returns current settings from callbacks', () => {
+        mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
+          { value: 'cat1', zOrder: 0, color: '#f00', shape: 'circle' },
+          { value: 'cat2', zOrder: 1, color: '#0f0', shape: 'square' },
+        ]);
+        mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['hidden1']);
+        mockCallbacks.getCurrentSettings = vi.fn().mockReturnValue({
+          maxVisibleValues: 15,
+          includeShapes: true,
+          shapeSize: 20,
+          sortMode: 'alpha-asc' as const,
+          enableDuplicateStackUI: true,
+        });
+
+        const settings = controller.getCurrentSettingsForExport();
+
+        expect(settings.maxVisibleValues).toBe(15);
+        expect(settings.includeShapes).toBe(true);
+        expect(settings.sortMode).toBe('alpha-asc');
+        expect(settings.hiddenValues).toEqual(['hidden1']);
+        expect(settings.categories).toEqual({
+          cat1: { zOrder: 0, color: '#f00', shape: 'circle' },
+          cat2: { zOrder: 1, color: '#0f0', shape: 'square' },
+        });
+      });
+
+      it('excludes Other from categories', () => {
+        mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
+          { value: 'cat1', zOrder: 0, color: '#f00', shape: 'circle' },
+          { value: 'Other', zOrder: 1, color: '#888', shape: 'circle' },
+        ]);
+
+        const settings = controller.getCurrentSettingsForExport();
+
+        expect(settings.categories).toEqual({
+          cat1: { zOrder: 0, color: '#f00', shape: 'circle' },
+        });
+        expect(settings.categories['Other']).toBeUndefined();
+      });
     });
   });
 });

@@ -4,6 +4,7 @@ import {
   getStorageItem,
   setStorageItem,
   removeStorageItem,
+  removeAllStorageItemsByHash,
 } from './storage-service';
 
 const localStorageMock = (() => {
@@ -224,6 +225,96 @@ describe('removeStorageItem', () => {
     expect(result).toBe(false);
 
     localStorageMock.removeItem = originalRemoveItem;
+  });
+});
+
+describe('removeAllStorageItemsByHash', () => {
+  beforeEach(() => {
+    localStorageMock.clear();
+    vi.clearAllMocks();
+  });
+
+  it('should remove all items matching the hash', () => {
+    // Set up items with different hashes
+    localStorageMock.setItem('protspace:legend:hash123:Taxonomy', '{"data": 1}');
+    localStorageMock.setItem('protspace:legend:hash123:Function', '{"data": 2}');
+    localStorageMock.setItem('protspace:scatterplot:hash123', '{"data": 3}');
+    localStorageMock.setItem('protspace:legend:differentHash:Taxonomy', '{"data": 4}');
+    localStorageMock.setItem('unrelated:key', '{"data": 5}');
+
+    const removedCount = removeAllStorageItemsByHash('hash123');
+
+    expect(removedCount).toBe(3);
+    // Items with hash123 should be removed
+    expect(localStorageMock.getItem('protspace:legend:hash123:Taxonomy')).toBeNull();
+    expect(localStorageMock.getItem('protspace:legend:hash123:Function')).toBeNull();
+    expect(localStorageMock.getItem('protspace:scatterplot:hash123')).toBeNull();
+    // Items with different hash or unrelated keys should remain
+    expect(localStorageMock.getItem('protspace:legend:differentHash:Taxonomy')).toBe('{"data": 4}');
+    expect(localStorageMock.getItem('unrelated:key')).toBe('{"data": 5}');
+  });
+
+  it('should return 0 when no items match the hash', () => {
+    localStorageMock.setItem('protspace:legend:otherHash:Taxonomy', '{"data": 1}');
+    localStorageMock.setItem('unrelated:key', '{"data": 2}');
+
+    const removedCount = removeAllStorageItemsByHash('nonexistentHash');
+
+    expect(removedCount).toBe(0);
+    // All items should remain
+    expect(localStorageMock.getItem('protspace:legend:otherHash:Taxonomy')).toBe('{"data": 1}');
+    expect(localStorageMock.getItem('unrelated:key')).toBe('{"data": 2}');
+  });
+
+  it('should return 0 when localStorage is empty', () => {
+    const removedCount = removeAllStorageItemsByHash('anyHash');
+    expect(removedCount).toBe(0);
+  });
+
+  it('should not remove items from other components with same hash', () => {
+    // All items have the same hash but different components
+    localStorageMock.setItem('protspace:legend:hash123:Taxonomy', '{"data": 1}');
+    localStorageMock.setItem('protspace:control-bar:hash123', '{"data": 2}');
+
+    const removedCount = removeAllStorageItemsByHash('hash123');
+
+    // Both should be removed since they both have the target hash
+    expect(removedCount).toBe(2);
+  });
+
+  it('should handle keys without context (3 parts only)', () => {
+    localStorageMock.setItem('protspace:scatterplot:hash123', '{"config": true}');
+
+    const removedCount = removeAllStorageItemsByHash('hash123');
+
+    expect(removedCount).toBe(1);
+    expect(localStorageMock.getItem('protspace:scatterplot:hash123')).toBeNull();
+  });
+
+  it('should handle edge case where hash appears elsewhere in key', () => {
+    // Hash appears in context but not in hash position
+    localStorageMock.setItem('protspace:legend:otherHash:hash123', '{"data": 1}');
+    // Actual hash position
+    localStorageMock.setItem('protspace:legend:hash123:Taxonomy', '{"data": 2}');
+
+    const removedCount = removeAllStorageItemsByHash('hash123');
+
+    expect(removedCount).toBe(1);
+    // Only the one with hash123 in the hash position should be removed
+    expect(localStorageMock.getItem('protspace:legend:otherHash:hash123')).toBe('{"data": 1}');
+    expect(localStorageMock.getItem('protspace:legend:hash123:Taxonomy')).toBeNull();
+  });
+
+  it('should return 0 when localStorage throws', () => {
+    const originalKey = localStorageMock.key;
+    localStorageMock.key = vi.fn(() => {
+      throw new Error('Storage error');
+    });
+
+    const removedCount = removeAllStorageItemsByHash('anyHash');
+    expect(removedCount).toBe(0);
+
+    localStorageMock.key = originalKey;
   });
 });
 

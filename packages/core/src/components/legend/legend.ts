@@ -466,12 +466,7 @@ export class ProtspaceLegend extends LitElement {
 
     // Update dataset hash when protein IDs change
     if (changedProperties.has('proteinIds') && this.proteinIds.length > 0) {
-      const hashChanged = this._persistenceController.updateDatasetHash(this.proteinIds);
-      // If hash changed and we have an annotation but settings weren't loaded yet,
-      // try loading now (handles case where proteinIds arrives after data/selectedAnnotation)
-      if (hashChanged && this.selectedAnnotation && !this._persistenceController.settingsLoaded) {
-        this._persistenceController.loadSettings();
-      }
+      this._persistenceController.updateDatasetHash(this.proteinIds);
     }
 
     // Handle data or annotation changes
@@ -500,11 +495,7 @@ export class ProtspaceLegend extends LitElement {
       changedProperties.has('maxVisibleValues') ||
       changedProperties.has('includeShapes')
     ) {
-      this._updateLegendItems();
-
-      if (this._persistenceController.hasPendingCategories()) {
-        this._legendItems = this._persistenceController.applyPendingZOrder(this._legendItems);
-      }
+      this._rebuildLegendItems();
     }
 
     // Update sorted items cache when legend items change
@@ -552,6 +543,97 @@ export class ProtspaceLegend extends LitElement {
    */
   public async downloadAsImage(): Promise<void> {
     this.dispatchEvent(new CustomEvent(LEGEND_EVENTS.DOWNLOAD, { bubbles: true, composed: true }));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // File-based Persistence (parquetbundle export/import)
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Get all annotation settings for export to a parquetbundle.
+   * Returns settings for all annotations that have been configured.
+   *
+   * @returns Record mapping annotation names to their persisted settings
+   */
+  public getAllPersistedSettings(): Record<string, LegendPersistedSettings> {
+    const annotationNames = Object.keys(this.data?.annotations ?? {});
+    return this._persistenceController.getAllSettingsForExport(annotationNames);
+  }
+
+  /**
+   * Set file-based settings loaded from a parquetbundle.
+   * These will be applied when switching to annotations that have settings.
+   * Also persists all settings to localStorage so they're available for future exports.
+   *
+   * @param settings - All annotation settings from the file, or null to clear
+   * @param datasetHash - Optional dataset hash for localStorage keys (required when
+   *                      the component's hash isn't yet computed from the new data)
+   */
+  public setFileSettings(
+    settings: Record<string, LegendPersistedSettings> | null,
+    datasetHash?: string,
+  ): void {
+    this._persistenceController.setFileSettings(settings, datasetHash);
+
+    // If current annotation has file settings, reload and apply them immediately
+    if (settings?.[this.selectedAnnotation]) {
+      this._persistenceController.loadSettings();
+      // Force full UI update - property changes from _applyPersistedSettings
+      // may not trigger _updateLegendItems if only _hiddenValues/sortMode changed
+      this._rebuildLegendItems();
+    }
+  }
+
+  /**
+   * Clear all legend state in preparation for loading a new dataset.
+   * This should be called before setting new data to ensure a clean slate.
+   *
+   * @param datasetHash - The hash of the NEW dataset (used to clear its localStorage entries)
+   */
+  public clearForNewDataset(datasetHash: string): void {
+    // Reset visual encoding state
+    this._processorContext.slotTracker.reset();
+
+    // Clear legend items and related state
+    this._legendItems = [];
+    this._sortedLegendItems = [];
+    this._otherItems = [];
+    this._hiddenValues = [];
+
+    // Clear persistence state for the new dataset
+    this._persistenceController.clearForNewDataset(datasetHash);
+
+    // Reset UI state
+    this._showSettingsDialog = false;
+    this._showOtherDialog = false;
+    this._colorPickerItem = null;
+
+    // Reset isolation state
+    this.isolationMode = false;
+    this.isolationHistory = [];
+
+    // Clear data properties
+    this.data = null;
+    this.selectedAnnotation = '';
+    this.annotationData = { name: '', values: [] };
+    this.annotationValues = [];
+    this.proteinIds = [];
+
+    this.requestUpdate();
+  }
+
+  /**
+   * Check if file-based settings are currently loaded.
+   */
+  public get hasFileSettings(): boolean {
+    return this._persistenceController.hasFileSettings;
+  }
+
+  /**
+   * Check if file settings exist for a specific annotation.
+   */
+  public hasFileSettingsForAnnotation(annotation: string): boolean {
+    return this._persistenceController.hasFileSettingsForAnnotation(annotation);
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -620,6 +702,18 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
   // Legend Item Processing
   // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Rebuild legend items and apply persisted z-order.
+   * Use when forcing a full rebuild outside the updated() lifecycle.
+   */
+  private _rebuildLegendItems(): void {
+    this._updateLegendItems();
+
+    if (this._persistenceController.hasPendingCategories()) {
+      this._legendItems = this._persistenceController.applyPendingZOrder(this._legendItems);
+    }
+  }
 
   private _updateLegendItems(): void {
     if (!this.annotationData?.values?.length || !this.annotationValues?.length) {

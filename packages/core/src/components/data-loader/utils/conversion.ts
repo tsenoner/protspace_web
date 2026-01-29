@@ -1,8 +1,29 @@
 import type { Annotation, VisualizationData } from '@protspace/utils';
-import { COLOR_SCHEMES } from '@protspace/utils';
+import { COLOR_SCHEMES, sanitizeValue } from '@protspace/utils';
 import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
 import type { Rows } from './types';
+
+/** Column names that should be excluded when identifying annotation columns */
+const ID_COLUMNS = [
+  'projection_name',
+  'x',
+  'y',
+  'z',
+  'identifier',
+  'protein_id',
+  'id',
+  'uniprot',
+  'entry',
+] as const;
+
+/** Creates a set of ID columns including the detected protein ID column */
+function getIdColumnsSet(proteinIdCol: string): Set<string> {
+  return new Set([...ID_COLUMNS, proteinIdCol]);
+}
+
+/** Keys to exclude when building metadata */
+const METADATA_EXCLUDED_KEYS = new Set(['projection_name', 'name', 'info_json']);
 
 // Helper functions for annotation parsing (PFAM, CATH, etc.)
 // These annotations have format: label|score
@@ -19,6 +40,86 @@ const parseAnnotationValue = (raw: string): { label: string; score: number | nul
   const score = Number(scoreRaw);
   return Number.isFinite(score) ? { label, score } : { label, score: null };
 };
+
+/**
+ * Parses the info_json field and returns its contents as sanitized metadata fields.
+ * This handles the round-trip case where metadata was serialized to JSON during export.
+ */
+function parseInfoJson(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'string' || !value) return {};
+
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed !== 'object' || parsed === null) return {};
+
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(parsed)) {
+      // Skip dimension as it's handled separately by convertBundleFormatData
+      if (key !== 'dimension') {
+        result[key] = sanitizeValue(val);
+      }
+    }
+    return result;
+  } catch {
+    // If parsing fails, return empty object
+    return {};
+  }
+}
+
+/**
+ * Builds a metadata map from projections metadata rows.
+ * Parses info_json field and spreads its contents into metadata.
+ */
+function buildProjectionsMetadataMap(
+  projectionsMetadata?: Rows,
+): Map<string, Record<string, unknown>> {
+  const metadataMap = new Map<string, Record<string, unknown>>();
+
+  if (!projectionsMetadata?.length) return metadataMap;
+
+  for (const metaRow of projectionsMetadata) {
+    const projName = metaRow.projection_name || metaRow.name;
+    if (!projName) continue;
+
+    // Start with parsed info_json fields (if present)
+    const metadata: Record<string, unknown> = parseInfoJson(metaRow.info_json);
+
+    // Add remaining fields (excluding projection identifiers and info_json)
+    for (const [key, value] of Object.entries(metaRow)) {
+      if (!METADATA_EXCLUDED_KEYS.has(key)) {
+        metadata[key] = sanitizeValue(value);
+      }
+    }
+
+    metadataMap.set(String(projName), metadata);
+  }
+
+  return metadataMap;
+}
+
+/**
+ * Builds a coordinate map from projection rows.
+ * Maps protein IDs to their [x, y] or [x, y, z] coordinates.
+ */
+function buildCoordinateMap(
+  projectionRows: Rows,
+  proteinIdCol: string,
+): Map<string, [number, number] | [number, number, number]> {
+  const coordMap = new Map<string, [number, number] | [number, number, number]>();
+  for (const row of projectionRows) {
+    const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
+    const x = Number(row.x) || 0;
+    const y = Number(row.y) || 0;
+    const zValue = row.z;
+    const z = zValue == null ? null : Number(zValue);
+    if (z !== null && !Number.isNaN(z)) {
+      coordMap.set(proteinId, [x, y, z]);
+    } else {
+      coordMap.set(proteinId, [x, y]);
+    }
+  }
+  return coordMap;
+}
 
 export function convertParquetToVisualizationData(
   rows: Rows,
@@ -90,39 +191,11 @@ function convertBundleFormatData(
     ),
   );
 
-  // Build metadata map from projectionsMetadata
-  const metadataMap = new Map<string, Record<string, unknown>>();
-  if (projectionsMetadata && projectionsMetadata.length > 0) {
-    for (const metaRow of projectionsMetadata) {
-      const projName = metaRow.projection_name || metaRow.name;
-      if (projName) {
-        // Extract all metadata fields except projection_name/name
-        const metadata: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(metaRow)) {
-          if (key !== 'projection_name' && key !== 'name') {
-            metadata[key] = value;
-          }
-        }
-        metadataMap.set(String(projName), metadata);
-      }
-    }
-  }
+  const metadataMap = buildProjectionsMetadataMap(projectionsMetadata);
 
   const projections = [] as VisualizationData['projections'];
   for (const [projectionName, projectionRows] of projectionGroups.entries()) {
-    const coordMap = new Map<string, [number, number] | [number, number, number]>();
-    for (const row of projectionRows) {
-      const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-      const x = Number(row.x) || 0;
-      const y = Number(row.y) || 0;
-      const zValue = row.z;
-      const z = zValue == null ? null : Number(zValue);
-      if (z !== null && !Number.isNaN(z)) {
-        coordMap.set(proteinId, [x, y, z]);
-      } else {
-        coordMap.set(proteinId, [x, y]);
-      }
-    }
+    const coordMap = buildCoordinateMap(projectionRows, proteinIdCol);
     const projectionData = uniqueProteinIds.map((proteinId) => coordMap.get(proteinId) || [0, 0]);
     const has3D = projectionData.some((p) => p.length === 3);
 
@@ -140,19 +213,7 @@ function convertBundleFormatData(
     });
   }
 
-  const allIdColumns = new Set([
-    'projection_name',
-    'x',
-    'y',
-    'z',
-    'identifier',
-    'protein_id',
-    'id',
-    'uniprot',
-    'entry',
-    proteinIdCol,
-  ]);
-
+  const allIdColumns = getIdColumnsSet(proteinIdCol);
   const annotationColumns = columnNames.filter((col) => !allIdColumns.has(col));
 
   const annotations: Record<string, Annotation> = {};
@@ -267,39 +328,11 @@ async function convertBundleFormatDataOptimized(
 
   const uniqueProteinIds = Array.from(uniqueProteinIdsSet);
 
-  // Build metadata map from projectionsMetadata
-  const metadataMap = new Map<string, Record<string, unknown>>();
-  if (projectionsMetadata && projectionsMetadata.length > 0) {
-    for (const metaRow of projectionsMetadata) {
-      const projName = metaRow.projection_name || metaRow.name;
-      if (projName) {
-        // Extract all metadata fields except projection_name/name
-        const metadata: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(metaRow)) {
-          if (key !== 'projection_name' && key !== 'name') {
-            metadata[key] = value;
-          }
-        }
-        metadataMap.set(String(projName), metadata);
-      }
-    }
-  }
+  const metadataMap = buildProjectionsMetadataMap(projectionsMetadata);
 
   const projections = [] as VisualizationData['projections'];
   for (const [projectionName, projectionRows] of projectionGroups.entries()) {
-    const coordMap = new Map<string, [number, number] | [number, number, number]>();
-    for (const row of projectionRows) {
-      const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-      const x = Number(row.x) || 0;
-      const y = Number(row.y) || 0;
-      const zValue = row.z;
-      const z = zValue == null ? null : Number(zValue);
-      if (z !== null && !Number.isNaN(z)) {
-        coordMap.set(proteinId, [x, y, z]);
-      } else {
-        coordMap.set(proteinId, [x, y]);
-      }
-    }
+    const coordMap = buildCoordinateMap(projectionRows, proteinIdCol);
     const projectionData: Array<[number, number] | [number, number, number]> = new Array(
       uniqueProteinIds.length,
     );
@@ -598,18 +631,7 @@ export async function extractAnnotationsOptimized(
   annotation_data: Record<string, number[][]>;
   annotation_scores: Record<string, (number | null)[][]>;
 }> {
-  const allIdColumns = new Set([
-    'projection_name',
-    'x',
-    'y',
-    'z',
-    'identifier',
-    'protein_id',
-    'id',
-    'uniprot',
-    'entry',
-    proteinIdCol,
-  ]);
+  const allIdColumns = getIdColumnsSet(proteinIdCol);
   const annotationColumns = columnNames.filter((c) => !allIdColumns.has(c));
 
   const annotations: Record<string, Annotation> = {};

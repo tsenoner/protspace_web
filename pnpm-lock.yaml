@@ -256,6 +256,12 @@ importers:
       html2canvas-pro:
         specifier: ^1.5.11
         version: 1.5.12
+      hyparquet:
+        specifier: ^1.17.1
+        version: 1.19.0
+      hyparquet-writer:
+        specifier: ^0.7.0
+        version: 0.7.0
       jspdf:
         specifier: ^3.0.1
         version: 3.0.3
@@ -2848,8 +2854,14 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  hyparquet-writer@0.7.0:
+    resolution: {integrity: sha512-TgEOkLE87J+cNKlf9mQhCv7FuzIzJV4/LsGeUsVDiFRIz9tTwjLk2Z5JAsUrGblfPEJeejc6ej/X1u1YEJHfrg==}
+
   hyparquet@1.19.0:
     resolution: {integrity: sha512-SY8PolBC2lR37cjyY9+wjxACNQdrBhLwNP/o59x3pBhaPdV4xXYtSEiulGFfW3i3cEUvquz/n+NCzVSRugqqjA==}
+
+  hyparquet@1.20.0:
+    resolution: {integrity: sha512-XJaQQeVrIpKoJBhbTaQuaMmm9kUUbLFL45SyTPDCI2p5fUwwWE3QEMw191pT2eUHk6A3mmll6DzB08sRX1nw6A==}
 
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
@@ -6860,7 +6872,13 @@ snapshots:
 
   husky@9.1.7: {}
 
+  hyparquet-writer@0.7.0:
+    dependencies:
+      hyparquet: 1.20.0
+
   hyparquet@1.19.0: {}
+
+  hyparquet@1.20.0: {}
 
   iconv-lite@0.6.3:
     dependencies:

@@ -55,3 +55,37 @@ export interface ScatterplotConfig {
 }
 
 export type PointShape = 'circle' | 'square' | 'diamond' | 'triangle-up' | 'triangle-down' | 'plus';
+
+// ─────────────────────────────────────────────────────────────────
+// Legend Persistence Types
+// ─────────────────────────────────────────────────────────────────
+
+export type LegendSortMode =
+  | 'size-asc'
+  | 'size-desc'
+  | 'alpha-asc'
+  | 'alpha-desc'
+  | 'manual'
+  | 'manual-reverse';
+
+export interface PersistedCategoryData {
+  zOrder: number;
+  color: string;
+  shape: string;
+}
+
+export interface LegendPersistedSettings {
+  maxVisibleValues: number;
+  includeShapes: boolean;
+  shapeSize: number;
+  sortMode: LegendSortMode;
+  hiddenValues: string[];
+  categories: Record<string, PersistedCategoryData>;
+  enableDuplicateStackUI: boolean;
+  selectedPaletteId: string;
+}
+
+/**
+ * Bundle settings map: annotation name -> legend settings for that annotation.
+ */
+export type BundleSettings = Record<string, LegendPersistedSettings>;

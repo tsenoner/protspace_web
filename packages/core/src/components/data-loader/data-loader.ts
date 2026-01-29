@@ -2,16 +2,25 @@ import type { PropertyValues } from 'lit';
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { parquetReadObjects } from 'hyparquet';
-import type { VisualizationData } from '@protspace/utils';
+import { isParquetBundle, type VisualizationData, type BundleSettings } from '@protspace/utils';
 import { dataLoaderStyles } from './data-loader.styles';
 import { readFileOptimized } from './utils/file-io';
-import { isParquetBundle, extractRowsFromParquetBundle } from './utils/bundle';
+import { extractRowsFromParquetBundle } from './utils/bundle';
 import { convertParquetToVisualizationDataOptimized } from './utils/conversion';
 import {
   assertWithinFileSizeLimit,
   assertValidParquetMagic,
   validateRowsBasic,
 } from './utils/validation';
+
+/**
+ * Event detail for data-loaded event
+ */
+export interface DataLoadedEventDetail {
+  data: VisualizationData;
+  /** Settings loaded from bundle (null if not present or not a bundle) */
+  settings: BundleSettings | null;
+}
 
 /**
  * Parquet Data Loader Web Component
@@ -148,8 +157,11 @@ export class DataLoader extends LitElement {
       if (file.name.endsWith('.parquetbundle') || isParquetBundle(arrayBuffer)) {
         // For bundles: extract -> validate -> convert
         this.addSteps(3);
-        const { rows: extractedData, projectionsMetadata } =
-          await extractRowsFromParquetBundle(arrayBuffer);
+        const {
+          rows: extractedData,
+          projectionsMetadata,
+          settings,
+        } = await extractRowsFromParquetBundle(arrayBuffer);
         this.completeStep();
         validateRowsBasic(extractedData);
         this.completeStep();
@@ -158,7 +170,7 @@ export class DataLoader extends LitElement {
           projectionsMetadata,
         );
         this.completeStep();
-        this.dispatchDataLoaded(visualizationData);
+        this.dispatchDataLoaded(visualizationData, settings);
       } else {
         // For regular parquet: validate magic -> parse -> validate rows -> convert
         this.addSteps(4);
@@ -225,10 +237,11 @@ export class DataLoader extends LitElement {
     );
   }
 
-  private dispatchDataLoaded(data: VisualizationData) {
+  private dispatchDataLoaded(data: VisualizationData, settings: BundleSettings | null = null) {
+    const detail: DataLoadedEventDetail = { data, settings };
     this.dispatchEvent(
       new CustomEvent('data-loaded', {
-        detail: { data },
+        detail,
         bubbles: true,
         composed: true,
       }),
