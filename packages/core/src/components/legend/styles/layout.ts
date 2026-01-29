@@ -36,6 +36,7 @@ export const layoutStyles = css`
     height: 100%;
     padding-bottom: 8px;
     flex-shrink: 1;
+    position: relative;
   }
 
   .sr-only {

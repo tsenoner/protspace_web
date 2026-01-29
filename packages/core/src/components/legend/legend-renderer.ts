@@ -174,19 +174,23 @@ export class LegendRenderer {
   static renderItemSymbol(
     item: LegendItem,
     isItemSelected: boolean,
-    includeShapes: boolean = true,
     size: number = LEGEND_DEFAULTS.symbolSize,
+    onSymbolClick?: (e: MouseEvent) => void,
   ): TemplateResult {
+    // Always show the item's actual shape - custom shapes should be visible
+    // regardless of the global includeShapes setting
+    const symbolContent =
+      item.value === LEGEND_VALUES.OTHER
+        ? this.renderSymbol('circle', '#888', size)
+        : this.renderSymbol(item.shape, item.color, size, isItemSelected);
+
     return html`
-      <div class="mr-2" part="symbol">
-        ${item.value === LEGEND_VALUES.OTHER
-          ? this.renderSymbol('circle', '#888', size)
-          : this.renderSymbol(
-              includeShapes ? item.shape : 'circle',
-              item.color,
-              size,
-              isItemSelected,
-            )}
+      <div
+        class="mr-2 ${onSymbolClick ? 'legend-symbol-clickable' : ''}"
+        part="symbol"
+        @click=${onSymbolClick ? onSymbolClick : undefined}
+      >
+        ${symbolContent}
       </div>
     `;
   }
@@ -206,9 +210,15 @@ export class LegendRenderer {
   static renderItemActions(item: LegendItem, onViewOther: (e: Event) => void): TemplateResult {
     if (item.value === LEGEND_VALUES.OTHER) {
       return html`
-        <button class="btn-link view-button" @click=${onViewOther} title="Extract items from Other">
-          (view)
-        </button>
+        <span class="legend-item-actions">
+          <button
+            class="btn-link view-button"
+            @click=${onViewOther}
+            title="Extract items from Other"
+          >
+            (view)
+          </button>
+        </span>
       `;
     }
 
@@ -226,14 +236,10 @@ export class LegendRenderer {
     eventHandlers: {
       onClick: () => void;
       onDoubleClick: () => void;
-      onDragStart: () => void;
-      onDragOver: (e: DragEvent) => void;
-      onDrop: (e: DragEvent) => void;
-      onDragEnd: () => void;
       onViewOther: (e: Event) => void;
       onKeyDown?: (e: KeyboardEvent) => void;
+      onSymbolClick?: (e: MouseEvent) => void;
     },
-    includeShapes: boolean = true,
     symbolSize: number = LEGEND_DEFAULTS.symbolSize,
     otherItemsCount?: number,
     itemIndex?: number,
@@ -245,21 +251,17 @@ export class LegendRenderer {
         class="${itemClasses}"
         part="item"
         role="option"
+        data-value="${item.value}"
         aria-selected="${item.isVisible}"
         aria-label="${displayLabel}: ${item.count} items${!item.isVisible ? ' (hidden)' : ''}"
         tabindex="${itemIndex === 0 ? '0' : '-1'}"
         @click=${eventHandlers.onClick}
         @dblclick=${eventHandlers.onDoubleClick}
         @keydown=${eventHandlers.onKeyDown}
-        draggable="true"
-        @dragstart=${eventHandlers.onDragStart}
-        @dragover=${eventHandlers.onDragOver}
-        @drop=${eventHandlers.onDrop}
-        @dragend=${eventHandlers.onDragEnd}
       >
         <div class="legend-item-content">
           ${this.renderDragHandle()}
-          ${this.renderItemSymbol(item, isItemSelected, includeShapes, symbolSize)}
+          ${this.renderItemSymbol(item, isItemSelected, symbolSize, eventHandlers.onSymbolClick)}
           ${this.renderItemText(item, otherItemsCount)}
           ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>

@@ -330,10 +330,13 @@ export class LegendDataProcessor {
       const persisted = persistedCategories[value];
       const existing = existingColors.get(value);
 
-      if (persisted?.color) {
-        encoding = { color: persisted.color, shape: encoding.shape };
+      if (persisted?.color || persisted?.shape) {
+        encoding = {
+          color: persisted.color || encoding.color,
+          shape: persisted.shape || encoding.shape,
+        };
       } else if (existing) {
-        encoding = { color: existing.color, shape: encoding.shape };
+        encoding = { color: existing.color, shape: existing.shape };
       }
 
       return {

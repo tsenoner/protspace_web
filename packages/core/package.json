@@ -38,10 +38,12 @@
     "apache-arrow": "^20.0.0",
     "d3": "^7.9.0",
     "hyparquet": "^1.17.1",
-    "lit": "^3.3.0"
+    "lit": "^3.3.0",
+    "sortablejs": "^1.15.6"
   },
   "devDependencies": {
     "@types/d3": "^7.4.3",
+    "@types/sortablejs": "^1.15.9",
     "@typescript-eslint/eslint-plugin": "^8.46.0",
     "@typescript-eslint/parser": "^8.46.0",
     "eslint": "^9.27.0",

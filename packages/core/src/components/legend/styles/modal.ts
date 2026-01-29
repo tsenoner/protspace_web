@@ -23,9 +23,10 @@ export const modalStyles = css`
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
+    position: relative;
   }
 
-  .modal-content > div {
+  .modal-content > div:not(.color-palette-toast) {
     width: 100%;
   }
 
@@ -278,5 +279,77 @@ export const modalStyles = css`
 
   .modal-reset-button {
     margin-inline-end: auto;
+  }
+
+  /* ----------------------------- Color Palette Section -------------------------------------- */
+  .color-palette-section {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .color-palette-title {
+    margin-bottom: 12px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--legend-text-color);
+  }
+
+  .color-palette-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .color-palette-select {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--legend-border);
+    background: white;
+    font-size: 0.875rem;
+    color: var(--legend-text-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .color-palette-select:hover {
+    border-color: var(--border-hover);
+  }
+
+  .color-palette-select:focus,
+  .color-palette-select:focus-visible {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  .color-palette-preview {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+    gap: 8px;
+    padding: 14px;
+    background: var(--legend-hover-bg);
+    border-radius: 8px;
+    border: 1px solid var(--legend-border);
+  }
+
+  .color-palette-swatch {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    border: 1px solid var(--legend-border);
+    cursor: default;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .color-palette-swatch:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    z-index: 1;
   }
 `;

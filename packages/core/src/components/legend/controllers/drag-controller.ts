@@ -1,146 +1,201 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import Sortable from 'sortablejs';
 import type { LegendItem, LegendSortMode } from '../types';
-import { LEGEND_DEFAULTS, LEGEND_VALUES } from '../config';
+import { LEGEND_VALUES } from '../config';
 
 /**
  * Callback interface for drag events
  */
 export interface DragCallbacks {
+  /** Returns all legend items (will be sorted by zOrder internally) */
   getLegendItems: () => LegendItem[];
+  /** Updates legend items with new z-orders */
   setLegendItems: (items: LegendItem[]) => void;
+  /** Called after successful reorder */
   onReorder: () => void;
+  /** Called when an item is dropped onto "Other" */
   onMergeToOther?: (value: string) => void;
+  /** Called to switch to manual sort mode */
   onSortModeChange?: (mode: LegendSortMode) => void;
 }
 
 /**
- * Reactive controller for managing drag and drop functionality.
- * Handles reordering legend items.
+ * Reactive controller for managing drag and drop functionality using Sortable.js.
+ *
+ * Key design principles:
+ * 1. Use data-value attributes to identify items (not indices)
+ * 2. Revert DOM changes immediately after drag ends (let Lit handle rendering)
+ * 3. Update state based on the user's intent, then trigger re-render
  */
 export class DragController implements ReactiveController {
+  private host: ReactiveControllerHost;
   private callbacks: DragCallbacks;
-
-  private _draggedItemIndex: number = -1;
-  private _dragTimeout: number | null = null;
+  private sortableInstance: Sortable | null = null;
+  private containerEl: HTMLElement | null = null;
 
   constructor(host: ReactiveControllerHost, callbacks: DragCallbacks) {
+    this.host = host;
     this.callbacks = callbacks;
     host.addController(this);
   }
 
   hostConnected(): void {
-    // No initialization needed
+    // Sortable will be initialized when the container is ready
   }
 
   hostDisconnected(): void {
-    this._clearTimeout();
+    this.destroy();
   }
 
   /**
-   * Get the currently dragged item index
+   * Initialize Sortable on the legend items container.
+   * Should be called once when the container element is available.
    */
-  get draggedItemIndex(): number {
-    return this._draggedItemIndex;
-  }
-
-  /**
-   * Check if an item is currently being dragged
-   */
-  isDragging(itemIndex: number): boolean {
-    return this._draggedItemIndex === itemIndex && this._draggedItemIndex !== -1;
-  }
-
-  /**
-   * Handle drag start
-   */
-  handleDragStart(item: LegendItem): void {
-    const legendItems = this.callbacks.getLegendItems();
-    const index = legendItems.findIndex((i) => i.value === item.value);
-    this._draggedItemIndex = index !== -1 ? index : -1;
-    this._clearTimeout();
-  }
-
-  /**
-   * Handle drag over another item
-   */
-  handleDragOver(event: DragEvent, targetItem: LegendItem): void {
-    event.preventDefault();
-
-    if (this._draggedItemIndex === -1) return;
-
-    const legendItems = this.callbacks.getLegendItems();
-    const targetIndex = legendItems.findIndex((i) => i.value === targetItem.value);
-    if (this._draggedItemIndex === targetIndex) return;
-
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'move';
+  initialize(container: HTMLElement): void {
+    // Don't reinitialize on the same container
+    if (this.sortableInstance && this.containerEl === container) {
+      return;
     }
 
-    this._clearTimeout();
-    this._dragTimeout = window.setTimeout(() => {
-      this._performReorder(targetItem);
-    }, LEGEND_DEFAULTS.dragTimeout);
-  }
-
-  /**
-   * Handle drop on a target item
-   */
-  handleDrop(event: DragEvent, targetItem: LegendItem): void {
-    event.preventDefault();
-
-    // If dropping on "Other", merge the dragged item into Other
-    if (targetItem.value === LEGEND_VALUES.OTHER && this._draggedItemIndex !== -1) {
-      const legendItems = this.callbacks.getLegendItems();
-      const draggedItem = legendItems[this._draggedItemIndex];
-      // Allow merging any item except "Other" itself (N/A items use '__NA__' as value)
-      if (draggedItem && draggedItem.value !== LEGEND_VALUES.OTHER) {
-        this.callbacks.onMergeToOther?.(draggedItem.value);
-      }
+    // Destroy previous instance if exists
+    if (this.sortableInstance) {
+      this.destroy();
     }
 
-    this.handleDragEnd();
+    this.containerEl = container;
+
+    this.sortableInstance = new Sortable(container, {
+      animation: 200,
+      easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      ghostClass: 'legend-item-ghost',
+      chosenClass: 'legend-item-chosen',
+      dragClass: 'legend-item-drag',
+      handle: '.drag-handle',
+      swapThreshold: 0.65,
+      direction: 'vertical',
+
+      // Prevent dragging the "Other" item (always stays at bottom)
+      filter: '.legend-item-other',
+      preventOnFilter: true,
+
+      onEnd: (evt) => this.handleDragEnd(evt),
+    });
   }
 
   /**
-   * Handle drag end
+   * Handle the end of a drag operation.
+   * This is where we capture the user's intent and update the state.
    */
-  handleDragEnd(): void {
-    this._draggedItemIndex = -1;
-    this._clearTimeout();
-  }
+  private handleDragEnd(evt: Sortable.SortableEvent): void {
+    const { oldIndex, newIndex, item } = evt;
 
-  private _performReorder(targetItem: LegendItem): void {
-    const legendItems = this.callbacks.getLegendItems();
-    const targetIdx = legendItems.findIndex((i) => i.value === targetItem.value);
+    // Validate indices
+    if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
+      return;
+    }
 
-    if (this._draggedItemIndex === -1 || targetIdx === -1) return;
+    // Get the dragged item's value from data attribute
+    const draggedValue = item.getAttribute('data-value');
+    if (!draggedValue) {
+      console.warn('[DragController] Dragged item missing data-value attribute');
+      return;
+    }
 
-    // Don't reorder onto "Other" - that's handled by handleDrop for merge
-    if (targetItem.value === LEGEND_VALUES.OTHER) return;
+    // Get current legend items sorted by zOrder (visual order)
+    const items = this.callbacks.getLegendItems();
+    const sortedItems = [...items].sort((a, b) => a.zOrder - b.zOrder);
 
-    const newItems = [...legendItems];
-    const [movedItem] = newItems.splice(this._draggedItemIndex, 1);
+    // Find the dragged item
+    const draggedItem = sortedItems.find((i) => i.value === draggedValue);
+    if (!draggedItem) {
+      console.warn('[DragController] Could not find dragged item in legend items');
+      this.revertDomChange();
+      return;
+    }
 
-    const adjustedTargetIdx = targetIdx > this._draggedItemIndex ? targetIdx - 1 : targetIdx;
-    newItems.splice(adjustedTargetIdx, 0, movedItem);
+    // Check if dropping onto "Other" category (merge operation)
+    const targetItem = sortedItems[newIndex];
+    if (targetItem?.value === LEGEND_VALUES.OTHER && draggedValue !== LEGEND_VALUES.OTHER) {
+      // Revert DOM first, then trigger merge
+      this.revertDomChange();
+      this.callbacks.onMergeToOther?.(draggedValue);
+      return;
+    }
 
-    const reorderedItems = newItems.map((item, idx) => ({
+    // Prevent dropping below "Other" (Other must stay at bottom)
+    const otherIndex = sortedItems.findIndex((i) => i.value === LEGEND_VALUES.OTHER);
+    if (otherIndex !== -1 && newIndex >= otherIndex && draggedValue !== LEGEND_VALUES.OTHER) {
+      // Revert DOM - can't drop at or after "Other"
+      this.revertDomChange();
+      return;
+    }
+
+    // Build new order: remove dragged item, insert at new position
+    const itemsWithoutDragged = sortedItems.filter((i) => i.value !== draggedValue);
+    const newOrder = [
+      ...itemsWithoutDragged.slice(0, newIndex),
+      draggedItem,
+      ...itemsWithoutDragged.slice(newIndex),
+    ];
+
+    // Assign new z-orders based on position
+    const reorderedItems = newOrder.map((item, idx) => ({
       ...item,
       zOrder: idx,
     }));
 
-    this.callbacks.setLegendItems(reorderedItems);
-    this._draggedItemIndex = adjustedTargetIdx;
+    // Revert DOM change - Lit will re-render with correct order
+    this.revertDomChange();
 
-    // Switch to manual sort mode when user manually reorders
+    // Update state
+    this.callbacks.setLegendItems(reorderedItems);
     this.callbacks.onSortModeChange?.('manual');
     this.callbacks.onReorder();
   }
 
-  private _clearTimeout(): void {
-    if (this._dragTimeout) {
-      clearTimeout(this._dragTimeout);
-      this._dragTimeout = null;
+  /**
+   * Revert Sortable's DOM manipulation by forcing a re-render.
+   * Sortable moves DOM elements directly, but we want Lit to control the DOM.
+   */
+  private revertDomChange(): void {
+    // Temporarily disable Sortable to prevent interference
+    if (this.sortableInstance) {
+      this.sortableInstance.option('disabled', true);
     }
+
+    // Force Lit to re-render and restore correct DOM order
+    this.host.requestUpdate();
+
+    // Re-enable Sortable after render
+    requestAnimationFrame(() => {
+      if (this.sortableInstance) {
+        this.sortableInstance.option('disabled', false);
+      }
+    });
+  }
+
+  /**
+   * Destroy the Sortable instance and clean up
+   */
+  destroy(): void {
+    if (this.sortableInstance) {
+      this.sortableInstance.destroy();
+      this.sortableInstance = null;
+    }
+    this.containerEl = null;
+  }
+
+  /**
+   * Get the Sortable instance (for testing)
+   */
+  getInstance(): Sortable | null {
+    return this.sortableInstance;
+  }
+
+  /**
+   * Check if controller is initialized
+   */
+  isInitialized(): boolean {
+    return this.sortableInstance !== null;
   }
 }

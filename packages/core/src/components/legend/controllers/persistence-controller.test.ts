@@ -159,7 +159,10 @@ describe('PersistenceController', () => {
       controller.loadSettings();
 
       expect(buildStorageKey).toHaveBeenCalledWith('legend', 'hash_protein1', 'annotation1');
-      expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith(savedSettings);
+      expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith({
+        ...savedSettings,
+        selectedPaletteId: 'kellys',
+      });
       expect(controller.settingsLoaded).toBe(true);
       expect(controller.pendingCategories).toEqual(savedSettings.categories);
     });
