@@ -14,6 +14,7 @@ import {
   exportParquetBundle,
   generateBundleFilename,
   generateDatasetHash,
+  hasStorageItemsForHash,
 } from '@protspace/utils';
 
 // Export initialization function that can be called when the component mounts
@@ -361,7 +362,7 @@ export async function initializeDemo() {
         console.log(`📁 File loaded: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
         // Use loadFromFile instead of loadFromUrl for better error handling
-        await dataLoader.loadFromFile(file);
+        await dataLoader.loadFromFile(file, { source: 'auto' });
       } catch (error) {
         console.error('❌ Failed to load data from file:', error);
         console.log('💡 Make sure data.parquetbundle exists in the public directory');
@@ -558,22 +559,25 @@ export async function initializeDemo() {
     // Handle successful data loading
     dataLoader.addEventListener('data-loaded', async (event: Event) => {
       const customEvent = event as CustomEvent<DataLoadedEventDetail>;
-      const { data, settings } = customEvent.detail;
+      const { data, settings, source } = customEvent.detail;
 
       // Compute dataset hash upfront for clearing and settings
       const datasetHash = generateDatasetHash(data.protein_ids);
 
-      // Clear all component state before loading new data
-      // This ensures a clean slate regardless of whether this is initial load or import
-      if (legendElement) {
+      // On auto-load (page reload), skip clearing/overwriting if localStorage already has settings.
+      // On first-ever auto-load (no localStorage entries), treat as fresh load so file settings apply.
+      const isReload = source === 'auto' && hasStorageItemsForHash(datasetHash);
+
+      // Clear all component state before loading new data (skip on reload to preserve settings)
+      if (!isReload && legendElement) {
         legendElement.clearForNewDataset(datasetHash);
       }
 
       // Load the new data into all components
       await loadNewData(data);
 
-      // Apply file-based settings to legend if present
-      if (settings && legendElement) {
+      // Apply file-based settings to legend if present (skip on reload to preserve user changes)
+      if (!isReload && settings && legendElement) {
         legendElement.setFileSettings(settings, datasetHash);
       }
 

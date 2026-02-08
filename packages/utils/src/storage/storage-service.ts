@@ -47,31 +47,49 @@ export function removeStorageItem(key: string): boolean {
 }
 
 /**
+ * Find all localStorage keys that belong to a specific dataset hash.
+ * Keys follow pattern: protspace:{component}:{hash}:{context?}
+ */
+function findStorageKeysByHash(datasetHash: string): string[] {
+  const keys: string[] = [];
+  const prefix = `${STORAGE_PREFIX}:`;
+
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(prefix)) {
+      const parts = key.split(':');
+      if (parts.length >= 3 && parts[2] === datasetHash) {
+        keys.push(key);
+      }
+    }
+  }
+
+  return keys;
+}
+
+/**
+ * Check if localStorage has any entries for a specific dataset hash.
+ * Used to distinguish first-ever loads from reloads where settings already exist.
+ */
+export function hasStorageItemsForHash(datasetHash: string): boolean {
+  try {
+    return findStorageKeysByHash(datasetHash).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Remove all localStorage entries for a specific dataset hash.
  * This is used when importing a parquetbundle with settings to ensure
  * the imported settings are the only source of truth.
- *
- * Keys follow pattern: protspace:{component}:{hash}:{context?}
  *
  * @param datasetHash - The dataset hash to match
  * @returns The number of keys removed
  */
 export function removeAllStorageItemsByHash(datasetHash: string): number {
   try {
-    const keysToRemove: string[] = [];
-    const prefix = `${STORAGE_PREFIX}:`;
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith(prefix)) {
-        // Parse key to check if it contains this hash
-        const parts = key.split(':');
-        // parts[0] = 'protspace', parts[1] = component, parts[2] = hash
-        if (parts.length >= 3 && parts[2] === datasetHash) {
-          keysToRemove.push(key);
-        }
-      }
-    }
+    const keysToRemove = findStorageKeysByHash(datasetHash);
 
     for (const key of keysToRemove) {
       localStorage.removeItem(key);

@@ -578,8 +578,10 @@ export class ProtspaceLegend extends LitElement {
     // If current annotation has file settings, reload and apply them immediately
     if (settings?.[this.selectedAnnotation]) {
       this._persistenceController.loadSettings();
-      // Force full UI update - property changes from _applyPersistedSettings
-      // may not trigger _updateLegendItems if only _hiddenValues/sortMode changed
+      // Clear stale legend items so _visibleValues falls back to _pendingCategories
+      // (the file's category set). Without this, _visibleValues uses the default items
+      // built during loadNewData(), which may have a different visible set than the file.
+      this._legendItems = [];
       this._rebuildLegendItems();
     }
   }
@@ -1210,8 +1212,8 @@ export class ProtspaceLegend extends LitElement {
 
     // Apply palette colors to all legend items (excluding special categories like "Others" and "N/A")
     this._legendItems = this._legendItems.map((item, index) => {
-      // Skip special categories (Others, N/A) as they have fixed colors
-      if (item.value === LEGEND_VALUES.OTHERS || item.value === LEGEND_VALUES.NA_DISPLAY) {
+      // Skip special categories (Other, N/A) as they have fixed colors
+      if (item.value === LEGEND_VALUES.OTHER || item.value === LEGEND_VALUES.NA_VALUE) {
         return item;
       }
 

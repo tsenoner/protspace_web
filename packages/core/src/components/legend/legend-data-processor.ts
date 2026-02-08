@@ -319,6 +319,16 @@ export class LegendDataProcessor {
       }
     }
 
+    // Pre-scan: collect colors/shapes already claimed by items with persisted or existing values
+    const claimedColors = new Set<string>();
+    const claimedShapes = new Set<string>();
+    for (const [value] of topItems) {
+      const persisted = persistedCategories[value];
+      const existing = existingColors.get(value);
+      claimedColors.add((persisted?.color || existing?.color) ?? '');
+      claimedShapes.add((persisted?.shape || existing?.shape) ?? '');
+    }
+
     const items: LegendItem[] = topItems.map(([value, count], index) => {
       const displayName = toDisplayValue(value);
       const zOrder = sortMode === 'manual' ? (existingZOrders.get(value) ?? index) : index;
@@ -326,7 +336,7 @@ export class LegendDataProcessor {
 
       let encoding = getVisualEncoding(slot, shapesEnabled, displayName);
 
-      // Priority: persisted > existing > default encoding
+      // Priority: persisted > existing > default encoding (with conflict resolution)
       const persisted = persistedCategories[value];
       const existing = existingColors.get(value);
 
@@ -337,6 +347,32 @@ export class LegendDataProcessor {
         };
       } else if (existing) {
         encoding = { color: existing.color, shape: existing.shape };
+      } else {
+        // Default encoding - resolve color conflicts
+        let { color, shape } = encoding;
+        if (claimedColors.has(color)) {
+          // Probe subsequent slots for an unclaimed color (cap at 30 to exceed
+          // Kelly's 21-color palette and guarantee termination)
+          let altSlot = slot + 1;
+          color = getVisualEncoding(altSlot, false, displayName).color;
+          while (claimedColors.has(color) && altSlot < slot + 30) {
+            altSlot++;
+            color = getVisualEncoding(altSlot, false, displayName).color;
+          }
+        }
+        // Resolve shape conflicts (only when shapes are enabled)
+        if (shapesEnabled && claimedShapes.has(shape)) {
+          // Same probing approach for shapes (6 unique shapes, cap at 30 for safety)
+          let altSlot = slot + 1;
+          shape = getVisualEncoding(altSlot, true, displayName).shape;
+          while (claimedShapes.has(shape) && altSlot < slot + 30) {
+            altSlot++;
+            shape = getVisualEncoding(altSlot, true, displayName).shape;
+          }
+        }
+        encoding = { color, shape };
+        claimedColors.add(color);
+        claimedShapes.add(shape);
       }
 
       return {
@@ -351,7 +387,7 @@ export class LegendDataProcessor {
 
     // Add "Other" if there are items beyond the cap
     if (otherCount > 0 && !isolationMode) {
-      const encoding = getVisualEncoding(-1, shapesEnabled, LEGEND_VALUES.OTHERS);
+      const encoding = getVisualEncoding(-1, shapesEnabled, LEGEND_VALUES.OTHER);
       const otherZOrder =
         sortMode === 'manual' ? (existingOtherZOrder ?? items.length) : items.length;
 

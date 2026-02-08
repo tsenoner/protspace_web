@@ -13,6 +13,9 @@ import {
   validateRowsBasic,
 } from './utils/validation';
 
+/** Whether data was loaded by user action or automatically (e.g. page reload) */
+export type DataLoadSource = 'user' | 'auto';
+
 /**
  * Event detail for data-loaded event
  */
@@ -20,6 +23,7 @@ export interface DataLoadedEventDetail {
   data: VisualizationData;
   /** Settings loaded from bundle (null if not present or not a bundle) */
   settings: BundleSettings | null;
+  source: DataLoadSource;
 }
 
 /**
@@ -96,7 +100,8 @@ export class DataLoader extends LitElement {
   /**
    * Load Parquet data from a URL
    */
-  async loadFromUrl(url: string) {
+  async loadFromUrl(url: string, options?: { source?: DataLoadSource }) {
+    const source: DataLoadSource = options?.source ?? 'auto';
     this.setLoading(true);
     this.error = null;
     this.dispatchLoadingStart();
@@ -124,7 +129,7 @@ export class DataLoader extends LitElement {
       // 4) Convert
       const visualizationData = await convertParquetToVisualizationDataOptimized(table);
       this.completeStep();
-      this.dispatchDataLoaded(visualizationData);
+      this.dispatchDataLoaded(visualizationData, null, source);
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Unknown error occurred';
       this.dispatchError(this.error);
@@ -136,7 +141,8 @@ export class DataLoader extends LitElement {
   /**
    * Load Parquet data from a File object with performance optimizations
    */
-  async loadFromFile(file: File) {
+  async loadFromFile(file: File, options?: { source?: DataLoadSource }) {
+    const source: DataLoadSource = options?.source ?? 'user';
     this.setLoading(true);
     this.error = null;
     this.dispatchLoadingStart();
@@ -170,7 +176,7 @@ export class DataLoader extends LitElement {
           projectionsMetadata,
         );
         this.completeStep();
-        this.dispatchDataLoaded(visualizationData, settings);
+        this.dispatchDataLoaded(visualizationData, settings, source);
       } else {
         // For regular parquet: validate magic -> parse -> validate rows -> convert
         this.addSteps(4);
@@ -182,7 +188,7 @@ export class DataLoader extends LitElement {
         this.completeStep();
         const visualizationData = await convertParquetToVisualizationDataOptimized(table);
         this.completeStep();
-        this.dispatchDataLoaded(visualizationData);
+        this.dispatchDataLoaded(visualizationData, null, source);
       }
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -237,8 +243,12 @@ export class DataLoader extends LitElement {
     );
   }
 
-  private dispatchDataLoaded(data: VisualizationData, settings: BundleSettings | null = null) {
-    const detail: DataLoadedEventDetail = { data, settings };
+  private dispatchDataLoaded(
+    data: VisualizationData,
+    settings: BundleSettings | null,
+    source: DataLoadSource,
+  ) {
+    const detail: DataLoadedEventDetail = { data, settings, source };
     this.dispatchEvent(
       new CustomEvent('data-loaded', {
         detail,

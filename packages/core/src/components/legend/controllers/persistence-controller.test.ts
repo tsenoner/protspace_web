@@ -26,7 +26,6 @@ vi.mock('@protspace/utils', () => ({
   removeAllStorageItemsByHash: vi.fn(),
   LEGEND_VALUES: {
     OTHER: 'Other',
-    OTHERS: 'Others',
     NA_DISPLAY: 'N/A',
     NA_VALUE: '__NA__',
   },

@@ -5,6 +5,7 @@ import {
   setStorageItem,
   removeStorageItem,
   removeAllStorageItemsByHash,
+  hasStorageItemsForHash,
 } from './storage-service';
 
 const localStorageMock = (() => {
@@ -313,6 +314,59 @@ describe('removeAllStorageItemsByHash', () => {
 
     const removedCount = removeAllStorageItemsByHash('anyHash');
     expect(removedCount).toBe(0);
+
+    localStorageMock.key = originalKey;
+  });
+});
+
+describe('hasStorageItemsForHash', () => {
+  beforeEach(() => {
+    localStorageMock.clear();
+    vi.clearAllMocks();
+  });
+
+  it('should return true when items exist for the hash', () => {
+    localStorageMock.setItem('protspace:legend:hash123:Taxonomy', '{"data": 1}');
+
+    expect(hasStorageItemsForHash('hash123')).toBe(true);
+  });
+
+  it('should return false when no items exist for the hash', () => {
+    localStorageMock.setItem('protspace:legend:otherHash:Taxonomy', '{"data": 1}');
+
+    expect(hasStorageItemsForHash('hash123')).toBe(false);
+  });
+
+  it('should return false when localStorage is empty', () => {
+    expect(hasStorageItemsForHash('anyHash')).toBe(false);
+  });
+
+  it('should return true on first match without scanning all keys', () => {
+    localStorageMock.setItem('protspace:legend:hash123:Taxonomy', '{"data": 1}');
+    localStorageMock.setItem('protspace:legend:hash123:Function', '{"data": 2}');
+
+    expect(hasStorageItemsForHash('hash123')).toBe(true);
+  });
+
+  it('should not match hash in context position', () => {
+    localStorageMock.setItem('protspace:legend:otherHash:hash123', '{"data": 1}');
+
+    expect(hasStorageItemsForHash('hash123')).toBe(false);
+  });
+
+  it('should ignore non-protspace keys', () => {
+    localStorageMock.setItem('other:legend:hash123:Taxonomy', '{"data": 1}');
+
+    expect(hasStorageItemsForHash('hash123')).toBe(false);
+  });
+
+  it('should return false when localStorage throws', () => {
+    const originalKey = localStorageMock.key;
+    localStorageMock.key = vi.fn(() => {
+      throw new Error('Storage error');
+    });
+
+    expect(hasStorageItemsForHash('anyHash')).toBe(false);
 
     localStorageMock.key = originalKey;
   });
