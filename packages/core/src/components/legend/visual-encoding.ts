@@ -5,7 +5,7 @@
  * Key principles:
  * - Visible items always get the most distinct colors (slots 0, 1, 2, ...)
  * - Items in "Other" bucket don't consume slots
- * - Special categories (Others, N/A) have fixed colors and always use circles
+ * - Special categories (Other, N/A) have fixed colors and always use circles
  * - Slot recycling ensures extracted items get available slots
  */
 
@@ -17,13 +17,13 @@ const SHAPES = ['circle', 'square', 'diamond', 'plus', 'triangle-up', 'triangle-
 
 /** Special slot values for reserved categories */
 export const SPECIAL_SLOTS = {
-  OTHERS: -1,
+  OTHER: -1,
   NA: -2,
 } as const;
 
 /** Special colors for reserved categories */
 const SPECIAL_COLORS: Record<string, string> = {
-  [LEGEND_VALUES.OTHERS]: '#999999',
+  [LEGEND_VALUES.OTHER]: '#999999',
   [LEGEND_VALUES.NA_DISPLAY]: '#DDDDDD',
 };
 
@@ -81,13 +81,13 @@ export class SlotTracker {
 
   /**
    * Get or assign a slot for a category.
-   * - Special categories (Others, N/A) get reserved negative slots
+   * - Special categories (Other, N/A) get reserved negative slots
    * - Regular categories get the lowest available slot
    */
   getSlot(categoryName: string): number {
     // Special categories get fixed slots
-    if (categoryName === LEGEND_VALUES.OTHERS) {
-      return SPECIAL_SLOTS.OTHERS;
+    if (categoryName === LEGEND_VALUES.OTHER) {
+      return SPECIAL_SLOTS.OTHER;
     }
     if (categoryName === LEGEND_VALUES.NA_DISPLAY) {
       return SPECIAL_SLOTS.NA;
@@ -115,7 +115,7 @@ export class SlotTracker {
    * The slot will be recycled for future use.
    */
   freeSlot(categoryName: string): void {
-    if (categoryName === LEGEND_VALUES.OTHERS || categoryName === LEGEND_VALUES.NA_DISPLAY) {
+    if (categoryName === LEGEND_VALUES.OTHER || categoryName === LEGEND_VALUES.NA_DISPLAY) {
       return; // Special categories don't have freeable slots
     }
 
@@ -145,11 +145,7 @@ export class SlotTracker {
 
     // Assign slots 0, 1, 2, ... to visible items in order
     visibleCategories.forEach((category, index) => {
-      if (
-        category !== LEGEND_VALUES.OTHERS &&
-        category !== LEGEND_VALUES.NA_DISPLAY &&
-        category !== LEGEND_VALUES.OTHER
-      ) {
+      if (category !== LEGEND_VALUES.OTHER && category !== LEGEND_VALUES.NA_DISPLAY) {
         newSlots.set(category, index);
       }
     });
@@ -165,8 +161,7 @@ export class SlotTracker {
     // Update state
     this.slots = newSlots;
     this.nextSlot = visibleCategories.filter(
-      (c) =>
-        c !== LEGEND_VALUES.OTHERS && c !== LEGEND_VALUES.NA_DISPLAY && c !== LEGEND_VALUES.OTHER,
+      (c) => c !== LEGEND_VALUES.OTHER && c !== LEGEND_VALUES.NA_DISPLAY,
     ).length;
 
     // Freed slots are those beyond the visible count

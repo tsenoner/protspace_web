@@ -4,4 +4,6 @@ export {
   getStorageItem,
   setStorageItem,
   removeStorageItem,
+  removeAllStorageItemsByHash,
+  hasStorageItemsForHash,
 } from './storage-service';

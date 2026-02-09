@@ -2,16 +2,29 @@ import type { PropertyValues } from 'lit';
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { parquetReadObjects } from 'hyparquet';
-import type { VisualizationData } from '@protspace/utils';
+import { isParquetBundle, type VisualizationData, type BundleSettings } from '@protspace/utils';
 import { dataLoaderStyles } from './data-loader.styles';
 import { readFileOptimized } from './utils/file-io';
-import { isParquetBundle, extractRowsFromParquetBundle } from './utils/bundle';
+import { extractRowsFromParquetBundle } from './utils/bundle';
 import { convertParquetToVisualizationDataOptimized } from './utils/conversion';
 import {
   assertWithinFileSizeLimit,
   assertValidParquetMagic,
   validateRowsBasic,
 } from './utils/validation';
+
+/** Whether data was loaded by user action or automatically (e.g. page reload) */
+export type DataLoadSource = 'user' | 'auto';
+
+/**
+ * Event detail for data-loaded event
+ */
+export interface DataLoadedEventDetail {
+  data: VisualizationData;
+  /** Settings loaded from bundle (null if not present or not a bundle) */
+  settings: BundleSettings | null;
+  source: DataLoadSource;
+}
 
 /**
  * Parquet Data Loader Web Component
@@ -87,7 +100,8 @@ export class DataLoader extends LitElement {
   /**
    * Load Parquet data from a URL
    */
-  async loadFromUrl(url: string) {
+  async loadFromUrl(url: string, options?: { source?: DataLoadSource }) {
+    const source: DataLoadSource = options?.source ?? 'auto';
     this.setLoading(true);
     this.error = null;
     this.dispatchLoadingStart();
@@ -115,7 +129,7 @@ export class DataLoader extends LitElement {
       // 4) Convert
       const visualizationData = await convertParquetToVisualizationDataOptimized(table);
       this.completeStep();
-      this.dispatchDataLoaded(visualizationData);
+      this.dispatchDataLoaded(visualizationData, null, source);
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Unknown error occurred';
       this.dispatchError(this.error);
@@ -127,7 +141,8 @@ export class DataLoader extends LitElement {
   /**
    * Load Parquet data from a File object with performance optimizations
    */
-  async loadFromFile(file: File) {
+  async loadFromFile(file: File, options?: { source?: DataLoadSource }) {
+    const source: DataLoadSource = options?.source ?? 'user';
     this.setLoading(true);
     this.error = null;
     this.dispatchLoadingStart();
@@ -148,8 +163,11 @@ export class DataLoader extends LitElement {
       if (file.name.endsWith('.parquetbundle') || isParquetBundle(arrayBuffer)) {
         // For bundles: extract -> validate -> convert
         this.addSteps(3);
-        const { rows: extractedData, projectionsMetadata } =
-          await extractRowsFromParquetBundle(arrayBuffer);
+        const {
+          rows: extractedData,
+          projectionsMetadata,
+          settings,
+        } = await extractRowsFromParquetBundle(arrayBuffer);
         this.completeStep();
         validateRowsBasic(extractedData);
         this.completeStep();
@@ -158,7 +176,7 @@ export class DataLoader extends LitElement {
           projectionsMetadata,
         );
         this.completeStep();
-        this.dispatchDataLoaded(visualizationData);
+        this.dispatchDataLoaded(visualizationData, settings, source);
       } else {
         // For regular parquet: validate magic -> parse -> validate rows -> convert
         this.addSteps(4);
@@ -170,7 +188,7 @@ export class DataLoader extends LitElement {
         this.completeStep();
         const visualizationData = await convertParquetToVisualizationDataOptimized(table);
         this.completeStep();
-        this.dispatchDataLoaded(visualizationData);
+        this.dispatchDataLoaded(visualizationData, null, source);
       }
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -225,10 +243,15 @@ export class DataLoader extends LitElement {
     );
   }
 
-  private dispatchDataLoaded(data: VisualizationData) {
+  private dispatchDataLoaded(
+    data: VisualizationData,
+    settings: BundleSettings | null,
+    source: DataLoadSource,
+  ) {
+    const detail: DataLoadedEventDetail = { data, settings, source };
     this.dispatchEvent(
       new CustomEvent('data-loaded', {
-        detail: { data },
+        detail,
         bubbles: true,
         composed: true,
       }),

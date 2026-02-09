@@ -241,13 +241,16 @@ import {
   extractRowsFromParquetBundle,
   convertParquetToVisualizationDataOptimized,
 } from '@protspace/core';
+import { isParquetBundle } from '@protspace/utils';
 
 const file = // ... from file input or drag/drop
 const arrayBuffer = await readFileOptimized(file);
-const rows = await extractRowsFromParquetBundle(arrayBuffer);
-const data = await convertParquetToVisualizationDataOptimized(rows);
 
-document.getElementById('plot').data = data;
+if (isParquetBundle(arrayBuffer)) {
+  const rows = await extractRowsFromParquetBundle(arrayBuffer);
+  const data = await convertParquetToVisualizationDataOptimized(rows);
+  document.getElementById('plot').data = data;
+}
 ```
 
 ## TypeScript Support

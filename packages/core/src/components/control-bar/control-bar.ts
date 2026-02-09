@@ -45,6 +45,8 @@ export class ProtspaceControlBar extends LitElement {
   isolationMode: boolean = false;
   @property({ type: Array, attribute: 'isolation-history' })
   isolationHistory: string[][] = [];
+  @property({ type: Boolean, attribute: 'has-file-settings' })
+  hasFileSettings: boolean = false;
 
   @state() private _selectionDisabled: boolean = false;
 
@@ -66,12 +68,14 @@ export class ProtspaceControlBar extends LitElement {
   @state() private filterHighlightIndex: number = -1;
 
   // Export configuration state
-  @state() private exportFormat: 'png' | 'pdf' | 'json' | 'ids' = EXPORT_DEFAULTS.FORMAT;
+  @state() private exportFormat: 'png' | 'pdf' | 'json' | 'ids' | 'parquet' =
+    EXPORT_DEFAULTS.FORMAT;
   @state() private exportImageWidth: number = EXPORT_DEFAULTS.IMAGE_WIDTH;
   @state() private exportImageHeight: number = EXPORT_DEFAULTS.IMAGE_HEIGHT;
   @state() private exportLegendWidthPercent: number = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
   @state() private exportLegendFontSizePx: number = EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX;
   @state() private exportLockAspectRatio: boolean = EXPORT_DEFAULTS.LOCK_ASPECT_RATIO;
+  @state() private exportIncludeSettings: boolean = true;
   private _scatterplotElement: ScatterplotElementLike | null = null;
 
   // Search state
@@ -382,6 +386,7 @@ export class ProtspaceControlBar extends LitElement {
         imageHeight: this.exportImageHeight,
         legendWidthPercent: this.exportLegendWidthPercent,
         legendFontSizePx: this.exportLegendFontSizePx,
+        includeSettings: this.exportIncludeSettings,
       },
       bubbles: true,
       composed: true,
@@ -429,6 +434,7 @@ export class ProtspaceControlBar extends LitElement {
     this.exportLegendWidthPercent = defaults.LEGEND_WIDTH_PERCENT;
     this.exportLegendFontSizePx = defaults.LEGEND_FONT_SIZE_PX;
     this.exportLockAspectRatio = defaults.LOCK_ASPECT_RATIO;
+    this.exportIncludeSettings = true;
   }
 
   private handleWidthChange(newWidth: number) {
@@ -837,7 +843,9 @@ export class ProtspaceControlBar extends LitElement {
               class="dropdown-trigger ${this.showExportMenu ? 'open' : ''}"
               @click=${this.toggleExportMenu}
               @keydown=${this.handleExportKeydown}
-              title="Export Options"
+              title="${this.hasFileSettings
+                ? 'Export Options (file contains custom settings)'
+                : 'Export Options'}"
             >
               <svg class="icon" viewBox="0 0 24 24">
                 <path
@@ -908,8 +916,44 @@ export class ProtspaceControlBar extends LitElement {
                           >
                             IDs
                           </button>
+                          <button
+                            class="btn-secondary btn-compact ${this.exportFormat === 'parquet'
+                              ? 'active'
+                              : ''}"
+                            @click=${() => {
+                              this.exportFormat = 'parquet';
+                            }}
+                            title="Export as Parquet bundle"
+                          >
+                            Parquet
+                          </button>
                         </div>
                       </div>
+
+                      <!-- Parquet Settings -->
+                      ${this.exportFormat === 'parquet'
+                        ? html`
+                            <div class="export-option-group">
+                              <label class="export-checkbox-label">
+                                <input
+                                  type="checkbox"
+                                  class="export-checkbox"
+                                  .checked=${this.exportIncludeSettings}
+                                  @change=${(e: Event) => {
+                                    this.exportIncludeSettings = (
+                                      e.target as HTMLInputElement
+                                    ).checked;
+                                  }}
+                                />
+                                <span>Include legend settings</span>
+                              </label>
+                              <div class="export-parquet-help">
+                                Legend customizations (colors, order, visibility) will be saved in
+                                the file and restored when loading.
+                              </div>
+                            </div>
+                          `
+                        : ''}
 
                       <!-- Image Settings (for PNG/PDF only) -->
                       ${this.exportFormat === 'png' || this.exportFormat === 'pdf'
