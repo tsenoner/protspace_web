@@ -68,8 +68,7 @@ export class ProtspaceControlBar extends LitElement {
   @state() private filterHighlightIndex: number = -1;
 
   // Export configuration state
-  @state() private exportFormat: 'png' | 'pdf' | 'json' | 'ids' | 'parquet' =
-    EXPORT_DEFAULTS.FORMAT;
+  @state() private exportFormat: 'png' | 'pdf' | 'ids' | 'parquet' = EXPORT_DEFAULTS.FORMAT;
   @state() private exportImageWidth: number = EXPORT_DEFAULTS.IMAGE_WIDTH;
   @state() private exportImageHeight: number = EXPORT_DEFAULTS.IMAGE_HEIGHT;
   @state() private exportLegendWidthPercent: number = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
@@ -893,17 +892,6 @@ export class ProtspaceControlBar extends LitElement {
                             title="Export as PDF document"
                           >
                             PDF
-                          </button>
-                          <button
-                            class="btn-secondary btn-compact ${this.exportFormat === 'json'
-                              ? 'active'
-                              : ''}"
-                            @click=${() => {
-                              this.exportFormat = 'json';
-                            }}
-                            title="Export as JSON data"
-                          >
-                            JSON
                           </button>
                           <button
                             class="btn-secondary btn-compact ${this.exportFormat === 'ids'
