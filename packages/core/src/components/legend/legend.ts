@@ -732,13 +732,15 @@ export class ProtspaceLegend extends LitElement {
       const pendingExtract = this._pendingExtractValue;
       const pendingMerge = this._pendingMergeValue;
 
-      // Use visibleValues when there are persisted settings OR when there are pending operations.
-      // When there are pending merge/extract operations, we need the current visible set
-      // to properly filter items even if localStorage hasn't been written yet.
-      // When no localStorage key exists and no pending ops, use empty set so maxVisibleValues is respected.
+      // Use visibleValues to preserve the current visible set when:
+      // - There are persisted settings in localStorage
+      // - There are pending extract/merge operations
+      // - There are already legend items (e.g., switching sort mode before persistence)
+      // When none of these apply (true initial load), use empty set so maxVisibleValues is respected.
       const hasPendingOps = pendingExtract !== undefined || pendingMerge !== undefined;
+      const hasExistingItems = this._legendItems.some((i) => i.value !== LEGEND_VALUES.OTHER);
       const visibleValues =
-        this._persistenceController.hasPersistedSettings() || hasPendingOps
+        this._persistenceController.hasPersistedSettings() || hasPendingOps || hasExistingItems
           ? this._visibleValues
           : new Set<string>();
 
@@ -761,7 +763,7 @@ export class ProtspaceLegend extends LitElement {
 
       // Apply hidden values
       if (this._hiddenValues.length > 0) {
-        this._legendItems = legendItems.map((item) => ({
+        this._legendItems = legendItems.map((item: LegendItem) => ({
           ...item,
           isVisible: !this._hiddenValues.includes(valueToKey(item.value)),
         }));
