@@ -324,7 +324,7 @@ export class LegendDataProcessor {
           shape: persisted.shape || encoding.shape,
         };
       } else if (existing) {
-        encoding = { color: existing.color, shape: existing.shape };
+        encoding = { color: existing.color, shape: encoding.shape };
       } else {
         // Default encoding - resolve color conflicts
         let { color, shape } = encoding;

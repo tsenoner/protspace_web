@@ -1031,12 +1031,25 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handleSettingsSave(): void {
+    const shapesSettingChanged = this.includeShapes !== this._dialogSettings.includeShapes;
+
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
     this.includeShapes = this._dialogSettings.includeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
     this._annotationSortModes = this._dialogSettings.annotationSortModes;
     this._selectedPaletteId = this._dialogSettings.selectedPaletteId;
     this._showSettingsDialog = false;
+
+    // When includeShapes changes, clear stale shape data from pending categories
+    // so persisted 'circle' shapes don't override freshly computed shapes.
+    if (shapesSettingChanged) {
+      const pending = this._persistenceController.pendingCategories;
+      const cleared: Record<string, PersistedCategoryData> = {};
+      for (const [key, data] of Object.entries(pending)) {
+        cleared[key] = { ...data, shape: '' };
+      }
+      this._persistenceController.setPendingCategories(cleared);
+    }
 
     // Don't clear _legendItems - we want to preserve current zOrders when switching sort modes.
     // This ensures switching to manual mode keeps the current display order.

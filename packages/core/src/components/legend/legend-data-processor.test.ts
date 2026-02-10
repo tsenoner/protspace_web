@@ -655,7 +655,7 @@ describe('legend-data-processor', () => {
       expect(items[1].shape).toBe('triangle-up');
     });
 
-    it('preserves shapes from existing items when no persisted categories', () => {
+    it('uses computed shapes (not stale existing shapes) when no persisted categories', () => {
       const topItems: Array<[string, number]> = [['category1', 10]];
       const existing: LegendItem[] = [
         {
@@ -678,7 +678,34 @@ describe('legend-data-processor', () => {
         new Map(),
         {}, // empty persisted
       );
-      expect(items[0].shape).toBe('square');
+      // When shapesEnabled=false, computed shape is always 'circle'
+      // regardless of what existing items had
+      expect(items[0].shape).toBe('circle');
+    });
+
+    it('assigns diverse shapes when shapesEnabled toggles from false to true', () => {
+      const topItems: Array<[string, number]> = [
+        ['cat1', 30],
+        ['cat2', 20],
+      ];
+      // Existing items have 'circle' from when shapes were disabled
+      const existing: LegendItem[] = [
+        { value: 'cat1', color: '#F3C300', shape: 'circle', count: 30, isVisible: true, zOrder: 0 },
+        { value: 'cat2', color: '#875692', shape: 'circle', count: 20, isVisible: true, zOrder: 1 },
+      ];
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        existing,
+        true, // shapesEnabled = true
+        'size-desc',
+        new Map(),
+        {}, // empty persisted — simulates cleared pending categories
+      );
+      expect(items[0].shape).toBe('circle'); // slot 0
+      expect(items[1].shape).toBe('square'); // slot 1
     });
 
     it('prefers persisted shapes over existing shapes', () => {
