@@ -181,19 +181,71 @@ describe('legend-data-processor', () => {
       expect(result.topItems[2][0]).toBe('apple');
     });
 
-    it('handles pattern ranking in alpha sort (ranges before regular)', () => {
+    it('sorts protein family names alphabetically (not by embedded numbers)', () => {
       const freq = new Map<string, number>([
-        ['regular', 5],
-        ['<10', 5],
-        ['10-20', 5],
-        ['20+', 5],
+        ['scoloptoxin-25 family', 1],
+        ['phospholipase A2 family', 539],
+        ['arthropod phospholipase D family', 219],
+        ['conotoxin O1 superfamily', 278],
       ]);
       const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
-      // < patterns come first, then ranges, then +, then regular
-      expect(result.topItems[0][0]).toBe('<10');
-      expect(result.topItems[1][0]).toBe('10-20');
-      expect(result.topItems[2][0]).toBe('20+');
-      expect(result.topItems[3][0]).toBe('regular');
+      expect(result.topItems[0][0]).toBe('arthropod phospholipase D family');
+      expect(result.topItems[1][0]).toBe('conotoxin O1 superfamily');
+      expect(result.topItems[2][0]).toBe('phospholipase A2 family');
+      expect(result.topItems[3][0]).toBe('scoloptoxin-25 family');
+    });
+
+    it('sorts numeric ranges naturally with localeCompare numeric option', () => {
+      const freq = new Map<string, number>([
+        ['10-20', 5],
+        ['1-5', 10],
+        ['5-10', 8],
+        ['20+', 3],
+      ]);
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
+      expect(result.topItems[0][0]).toBe('1-5');
+      expect(result.topItems[1][0]).toBe('5-10');
+      expect(result.topItems[2][0]).toBe('10-20');
+      expect(result.topItems[3][0]).toBe('20+');
+    });
+
+    it('does not treat hyphens in names as minus signs', () => {
+      const freq = new Map<string, number>([
+        ['scoloptoxin-25 family', 1],
+        ['scoloptoxin-4 family', 3],
+        ['limacoditoxin-59 family', 1],
+        ['alpha toxin family', 10],
+      ]);
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
+      // 'alpha toxin family' should come first alphabetically, not last
+      expect(result.topItems[0][0]).toBe('alpha toxin family');
+      // Numeric natural sort within scoloptoxin: 4 before 25
+      expect(result.topItems[2][0]).toBe('scoloptoxin-4 family');
+      expect(result.topItems[3][0]).toBe('scoloptoxin-25 family');
+    });
+
+    it('sorts N/A last in alpha-asc mode', () => {
+      const freq = new Map<string, number>([
+        ['zebra', 5],
+        [LEGEND_VALUES.NA_VALUE, 10],
+        ['alpha', 3],
+      ]);
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
+      expect(result.topItems[0][0]).toBe('alpha');
+      expect(result.topItems[1][0]).toBe('zebra');
+      expect(result.topItems[2][0]).toBe(LEGEND_VALUES.NA_VALUE);
+    });
+
+    it('sorts N/A last in alpha-desc mode', () => {
+      const freq = new Map<string, number>([
+        ['zebra', 5],
+        [LEGEND_VALUES.NA_VALUE, 10],
+        ['alpha', 3],
+      ]);
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-desc');
+      expect(result.topItems[0][0]).toBe('zebra');
+      expect(result.topItems[1][0]).toBe('alpha');
+      expect(result.topItems[2][0]).toBe(LEGEND_VALUES.NA_VALUE);
     });
 
     it('uses visibleValues to prioritize items and expands when maxVisibleValues allows', () => {
