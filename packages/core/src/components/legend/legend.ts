@@ -905,32 +905,31 @@ export class ProtspaceLegend extends LitElement {
     });
   }
 
-  private _highlightDroppedItem(value: string): void {
+  private async _highlightDroppedItem(value: string): Promise<void> {
     // Wait for Lit to complete rendering with the new item order.
     // Two chained awaits: first for _legendItems update, second for _sortedLegendItems.
-    this.updateComplete.then(() => {
-      this.updateComplete.then(() => {
-        const items = this.shadowRoot?.querySelectorAll('.legend-item');
-        if (!items) return;
+    await this.updateComplete;
+    await this.updateComplete;
 
-        for (const el of items) {
-          const htmlEl = el as HTMLElement;
-          if (htmlEl.getAttribute('data-value') === value) {
-            htmlEl.classList.add('legend-item-just-dropped');
-            htmlEl.focus();
-            htmlEl.addEventListener(
-              'animationend',
-              () => {
-                htmlEl.classList.remove('legend-item-just-dropped');
-                htmlEl.blur();
-              },
-              { once: true },
-            );
-            break;
-          }
-        }
-      });
-    });
+    const items = this.shadowRoot?.querySelectorAll('.legend-item');
+    if (!items) return;
+
+    for (const el of items) {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.getAttribute('data-value') === value) {
+        htmlEl.classList.add('legend-item-just-dropped');
+        htmlEl.focus();
+        htmlEl.addEventListener(
+          'animationend',
+          () => {
+            htmlEl.classList.remove('legend-item-just-dropped');
+            htmlEl.blur();
+          },
+          { once: true },
+        );
+        break;
+      }
+    }
   }
 
   private _reverseZOrder(): void {
