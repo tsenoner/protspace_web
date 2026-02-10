@@ -17,30 +17,23 @@ export interface DragCallbacks {
   onMergeToOther?: (value: string) => void;
   /** Called to switch to manual sort mode */
   onSortModeChange?: (mode: LegendSortMode) => void;
+  /** Called after a successful drop to highlight the dropped item */
+  onDropComplete?: (value: string) => void;
 }
 
-/**
- * Reactive controller for managing drag and drop functionality using Sortable.js.
- *
- * Key design principles:
- * 1. Use data-value attributes to identify items (not indices)
- * 2. Revert DOM changes immediately after drag ends (let Lit handle rendering)
- * 3. Update state based on the user's intent, then trigger re-render
- */
 export class DragController implements ReactiveController {
   private host: ReactiveControllerHost;
   private callbacks: DragCallbacks;
   private sortableInstance: Sortable | null = null;
   private containerEl: HTMLElement | null = null;
 
+  private preDragChildNodes: Node[] = [];
+  private highlightedOtherEl: HTMLElement | null = null;
+
   constructor(host: ReactiveControllerHost, callbacks: DragCallbacks) {
     this.host = host;
     this.callbacks = callbacks;
     host.addController(this);
-  }
-
-  hostConnected(): void {
-    // Sortable will be initialized when the container is ready
   }
 
   hostDisconnected(): void {
@@ -78,26 +71,68 @@ export class DragController implements ReactiveController {
       filter: '.legend-item-other',
       preventOnFilter: true,
 
+      onStart: (evt) => this.handleDragStart(evt),
+      onMove: (evt) => this.handleDragMove(evt),
       onEnd: (evt) => this.handleDragEnd(evt),
     });
   }
 
-  /**
-   * Handle the end of a drag operation.
-   * This is where we capture the user's intent and update the state.
-   */
-  private handleDragEnd(evt: Sortable.SortableEvent): void {
-    const { oldIndex, newIndex, item } = evt;
+  private handleDragStart(evt: Sortable.SortableEvent): void {
+    this.preDragChildNodes = Array.from(evt.from.childNodes);
+  }
 
-    // Validate indices
-    if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
-      return;
+  private handleDragMove(evt: Sortable.MoveEvent): boolean | -1 | 1 | void {
+    const relatedEl = evt.related;
+    const isOverOther = relatedEl.classList.contains('legend-item-other');
+
+    if (isOverOther) {
+      // Highlight the "Other" item as a merge target
+      if (this.highlightedOtherEl !== relatedEl) {
+        this.clearOtherHighlight();
+        relatedEl.classList.add('legend-item-merge-target');
+        this.highlightedOtherEl = relatedEl;
+      }
+      // Prevent the ghost from appearing at/below "Other"
+      return false;
     }
+
+    // Moving over a normal item — clear any "Other" highlight
+    this.clearOtherHighlight();
+    return undefined;
+  }
+
+  private clearOtherHighlight(): void {
+    if (this.highlightedOtherEl) {
+      this.highlightedOtherEl.classList.remove('legend-item-merge-target');
+      this.highlightedOtherEl = null;
+    }
+  }
+
+  private handleDragEnd(evt: Sortable.SortableEvent): void {
+    const wasMergeTarget = this.highlightedOtherEl !== null;
+    this.clearOtherHighlight();
+
+    const { oldIndex, newIndex, item } = evt;
 
     // Get the dragged item's value from data attribute
     const draggedValue = item.getAttribute('data-value');
+
+    // If dropped while "Other" was highlighted, trigger merge
+    if (wasMergeTarget && draggedValue && draggedValue !== LEGEND_VALUES.OTHER) {
+      this.restoreDom(evt.from);
+      this.callbacks.onMergeToOther?.(draggedValue);
+      return;
+    }
+
+    // Validate indices
+    if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
+      this.restoreDom(evt.from);
+      return;
+    }
+
     if (!draggedValue) {
       console.warn('[DragController] Dragged item missing data-value attribute');
+      this.restoreDom(evt.from);
       return;
     }
 
@@ -109,15 +144,15 @@ export class DragController implements ReactiveController {
     const draggedItem = sortedItems.find((i) => i.value === draggedValue);
     if (!draggedItem) {
       console.warn('[DragController] Could not find dragged item in legend items');
-      this.revertDomChange();
+      this.restoreDom(evt.from);
       return;
     }
 
     // Check if dropping onto "Other" category (merge operation)
     const targetItem = sortedItems[newIndex];
     if (targetItem?.value === LEGEND_VALUES.OTHER && draggedValue !== LEGEND_VALUES.OTHER) {
-      // Revert DOM first, then trigger merge
-      this.revertDomChange();
+      // Restore DOM first, then trigger merge
+      this.restoreDom(evt.from);
       this.callbacks.onMergeToOther?.(draggedValue);
       return;
     }
@@ -125,8 +160,8 @@ export class DragController implements ReactiveController {
     // Prevent dropping below "Other" (Other must stay at bottom)
     const otherIndex = sortedItems.findIndex((i) => i.value === LEGEND_VALUES.OTHER);
     if (otherIndex !== -1 && newIndex >= otherIndex && draggedValue !== LEGEND_VALUES.OTHER) {
-      // Revert DOM - can't drop at or after "Other"
-      this.revertDomChange();
+      // Restore DOM - can't drop at or after "Other"
+      this.restoreDom(evt.from);
       return;
     }
 
@@ -139,31 +174,36 @@ export class DragController implements ReactiveController {
     ];
 
     // Assign new z-orders based on position
-    const reorderedItems = newOrder.map((item, idx) => ({
-      ...item,
+    const reorderedItems = newOrder.map((reorderedItem, idx) => ({
+      ...reorderedItem,
       zOrder: idx,
     }));
 
-    // Revert DOM change - Lit will re-render with correct order
-    this.revertDomChange();
+    // Restore DOM to pre-drag state so Lit's internal tracking is intact
+    this.restoreDom(evt.from);
 
-    // Update state
+    // Update state - Lit will re-render with correct order
     this.callbacks.setLegendItems(reorderedItems);
     this.callbacks.onSortModeChange?.('manual');
     this.callbacks.onReorder();
+    this.callbacks.onDropComplete?.(draggedValue);
   }
 
-  /**
-   * Revert Sortable's DOM manipulation by forcing a re-render.
-   * Sortable moves DOM elements directly, but we want Lit to control the DOM.
-   */
-  private revertDomChange(): void {
+  private restoreDom(container: HTMLElement): void {
     // Temporarily disable Sortable to prevent interference
     if (this.sortableInstance) {
       this.sortableInstance.option('disabled', true);
     }
 
-    // Force Lit to re-render and restore correct DOM order
+    // Restore all child nodes (including Lit comment markers) to pre-drag order
+    if (this.preDragChildNodes.length > 0) {
+      for (const node of this.preDragChildNodes) {
+        container.appendChild(node);
+      }
+      this.preDragChildNodes = [];
+    }
+
+    // Force Lit to re-render with correct state
     this.host.requestUpdate();
 
     // Re-enable Sortable after render
@@ -183,6 +223,7 @@ export class DragController implements ReactiveController {
       this.sortableInstance = null;
     }
     this.containerEl = null;
+    this.preDragChildNodes = [];
   }
 
   /**

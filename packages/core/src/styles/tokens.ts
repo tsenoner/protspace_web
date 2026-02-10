@@ -44,6 +44,11 @@ export const tokens = css`
     --text-dark: #0b0f19;
     --text-light: #ffffff;
     --focus-ring: rgba(0, 163, 224, 0.15);
+    --focus-ring-bg: #e1f1fb;
+    --primary-alpha-10: rgba(0, 163, 224, 0.1);
+    --primary-alpha-20: rgba(0, 163, 224, 0.2);
+    --primary-alpha-30: rgba(0, 163, 224, 0.3);
+    --primary-alpha-50: rgba(0, 163, 224, 0.5);
 
     /* Destructive Actions */
     --danger: #e42121;
@@ -70,10 +75,6 @@ export const tokens = css`
     /* Dark Mode Support (for future) */
     --surface-dark: #1f2937;
     --border-dark: #374151;
-
-    /* Accent Colors */
-    --accent-purple: #7c3aed;
-    --accent-gray: #979595ff;
 
     /* Shadows */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);

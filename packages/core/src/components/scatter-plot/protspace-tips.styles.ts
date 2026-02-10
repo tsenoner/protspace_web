@@ -31,7 +31,7 @@ export const protspaceTipsStyles = css`
   }
 
   .trigger:focus-visible {
-    outline: 2px solid rgba(0, 163, 224, 0.3);
+    outline: 2px solid var(--primary-alpha-30);
     outline-offset: 2px;
   }
 

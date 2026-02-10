@@ -44,7 +44,7 @@ export const itemStyles = css`
     background: var(--legend-drag-bg);
     transform: scale(1.02);
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.15);
-    border: 2px solid var(--accent-purple) !important;
+    border: 2px solid var(--primary) !important;
     border-radius: 0.5rem;
     opacity: 0.8;
     z-index: var(--z-modal);
@@ -56,9 +56,10 @@ export const itemStyles = css`
   /* Ghost class - placeholder/gap shown where item will be dropped */
   .legend-item-ghost {
     opacity: 0.4;
-    background: var(--accent-purple);
-    border: 2px dashed var(--accent-purple);
+    background: var(--primary);
+    border: 2px dashed var(--primary);
     border-radius: 0.5rem;
+    box-shadow: none !important;
   }
 
   /* Chosen class - applied to the item when it's picked up */
@@ -71,18 +72,43 @@ export const itemStyles = css`
   .legend-item-drag {
     background: var(--legend-bg);
     box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2);
-    border: 2px solid var(--accent-purple);
+    border: 2px solid var(--primary);
     border-radius: 0.5rem;
     opacity: 0.95;
     cursor: grabbing;
     transform: rotate(2deg);
   }
 
+  /* Merge target highlight - shown on "Other" when dragging an item over it */
+  .legend-item-merge-target {
+    background: var(--focus-ring);
+    border: 2px dashed var(--primary);
+    border-radius: 0.5rem;
+    box-shadow: 0 0 0 2px var(--primary-alpha-20);
+    transition: all 0.15s ease;
+  }
+
+  /* Just-dropped highlight - brief flash on the item after drag-and-drop reorder */
+  .legend-item-just-dropped {
+    animation: drop-highlight 0.6s ease-out;
+  }
+
+  @keyframes drop-highlight {
+    0% {
+      background: var(--primary-alpha-20);
+      box-shadow: 0 0 0 3px var(--primary-alpha-50);
+    }
+    100% {
+      background: var(--legend-hover-bg);
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+  }
+
   /* Fallback class - for older browsers */
   .legend-item-fallback {
     background: var(--legend-bg);
     box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2);
-    border: 2px solid var(--accent-purple);
+    border: 2px solid var(--primary);
     border-radius: 0.5rem;
     opacity: 0.95;
   }
@@ -120,8 +146,8 @@ export const itemStyles = css`
   }
 
   .drag-handle:hover {
-    color: var(--accent-purple);
-    background: rgba(139, 92, 246, 0.1);
+    color: var(--primary);
+    background: var(--primary-alpha-10);
   }
 
   .drag-handle:active {
@@ -198,7 +224,7 @@ export const itemStyles = css`
 
   .color-picker-input:focus {
     outline: none;
-    border-color: var(--accent-purple);
+    border-color: var(--primary);
   }
 
   /* Symbol Picker Sections (Color + Shape side by side) */
@@ -242,13 +268,13 @@ export const itemStyles = css`
   }
 
   .shape-picker-swatch:hover:not(:disabled) {
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-alpha-20);
   }
 
   .shape-picker-swatch.active {
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-alpha-30);
   }
 
   .shape-picker-swatch.disabled {
@@ -300,16 +326,16 @@ export const itemStyles = css`
   }
 
   .shape-picker-item:hover {
-    border-color: var(--accent-purple);
+    border-color: var(--primary);
     background: var(--legend-hover-bg);
-    color: var(--accent-purple);
+    color: var(--primary);
   }
 
   .shape-picker-item.selected {
-    border-color: var(--accent-purple);
-    background: rgba(139, 92, 246, 0.1);
-    color: var(--accent-purple);
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+    border-color: var(--primary);
+    background: var(--primary-alpha-10);
+    color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-alpha-20);
   }
 
   /* Note for disabled shape picker (multilabel) */

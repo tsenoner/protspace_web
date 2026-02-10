@@ -212,6 +212,7 @@ export class ProtspaceLegend extends LitElement {
         [this.selectedAnnotation]: mode,
       };
     },
+    onDropComplete: (value) => this._highlightDroppedItem(value),
   });
 
   // ─────────────────────────────────────────────────────────────────
@@ -732,13 +733,15 @@ export class ProtspaceLegend extends LitElement {
       const pendingExtract = this._pendingExtractValue;
       const pendingMerge = this._pendingMergeValue;
 
-      // Use visibleValues when there are persisted settings OR when there are pending operations.
-      // When there are pending merge/extract operations, we need the current visible set
-      // to properly filter items even if localStorage hasn't been written yet.
-      // When no localStorage key exists and no pending ops, use empty set so maxVisibleValues is respected.
+      // Use visibleValues to preserve the current visible set when:
+      // - There are persisted settings in localStorage
+      // - There are pending extract/merge operations
+      // - There are already legend items (e.g., switching sort mode before persistence)
+      // When none of these apply (true initial load), use empty set so maxVisibleValues is respected.
       const hasPendingOps = pendingExtract !== undefined || pendingMerge !== undefined;
+      const hasExistingItems = this._legendItems.some((i) => i.value !== LEGEND_VALUES.OTHER);
       const visibleValues =
-        this._persistenceController.hasPersistedSettings() || hasPendingOps
+        this._persistenceController.hasPersistedSettings() || hasPendingOps || hasExistingItems
           ? this._visibleValues
           : new Set<string>();
 
@@ -761,7 +764,7 @@ export class ProtspaceLegend extends LitElement {
 
       // Apply hidden values
       if (this._hiddenValues.length > 0) {
-        this._legendItems = legendItems.map((item) => ({
+        this._legendItems = legendItems.map((item: LegendItem) => ({
           ...item,
           isVisible: !this._hiddenValues.includes(valueToKey(item.value)),
         }));
@@ -902,6 +905,33 @@ export class ProtspaceLegend extends LitElement {
     });
   }
 
+  private async _highlightDroppedItem(value: string): Promise<void> {
+    // Wait for Lit to complete rendering with the new item order.
+    // Two chained awaits: first for _legendItems update, second for _sortedLegendItems.
+    await this.updateComplete;
+    await this.updateComplete;
+
+    const items = this.shadowRoot?.querySelectorAll('.legend-item');
+    if (!items) return;
+
+    for (const el of items) {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.getAttribute('data-value') === value) {
+        htmlEl.classList.add('legend-item-just-dropped');
+        htmlEl.focus();
+        htmlEl.addEventListener(
+          'animationend',
+          () => {
+            htmlEl.classList.remove('legend-item-just-dropped');
+            htmlEl.blur();
+          },
+          { once: true },
+        );
+        break;
+      }
+    }
+  }
+
   private _reverseZOrder(): void {
     if (this._legendItems.length <= 1) return;
 
@@ -1029,12 +1059,25 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handleSettingsSave(): void {
+    const shapesSettingChanged = this.includeShapes !== this._dialogSettings.includeShapes;
+
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
     this.includeShapes = this._dialogSettings.includeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
     this._annotationSortModes = this._dialogSettings.annotationSortModes;
     this._selectedPaletteId = this._dialogSettings.selectedPaletteId;
     this._showSettingsDialog = false;
+
+    // When includeShapes changes, clear stale shape data from pending categories
+    // so persisted 'circle' shapes don't override freshly computed shapes.
+    if (shapesSettingChanged) {
+      const pending = this._persistenceController.pendingCategories;
+      const cleared: Record<string, PersistedCategoryData> = {};
+      for (const [key, data] of Object.entries(pending)) {
+        cleared[key] = { ...data, shape: '' };
+      }
+      this._persistenceController.setPendingCategories(cleared);
+    }
 
     // Don't clear _legendItems - we want to preserve current zOrders when switching sort modes.
     // This ensures switching to manual mode keeps the current display order.

@@ -662,9 +662,6 @@ export async function initializeDemo() {
 
         // Execute export
         switch (type) {
-          case 'json':
-            exporter.exportJSON(options);
-            break;
           case 'ids':
             exporter.exportProteinIds(options);
             break;
