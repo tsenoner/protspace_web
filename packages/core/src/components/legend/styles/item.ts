@@ -80,10 +80,10 @@ export const itemStyles = css`
 
   /* Merge target highlight - shown on "Other" when dragging an item over it */
   .legend-item-merge-target {
-    background: rgba(0, 163, 224, 0.15);
+    background: var(--focus-ring);
     border: 2px dashed var(--primary);
     border-radius: 0.5rem;
-    box-shadow: 0 0 0 2px rgba(0, 163, 224, 0.2);
+    box-shadow: 0 0 0 2px var(--primary-alpha-20);
     transition: all 0.15s ease;
   }
 
@@ -94,8 +94,8 @@ export const itemStyles = css`
 
   @keyframes drop-highlight {
     0% {
-      background: rgba(0, 163, 224, 0.25);
-      box-shadow: 0 0 0 3px rgba(0, 163, 224, 0.5);
+      background: var(--primary-alpha-20);
+      box-shadow: 0 0 0 3px var(--primary-alpha-50);
     }
     100% {
       background: var(--legend-hover-bg);
@@ -146,7 +146,7 @@ export const itemStyles = css`
 
   .drag-handle:hover {
     color: var(--primary);
-    background: rgba(0, 163, 224, 0.1);
+    background: var(--primary-alpha-10);
   }
 
   .drag-handle:active {
@@ -268,12 +268,12 @@ export const itemStyles = css`
 
   .shape-picker-swatch:hover:not(:disabled) {
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(0, 163, 224, 0.2);
+    box-shadow: 0 0 0 2px var(--primary-alpha-20);
   }
 
   .shape-picker-swatch.active {
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(0, 163, 224, 0.3);
+    box-shadow: 0 0 0 2px var(--primary-alpha-30);
   }
 
   .shape-picker-swatch.disabled {
@@ -332,9 +332,9 @@ export const itemStyles = css`
 
   .shape-picker-item.selected {
     border-color: var(--primary);
-    background: rgba(0, 163, 224, 0.1);
+    background: var(--primary-alpha-10);
     color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(0, 163, 224, 0.2);
+    box-shadow: 0 0 0 2px var(--primary-alpha-20);
   }
 
   /* Note for disabled shape picker (multilabel) */
