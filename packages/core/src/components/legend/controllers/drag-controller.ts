@@ -19,18 +19,28 @@ export interface DragCallbacks {
   onSortModeChange?: (mode: LegendSortMode) => void;
 }
 
+/**
+ * Reactive controller for managing drag and drop functionality using Sortable.js.
+ *
+ * Key design principles:
+ * 1. Use data-value attributes to identify items (not indices)
+ * 2. Revert DOM changes immediately after drag ends (let Lit handle rendering)
+ * 3. Update state based on the user's intent, then trigger re-render
+ */
 export class DragController implements ReactiveController {
   private host: ReactiveControllerHost;
   private callbacks: DragCallbacks;
   private sortableInstance: Sortable | null = null;
   private containerEl: HTMLElement | null = null;
 
-  private preDragChildNodes: Node[] = [];
-
   constructor(host: ReactiveControllerHost, callbacks: DragCallbacks) {
     this.host = host;
     this.callbacks = callbacks;
     host.addController(this);
+  }
+
+  hostConnected(): void {
+    // Sortable will be initialized when the container is ready
   }
 
   hostDisconnected(): void {
@@ -68,21 +78,19 @@ export class DragController implements ReactiveController {
       filter: '.legend-item-other',
       preventOnFilter: true,
 
-      onStart: (evt) => this.handleDragStart(evt),
       onEnd: (evt) => this.handleDragEnd(evt),
     });
   }
 
-  private handleDragStart(evt: Sortable.SortableEvent): void {
-    this.preDragChildNodes = Array.from(evt.from.childNodes);
-  }
-
+  /**
+   * Handle the end of a drag operation.
+   * This is where we capture the user's intent and update the state.
+   */
   private handleDragEnd(evt: Sortable.SortableEvent): void {
     const { oldIndex, newIndex, item } = evt;
 
     // Validate indices
     if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
-      this.restoreDom(evt.from);
       return;
     }
 
@@ -90,7 +98,6 @@ export class DragController implements ReactiveController {
     const draggedValue = item.getAttribute('data-value');
     if (!draggedValue) {
       console.warn('[DragController] Dragged item missing data-value attribute');
-      this.restoreDom(evt.from);
       return;
     }
 
@@ -102,15 +109,15 @@ export class DragController implements ReactiveController {
     const draggedItem = sortedItems.find((i) => i.value === draggedValue);
     if (!draggedItem) {
       console.warn('[DragController] Could not find dragged item in legend items');
-      this.restoreDom(evt.from);
+      this.revertDomChange();
       return;
     }
 
     // Check if dropping onto "Other" category (merge operation)
     const targetItem = sortedItems[newIndex];
     if (targetItem?.value === LEGEND_VALUES.OTHER && draggedValue !== LEGEND_VALUES.OTHER) {
-      // Restore DOM first, then trigger merge
-      this.restoreDom(evt.from);
+      // Revert DOM first, then trigger merge
+      this.revertDomChange();
       this.callbacks.onMergeToOther?.(draggedValue);
       return;
     }
@@ -118,8 +125,8 @@ export class DragController implements ReactiveController {
     // Prevent dropping below "Other" (Other must stay at bottom)
     const otherIndex = sortedItems.findIndex((i) => i.value === LEGEND_VALUES.OTHER);
     if (otherIndex !== -1 && newIndex >= otherIndex && draggedValue !== LEGEND_VALUES.OTHER) {
-      // Restore DOM - can't drop at or after "Other"
-      this.restoreDom(evt.from);
+      // Revert DOM - can't drop at or after "Other"
+      this.revertDomChange();
       return;
     }
 
@@ -132,35 +139,31 @@ export class DragController implements ReactiveController {
     ];
 
     // Assign new z-orders based on position
-    const reorderedItems = newOrder.map((reorderedItem, idx) => ({
-      ...reorderedItem,
+    const reorderedItems = newOrder.map((item, idx) => ({
+      ...item,
       zOrder: idx,
     }));
 
-    // Restore DOM to pre-drag state so Lit's internal tracking is intact
-    this.restoreDom(evt.from);
+    // Revert DOM change - Lit will re-render with correct order
+    this.revertDomChange();
 
-    // Update state - Lit will re-render with correct order
+    // Update state
     this.callbacks.setLegendItems(reorderedItems);
     this.callbacks.onSortModeChange?.('manual');
     this.callbacks.onReorder();
   }
 
-  private restoreDom(container: HTMLElement): void {
+  /**
+   * Revert Sortable's DOM manipulation by forcing a re-render.
+   * Sortable moves DOM elements directly, but we want Lit to control the DOM.
+   */
+  private revertDomChange(): void {
     // Temporarily disable Sortable to prevent interference
     if (this.sortableInstance) {
       this.sortableInstance.option('disabled', true);
     }
 
-    // Restore all child nodes (including Lit comment markers) to pre-drag order
-    if (this.preDragChildNodes.length > 0) {
-      for (const node of this.preDragChildNodes) {
-        container.appendChild(node);
-      }
-      this.preDragChildNodes = [];
-    }
-
-    // Force Lit to re-render with correct state
+    // Force Lit to re-render and restore correct DOM order
     this.host.requestUpdate();
 
     // Re-enable Sortable after render
@@ -180,7 +183,6 @@ export class DragController implements ReactiveController {
       this.sortableInstance = null;
     }
     this.containerEl = null;
-    this.preDragChildNodes = [];
   }
 
   /**
