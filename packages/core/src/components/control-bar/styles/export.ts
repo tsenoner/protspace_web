@@ -97,7 +97,7 @@ export const exportStyles = css`
 
   .export-format-options {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: var(--spacing-xs);
     box-sizing: border-box;
   }
