@@ -78,6 +78,15 @@ export const itemStyles = css`
     transform: rotate(2deg);
   }
 
+  /* Merge target highlight - shown on "Other" when dragging an item over it */
+  .legend-item-merge-target {
+    background: rgba(139, 92, 246, 0.15);
+    border: 2px dashed var(--accent-purple);
+    border-radius: 0.5rem;
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+    transition: all 0.15s ease;
+  }
+
   /* Fallback class - for older browsers */
   .legend-item-fallback {
     background: var(--legend-bg);

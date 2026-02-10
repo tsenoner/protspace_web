@@ -26,6 +26,7 @@ export class DragController implements ReactiveController {
   private containerEl: HTMLElement | null = null;
 
   private preDragChildNodes: Node[] = [];
+  private highlightedOtherEl: HTMLElement | null = null;
 
   constructor(host: ReactiveControllerHost, callbacks: DragCallbacks) {
     this.host = host;
@@ -69,6 +70,7 @@ export class DragController implements ReactiveController {
       preventOnFilter: true,
 
       onStart: (evt) => this.handleDragStart(evt),
+      onMove: (evt) => this.handleDragMove(evt),
       onEnd: (evt) => this.handleDragEnd(evt),
     });
   }
@@ -77,8 +79,48 @@ export class DragController implements ReactiveController {
     this.preDragChildNodes = Array.from(evt.from.childNodes);
   }
 
+  private handleDragMove(evt: Sortable.MoveEvent): boolean | -1 | 1 | void {
+    const relatedEl = evt.related;
+    const isOverOther = relatedEl.classList.contains('legend-item-other');
+
+    if (isOverOther) {
+      // Highlight the "Other" item as a merge target
+      if (this.highlightedOtherEl !== relatedEl) {
+        this.clearOtherHighlight();
+        relatedEl.classList.add('legend-item-merge-target');
+        this.highlightedOtherEl = relatedEl;
+      }
+      // Prevent the ghost from appearing at/below "Other"
+      return false;
+    }
+
+    // Moving over a normal item — clear any "Other" highlight
+    this.clearOtherHighlight();
+    return undefined;
+  }
+
+  private clearOtherHighlight(): void {
+    if (this.highlightedOtherEl) {
+      this.highlightedOtherEl.classList.remove('legend-item-merge-target');
+      this.highlightedOtherEl = null;
+    }
+  }
+
   private handleDragEnd(evt: Sortable.SortableEvent): void {
+    const wasMergeTarget = this.highlightedOtherEl !== null;
+    this.clearOtherHighlight();
+
     const { oldIndex, newIndex, item } = evt;
+
+    // Get the dragged item's value from data attribute
+    const draggedValue = item.getAttribute('data-value');
+
+    // If dropped while "Other" was highlighted, trigger merge
+    if (wasMergeTarget && draggedValue && draggedValue !== LEGEND_VALUES.OTHER) {
+      this.restoreDom(evt.from);
+      this.callbacks.onMergeToOther?.(draggedValue);
+      return;
+    }
 
     // Validate indices
     if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
@@ -86,8 +128,6 @@ export class DragController implements ReactiveController {
       return;
     }
 
-    // Get the dragged item's value from data attribute
-    const draggedValue = item.getAttribute('data-value');
     if (!draggedValue) {
       console.warn('[DragController] Dragged item missing data-value attribute');
       this.restoreDom(evt.from);
