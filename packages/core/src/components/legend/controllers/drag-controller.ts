@@ -17,6 +17,8 @@ export interface DragCallbacks {
   onMergeToOther?: (value: string) => void;
   /** Called to switch to manual sort mode */
   onSortModeChange?: (mode: LegendSortMode) => void;
+  /** Called after a successful drop to highlight the dropped item */
+  onDropComplete?: (value: string) => void;
 }
 
 export class DragController implements ReactiveController {
@@ -184,6 +186,7 @@ export class DragController implements ReactiveController {
     this.callbacks.setLegendItems(reorderedItems);
     this.callbacks.onSortModeChange?.('manual');
     this.callbacks.onReorder();
+    this.callbacks.onDropComplete?.(draggedValue);
   }
 
   private restoreDom(container: HTMLElement): void {

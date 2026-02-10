@@ -87,6 +87,22 @@ export const itemStyles = css`
     transition: all 0.15s ease;
   }
 
+  /* Just-dropped highlight - brief flash on the item after drag-and-drop reorder */
+  .legend-item-just-dropped {
+    animation: drop-highlight 0.6s ease-out;
+  }
+
+  @keyframes drop-highlight {
+    0% {
+      background: rgba(139, 92, 246, 0.25);
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.5);
+    }
+    100% {
+      background: var(--legend-hover-bg);
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+  }
+
   /* Fallback class - for older browsers */
   .legend-item-fallback {
     background: var(--legend-bg);
