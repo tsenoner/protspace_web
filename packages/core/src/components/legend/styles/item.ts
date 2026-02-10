@@ -59,6 +59,7 @@ export const itemStyles = css`
     background: var(--primary);
     border: 2px dashed var(--primary);
     border-radius: 0.5rem;
+    box-shadow: none !important;
   }
 
   /* Chosen class - applied to the item when it's picked up */
