@@ -82,6 +82,13 @@ protspace-legend {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
+protspace-structure-viewer {
+  display: block;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
 protspace-data-loader:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
