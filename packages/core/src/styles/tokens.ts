@@ -72,7 +72,6 @@ export const tokens = css`
     --border-dark: #374151;
 
     /* Accent Colors */
-    --accent-purple: #7c3aed;
     --accent-gray: #979595ff;
 
     /* Shadows */
