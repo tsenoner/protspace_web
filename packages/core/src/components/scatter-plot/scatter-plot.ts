@@ -1553,8 +1553,6 @@ export class ProtspaceScatterplot extends LitElement {
                 style="${this._getTooltipStyle()}"
                 .protein=${this._tooltipData.protein}
                 .selectedAnnotation=${this.selectedAnnotation}
-                .showScores=${this.selectedAnnotation.toLowerCase() === 'pfam' ||
-                this.selectedAnnotation.toLowerCase() === 'cath'}
               >
               </protspace-protein-tooltip>
             `

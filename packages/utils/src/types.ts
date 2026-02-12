@@ -16,7 +16,7 @@ export interface VisualizationData {
   projections: Projection[];
   annotations: Record<string, Annotation>;
   annotation_data: Record<string, number[][]>;
-  annotation_scores?: Record<string, (number | null)[][]>;
+  annotation_scores?: Record<string, (number[] | null)[][]>;
 }
 
 export interface PlotDataPoint {
@@ -25,7 +25,7 @@ export interface PlotDataPoint {
   y: number;
   z?: number;
   annotationValues: Record<string, string[]>;
-  annotationScores?: Record<string, (number | null)[]>;
+  annotationScores?: Record<string, (number[] | null)[]>;
   originalIndex: number;
 }
 

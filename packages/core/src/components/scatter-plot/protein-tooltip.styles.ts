@@ -110,7 +110,23 @@ export const proteinTooltipStyles = css`
     color: #64748b;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: baseline;
     gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .tooltip-annotation-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .tooltip-annotation-score {
+    flex-shrink: 0;
+    white-space: nowrap;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
   }
 `;

@@ -18,7 +18,7 @@ export class DataProcessor {
 
       // Map annotation values for this protein
       const annotationValues: Record<string, string[]> = {};
-      const annotationScores: Record<string, (number | null)[]> = {};
+      const annotationScores: Record<string, (number[] | null)[]> = {};
       Object.keys(data.annotations).forEach((annotationKey) => {
         const annotationRows = data.annotation_data?.[annotationKey];
         const annotationIndicesData = annotationRows ? annotationRows[index] : undefined;

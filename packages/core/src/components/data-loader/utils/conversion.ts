@@ -25,20 +25,41 @@ function getIdColumnsSet(proteinIdCol: string): Set<string> {
 /** Keys to exclude when building metadata */
 const METADATA_EXCLUDED_KEYS = new Set(['projection_name', 'name', 'info_json']);
 
-// Helper functions for annotation parsing (PFAM, CATH, etc.)
-// These annotations have format: label|score
-const isAnnotationWithScore = (name: string): boolean => {
-  const normalized = name.trim().toLowerCase();
-  return normalized === 'pfam' || normalized === 'cath';
-};
+/**
+ * Parse an annotation value that may contain a pipe-separated score suffix.
+ * Format: `label|score` or `label|score1,score2,...`
+ * If the part after the last `|` is not numeric (or comma-separated numerics),
+ * the full string is kept as the label with no scores.
+ * Examples:
+ *   "PF00001 (7tm_1)|1.5e-10"       → { label: "PF00001 (7tm_1)", scores: [1.5e-10] }
+ *   "PF00001|1.5e-10,2.3e-5"        → { label: "PF00001", scores: [1.5e-10, 2.3e-5] }
+ *   "GO:0005524|ATP binding"         → { label: "GO:0005524|ATP binding", scores: [] }
+ *   "taxonomy_value"                 → { label: "taxonomy_value", scores: [] }
+ */
+export const parseAnnotationValue = (raw: string): { label: string; scores: number[] } => {
+  const trimmed = raw.trim();
+  if (!trimmed) return { label: '', scores: [] };
 
-const parseAnnotationValue = (raw: string): { label: string; score: number | null } => {
-  const [labelPart, scorePart] = raw.split('|');
-  const label = (labelPart ?? '').trim();
-  const scoreRaw = scorePart?.trim();
-  if (!scoreRaw) return { label, score: null };
-  const score = Number(scoreRaw);
-  return Number.isFinite(score) ? { label, score } : { label, score: null };
+  const lastPipe = trimmed.lastIndexOf('|');
+  if (lastPipe === -1 || lastPipe === trimmed.length - 1) {
+    return { label: trimmed, scores: [] };
+  }
+
+  const candidateScore = trimmed.substring(lastPipe + 1).trim();
+  const parts = candidateScore.split(',');
+  const scores: number[] = [];
+
+  for (const part of parts) {
+    const num = Number(part.trim());
+    if (!Number.isFinite(num)) {
+      // Not numeric — treat the full string as the label
+      return { label: trimmed, scores: [] };
+    }
+    scores.push(num);
+  }
+
+  const label = trimmed.substring(0, lastPipe).trim();
+  return { label, scores };
 };
 
 /**
@@ -218,15 +239,15 @@ function convertBundleFormatData(
 
   const annotations: Record<string, Annotation> = {};
   const annotation_data: Record<string, number[][]> = {};
-  const annotation_scores: Record<string, (number | null)[][]> = {};
+  const annotation_scores: Record<string, (number[] | null)[][]> = {};
 
   const baseProjectionData = projectionGroups.values().next().value || rows;
 
   for (const annotationCol of annotationColumns) {
-    const hasScore = isAnnotationWithScore(annotationCol);
     const annotationMap = new Map<string, string[]>();
-    const annotationScoreMap = hasScore ? new Map<string, (number | null)[]>() : null;
+    const annotationScoreMap = new Map<string, (number[] | null)[]>();
     const valueCountMap = new Map<string, number>();
+    let columnHasScores = false;
 
     for (const row of baseProjectionData) {
       const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
@@ -234,29 +255,22 @@ function convertBundleFormatData(
 
       if (rawValue == null) {
         annotationMap.set(proteinId, []);
-        if (annotationScoreMap) annotationScoreMap.set(proteinId, []);
+        annotationScoreMap.set(proteinId, []);
         continue;
       }
 
       const rawValues = String(rawValue).split(';');
-      if (hasScore) {
-        const labels: string[] = [];
-        const scores: (number | null)[] = [];
-        for (const raw of rawValues) {
-          const { label, score } = parseAnnotationValue(raw);
-          labels.push(label);
-          scores.push(score);
-          valueCountMap.set(label, (valueCountMap.get(label) || 0) + 1);
-        }
-        annotationMap.set(proteinId, labels);
-        annotationScoreMap?.set(proteinId, scores);
-      } else {
-        annotationMap.set(proteinId, rawValues);
-        // Count occurrences for frequency-based sorting
-        for (const v of rawValues) {
-          valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
-        }
+      const labels: string[] = [];
+      const scores: (number[] | null)[] = [];
+      for (const raw of rawValues) {
+        const parsed = parseAnnotationValue(raw);
+        labels.push(parsed.label);
+        scores.push(parsed.scores.length > 0 ? parsed.scores : null);
+        if (parsed.scores.length > 0) columnHasScores = true;
+        valueCountMap.set(parsed.label, (valueCountMap.get(parsed.label) || 0) + 1);
       }
+      annotationMap.set(proteinId, labels);
+      annotationScoreMap.set(proteinId, scores);
     }
 
     // Sort unique values by frequency (most frequent first)
@@ -276,7 +290,7 @@ function convertBundleFormatData(
       return (value ?? []).map((v) => valueToIndex.get(v) ?? -1);
     });
 
-    if (annotationScoreMap) {
+    if (columnHasScores) {
       annotation_scores[annotationCol] = uniqueProteinIds.map(
         (proteinId) => annotationScoreMap.get(proteinId) ?? [],
       );
@@ -417,57 +431,45 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
 
   const annotations: Record<string, Annotation> = {};
   const annotation_data: Record<string, number[][]> = {};
-  const annotation_scores: Record<string, (number | null)[][]> = {};
+  const annotation_scores: Record<string, (number[] | null)[][]> = {};
 
   for (const annotationCol of annotationColumns) {
-    const hasScore = isAnnotationWithScore(annotationCol);
     const rawValues: string[][] = rows.map((row) => {
       const v = row[annotationCol];
       return v == null ? [] : String(v).split(';');
     });
 
-    if (hasScore) {
-      const parsed = rawValues.map((valueArray) => {
-        const labels: string[] = [];
-        const scores: (number | null)[] = [];
-        for (const raw of valueArray) {
-          const { label, score } = parseAnnotationValue(raw);
-          labels.push(label);
-          scores.push(score);
-        }
-        return { labels, scores };
-      });
+    let columnHasScores = false;
+    const parsed = rawValues.map((valueArray) => {
+      const labels: string[] = [];
+      const scores: (number[] | null)[] = [];
+      for (const raw of valueArray) {
+        const p = parseAnnotationValue(raw);
+        labels.push(p.label);
+        scores.push(p.scores.length > 0 ? p.scores : null);
+        if (p.scores.length > 0) columnHasScores = true;
+      }
+      return { labels, scores };
+    });
 
-      const labelsByRow = parsed.map((p) => p.labels);
-      const scoresByRow = parsed.map((p) => p.scores);
+    const labelsByRow = parsed.map((p) => p.labels);
+    const scoresByRow = parsed.map((p) => p.scores);
 
-      const uniqueValues = Array.from(new Set(labelsByRow.flat()));
-      const valueToIndex = new Map<string, number>();
-      uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
+    const uniqueValues = Array.from(new Set(labelsByRow.flat()));
+    const valueToIndex = new Map<string, number>();
+    uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
 
-      const colors = generateColors(uniqueValues.length);
-      const shapes = generateShapes(uniqueValues.length);
+    const colors = generateColors(uniqueValues.length);
+    const shapes = generateShapes(uniqueValues.length);
 
-      const annotationDataArray = labelsByRow.map((valueArray) =>
-        valueArray.map((v) => valueToIndex.get(v) ?? -1),
-      );
+    const annotationDataArray = labelsByRow.map((valueArray) =>
+      valueArray.map((v) => valueToIndex.get(v) ?? -1),
+    );
 
-      annotations[annotationCol] = { values: uniqueValues, colors, shapes };
-      annotation_data[annotationCol] = annotationDataArray;
+    annotations[annotationCol] = { values: uniqueValues, colors, shapes };
+    annotation_data[annotationCol] = annotationDataArray;
+    if (columnHasScores) {
       annotation_scores[annotationCol] = scoresByRow;
-    } else {
-      const uniqueValues = Array.from(new Set(rawValues.flat()));
-      const valueToIndex = new Map<string, number>();
-      uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
-
-      const colors = generateColors(uniqueValues.length);
-      const shapes = generateShapes(uniqueValues.length);
-      const annotationDataArray = rawValues.map((valueArray) =>
-        valueArray.map((v) => valueToIndex.get(v) ?? -1),
-      );
-
-      annotations[annotationCol] = { values: uniqueValues, colors, shapes };
-      annotation_data[annotationCol] = annotationDataArray;
     }
   }
 
@@ -629,21 +631,21 @@ export async function extractAnnotationsOptimized(
 ): Promise<{
   annotations: Record<string, Annotation>;
   annotation_data: Record<string, number[][]>;
-  annotation_scores: Record<string, (number | null)[][]>;
+  annotation_scores: Record<string, (number[] | null)[][]>;
 }> {
   const allIdColumns = getIdColumnsSet(proteinIdCol);
   const annotationColumns = columnNames.filter((c) => !allIdColumns.has(c));
 
   const annotations: Record<string, Annotation> = {};
   const annotation_data: Record<string, number[][]> = {};
-  const annotation_scores: Record<string, (number | null)[][]> = {};
+  const annotation_scores: Record<string, (number[] | null)[][]> = {};
 
   const chunkSize = 10000;
   for (const annotationCol of annotationColumns) {
-    const hasScore = isAnnotationWithScore(annotationCol);
     const annotationMap = new Map<string, string[]>();
-    const annotationScoreMap = hasScore ? new Map<string, (number | null)[]>() : null;
+    const annotationScoreMap = new Map<string, (number[] | null)[]>();
     const valueCountMap = new Map<string | null, number>();
+    let columnHasScores = false;
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, Math.min(i + chunkSize, rows.length));
       for (const row of chunk) {
@@ -652,28 +654,22 @@ export async function extractAnnotationsOptimized(
 
         if (rawValue == null) {
           annotationMap.set(proteinId, []);
-          if (annotationScoreMap) annotationScoreMap.set(proteinId, []);
+          annotationScoreMap.set(proteinId, []);
           continue;
         }
 
         const rawValues = String(rawValue).split(';');
-        if (hasScore) {
-          const labels: string[] = [];
-          const scores: (number | null)[] = [];
-          for (const raw of rawValues) {
-            const { label, score } = parseAnnotationValue(raw);
-            labels.push(label);
-            scores.push(score);
-            valueCountMap.set(label, (valueCountMap.get(label) || 0) + 1);
-          }
-          annotationMap.set(proteinId, labels);
-          annotationScoreMap?.set(proteinId, scores);
-        } else {
-          annotationMap.set(proteinId, rawValues);
-          for (const v of rawValues) {
-            valueCountMap.set(v, (valueCountMap.get(v) || 0) + 1);
-          }
+        const labels: string[] = [];
+        const scores: (number[] | null)[] = [];
+        for (const raw of rawValues) {
+          const parsed = parseAnnotationValue(raw);
+          labels.push(parsed.label);
+          scores.push(parsed.scores.length > 0 ? parsed.scores : null);
+          if (parsed.scores.length > 0) columnHasScores = true;
+          valueCountMap.set(parsed.label, (valueCountMap.get(parsed.label) || 0) + 1);
         }
+        annotationMap.set(proteinId, labels);
+        annotationScoreMap.set(proteinId, scores);
       }
       // yield
 
@@ -694,7 +690,7 @@ export async function extractAnnotationsOptimized(
       annotationDataArray[i] = (valueArray ?? []).map((v) => valueToIndex.get(v) ?? -1);
     }
 
-    if (annotationScoreMap) {
+    if (columnHasScores) {
       annotation_scores[annotationCol] = uniqueProteinIds.map(
         (proteinId) => annotationScoreMap.get(proteinId) ?? [],
       );
