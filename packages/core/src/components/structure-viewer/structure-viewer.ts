@@ -4,6 +4,7 @@ import { StructureService } from '@protspace/utils';
 import type { StructureData } from '@protspace/utils';
 import { structureViewerStyles } from './structure-viewer.styles';
 import { createMolstarViewer, type MolstarViewer } from './molstar-loader';
+import { buildAlphaFoldUrl, buildUniProtUrl, buildInterProUrl } from './header-links';
 import type { StructureLoadEvent } from './types';
 
 @customElement('protspace-structure-viewer')
@@ -297,29 +298,38 @@ export class ProtspaceStructureViewer extends LitElement {
       ${this.showHeader
         ? html`
             <div class="header">
-              <div>
+              <div class="header-info">
                 <a
                   class="title"
-                  href=${`https://alphafold.ebi.ac.uk/entry/${encodeURIComponent(
-                    this.proteinId.split('.')[0],
-                  )}`}
+                  href=${buildAlphaFoldUrl(this.proteinId)}
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Open in AlphaFold DB"
                 >
                   ${this.title}
                 </a>
-                <a
-                  class="protein-id"
-                  href=${`https://www.uniprot.org/uniprotkb/${encodeURIComponent(
-                    this.proteinId.split('.')[0],
-                  )}/entry`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Open in UniProt"
-                >
-                  ${this.proteinId}
-                </a>
+                <span class="protein-id">${this.proteinId}</span>
+                <span class="header-links">
+                  <a
+                    class="header-link"
+                    href=${buildUniProtUrl(this.proteinId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Open in UniProt"
+                  >
+                    UniProt
+                  </a>
+                  <span class="header-link-separator">&middot;</span>
+                  <a
+                    class="header-link"
+                    href=${buildInterProUrl(this.proteinId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Open in InterPro"
+                  >
+                    InterPro
+                  </a>
+                </span>
               </div>
               <div class="header-actions">
                 ${this.showCloseButton
