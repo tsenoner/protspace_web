@@ -2,7 +2,11 @@ import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
 
 const EXPECTED_SCENARIOS = ['annotationChange', 'zoomInOut', 'dragCanvas', 'clickPoint'] as const;
-const ITERATIONS = 10;
+const ITERATIONS = (() => {
+  const raw = process.env.PERF_ITERATIONS;
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 10;
+})();
 const SUITE_TIMEOUT_MS = 45 * 60_000;
 
 test.describe('WebGL render perf benchmark (headed)', () => {
