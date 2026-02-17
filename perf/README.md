@@ -1,29 +1,87 @@
-## Perf plotting
+## Performance benchmarking & plotting
 
-### Setup (kept entirely in `perf/`)
+### 1. Run benchmarks
 
-From repo root:
+From the **repo root**, run the Playwright-based WebGL performance suite:
+
+```sh
+pnpm perf                        # 10 iterations per scenario (default)
+PERF_ITERATIONS=5 pnpm perf      # override iteration count
+```
+
+This launches headed browsers (Chrome, Firefox, Safari), loads every dataset
+listed in `app/public/data/datasets.json`, and runs four scenarios per dataset:
+
+| Scenario           | What it measures                      |
+| ------------------ | ------------------------------------- |
+| `annotationChange` | Re-render after switching annotations |
+| `zoomInOut`        | Zoom-in / zoom-out cycle              |
+| `dragCanvas`       | Pan / drag across the canvas          |
+| `clickPoint`       | Select a point by clicking            |
+
+Each browser produces a JSON file saved under `perf/test-results/`, e.g.:
+
+```
+perf/test-results/
+  webgl-perf-suite-chrome/
+    webgl-perf-suite-chrome.json
+  webgl-perf-suite-firefox/
+    webgl-perf-suite-firefox.json
+  webgl-perf-suite-safari/
+    webgl-perf-suite-safari.json
+```
+
+Each JSON contains per-dataset, per-scenario render-pass timings, dataset
+metadata (point count), and browser/hardware metadata collected at runtime.
+
+### 2. Generate plots
+
+#### Setup (kept entirely in `perf/`)
+
+From the repo root:
 
 1. Create/sync a venv under `perf/.venv` (managed by uv):
 
-- `cd perf`
-- `uv sync`
+```sh
+cd perf
+uv sync
+```
 
-### Generate plots
+#### Plot generation
 
 From `perf/`:
 
-- `uv run python plot_perf_results.py`
+```sh
+uv run python plot_perf_results.py                          # auto-detect machine info for subtitle
+uv run python plot_perf_results.py --subtitle "My Machine"  # manual subtitle override
+uv run python plot_perf_results.py --input test-results --output plots
+```
 
-This writes one grouped bar chart **per scenario** into `perf/plots/`:
+| Flag         | Default        | Description                                            |
+| ------------ | -------------- | ------------------------------------------------------ |
+| `--input`    | `test-results` | Directory containing the perf JSON files               |
+| `--output`   | `plots`        | Directory to write generated plot images               |
+| `--subtitle` | _(auto)_       | Plot subtitle; auto-detects CPU, GPU, and RAM if unset |
 
-- browsers on x-axis
-- one bar per dataset
-- error bars are **95% CI of the mean** (normal approx; CI = 1.96 \* SEM)
+The subtitle auto-detection works cross-platform (macOS, Linux, Windows) and
+produces a string like `Apple M1 Max | 64 GB`. On machines where CPU and GPU
+share the same chip name (e.g. Apple Silicon), the GPU is deduplicated.
 
-It also writes one scatter plot **per scenario** into `perf/plots/`:
+#### What gets generated
+
+The script reads all JSON files from `--input` and writes to `--output`:
+
+**Grouped bar charts** (one per scenario):
+
+- x-axis: datasets (sorted by point count)
+- one bar per browser
+- error bars: 95% CI of the mean (normal approx; CI = 1.96 \* SEM)
+
+**Scatter plots** (one per scenario):
 
 - x-axis: dataset size (number of points / proteins)
 - y-axis: mean render time per pass (ms)
 - points colored by browser, with 95% CI error bars
-- includes a per-browser linear regression line
+- per-browser linear regression line
+
+Each chart is saved as both `.png` (200 dpi) and `.svg`.
