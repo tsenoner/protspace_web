@@ -71,6 +71,8 @@ Hover over a point to see a tooltip with details about that protein:
 - **Annotation values** for the currently selected annotation
 - **Scores** (for InterPro domain annotations, e.g., E-values) or **evidence codes** (for GO terms, subcellular location, etc., e.g., EXP, IDA)
 
+Protein name, gene name, and UniProtKB ID are tooltip-only and don't appear in the [Annotation dropdown](/explore/control-bar#_2-annotation-selector).
+
 ### Duplicate Points
 
 When multiple proteins share the exact same coordinates, a **count badge** appears on the point (when enabled in the legend settings). Click a stacked point to expand it into a spider layout showing each individual protein.

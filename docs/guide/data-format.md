@@ -28,6 +28,8 @@ Contains metadata and biological annotations for each protein.
 | `identifier` | string        | Protein ID (e.g., P12345)  |
 | _others_     | string/number | Any biological annotations |
 
+The columns `gene_name`, `protein_name`, and `uniprot_kb_id` are **tooltip-only** — shown on hover but excluded from the annotation dropdown.
+
 ### 2. Projections Metadata
 
 | Column            | Type    | Description                    |

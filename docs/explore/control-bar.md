@@ -38,6 +38,10 @@ The Color By dropdown features:
 
 Only categories present in your dataset appear in the dropdown. Any columns that don't match a known category appear under **Other**. See the [ProtSpace Python package](https://github.com/tsenoner/protspace) for the complete list of available annotations per source.
 
+::: info Tooltip-only annotations
+`gene_name`, `protein_name`, and `uniprot_kb_id` are excluded from the dropdown but are still shown in the [tooltip](/explore/scatterplot#protein-tooltip) on hover.
+:::
+
 ## 3. Search
 
 Find specific proteins by ID:

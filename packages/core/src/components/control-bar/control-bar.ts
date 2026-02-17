@@ -23,6 +23,9 @@ import {
 import './search';
 import './annotation-select';
 
+/** Annotations used only for tooltip display, hidden from the Color By dropdown */
+const TOOLTIP_ONLY_ANNOTATIONS = new Set(['gene_name', 'protein_name', 'uniprot_kb_id']);
+
 @customElement('protspace-control-bar')
 export class ProtspaceControlBar extends LitElement {
   @property({ type: Array }) projections: string[] = [];
@@ -1513,7 +1516,9 @@ export class ProtspaceControlBar extends LitElement {
     // Update projections and annotations
     this.projectionsMeta = data.projections || [];
     this.projections = this.projectionsMeta.map((p) => p.name) || [];
-    this.annotations = Object.keys(data.annotations || {});
+    this.annotations = Object.keys(data.annotations || {}).filter(
+      (a) => !TOOLTIP_ONLY_ANNOTATIONS.has(a),
+    );
 
     // Default selections if invalid
     if (!this.selectedProjection || !this.projections.includes(this.selectedProjection)) {
