@@ -50,13 +50,15 @@ For advanced users with custom embeddings, save them as an HDF5 file where each 
 
 ### Annotations
 
-Choose which annotations to include:
+Choose which annotations to include from three sources:
 
-| Source       | Available Annotations                                                    |
-| ------------ | ------------------------------------------------------------------------ |
-| **UniProt**  | annotation_score, subcellular_location, protein_families, reviewed, etc. |
-| **InterPro** | CATH, Pfam, signal_peptide, superfamily                                  |
-| **Taxonomy** | kingdom, phylum, class, order, family, genus, species                    |
+| Source       | Examples                                                  |
+| ------------ | --------------------------------------------------------- |
+| **UniProt**  | protein_families, ec, go_bp, cc_subcellular_location, ... |
+| **InterPro** | pfam, cath, panther, smart, superfamily, ...              |
+| **Taxonomy** | kingdom, phylum, class, order, family, genus, species     |
+
+See the [ProtSpace Python package](https://github.com/tsenoner/protspace) for the complete list of available annotations per source.
 
 ::: tip
 First-time taxonomy selection downloads a database (~1 minute).

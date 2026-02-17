@@ -39,7 +39,7 @@ export default defineConfig({
     // Video recording for GIF animations
     video: {
       mode: 'on',
-      size: { width: 1280, height: 720 },
+      size: { width: 1536, height: 864 },
     },
   },
 
@@ -49,7 +49,7 @@ export default defineConfig({
       name: 'screenshots',
       use: {
         ...devices['Desktop Chrome'],
-        viewport: { width: 1280, height: 720 },
+        viewport: { width: 1536, height: 864 },
         // Disable video for static screenshots
         video: 'off',
         // WebGL support: use headless mode based on environment
@@ -64,11 +64,11 @@ export default defineConfig({
       name: 'animations',
       use: {
         ...devices['Desktop Chrome'],
-        viewport: { width: 1280, height: 720 },
+        viewport: { width: 1536, height: 864 },
         // Enable video recording for animations
         video: {
           mode: 'on',
-          size: { width: 1280, height: 720 },
+          size: { width: 1536, height: 864 },
         },
         // WebGL support: use headless mode based on environment
         // On macOS, headless: false uses system GPU for better WebGL support
