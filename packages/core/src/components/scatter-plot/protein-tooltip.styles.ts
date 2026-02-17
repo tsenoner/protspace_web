@@ -129,4 +129,12 @@ export const proteinTooltipStyles = css`
     color: #94a3b8;
     font-variant-numeric: tabular-nums;
   }
+
+  .tooltip-annotation-evidence {
+    flex-shrink: 0;
+    white-space: nowrap;
+    color: #94a3b8;
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+  }
 `;

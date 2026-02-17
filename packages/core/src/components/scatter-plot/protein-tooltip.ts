@@ -49,6 +49,8 @@ export class ProtspaceProteinTooltip extends LitElement {
     const uniprotKbId = this._getUniprotKbId(this.protein);
     const tooltipAnnotationValues = this.protein.annotationValues[this.selectedAnnotation] ?? [];
     const tooltipAnnotationScores = this.protein.annotationScores?.[this.selectedAnnotation] ?? [];
+    const tooltipAnnotationEvidence =
+      this.protein.annotationEvidence?.[this.selectedAnnotation] ?? [];
 
     return html`
       <div class="tooltip">
@@ -75,6 +77,7 @@ export class ProtspaceProteinTooltip extends LitElement {
           <div class="tooltip-annotations">
             ${tooltipAnnotationValues.map((value, idx) => {
               const scores = tooltipAnnotationScores[idx];
+              const evidence = tooltipAnnotationEvidence[idx];
               const MAX_VISIBLE_SCORES = 3;
               let scoreText = '';
               if (Array.isArray(scores) && scores.length > 0) {
@@ -89,7 +92,9 @@ export class ProtspaceProteinTooltip extends LitElement {
                   >${value || 'N/A'}</span
                 >${scoreText
                   ? html`<span class="tooltip-annotation-score">${scoreText}</span>`
-                  : ''}
+                  : evidence
+                    ? html`<span class="tooltip-annotation-evidence">${evidence}</span>`
+                    : ''}
               </div>`;
             })}
           </div>
