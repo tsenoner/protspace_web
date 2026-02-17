@@ -25,7 +25,7 @@ You can also run these commands individually if needed.
 
 - `control-bar-annotated.png` - Full control bar with numbered annotations (1-9)
 - `control-bar-projection.png` - Projection dropdown
-- `control-bar-annotation.png` - Color By dropdown
+- `control-bar-annotation.png` - Annotation dropdown
 - `control-bar-export.png` - Export menu
 
 ## Animated GIFs

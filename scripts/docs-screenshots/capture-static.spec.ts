@@ -305,7 +305,9 @@ test.describe('Control Bar Screenshots', () => {
     console.log('📸 Captured: control-bar-projection.png');
   });
 
-  test('control-bar-annotation.png - Color By dropdown with options overlay', async ({ page }) => {
+  test('control-bar-annotation.png - Annotation dropdown with options overlay', async ({
+    page,
+  }) => {
     // Click the annotation select trigger to open the real dropdown
     await page.evaluate(() => {
       const controlBar = document.querySelector('#myControlBar') as any;

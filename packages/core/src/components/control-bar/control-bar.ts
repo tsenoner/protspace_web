@@ -23,7 +23,7 @@ import {
 import './search';
 import './annotation-select';
 
-/** Annotations used only for tooltip display, hidden from the Color By dropdown */
+/** Annotations used only for tooltip display, hidden from the annotation dropdown */
 const TOOLTIP_ONLY_ANNOTATIONS = new Set(['gene_name', 'protein_name', 'uniprot_kb_id']);
 
 @customElement('protspace-control-bar')

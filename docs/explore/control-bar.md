@@ -28,9 +28,9 @@ When a 3D projection is available, a **plane selector** (XY / XZ / YZ) appears, 
 
 Choose which annotation to use for coloring points:
 
-![Color By dropdown](./images/control-bar-annotation.png)
+![Annotation dropdown](./images/control-bar-annotation.png)
 
-The Color By dropdown features:
+The Annotation dropdown features:
 
 - **Grouped categories**: Features are organized into sections (UniProt, InterPro, Taxonomy, Other)
 - **Search**: Type to filter features by name (case-insensitive)
