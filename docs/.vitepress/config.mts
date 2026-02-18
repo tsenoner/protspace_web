@@ -16,8 +16,12 @@ export default defineConfig({
   head: [['link', { rel: 'icon', href: '/docs/favicon.svg' }]],
 
   themeConfig: {
-    logo: { src: '/logo.svg' },
-    siteTitle: 'ProtSpace',
+    logo: {
+      light: '/wordmark.svg',
+      dark: '/wordmark-black.svg',
+      alt: 'ProtSpace',
+    },
+    siteTitle: false,
 
     nav: navItems
       .filter((item) => item.icon !== 'github') // Exclude GitHub icon (it's in socialLinks)
