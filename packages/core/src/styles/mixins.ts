@@ -28,7 +28,7 @@ export const inputMixin = css`
     border-color: var(--primary);
     box-shadow:
       0 0 0 1px var(--primary),
-      0 0 0 3px #e1f1fb;
+      0 0 0 3px var(--focus-ring-bg);
   }
 
   select {
@@ -68,7 +68,7 @@ export const buttonMixin = css`
     outline: none;
     box-shadow:
       0 0 0 1px var(--primary),
-      0 0 0 3px #e1f1fb;
+      0 0 0 3px var(--focus-ring-bg);
   }
 
   /* Primary variant - legend extract-button style */
@@ -86,15 +86,15 @@ export const buttonMixin = css`
   button.btn-primary:hover {
     background: var(--primary-hover);
     border-color: var(--primary-hover);
-    box-shadow: 0 2px 6px rgba(0, 163, 224, 0.3);
+    box-shadow: 0 2px 6px var(--primary-alpha-30);
   }
 
   .btn-primary:focus-visible:hover,
   button.btn-primary:focus-visible:hover {
     box-shadow:
       0 0 0 1px var(--primary),
-      0 0 0 3px #e1f1fb,
-      0 2px 6px rgba(0, 163, 224, 0.3);
+      0 0 0 3px var(--focus-ring-bg),
+      0 2px 6px var(--primary-alpha-30);
   }
 
   /* Secondary variant - legend modal-close-button style */
@@ -119,7 +119,7 @@ export const buttonMixin = css`
   button.btn-secondary:focus-visible:hover {
     box-shadow:
       0 0 0 1px var(--primary),
-      0 0 0 3px #e1f1fb,
+      0 0 0 3px var(--focus-ring-bg),
       0 2px 4px rgba(0, 0, 0, 0.08);
   }
 
@@ -170,8 +170,8 @@ export const buttonMixin = css`
 
   .btn-icon:hover,
   button.btn-icon:hover {
-    color: var(--text-light);
-    background: var(--accent-gray);
+    color: var(--primary);
+    background: var(--primary-alpha-10);
   }
 
   /* Icon-only close button - legend/structure-viewer close-button style */
@@ -186,8 +186,8 @@ export const buttonMixin = css`
 
   .btn-close:hover,
   button.btn-close:hover {
-    color: var(--text-primary);
-    background: rgba(0, 0, 0, 0.04);
+    color: var(--primary);
+    background: var(--primary-alpha-10);
   }
 
   /* Compact variant - smaller padding for dense UIs */
@@ -288,13 +288,13 @@ export const dropdownMixin = css`
     outline: none;
     box-shadow:
       0 0 0 1px var(--primary),
-      0 0 0 3px #e1f1fb;
+      0 0 0 3px var(--focus-ring-bg);
   }
 
   .dropdown-trigger:focus-visible:hover {
     box-shadow:
       0 0 0 1px var(--primary),
-      0 0 0 3px #e1f1fb;
+      0 0 0 3px var(--focus-ring-bg);
   }
 
   .dropdown-trigger.open {

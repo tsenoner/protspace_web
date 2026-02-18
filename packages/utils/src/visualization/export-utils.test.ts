@@ -38,15 +38,9 @@ describe('createExporter', () => {
     expect(exporter).toBeInstanceOf(ProtSpaceExporter);
   });
 
-  it('creates an exporter with isolation mode', () => {
-    const mockElement = createMockElement();
-    const exporter = createExporter(mockElement, [], true);
-    expect(exporter).toBeInstanceOf(ProtSpaceExporter);
-  });
-
   it('creates an exporter with all parameters', () => {
     const mockElement = createMockElement();
-    const exporter = createExporter(mockElement, ['P1'], true);
+    const exporter = createExporter(mockElement, ['P1']);
     expect(exporter).toBeInstanceOf(ProtSpaceExporter);
   });
 });
@@ -239,11 +233,10 @@ describe('Export options validation', () => {
 describe('Export filename generation', () => {
   it('generates consistent filename format', () => {
     // Expected format: protspace_{projection}_{annotation}_{date}.{ext}
-    const pattern = /^protspace_[a-z0-9_-]+_[a-z0-9_-]+_\d{4}-\d{2}-\d{2}\.(png|pdf|json)$/;
+    const pattern = /^protspace_[a-z0-9_-]+_[a-z0-9_-]+_\d{4}-\d{2}-\d{2}\.(png|pdf)$/;
 
     expect('protspace_pca_species_2024-01-15.png').toMatch(pattern);
     expect('protspace_umap_gene_2024-12-31.pdf').toMatch(pattern);
-    expect('protspace_tsne_cluster_2025-06-01.json').toMatch(pattern);
   });
 
   it('sanitizes projection names', () => {

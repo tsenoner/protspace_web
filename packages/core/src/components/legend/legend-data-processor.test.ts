@@ -4,6 +4,7 @@ import {
   createProcessorContext,
   type LegendProcessorContext,
 } from './legend-data-processor';
+import { getVisualEncoding } from './visual-encoding';
 import type { LegendItem } from './types';
 import { LEGEND_VALUES } from './config';
 
@@ -180,19 +181,71 @@ describe('legend-data-processor', () => {
       expect(result.topItems[2][0]).toBe('apple');
     });
 
-    it('handles pattern ranking in alpha sort (ranges before regular)', () => {
+    it('sorts protein family names alphabetically (not by embedded numbers)', () => {
       const freq = new Map<string, number>([
-        ['regular', 5],
-        ['<10', 5],
-        ['10-20', 5],
-        ['20+', 5],
+        ['scoloptoxin-25 family', 1],
+        ['phospholipase A2 family', 539],
+        ['arthropod phospholipase D family', 219],
+        ['conotoxin O1 superfamily', 278],
       ]);
       const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
-      // < patterns come first, then ranges, then +, then regular
-      expect(result.topItems[0][0]).toBe('<10');
-      expect(result.topItems[1][0]).toBe('10-20');
-      expect(result.topItems[2][0]).toBe('20+');
-      expect(result.topItems[3][0]).toBe('regular');
+      expect(result.topItems[0][0]).toBe('arthropod phospholipase D family');
+      expect(result.topItems[1][0]).toBe('conotoxin O1 superfamily');
+      expect(result.topItems[2][0]).toBe('phospholipase A2 family');
+      expect(result.topItems[3][0]).toBe('scoloptoxin-25 family');
+    });
+
+    it('sorts numeric ranges naturally with localeCompare numeric option', () => {
+      const freq = new Map<string, number>([
+        ['10-20', 5],
+        ['1-5', 10],
+        ['5-10', 8],
+        ['20+', 3],
+      ]);
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
+      expect(result.topItems[0][0]).toBe('1-5');
+      expect(result.topItems[1][0]).toBe('5-10');
+      expect(result.topItems[2][0]).toBe('10-20');
+      expect(result.topItems[3][0]).toBe('20+');
+    });
+
+    it('does not treat hyphens in names as minus signs', () => {
+      const freq = new Map<string, number>([
+        ['scoloptoxin-25 family', 1],
+        ['scoloptoxin-4 family', 3],
+        ['limacoditoxin-59 family', 1],
+        ['alpha toxin family', 10],
+      ]);
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
+      // 'alpha toxin family' should come first alphabetically, not last
+      expect(result.topItems[0][0]).toBe('alpha toxin family');
+      // Numeric natural sort within scoloptoxin: 4 before 25
+      expect(result.topItems[2][0]).toBe('scoloptoxin-4 family');
+      expect(result.topItems[3][0]).toBe('scoloptoxin-25 family');
+    });
+
+    it('sorts N/A last in alpha-asc mode', () => {
+      const freq = new Map<string, number>([
+        ['zebra', 5],
+        [LEGEND_VALUES.NA_VALUE, 10],
+        ['alpha', 3],
+      ]);
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
+      expect(result.topItems[0][0]).toBe('alpha');
+      expect(result.topItems[1][0]).toBe('zebra');
+      expect(result.topItems[2][0]).toBe(LEGEND_VALUES.NA_VALUE);
+    });
+
+    it('sorts N/A last in alpha-desc mode', () => {
+      const freq = new Map<string, number>([
+        ['zebra', 5],
+        [LEGEND_VALUES.NA_VALUE, 10],
+        ['alpha', 3],
+      ]);
+      const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-desc');
+      expect(result.topItems[0][0]).toBe('zebra');
+      expect(result.topItems[1][0]).toBe('alpha');
+      expect(result.topItems[2][0]).toBe(LEGEND_VALUES.NA_VALUE);
     });
 
     it('uses visibleValues to prioritize items and expands when maxVisibleValues allows', () => {
@@ -602,7 +655,7 @@ describe('legend-data-processor', () => {
       expect(items[1].shape).toBe('triangle-up');
     });
 
-    it('preserves shapes from existing items when no persisted categories', () => {
+    it('uses computed shapes (not stale existing shapes) when no persisted categories', () => {
       const topItems: Array<[string, number]> = [['category1', 10]];
       const existing: LegendItem[] = [
         {
@@ -625,7 +678,34 @@ describe('legend-data-processor', () => {
         new Map(),
         {}, // empty persisted
       );
-      expect(items[0].shape).toBe('square');
+      // When shapesEnabled=false, computed shape is always 'circle'
+      // regardless of what existing items had
+      expect(items[0].shape).toBe('circle');
+    });
+
+    it('assigns diverse shapes when shapesEnabled toggles from false to true', () => {
+      const topItems: Array<[string, number]> = [
+        ['cat1', 30],
+        ['cat2', 20],
+      ];
+      // Existing items have 'circle' from when shapes were disabled
+      const existing: LegendItem[] = [
+        { value: 'cat1', color: '#F3C300', shape: 'circle', count: 30, isVisible: true, zOrder: 0 },
+        { value: 'cat2', color: '#875692', shape: 'circle', count: 20, isVisible: true, zOrder: 1 },
+      ];
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        existing,
+        true, // shapesEnabled = true
+        'size-desc',
+        new Map(),
+        {}, // empty persisted — simulates cleared pending categories
+      );
+      expect(items[0].shape).toBe('circle'); // slot 0
+      expect(items[1].shape).toBe('square'); // slot 1
     });
 
     it('prefers persisted shapes over existing shapes', () => {
@@ -676,6 +756,150 @@ describe('legend-data-processor', () => {
       expect(items[0].shape).toBe('triangle-down');
       // Color should fall back to default encoding since persisted.color is empty
       expect(items[0].color).toBeDefined();
+    });
+
+    it('resolves color conflict when new item default color matches a persisted color', () => {
+      // Scenario: itemB has persisted color = slot 1's color (#875692)
+      // itemA gets slot 1 by default -> conflict -> should get a different color
+      const slot1Color = getVisualEncoding(1, false, 'itemA').color; // #875692
+      const topItems: Array<[string, number]> = [
+        ['itemB', 10],
+        ['itemA', 5],
+      ];
+      const persistedCategories = {
+        itemB: { zOrder: 0, color: slot1Color, shape: 'circle' },
+      };
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        [],
+        false,
+        'size-desc',
+        new Map(),
+        persistedCategories,
+      );
+      // itemB should keep its persisted color
+      expect(items[0].color).toBe(slot1Color);
+      // itemA should NOT have the same color as itemB
+      expect(items[1].color).not.toBe(slot1Color);
+    });
+
+    it('resolves cascading color conflicts when multiple persisted colors block defaults', () => {
+      // Scenario: two items have persisted colors matching slots 0 and 1
+      // A new third item at slot 0 should skip both and land on slot 2's color
+      const slot0Color = getVisualEncoding(0, false, 'x').color; // #F3C300
+      const slot1Color = getVisualEncoding(1, false, 'x').color; // #875692
+      const slot2Color = getVisualEncoding(2, false, 'x').color; // #F38400
+      const topItems: Array<[string, number]> = [
+        ['persistedA', 10],
+        ['persistedB', 8],
+        ['newItem', 5],
+      ];
+      const persistedCategories = {
+        persistedA: { zOrder: 0, color: slot0Color, shape: 'circle' },
+        persistedB: { zOrder: 1, color: slot1Color, shape: 'circle' },
+      };
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        [],
+        false,
+        'size-desc',
+        new Map(),
+        persistedCategories,
+      );
+      expect(items[0].color).toBe(slot0Color);
+      expect(items[1].color).toBe(slot1Color);
+      // newItem should skip both claimed colors and get slot 2's color (or beyond)
+      expect(items[2].color).not.toBe(slot0Color);
+      expect(items[2].color).not.toBe(slot1Color);
+      expect(items[2].color).toBe(slot2Color);
+    });
+
+    it('resolves shape conflict when new item default shape matches a persisted shape', () => {
+      // Shapes cycle: circle(0), square(1), diamond(2), plus(3), triangle-up(4), triangle-down(5)
+      // itemB persists with square (slot 1's shape). itemA gets slot 1 by default -> conflict
+      const slot1Shape = getVisualEncoding(1, true, 'itemA').shape; // square
+      const topItems: Array<[string, number]> = [
+        ['itemB', 10],
+        ['itemA', 5],
+      ];
+      const persistedCategories = {
+        itemB: { zOrder: 0, color: '#custom', shape: slot1Shape },
+      };
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        [],
+        true, // shapesEnabled
+        'size-desc',
+        new Map(),
+        persistedCategories,
+      );
+      expect(items[0].shape).toBe(slot1Shape);
+      expect(items[1].shape).not.toBe(slot1Shape);
+    });
+
+    it('resolves cascading shape conflicts when multiple persisted shapes block defaults', () => {
+      const slot0Shape = getVisualEncoding(0, true, 'x').shape; // circle
+      const slot1Shape = getVisualEncoding(1, true, 'x').shape; // square
+      const slot2Shape = getVisualEncoding(2, true, 'x').shape; // diamond
+      const topItems: Array<[string, number]> = [
+        ['persistedA', 10],
+        ['persistedB', 8],
+        ['newItem', 5],
+      ];
+      const persistedCategories = {
+        persistedA: { zOrder: 0, color: '#c1', shape: slot0Shape },
+        persistedB: { zOrder: 1, color: '#c2', shape: slot1Shape },
+      };
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        [],
+        true, // shapesEnabled
+        'size-desc',
+        new Map(),
+        persistedCategories,
+      );
+      expect(items[0].shape).toBe(slot0Shape);
+      expect(items[1].shape).toBe(slot1Shape);
+      expect(items[2].shape).not.toBe(slot0Shape);
+      expect(items[2].shape).not.toBe(slot1Shape);
+      expect(items[2].shape).toBe(slot2Shape);
+    });
+
+    it('does not resolve shape conflicts when shapes are disabled', () => {
+      // When shapesEnabled=false, all items get 'circle' — no conflict resolution needed
+      const topItems: Array<[string, number]> = [
+        ['itemB', 10],
+        ['itemA', 5],
+      ];
+      const persistedCategories = {
+        itemB: { zOrder: 0, color: '#custom', shape: 'circle' },
+      };
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        [],
+        false, // shapesEnabled = false
+        'size-desc',
+        new Map(),
+        persistedCategories,
+      );
+      // Both should be circle when shapes are disabled
+      expect(items[0].shape).toBe('circle');
+      expect(items[1].shape).toBe('circle');
     });
   });
 

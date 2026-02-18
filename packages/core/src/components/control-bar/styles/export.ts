@@ -85,7 +85,7 @@ export const exportStyles = css`
     border-color: var(--primary);
     box-shadow:
       0 0 0 1px var(--primary),
-      0 0 0 3px #e1f1fb;
+      0 0 0 3px var(--focus-ring-bg);
   }
 
   .export-option-value-unit {
@@ -163,6 +163,14 @@ export const exportStyles = css`
     cursor: pointer;
     accent-color: var(--primary);
     flex-shrink: 0;
+  }
+
+  .export-parquet-help {
+    font-size: var(--text-xs);
+    color: var(--muted);
+    line-height: 1.4;
+    margin-top: var(--spacing-xs);
+    opacity: 0.8;
   }
 
   .export-actions {

@@ -79,16 +79,10 @@ export class ProtSpaceExporter {
 
   private element: ExportableElement;
   private selectedProteins: string[];
-  private isolationMode: boolean;
 
-  constructor(
-    element: ExportableElement,
-    selectedProteins: string[] = [],
-    isolationMode: boolean = false,
-  ) {
+  constructor(element: ExportableElement, selectedProteins: string[] = []) {
     this.element = element;
     this.selectedProteins = selectedProteins;
-    this.isolationMode = isolationMode;
   }
 
   /**
@@ -416,24 +410,6 @@ export class ProtSpaceExporter {
       const key = it.value === 'N/A' ? 'null' : it.value;
       return !hiddenSet.has(key);
     });
-  }
-
-  /**
-   * Export current data as JSON
-   */
-  exportJSON(options: ExportOptions = {}): void {
-    const data = this.element.getCurrentData();
-    if (!data) {
-      console.error('No data available for export');
-      return;
-    }
-
-    const dataStr = JSON.stringify(data, null, 2);
-    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-    const exportName =
-      options.exportName || (this.isolationMode ? 'protspace_data_split' : 'protspace_data');
-
-    this.downloadFile(dataUri, `${exportName}.json`);
   }
 
   /**
@@ -875,23 +851,14 @@ export class ProtSpaceExporter {
 export function createExporter(
   element: ExportableElement,
   selectedProteins: string[] = [],
-  isolationMode: boolean = false,
 ): ProtSpaceExporter {
-  return new ProtSpaceExporter(element, selectedProteins, isolationMode);
+  return new ProtSpaceExporter(element, selectedProteins);
 }
 
 /**
  * Quick export functions for common use cases
  */
 export const exportUtils = {
-  /**
-   * Export data as JSON
-   */
-  exportJSON: (element: ExportableElement, options?: ExportOptions) => {
-    const exporter = createExporter(element);
-    exporter.exportJSON(options);
-  },
-
   /**
    * Export protein IDs
    */

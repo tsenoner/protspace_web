@@ -14,8 +14,6 @@ import type { PointShape } from '../types.js';
 export const LEGEND_VALUES = {
   /** Synthetic "Other" category that groups items beyond maxVisibleValues */
   OTHER: 'Other',
-  /** Used for visual encoding special color lookup */
-  OTHERS: 'Others',
   /** Display text for N/A items */
   NA_DISPLAY: 'N/A',
   /** Internal value used to represent N/A items (null, empty string, whitespace) */

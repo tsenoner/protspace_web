@@ -3,8 +3,8 @@ import { getVisualEncoding, SlotTracker, SPECIAL_SLOTS } from './visual-encoding
 
 describe('visual-encoding', () => {
   describe('getVisualEncoding', () => {
-    it('returns special color for Others category', () => {
-      const encoding = getVisualEncoding(0, true, 'Others');
+    it('returns special color for Other category', () => {
+      const encoding = getVisualEncoding(0, true, 'Other');
       expect(encoding.color).toBe('#999999');
       expect(encoding.shape).toBe('circle');
     });
@@ -65,8 +65,8 @@ describe('visual-encoding', () => {
     });
 
     describe('getSlot', () => {
-      it('returns special slots for Others and N/A', () => {
-        expect(tracker.getSlot('Others')).toBe(SPECIAL_SLOTS.OTHERS);
+      it('returns special slots for Other and N/A', () => {
+        expect(tracker.getSlot('Other')).toBe(SPECIAL_SLOTS.OTHER);
         expect(tracker.getSlot('N/A')).toBe(SPECIAL_SLOTS.NA);
       });
 
@@ -92,7 +92,7 @@ describe('visual-encoding', () => {
 
     describe('freeSlot', () => {
       it('does not free special categories', () => {
-        tracker.freeSlot('Others');
+        tracker.freeSlot('Other');
         tracker.freeSlot('N/A');
         expect(tracker.getSlot('newCategory')).toBe(0);
       });
@@ -117,9 +117,9 @@ describe('visual-encoding', () => {
       });
 
       it('ignores special categories', () => {
-        tracker.reassignSlots(['cat1', 'Others', 'N/A', 'Other']);
+        tracker.reassignSlots(['cat1', 'Other', 'N/A']);
         expect(tracker.getSlot('cat1')).toBe(0);
-        expect(tracker.getSlot('Others')).toBe(SPECIAL_SLOTS.OTHERS);
+        expect(tracker.getSlot('Other')).toBe(SPECIAL_SLOTS.OTHER);
         expect(tracker.getSlot('N/A')).toBe(SPECIAL_SLOTS.NA);
       });
     });
@@ -145,7 +145,7 @@ describe('visual-encoding', () => {
       });
 
       it('returns true when only special categories requested', () => {
-        tracker.getSlot('Others');
+        tracker.getSlot('Other');
         tracker.getSlot('N/A');
         expect(tracker.isEmpty()).toBe(true);
       });

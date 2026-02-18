@@ -212,6 +212,7 @@ export class ProtspaceLegend extends LitElement {
         [this.selectedAnnotation]: mode,
       };
     },
+    onDropComplete: (value) => this._highlightDroppedItem(value),
   });
 
   // ─────────────────────────────────────────────────────────────────
@@ -466,12 +467,7 @@ export class ProtspaceLegend extends LitElement {
 
     // Update dataset hash when protein IDs change
     if (changedProperties.has('proteinIds') && this.proteinIds.length > 0) {
-      const hashChanged = this._persistenceController.updateDatasetHash(this.proteinIds);
-      // If hash changed and we have an annotation but settings weren't loaded yet,
-      // try loading now (handles case where proteinIds arrives after data/selectedAnnotation)
-      if (hashChanged && this.selectedAnnotation && !this._persistenceController.settingsLoaded) {
-        this._persistenceController.loadSettings();
-      }
+      this._persistenceController.updateDatasetHash(this.proteinIds);
     }
 
     // Handle data or annotation changes
@@ -500,11 +496,7 @@ export class ProtspaceLegend extends LitElement {
       changedProperties.has('maxVisibleValues') ||
       changedProperties.has('includeShapes')
     ) {
-      this._updateLegendItems();
-
-      if (this._persistenceController.hasPendingCategories()) {
-        this._legendItems = this._persistenceController.applyPendingZOrder(this._legendItems);
-      }
+      this._rebuildLegendItems();
     }
 
     // Update sorted items cache when legend items change
@@ -552,6 +544,99 @@ export class ProtspaceLegend extends LitElement {
    */
   public async downloadAsImage(): Promise<void> {
     this.dispatchEvent(new CustomEvent(LEGEND_EVENTS.DOWNLOAD, { bubbles: true, composed: true }));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // File-based Persistence (parquetbundle export/import)
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Get all annotation settings for export to a parquetbundle.
+   * Returns settings for all annotations that have been configured.
+   *
+   * @returns Record mapping annotation names to their persisted settings
+   */
+  public getAllPersistedSettings(): Record<string, LegendPersistedSettings> {
+    const annotationNames = Object.keys(this.data?.annotations ?? {});
+    return this._persistenceController.getAllSettingsForExport(annotationNames);
+  }
+
+  /**
+   * Set file-based settings loaded from a parquetbundle.
+   * These will be applied when switching to annotations that have settings.
+   * Also persists all settings to localStorage so they're available for future exports.
+   *
+   * @param settings - All annotation settings from the file, or null to clear
+   * @param datasetHash - Optional dataset hash for localStorage keys (required when
+   *                      the component's hash isn't yet computed from the new data)
+   */
+  public setFileSettings(
+    settings: Record<string, LegendPersistedSettings> | null,
+    datasetHash?: string,
+  ): void {
+    this._persistenceController.setFileSettings(settings, datasetHash);
+
+    // If current annotation has file settings, reload and apply them immediately
+    if (settings?.[this.selectedAnnotation]) {
+      this._persistenceController.loadSettings();
+      // Clear stale legend items so _visibleValues falls back to _pendingCategories
+      // (the file's category set). Without this, _visibleValues uses the default items
+      // built during loadNewData(), which may have a different visible set than the file.
+      this._legendItems = [];
+      this._rebuildLegendItems();
+    }
+  }
+
+  /**
+   * Clear all legend state in preparation for loading a new dataset.
+   * This should be called before setting new data to ensure a clean slate.
+   *
+   * @param datasetHash - The hash of the NEW dataset (used to clear its localStorage entries)
+   */
+  public clearForNewDataset(datasetHash: string): void {
+    // Reset visual encoding state
+    this._processorContext.slotTracker.reset();
+
+    // Clear legend items and related state
+    this._legendItems = [];
+    this._sortedLegendItems = [];
+    this._otherItems = [];
+    this._hiddenValues = [];
+
+    // Clear persistence state for the new dataset
+    this._persistenceController.clearForNewDataset(datasetHash);
+
+    // Reset UI state
+    this._showSettingsDialog = false;
+    this._showOtherDialog = false;
+    this._colorPickerItem = null;
+
+    // Reset isolation state
+    this.isolationMode = false;
+    this.isolationHistory = [];
+
+    // Clear data properties
+    this.data = null;
+    this.selectedAnnotation = '';
+    this.annotationData = { name: '', values: [] };
+    this.annotationValues = [];
+    this.proteinIds = [];
+
+    this.requestUpdate();
+  }
+
+  /**
+   * Check if file-based settings are currently loaded.
+   */
+  public get hasFileSettings(): boolean {
+    return this._persistenceController.hasFileSettings;
+  }
+
+  /**
+   * Check if file settings exist for a specific annotation.
+   */
+  public hasFileSettingsForAnnotation(annotation: string): boolean {
+    return this._persistenceController.hasFileSettingsForAnnotation(annotation);
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -621,6 +706,18 @@ export class ProtspaceLegend extends LitElement {
   // Legend Item Processing
   // ─────────────────────────────────────────────────────────────────
 
+  /**
+   * Rebuild legend items and apply persisted z-order.
+   * Use when forcing a full rebuild outside the updated() lifecycle.
+   */
+  private _rebuildLegendItems(): void {
+    this._updateLegendItems();
+
+    if (this._persistenceController.hasPendingCategories()) {
+      this._legendItems = this._persistenceController.applyPendingZOrder(this._legendItems);
+    }
+  }
+
   private _updateLegendItems(): void {
     if (!this.annotationData?.values?.length || !this.annotationValues?.length) {
       this._legendItems = [];
@@ -636,13 +733,15 @@ export class ProtspaceLegend extends LitElement {
       const pendingExtract = this._pendingExtractValue;
       const pendingMerge = this._pendingMergeValue;
 
-      // Use visibleValues when there are persisted settings OR when there are pending operations.
-      // When there are pending merge/extract operations, we need the current visible set
-      // to properly filter items even if localStorage hasn't been written yet.
-      // When no localStorage key exists and no pending ops, use empty set so maxVisibleValues is respected.
+      // Use visibleValues to preserve the current visible set when:
+      // - There are persisted settings in localStorage
+      // - There are pending extract/merge operations
+      // - There are already legend items (e.g., switching sort mode before persistence)
+      // When none of these apply (true initial load), use empty set so maxVisibleValues is respected.
       const hasPendingOps = pendingExtract !== undefined || pendingMerge !== undefined;
+      const hasExistingItems = this._legendItems.some((i) => i.value !== LEGEND_VALUES.OTHER);
       const visibleValues =
-        this._persistenceController.hasPersistedSettings() || hasPendingOps
+        this._persistenceController.hasPersistedSettings() || hasPendingOps || hasExistingItems
           ? this._visibleValues
           : new Set<string>();
 
@@ -665,7 +764,7 @@ export class ProtspaceLegend extends LitElement {
 
       // Apply hidden values
       if (this._hiddenValues.length > 0) {
-        this._legendItems = legendItems.map((item) => ({
+        this._legendItems = legendItems.map((item: LegendItem) => ({
           ...item,
           isVisible: !this._hiddenValues.includes(valueToKey(item.value)),
         }));
@@ -806,6 +905,33 @@ export class ProtspaceLegend extends LitElement {
     });
   }
 
+  private async _highlightDroppedItem(value: string): Promise<void> {
+    // Wait for Lit to complete rendering with the new item order.
+    // Two chained awaits: first for _legendItems update, second for _sortedLegendItems.
+    await this.updateComplete;
+    await this.updateComplete;
+
+    const items = this.shadowRoot?.querySelectorAll('.legend-item');
+    if (!items) return;
+
+    for (const el of items) {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.getAttribute('data-value') === value) {
+        htmlEl.classList.add('legend-item-just-dropped');
+        htmlEl.focus();
+        htmlEl.addEventListener(
+          'animationend',
+          () => {
+            htmlEl.classList.remove('legend-item-just-dropped');
+            htmlEl.blur();
+          },
+          { once: true },
+        );
+        break;
+      }
+    }
+  }
+
   private _reverseZOrder(): void {
     if (this._legendItems.length <= 1) return;
 
@@ -933,12 +1059,25 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handleSettingsSave(): void {
+    const shapesSettingChanged = this.includeShapes !== this._dialogSettings.includeShapes;
+
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
     this.includeShapes = this._dialogSettings.includeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
     this._annotationSortModes = this._dialogSettings.annotationSortModes;
     this._selectedPaletteId = this._dialogSettings.selectedPaletteId;
     this._showSettingsDialog = false;
+
+    // When includeShapes changes, clear stale shape data from pending categories
+    // so persisted 'circle' shapes don't override freshly computed shapes.
+    if (shapesSettingChanged) {
+      const pending = this._persistenceController.pendingCategories;
+      const cleared: Record<string, PersistedCategoryData> = {};
+      for (const [key, data] of Object.entries(pending)) {
+        cleared[key] = { ...data, shape: '' };
+      }
+      this._persistenceController.setPendingCategories(cleared);
+    }
 
     // Don't clear _legendItems - we want to preserve current zOrders when switching sort modes.
     // This ensures switching to manual mode keeps the current display order.
@@ -1116,8 +1255,8 @@ export class ProtspaceLegend extends LitElement {
 
     // Apply palette colors to all legend items (excluding special categories like "Others" and "N/A")
     this._legendItems = this._legendItems.map((item, index) => {
-      // Skip special categories (Others, N/A) as they have fixed colors
-      if (item.value === LEGEND_VALUES.OTHERS || item.value === LEGEND_VALUES.NA_DISPLAY) {
+      // Skip special categories (Other, N/A) as they have fixed colors
+      if (item.value === LEGEND_VALUES.OTHER || item.value === LEGEND_VALUES.NA_VALUE) {
         return item;
       }
 

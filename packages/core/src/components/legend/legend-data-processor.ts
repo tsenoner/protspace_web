@@ -108,21 +108,6 @@ export class LegendDataProcessor {
     otherItems: OtherItem[];
     otherCount: number;
   } {
-    const getFirstNumber = (val: string): number | null => {
-      if (isNAValue(val)) return null;
-      const match = val.match(/-?\d+(?:\.\d+)?/);
-      return match ? parseFloat(match[0]) : null;
-    };
-
-    const getPatternRank = (val: string): number => {
-      if (isNAValue(val)) return 99;
-      const s = val.trim();
-      if (/^[<>]/.test(s)) return 0;
-      if (/^\d+\s*-\s*\d+/.test(s)) return 1;
-      if (/^\d+\s*\+/.test(s)) return 2;
-      return 3;
-    };
-
     const sortFn = (a: [string, number], b: [string, number]) => {
       if (sortMode === 'manual' || sortMode === 'manual-reverse') {
         const aOrder = existingZOrders.get(a[0]) ?? Number.MAX_SAFE_INTEGER;
@@ -130,25 +115,18 @@ export class LegendDataProcessor {
         return sortMode === 'manual' ? aOrder - bOrder : bOrder - aOrder;
       } else if (sortMode === 'alpha-asc' || sortMode === 'alpha-desc') {
         const isAsc = sortMode === 'alpha-asc';
-        const an = getFirstNumber(a[0]);
-        const bn = getFirstNumber(b[0]);
-
-        if (an !== null && bn !== null && an !== bn) {
-          return isAsc ? an - bn : bn - an;
-        }
-        if (an !== null && bn === null) return isAsc ? -1 : 1;
-        if (an === null && bn !== null) return isAsc ? 1 : -1;
-
-        const ar = getPatternRank(a[0]);
-        const br = getPatternRank(b[0]);
-        if (ar !== br) return isAsc ? ar - br : br - ar;
-
-        const aStr = a[0].toLowerCase();
-        const bStr = b[0].toLowerCase();
-        if (aStr !== bStr) {
-          return isAsc ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
-        }
-
+        const aIsNA = isNAValue(a[0]);
+        const bIsNA = isNAValue(b[0]);
+        // N/A always sorts last regardless of direction
+        if (aIsNA && !bIsNA) return 1;
+        if (!aIsNA && bIsNA) return -1;
+        if (aIsNA && bIsNA) return 0;
+        const cmp = a[0].localeCompare(b[0], undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+        if (cmp !== 0) return isAsc ? cmp : -cmp;
+        // Tiebreaker: larger count first
         return b[1] - a[1];
       } else if (sortMode === 'size-asc') {
         return a[1] - b[1];
@@ -319,6 +297,16 @@ export class LegendDataProcessor {
       }
     }
 
+    // Pre-scan: collect colors/shapes already claimed by items with persisted or existing values
+    const claimedColors = new Set<string>();
+    const claimedShapes = new Set<string>();
+    for (const [value] of topItems) {
+      const persisted = persistedCategories[value];
+      const existing = existingColors.get(value);
+      claimedColors.add((persisted?.color || existing?.color) ?? '');
+      claimedShapes.add((persisted?.shape || existing?.shape) ?? '');
+    }
+
     const items: LegendItem[] = topItems.map(([value, count], index) => {
       const displayName = toDisplayValue(value);
       const zOrder = sortMode === 'manual' ? (existingZOrders.get(value) ?? index) : index;
@@ -326,7 +314,7 @@ export class LegendDataProcessor {
 
       let encoding = getVisualEncoding(slot, shapesEnabled, displayName);
 
-      // Priority: persisted > existing > default encoding
+      // Priority: persisted > existing > default encoding (with conflict resolution)
       const persisted = persistedCategories[value];
       const existing = existingColors.get(value);
 
@@ -336,7 +324,33 @@ export class LegendDataProcessor {
           shape: persisted.shape || encoding.shape,
         };
       } else if (existing) {
-        encoding = { color: existing.color, shape: existing.shape };
+        encoding = { color: existing.color, shape: encoding.shape };
+      } else {
+        // Default encoding - resolve color conflicts
+        let { color, shape } = encoding;
+        if (claimedColors.has(color)) {
+          // Probe subsequent slots for an unclaimed color (cap at 30 to exceed
+          // Kelly's 21-color palette and guarantee termination)
+          let altSlot = slot + 1;
+          color = getVisualEncoding(altSlot, false, displayName).color;
+          while (claimedColors.has(color) && altSlot < slot + 30) {
+            altSlot++;
+            color = getVisualEncoding(altSlot, false, displayName).color;
+          }
+        }
+        // Resolve shape conflicts (only when shapes are enabled)
+        if (shapesEnabled && claimedShapes.has(shape)) {
+          // Same probing approach for shapes (6 unique shapes, cap at 30 for safety)
+          let altSlot = slot + 1;
+          shape = getVisualEncoding(altSlot, true, displayName).shape;
+          while (claimedShapes.has(shape) && altSlot < slot + 30) {
+            altSlot++;
+            shape = getVisualEncoding(altSlot, true, displayName).shape;
+          }
+        }
+        encoding = { color, shape };
+        claimedColors.add(color);
+        claimedShapes.add(shape);
       }
 
       return {
@@ -351,7 +365,7 @@ export class LegendDataProcessor {
 
     // Add "Other" if there are items beyond the cap
     if (otherCount > 0 && !isolationMode) {
-      const encoding = getVisualEncoding(-1, shapesEnabled, LEGEND_VALUES.OTHERS);
+      const encoding = getVisualEncoding(-1, shapesEnabled, LEGEND_VALUES.OTHER);
       const otherZOrder =
         sortMode === 'manual' ? (existingOtherZOrder ?? items.length) : items.length;
 
