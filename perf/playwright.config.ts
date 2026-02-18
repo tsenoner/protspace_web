@@ -25,11 +25,17 @@ export default defineConfig({
         viewport: { width: 1920, height: 1080 },
         launchOptions: {
           args: [
-            '--enable-gpu',
+            // GPU — ensure hardware acceleration
+            '--ignore-gpu-blocklist',
+            '--disable-software-rasterizer',
+            '--use-gl=angle',
+            '--use-angle=default',
+            // Performance — prevent throttling during benchmarks
             '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding',
             '--disable-features=CalculateNativeWinOcclusion',
+            '--disable-frame-rate-limit',
           ],
         },
       },
@@ -42,6 +48,12 @@ export default defineConfig({
         launchOptions: {
           args: ['-disable-background-timer-throttling'],
           firefoxUserPrefs: {
+            // GPU — ensure hardware-accelerated WebGL
+            'webgl.force-enabled': true,
+            'webgl.forbid-software': true,
+            'layers.acceleration.force-enabled': true,
+            'gfx.webrender.all': true,
+            // Performance — prevent throttling
             'dom.timeout.enable_budget_timer_throttling': false,
             'dom.timeout.throttling_delay': 0,
           },
