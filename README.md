@@ -1,5 +1,12 @@
 # ProtSpace Web
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="app/public/wordmark-black.svg">
+    <img src="app/public/wordmark.svg" alt="ProtSpace" width="360">
+  </picture>
+</p>
+
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.jmb.2025.168940-blue)](https://doi.org/10.1016/j.jmb.2025.168940)
 
