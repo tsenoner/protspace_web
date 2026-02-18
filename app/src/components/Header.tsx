@@ -40,7 +40,7 @@ const Header = ({ variant = 'default', className }: HeaderProps) => {
   return (
     <header className={headerClasses}>
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-12 items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center">
             <img
