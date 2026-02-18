@@ -130,8 +130,12 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     // multilabel points only support circle for now
     if (annotationValueArray.length > 1) return 'circle';
 
-    // default to circle for points with no annotation
-    if (annotationValueArray.length === 0) return 'circle';
+    // Points with no annotation value map to N/A (__NA__) when available.
+    if (annotationValueArray.length === 0) {
+      const naShape = valueToShape.get('__NA__');
+      if (naShape) return naShape;
+      return 'circle';
+    }
 
     const annotationValue = annotationValueArray[0];
     if (annotationValue && otherValuesSet.has(annotationValue)) return 'circle';

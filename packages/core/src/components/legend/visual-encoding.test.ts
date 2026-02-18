@@ -9,10 +9,10 @@ describe('visual-encoding', () => {
       expect(encoding.shape).toBe('circle');
     });
 
-    it('returns special color for N/A category', () => {
-      const encoding = getVisualEncoding(0, true, 'N/A');
+    it('returns fixed color for N/A but regular shape assignment', () => {
+      const encoding = getVisualEncoding(1, true, 'N/A');
       expect(encoding.color).toBe('#DDDDDD');
-      expect(encoding.shape).toBe('circle');
+      expect(encoding.shape).toBe('square');
     });
 
     it('returns fallback for negative slots', () => {
@@ -65,9 +65,9 @@ describe('visual-encoding', () => {
     });
 
     describe('getSlot', () => {
-      it('returns special slots for Other and N/A', () => {
+      it('returns special slot for Other and regular slot for N/A', () => {
         expect(tracker.getSlot('Other')).toBe(SPECIAL_SLOTS.OTHER);
-        expect(tracker.getSlot('N/A')).toBe(SPECIAL_SLOTS.NA);
+        expect(tracker.getSlot('N/A')).toBe(0);
       });
 
       it('assigns incrementing slots to new categories', () => {
@@ -91,7 +91,8 @@ describe('visual-encoding', () => {
     });
 
     describe('freeSlot', () => {
-      it('does not free special categories', () => {
+      it('does not free Other but frees N/A like a regular category', () => {
+        tracker.getSlot('N/A'); // slot 0
         tracker.freeSlot('Other');
         tracker.freeSlot('N/A');
         expect(tracker.getSlot('newCategory')).toBe(0);
@@ -116,11 +117,11 @@ describe('visual-encoding', () => {
         expect(tracker.getSlot('cat3')).toBe(2);
       });
 
-      it('ignores special categories', () => {
+      it('ignores only Other during reassignment', () => {
         tracker.reassignSlots(['cat1', 'Other', 'N/A']);
         expect(tracker.getSlot('cat1')).toBe(0);
         expect(tracker.getSlot('Other')).toBe(SPECIAL_SLOTS.OTHER);
-        expect(tracker.getSlot('N/A')).toBe(SPECIAL_SLOTS.NA);
+        expect(tracker.getSlot('N/A')).toBe(1);
       });
     });
 
@@ -144,10 +145,14 @@ describe('visual-encoding', () => {
         expect(tracker.isEmpty()).toBe(false);
       });
 
-      it('returns true when only special categories requested', () => {
+      it('returns true when only Other is requested', () => {
         tracker.getSlot('Other');
-        tracker.getSlot('N/A');
         expect(tracker.isEmpty()).toBe(true);
+      });
+
+      it('returns false when N/A is requested', () => {
+        tracker.getSlot('N/A');
+        expect(tracker.isEmpty()).toBe(false);
       });
     });
   });

@@ -147,6 +147,32 @@ describe('style-getters', () => {
       });
     });
 
+    describe('getPointShape with N/A shape mapping', () => {
+      it('should use shapeMapping.__NA__ for points with no annotation values', () => {
+        const data = createMockData([null, 'value1']);
+        const config = createDefaultStyleConfig({
+          shapeMapping: {
+            __NA__: 'square',
+            value1: 'diamond',
+          },
+        });
+
+        const getters = createStyleGetters(data, config);
+        const nullPointFromProcessor: PlotDataPoint = {
+          id: 'test_protein',
+          x: 0,
+          y: 0,
+          z: 0,
+          originalIndex: 0,
+          annotationValues: {
+            test_annotation: [],
+          },
+        };
+
+        expect(getters.getPointShape(nullPointFromProcessor)).toBe('square');
+      });
+    });
+
     describe('getDepth with N/A z-order mapping', () => {
       it('should use z-order from zOrderMapping for null annotation values', () => {
         const data = createMockData([null, 'value1', 'value2']);
