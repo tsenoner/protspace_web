@@ -59,7 +59,6 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       : undefined;
   const valueToColor = new Map<string, string>();
   const valueToShape = new Map<string, string>();
-  let nullishConfiguredColor: string | null = null;
 
   // Priority: legend colorMapping > annotation.colors from data
   const colorMap = styleConfig.colorMapping;
@@ -69,9 +68,6 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     // Use legend-provided color mapping (frequency-sorted)
     for (const [key, color] of Object.entries(colorMap)) {
       valueToColor.set(key, color);
-      if (key === '__NA__') {
-        nullishConfiguredColor = color;
-      }
     }
   } else if (annotation && Array.isArray(annotation.values)) {
     // Fallback to annotation.colors from data
@@ -80,9 +76,6 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       const k = normalizeToKey(v);
       const color = annotation.colors?.[i];
       if (color) valueToColor.set(k, color);
-      if (k === '__NA__' && color) {
-        nullishConfiguredColor = color;
-      }
     }
   }
 
@@ -110,9 +103,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     if (!annotation || !Array.isArray(annotation.values)) return false;
     const hidden = new Set(styleConfig.hiddenAnnotationValues);
     if (hidden.size === 0) return false;
-    const normalizedKeys = annotation.values.map((v) =>
-      v === null ? 'null' : typeof v === 'string' && v.trim() === '' ? '' : (v as string),
-    );
+    const normalizedKeys = annotation.values.map((v) => normalizeToKey(v));
     return normalizedKeys.length > 0 && normalizedKeys.every((k) => hidden.has(k));
   };
 
@@ -130,12 +121,8 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     // multilabel points only support circle for now
     if (annotationValueArray.length > 1) return 'circle';
 
-    // Points with no annotation value map to N/A (__NA__) when available.
-    if (annotationValueArray.length === 0) {
-      const naShape = valueToShape.get('__NA__');
-      if (naShape) return naShape;
-      return 'circle';
-    }
+    // Defensive guard — shouldn't happen since DataProcessor normalizes nulls to __NA__
+    if (annotationValueArray.length === 0) return 'circle';
 
     const annotationValue = annotationValueArray[0];
     if (annotationValue && otherValuesSet.has(annotationValue)) return 'circle';
@@ -156,10 +143,8 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
 
     const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
 
-    if (annotationValueArray.length === 0) {
-      if (nullishConfiguredColor) return [nullishConfiguredColor];
-      else return [NEUTRAL_VALUE_COLOR];
-    }
+    // Defensive guard
+    if (annotationValueArray.length === 0) return [NEUTRAL_VALUE_COLOR];
 
     if (annotationValueArray.every((v) => otherValuesSet.has(v))) {
       return [NEUTRAL_VALUE_COLOR];
@@ -229,14 +214,15 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
           key = normalizeToKey(raw);
         }
       } else {
-        key = 'null';
+        // Defensive fallback — shouldn't happen since DataProcessor normalizes nulls
+        key = '__NA__';
       }
 
       const order = zMap[key];
       if (typeof order === 'number' && Number.isFinite(order) && zMax > 0) {
         const orderNorm = Math.min(1, Math.max(0, order / zMax));
         depth = depth + orderNorm * Z_EPS;
-      } else if (zMax > 0) {
+      } else if (zMap && zMax > 0) {
         // Unknown values go to the back within an opacity tier.
         depth = depth + Z_EPS;
       }
