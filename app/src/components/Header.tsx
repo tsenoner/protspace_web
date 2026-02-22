@@ -40,11 +40,14 @@ const Header = ({ variant = 'default', className }: HeaderProps) => {
   return (
     <header className={headerClasses}>
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-12 items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <img src="/logo.svg" alt="ProtSpace" className="h-8 w-8" />
-            <span className={cn('text-xl font-bold', textClass)}>ProtSpace</span>
+          <Link to="/" className="flex items-center">
+            <img
+              src={variant === 'light' ? '/wordmark.svg' : '/wordmark-black.svg'}
+              alt="ProtSpace"
+              className="h-10"
+            />
           </Link>
 
           {/* Desktop Navigation */}
