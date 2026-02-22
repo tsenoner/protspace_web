@@ -407,8 +407,7 @@ export class ProtSpaceExporter {
       this.element.selectedAnnotation,
       options.includeSelection === true ? this.selectedProteins : undefined,
     ).filter((it) => {
-      const key = it.value === 'N/A' ? LEGEND_VALUES.NA_VALUE : it.value;
-      return !hiddenSet.has(key);
+      return !hiddenSet.has(it.value);
     });
   }
 
@@ -573,7 +572,7 @@ export class ProtSpaceExporter {
       annotation: string;
     }> = [];
     for (let i = 0; i < annotationInfo.values.length; i += 1) {
-      const value = annotationInfo.values[i] ?? 'N/A';
+      const value = annotationInfo.values[i] ?? LEGEND_VALUES.NA_VALUE;
       const color = annotationInfo.colors?.[i] ?? '#888';
       const shape = annotationInfo.shapes?.[i] ?? 'circle';
       const count = counts[i] ?? 0;
@@ -667,7 +666,7 @@ export class ProtSpaceExporter {
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'left';
       const textOffset = 8 * scaleFactor;
-      ctx.fillText(it.value, padding + symbolSize + textOffset, cy);
+      ctx.fillText(toDisplayValue(it.value), padding + symbolSize + textOffset, cy);
 
       // Draw count (right-aligned)
       const countStr = String(it.count);
@@ -700,7 +699,7 @@ export class ProtSpaceExporter {
 
   /**
    * Read hidden annotation values from the live scatterplot so exports mirror visibility.
-   * Returns keys in the same format used internally (e.g., "null" for null values).
+   * Returns keys in the same format used internally (e.g., "__NA__" for N/A values).
    */
   private readHiddenAnnotationValueKeys(): Set<string> {
     try {
