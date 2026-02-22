@@ -1,6 +1,6 @@
 import { NEUTRAL_VALUE_COLOR } from './config';
 import type { PlotDataPoint, VisualizationData } from '@protspace/utils';
-import { normalizeShapeName } from '@protspace/utils';
+import { normalizeShapeName, toInternalValue } from '@protspace/utils';
 
 export interface StyleConfig {
   selectedProteinIds: string[];
@@ -37,18 +37,11 @@ export interface StyleConfig {
 }
 
 export function createStyleGetters(data: VisualizationData | null, styleConfig: StyleConfig) {
-  // Normalize values: null, undefined, and empty-string map to '__NA__' to match legend convention
-  const normalizeToKey = (value: unknown): string => {
-    if (value === null || value === undefined) return '__NA__';
-    if (typeof value === 'string' && value.trim() === '') return '__NA__';
-    return String(value);
-  };
-
   // Precompute fast lookup structures
   const selectedIdsSet = new Set(styleConfig.selectedProteinIds);
   const highlightedIdsSet = new Set(styleConfig.highlightedProteinIds);
   const hiddenKeysSet = new Set(
-    (styleConfig.hiddenAnnotationValues || []).map((v) => normalizeToKey(v)),
+    (styleConfig.hiddenAnnotationValues || []).map((v) => toInternalValue(v)),
   );
   const otherValuesSet = new Set(styleConfig.otherAnnotationValues || []);
 
@@ -73,7 +66,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     // Fallback to annotation.colors from data
     for (let i = 0; i < annotation.values.length; i++) {
       const v = annotation.values[i];
-      const k = normalizeToKey(v);
+      const k = toInternalValue(v);
       const color = annotation.colors?.[i];
       if (color) valueToColor.set(k, color);
     }
@@ -89,7 +82,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     // Fallback to annotation.shapes from data (only when useShapes is enabled)
     for (let i = 0; i < annotation.values.length; i++) {
       const v = annotation.values[i];
-      const k = normalizeToKey(v);
+      const k = toInternalValue(v);
       if (annotation.shapes && annotation.shapes[i]) {
         valueToShape.set(k, normalizeShapeName(annotation.shapes[i]));
       }
@@ -103,7 +96,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     if (!annotation || !Array.isArray(annotation.values)) return false;
     const hidden = new Set(styleConfig.hiddenAnnotationValues);
     if (hidden.size === 0) return false;
-    const normalizedKeys = annotation.values.map((v) => normalizeToKey(v));
+    const normalizedKeys = annotation.values.map((v) => toInternalValue(v));
     return normalizedKeys.length > 0 && normalizedKeys.every((k) => hidden.has(k));
   };
 
@@ -127,13 +120,10 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     const annotationValue = annotationValueArray[0];
     if (annotationValue && otherValuesSet.has(annotationValue)) return 'circle';
 
-    const k = normalizeToKey(annotationValue);
+    const k = toInternalValue(annotationValue);
     // Check if we have a custom shape from the legend mapping
     const customShape = valueToShape.get(k);
     if (customShape) return customShape;
-
-    // If useShapes is false and no custom shape, return circle
-    if (styleConfig.useShapes === false) return 'circle';
 
     return 'circle';
   };
@@ -152,9 +142,9 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
 
     const colors = annotationValueArray
       .map((v) => {
-        if (hiddenKeysSet.has(normalizeToKey(v))) return undefined;
+        if (hiddenKeysSet.has(toInternalValue(v))) return undefined;
         if (otherValuesSet.has(v)) return NEUTRAL_VALUE_COLOR;
-        return valueToColor.get(normalizeToKey(v)) ?? NEUTRAL_VALUE_COLOR;
+        return valueToColor.get(toInternalValue(v)) ?? NEUTRAL_VALUE_COLOR;
       })
       .filter((v) => v !== undefined);
 
@@ -166,7 +156,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     const annotationValue = point.annotationValues[styleConfig.selectedAnnotation];
 
     if (!allHidden && annotationValue) {
-      if (annotationValue.every((f) => hiddenKeysSet.has(normalizeToKey(f)))) return 0;
+      if (annotationValue.every((f) => hiddenKeysSet.has(toInternalValue(f)))) return 0;
     }
 
     const isSelected = selectedIdsSet.has(point.id);
@@ -211,7 +201,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
           key = 'Other';
         } else {
           const raw = annotationValueArray[0];
-          key = normalizeToKey(raw);
+          key = toInternalValue(raw);
         }
       } else {
         // Defensive fallback — shouldn't happen since DataProcessor normalizes nulls

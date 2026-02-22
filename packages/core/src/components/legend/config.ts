@@ -1,5 +1,10 @@
 import { DEFAULT_CONFIG } from '../scatter-plot/config';
-import { LEGEND_VALUES, toDisplayValue, SHAPE_PATH_GENERATORS } from '@protspace/utils';
+import {
+  LEGEND_VALUES,
+  toDisplayValue,
+  toInternalValue,
+  SHAPE_PATH_GENERATORS,
+} from '@protspace/utils';
 
 const SYMBOL_SIZE_MULTIPLIER = 8;
 
@@ -31,17 +36,7 @@ export const LEGEND_STYLES = {
 export const FIRST_NUMBER_SORT_ANNOTATIONS = new Set<string>(['length_fixed', 'length_quantile']);
 
 // Re-export legend utilities from utils package
-export { LEGEND_VALUES, toDisplayValue, SHAPE_PATH_GENERATORS };
-
-/**
- * Check if a raw data value represents N/A (null, empty string, or whitespace only).
- * Use this when processing raw annotation data.
- */
-export function isNADataValue(value: string | null | undefined): boolean {
-  return (
-    value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
-  );
-}
+export { LEGEND_VALUES, toDisplayValue, toInternalValue, SHAPE_PATH_GENERATORS };
 
 /**
  * Check if an internal legend value is N/A.
@@ -49,14 +44,6 @@ export function isNADataValue(value: string | null | undefined): boolean {
  */
 export function isNAValue(value: string): boolean {
   return value === LEGEND_VALUES.NA_VALUE;
-}
-
-/**
- * Convert raw data value to internal legend value.
- * N/A values (null, empty, whitespace) become LEGEND_VALUES.NA_VALUE.
- */
-export function toInternalValue(value: string | null | undefined): string {
-  return isNADataValue(value) ? LEGEND_VALUES.NA_VALUE : (value as string);
 }
 
 /**
