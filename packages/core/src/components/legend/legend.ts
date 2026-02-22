@@ -678,9 +678,10 @@ export class ProtspaceLegend extends LitElement {
       const annotationIdxArray = Array.isArray(annotationIdxData)
         ? annotationIdxData
         : [annotationIdxData];
-      return annotationIdxArray
-        .map((annotationIdx: number) => data.annotations[selectedAnnotation].values[annotationIdx])
-        .filter((v) => v != null);
+      return annotationIdxArray.map(
+        (annotationIdx: number) =>
+          data.annotations[selectedAnnotation].values[annotationIdx] ?? LEGEND_VALUES.NA_VALUE,
+      );
     });
     this.annotationValues = annotationValues;
   }
