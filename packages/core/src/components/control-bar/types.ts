@@ -31,6 +31,11 @@ export interface ScatterplotElementLike extends Element {
   projectionPlane?: 'xy' | 'xz' | 'yz';
   data?: ProtspaceData;
 
+  runWebGLRenderPerfMeasurements?: (
+    iterations?: number,
+    options?: { download?: boolean; dataset?: { id: string; url?: string; proteinCount?: number } },
+  ) => Promise<unknown>;
+
   // Data access
   getCurrentData?: () => ProtspaceData | undefined;
 

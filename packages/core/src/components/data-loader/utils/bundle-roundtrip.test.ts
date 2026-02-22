@@ -17,7 +17,7 @@ import { createParquetBundle, countBundleDelimiters, isParquetBundle } from '@pr
  */
 describe('round-trip with real data files', () => {
   it('should successfully export 5K.parquetbundle after loading', async () => {
-    const filePath = resolve(__dirname, '../../../../../../data/5K.parquetbundle');
+    const filePath = resolve(__dirname, '../../../../../../app/public/data/5K.parquetbundle');
     const buffer = readFileSync(filePath);
     const arrayBuffer = buffer.buffer.slice(
       buffer.byteOffset,
@@ -42,7 +42,7 @@ describe('round-trip with real data files', () => {
   });
 
   it('should successfully export with settings after loading 5K.parquetbundle', async () => {
-    const filePath = resolve(__dirname, '../../../../../../data/5K.parquetbundle');
+    const filePath = resolve(__dirname, '../../../../../../app/public/data/5K.parquetbundle');
     const buffer = readFileSync(filePath);
     const arrayBuffer = buffer.buffer.slice(
       buffer.byteOffset,
@@ -101,7 +101,7 @@ describe('metadata preservation through round-trip', () => {
   }
 
   it('should preserve projection metadata fields through export/import cycle (5K)', async () => {
-    const filePath = resolve(__dirname, '../../../../../../data/5K.parquetbundle');
+    const filePath = resolve(__dirname, '../../../../../../app/public/data/5K.parquetbundle');
     const buffer = readFileSync(filePath);
     const arrayBuffer = buffer.buffer.slice(
       buffer.byteOffset,
@@ -150,7 +150,7 @@ describe('metadata preservation through round-trip', () => {
   });
 
   it('should preserve projection metadata fields (n_components, svd_solver, etc.)', async () => {
-    const filePath = resolve(__dirname, '../../../../../../data/5K.parquetbundle');
+    const filePath = resolve(__dirname, '../../../../../../app/public/data/5K.parquetbundle');
     const buffer = readFileSync(filePath);
     const arrayBuffer = buffer.buffer.slice(
       buffer.byteOffset,

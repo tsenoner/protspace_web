@@ -25,7 +25,7 @@ Alternatively, use the **Import** button in the control bar:
 
 ## Example Datasets
 
-Don't have data yet? Download example `.parquetbundle` files from the [GitHub data folder](https://github.com/tsenoner/protspace_web/tree/main/data).
+Don't have data yet? Download example `.parquetbundle` files from the [GitHub data folder](https://github.com/tsenoner/protspace_web/tree/main/app/public/data).
 
 ## What Happens When You Load Data
 
@@ -48,4 +48,4 @@ To create your own `.parquetbundle` files:
 - **[Using Google Colab](/guide/data-preparation)** - No installation required (recommended)
 - **[Using Python CLI](/guide/python-cli)** - For local processing or automation
 
-Or download example datasets from the [GitHub data folder](https://github.com/tsenoner/protspace_web/tree/main/data).
+Or download example datasets from the [GitHub data folder](https://github.com/tsenoner/protspace_web/tree/main/app/public/data).
