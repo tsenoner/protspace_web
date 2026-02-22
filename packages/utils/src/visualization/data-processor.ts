@@ -1,5 +1,5 @@
 import type { VisualizationData, PlotDataPoint } from '../types.js';
-import { LEGEND_VALUES } from './shapes.js';
+import { toInternalValue } from './shapes.js';
 import * as d3 from 'd3';
 
 export class DataProcessor {
@@ -34,7 +34,7 @@ export class DataProcessor {
         annotationValues[annotationKey] = Array.isArray(data.annotations[annotationKey].values)
           ? annotationIndices
               .filter((i): i is number => typeof i === 'number' && Number.isFinite(i))
-              .map((i) => data.annotations[annotationKey].values[i] ?? LEGEND_VALUES.NA_VALUE)
+              .map((i) => toInternalValue(data.annotations[annotationKey].values[i]))
           : [];
 
         // Map annotation scores if available

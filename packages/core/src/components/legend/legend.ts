@@ -10,6 +10,7 @@ import {
   LEGEND_VALUES,
   LEGEND_EVENTS,
   toDisplayValue,
+  toInternalValue,
   SHAPE_PATH_GENERATORS,
 } from './config';
 
@@ -678,9 +679,8 @@ export class ProtspaceLegend extends LitElement {
       const annotationIdxArray = Array.isArray(annotationIdxData)
         ? annotationIdxData
         : [annotationIdxData];
-      return annotationIdxArray.map(
-        (annotationIdx: number) =>
-          data.annotations[selectedAnnotation].values[annotationIdx] ?? LEGEND_VALUES.NA_VALUE,
+      return annotationIdxArray.map((annotationIdx: number) =>
+        toInternalValue(data.annotations[selectedAnnotation].values[annotationIdx]),
       );
     });
     this.annotationValues = annotationValues;

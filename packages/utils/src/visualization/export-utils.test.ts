@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ProtSpaceExporter, createExporter } from './export-utils';
-import type { ExportableElement, ExportOptions } from './export-utils';
+import type { ExportableElement, ExportableData, ExportOptions } from './export-utils';
+import { LEGEND_VALUES } from './shapes';
 
 /**
  * Mock ExportableElement for testing
@@ -331,5 +332,182 @@ describe('Export aspect ratio calculations', () => {
     const aspectRatio = width / height;
 
     expect(aspectRatio).toBeCloseTo(16 / 9, 2);
+  });
+});
+
+describe('N/A handling in export', () => {
+  describe('computeLegendFromData', () => {
+    const callComputeLegend = (
+      data: ExportableData,
+      annotation: string,
+      selectedProteinIds?: string[],
+    ) => {
+      const el = createMockElement({ getCurrentData: () => data, selectedAnnotation: annotation });
+      const exporter = createExporter(el);
+      return (exporter as unknown as Record<string, unknown>)['computeLegendFromData'](
+        data,
+        annotation,
+        selectedProteinIds,
+      ) as Array<{ value: string; color: string; shape: string; count: number }>;
+    };
+
+    it('should use __NA__ for null annotation values', () => {
+      const data: ExportableData = {
+        protein_ids: ['P1', 'P2'],
+        annotations: {
+          species: {
+            values: ['human', null],
+            colors: ['#ff0000', '#888888'],
+            shapes: ['circle', 'square'],
+          },
+        },
+        annotation_data: { species: [[0], [1]] },
+      };
+
+      const items = callComputeLegend(data, 'species');
+      expect(items[0].value).toBe('human');
+      expect(items[1].value).toBe(LEGEND_VALUES.NA_VALUE);
+    });
+
+    it('should count N/A items correctly', () => {
+      const data: ExportableData = {
+        protein_ids: ['P1', 'P2', 'P3'],
+        annotations: {
+          species: {
+            values: ['human', null],
+            colors: ['#ff0000', '#888888'],
+            shapes: ['circle', 'square'],
+          },
+        },
+        annotation_data: { species: [[0], [1], [1]] }, // P2 and P3 are N/A
+      };
+
+      const items = callComputeLegend(data, 'species');
+      const naItem = items.find((it) => it.value === LEGEND_VALUES.NA_VALUE);
+      expect(naItem).toBeDefined();
+      expect(naItem!.count).toBe(2);
+    });
+
+    it('should count correctly when filtering by selected proteins', () => {
+      const data: ExportableData = {
+        protein_ids: ['P1', 'P2', 'P3'],
+        annotations: {
+          species: {
+            values: ['human', null],
+            colors: ['#ff0000', '#888888'],
+            shapes: ['circle', 'square'],
+          },
+        },
+        annotation_data: { species: [[0], [1], [1]] },
+      };
+
+      const items = callComputeLegend(data, 'species', ['P2']); // only P2 selected
+      const naItem = items.find((it) => it.value === LEGEND_VALUES.NA_VALUE);
+      expect(naItem).toBeDefined();
+      expect(naItem!.count).toBe(1);
+    });
+  });
+
+  describe('exportProteinIds N/A visibility', () => {
+    it('should exclude N/A proteins when __NA__ is hidden', () => {
+      const data: ExportableData = {
+        protein_ids: ['P1', 'P2', 'P3'],
+        annotations: {
+          species: {
+            values: ['human', 'mouse', null],
+            colors: ['#ff0000', '#00ff00', '#888888'],
+            shapes: ['circle', 'square', 'triangle'],
+          },
+        },
+        annotation_data: { species: [[0], [1], [2]] },
+      };
+
+      // Simulate the visibility filtering logic from exportProteinIds
+      const hiddenValues = [LEGEND_VALUES.NA_VALUE];
+      const hiddenSet = new Set(hiddenValues);
+      const annotationInfo = data.annotations.species;
+      const indices = data.annotation_data.species;
+
+      const visibleIds = data.protein_ids.filter((_id, i) => {
+        const viArray = indices[i];
+        if (!Array.isArray(viArray) || viArray.length === 0) {
+          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
+        }
+        return viArray.some((vi) => {
+          const value =
+            typeof vi === 'number' && vi >= 0 && vi < annotationInfo.values.length
+              ? (annotationInfo.values[vi] ?? null)
+              : null;
+          const key = value === null ? LEGEND_VALUES.NA_VALUE : String(value);
+          return !hiddenSet.has(key);
+        });
+      });
+
+      expect(visibleIds).toEqual(['P1', 'P2']);
+      expect(visibleIds).not.toContain('P3');
+    });
+
+    it('should include N/A proteins when __NA__ is not hidden', () => {
+      const data: ExportableData = {
+        protein_ids: ['P1', 'P2', 'P3'],
+        annotations: {
+          species: {
+            values: ['human', 'mouse', null],
+            colors: ['#ff0000', '#00ff00', '#888888'],
+            shapes: ['circle', 'square', 'triangle'],
+          },
+        },
+        annotation_data: { species: [[0], [1], [2]] },
+      };
+
+      const hiddenValues: string[] = [];
+      const hiddenSet = new Set(hiddenValues);
+      const annotationInfo = data.annotations.species;
+      const indices = data.annotation_data.species;
+
+      const visibleIds = data.protein_ids.filter((_id, i) => {
+        const viArray = indices[i];
+        if (!Array.isArray(viArray) || viArray.length === 0) {
+          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
+        }
+        return viArray.some((vi) => {
+          const value =
+            typeof vi === 'number' && vi >= 0 && vi < annotationInfo.values.length
+              ? (annotationInfo.values[vi] ?? null)
+              : null;
+          const key = value === null ? LEGEND_VALUES.NA_VALUE : String(value);
+          return !hiddenSet.has(key);
+        });
+      });
+
+      expect(visibleIds).toEqual(['P1', 'P2', 'P3']);
+    });
+
+    it('should exclude proteins with missing annotation data when __NA__ is hidden', () => {
+      const data: ExportableData = {
+        protein_ids: ['P1', 'P2'],
+        annotations: {
+          species: {
+            values: ['human'],
+            colors: ['#ff0000'],
+            shapes: ['circle'],
+          },
+        },
+        annotation_data: { species: [[0], []] }, // P2 has empty annotation data
+      };
+
+      const hiddenValues = [LEGEND_VALUES.NA_VALUE];
+      const hiddenSet = new Set(hiddenValues);
+
+      const visibleIds = data.protein_ids.filter((_id, i) => {
+        const viArray = data.annotation_data.species[i];
+        if (!Array.isArray(viArray) || viArray.length === 0) {
+          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
+        }
+        return true;
+      });
+
+      expect(visibleIds).toEqual(['P1']);
+    });
   });
 });
