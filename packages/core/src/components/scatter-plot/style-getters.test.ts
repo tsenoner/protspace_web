@@ -34,7 +34,7 @@ describe('style-getters', () => {
       z: 0,
       originalIndex: 0,
       annotationValues: {
-        test_annotation: annotationValue === null ? [null as unknown as string] : [annotationValue],
+        test_annotation: annotationValue === null ? ['__NA__'] : [annotationValue],
       },
     });
 
@@ -148,7 +148,7 @@ describe('style-getters', () => {
     });
 
     describe('getPointShape with N/A shape mapping', () => {
-      it('should use shapeMapping.__NA__ for points with no annotation values', () => {
+      it('should use shapeMapping.__NA__ for N/A annotation values', () => {
         const data = createMockData([null, 'value1']);
         const config = createDefaultStyleConfig({
           shapeMapping: {
@@ -158,18 +158,9 @@ describe('style-getters', () => {
         });
 
         const getters = createStyleGetters(data, config);
-        const nullPointFromProcessor: PlotDataPoint = {
-          id: 'test_protein',
-          x: 0,
-          y: 0,
-          z: 0,
-          originalIndex: 0,
-          annotationValues: {
-            test_annotation: [],
-          },
-        };
+        const naPoint = createMockPoint(null);
 
-        expect(getters.getPointShape(nullPointFromProcessor)).toBe('square');
+        expect(getters.getPointShape(naPoint)).toBe('square');
       });
     });
 
