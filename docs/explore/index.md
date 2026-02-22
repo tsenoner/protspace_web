@@ -20,7 +20,7 @@ The ProtSpace Explore page provides an interactive environment for visualizing a
 The control bar contains:
 
 1. **Projection dropdown** - Switch between PCA, UMAP, t-SNE
-2. **Color By dropdown** - Color points by annotation
+2. **Annotation dropdown** - Color points by annotation
 3. **Search box** - Find proteins by ID
 4. **Select button** - Box selection mode
 5. **Clear button** - Clear selection
@@ -57,7 +57,7 @@ The legend shows the current coloring scheme:
 
 ## Structure Viewer
 
-When you select a protein, the 3D viewer appears and fetches its structure from AlphaFold (if available). The viewer includes direct links to the [AlphaFold Database](https://alphafold.ebi.ac.uk/) and [UniProt](https://www.uniprot.org/) entries for the selected protein.
+When you select a protein, the 3D viewer appears and fetches its structure from AlphaFold (if available). The viewer includes direct links to the [AlphaFold Database](https://alphafold.ebi.ac.uk/), [UniProt](https://www.uniprot.org/), and [InterPro](https://www.interpro.org/) entries for the selected protein.
 
 <img src="./images/structure-viewer.png" alt="Structure Viewer - showing 3D protein structure" style="max-width: 50%; display: block; margin: 1em 0;" />
 

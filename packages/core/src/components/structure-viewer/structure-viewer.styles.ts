@@ -59,10 +59,27 @@ const structureViewerStylesCore = css`
       text-decoration-color 0.2s;
   }
 
+  .header-info {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
   .protein-id {
     font-size: 0.875rem;
     color: var(--protspace-viewer-text-muted);
-    margin-left: 0.5rem;
+  }
+
+  .header-links {
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+  }
+
+  .header-link {
+    color: var(--protspace-viewer-text-muted);
     text-decoration: none;
     cursor: pointer;
     transition:
@@ -70,16 +87,21 @@ const structureViewerStylesCore = css`
       text-decoration-color 0.2s;
   }
 
+  .header-link-separator {
+    color: var(--protspace-viewer-text-muted);
+    opacity: 0.5;
+  }
+
   .title:hover,
   .title:focus-visible,
-  .protein-id:hover,
-  .protein-id:focus-visible {
+  .header-link:hover,
+  .header-link:focus-visible {
     text-decoration: underline;
     text-underline-offset: 2px;
   }
 
   .title:focus-visible,
-  .protein-id:focus-visible {
+  .header-link:focus-visible {
     outline: 2px solid var(--protspace-viewer-loading);
     outline-offset: 2px;
     border-radius: 2px;

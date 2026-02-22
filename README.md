@@ -1,5 +1,12 @@
 # ProtSpace Web
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="app/public/wordmark-black.svg">
+    <img src="app/public/wordmark.svg" alt="ProtSpace" width="360">
+  </picture>
+</p>
+
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.jmb.2025.168940-blue)](https://doi.org/10.1016/j.jmb.2025.168940)
 
@@ -15,7 +22,7 @@ ProtSpace Web is a browser-based visualization tool for exploring protein langua
 
 Generate `.parquetbundle` files directly in your browser:
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tsenoner/protspace_web/blob/main/notebooks/ProtSpace_Preparation.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tsenoner/protspace/blob/main/notebooks/ProtSpace_Preparation.ipynb)
 
 **Option 2: Python ProtSpace** _(local installation)_
 

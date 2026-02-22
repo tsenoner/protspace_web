@@ -9,7 +9,7 @@ const MAX_FILE_SIZE_BYTES_DEFAULT = 500 * 1024 * 1024; // 500MB
 const MAX_ROWS_DEFAULT = 2_000_000;
 const MAX_COLUMNS_DEFAULT = 200;
 const MAX_TOTAL_CELLS_DEFAULT = 1_000_000_000;
-const MAX_CELL_STRING_LENGTH_DEFAULT = 1024;
+const MAX_CELL_STRING_LENGTH_DEFAULT = 256;
 
 export function assertValidParquetMagic(buffer: ArrayBuffer): void {
   const u8 = new Uint8Array(buffer);
@@ -80,8 +80,13 @@ export function validateRowsBasic(
       const val = row[key];
       const safeKey = sanitizeForMessage(key);
       if (typeof val === 'string') {
-        if (val.length > maxCellStringLength) {
-          throw new Error(`Cell string too long in column '${safeKey}'`);
+        const parts = val.split(';');
+        for (const part of parts) {
+          if (part.length > maxCellStringLength) {
+            throw new Error(
+              `Cell value too long in column '${safeKey}': a single value has ${part.length} characters (limit: ${maxCellStringLength})`,
+            );
+          }
         }
         if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(val)) {
           throw new Error(`Control characters detected in column '${safeKey}'`);

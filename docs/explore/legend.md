@@ -35,13 +35,14 @@ When there are many categories (default more than 10), less frequent ones are gr
 
 Click the **cog icon** (⚙️) in the top-right corner of the legend for advanced options:
 
-| Setting                  | Description                                                  |
-| ------------------------ | ------------------------------------------------------------ |
-| **Shape size**           | Adjust the size of points in the scatterplot                 |
-| **Default shown labels** | Number of labels to show before grouping into "Others"       |
-| **Show shapes**          | Toggle between circles only or different shapes per category |
-| **Group in "Others"**    | Toggle whether to group labels into "Others" or show all     |
-| **Z-order direction**    | Choose top-to-bottom or bottom-to-top ordering               |
+| Setting                   | Description                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| **Max legend items**      | Number of labels to show before grouping into "Others"                                  |
+| **Shape size**            | Adjust the size of points in the scatterplot                                            |
+| **Include shapes**        | Toggle between circles only or different shapes per category                            |
+| **Show duplicate counts** | Show count badges on overlapping points and spiderfy on click                           |
+| **Color palette**         | Select from multiple palettes (Kelly's, Okabe-Ito, Tol Bright, Set2, Dark2, Tableau 10) |
+| **Sorting**               | Sort by category size, alphabetically, or manual (drag to reorder)                      |
 
 ### Saved Settings
 

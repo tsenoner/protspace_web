@@ -19,7 +19,8 @@ export class DataProcessor {
 
       // Map annotation values for this protein
       const annotationValues: Record<string, string[]> = {};
-      const annotationScores: Record<string, (number | null)[]> = {};
+      const annotationScores: Record<string, (number[] | null)[]> = {};
+      const annotationEvidence: Record<string, (string | null)[]> = {};
       Object.keys(data.annotations).forEach((annotationKey) => {
         const annotationRows = data.annotation_data?.[annotationKey];
         const annotationIndicesData = annotationRows ? annotationRows[index] : undefined;
@@ -42,6 +43,12 @@ export class DataProcessor {
         annotationScores[annotationKey] = Array.isArray(scoresForAnnotation)
           ? scoresForAnnotation
           : [];
+
+        // Map annotation evidence if available
+        const evidenceForAnnotation = data.annotation_evidence?.[annotationKey]?.[index];
+        annotationEvidence[annotationKey] = Array.isArray(evidenceForAnnotation)
+          ? evidenceForAnnotation
+          : [];
       });
 
       // Determine 2D mapping depending on plane for 3D coordinates
@@ -53,6 +60,7 @@ export class DataProcessor {
         y: yVal,
         annotationValues,
         annotationScores,
+        annotationEvidence,
         originalIndex: index,
       } as PlotDataPoint;
       if (coordinates.length === 3) {

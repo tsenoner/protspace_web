@@ -2,7 +2,7 @@
 
 The easiest way to prepare your data for ProtSpace - no local installation required!
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tsenoner/protspace_web/blob/main/notebooks/ProtSpace_Preparation.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tsenoner/protspace/blob/main/notebooks/ProtSpace_Preparation.ipynb)
 
 ## Overview
 
@@ -28,7 +28,7 @@ You need an HDF5 file (.h5) containing protein embeddings. There are three ways 
 
 Use the dedicated embedding generation notebook:
 
-[![Open Embedding Generator](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tsenoner/protspace/blob/main/examples/notebook/ClickThrough_GenerateEmbeddings.ipynb)
+[![Open Embedding Generator](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tsenoner/protspace/blob/main/notebooks/ClickThrough_GenerateEmbeddings.ipynb)
 
 This notebook:
 
@@ -50,13 +50,15 @@ For advanced users with custom embeddings, save them as an HDF5 file where each 
 
 ### Annotations
 
-Choose which annotations to include:
+Choose which annotations to include from three sources:
 
-| Source       | Available Annotations                                                    |
-| ------------ | ------------------------------------------------------------------------ |
-| **UniProt**  | annotation_score, subcellular_location, protein_families, reviewed, etc. |
-| **InterPro** | CATH, Pfam, signal_peptide, superfamily                                  |
-| **Taxonomy** | kingdom, phylum, class, order, family, genus, species                    |
+| Source       | Examples                                                  |
+| ------------ | --------------------------------------------------------- |
+| **UniProt**  | protein_families, ec, go_bp, cc_subcellular_location, ... |
+| **InterPro** | pfam, cath, panther, smart, superfamily, ...              |
+| **Taxonomy** | kingdom, phylum, class, order, family, genus, species     |
+
+See the [ProtSpace Python package](https://github.com/tsenoner/protspace) for the complete list of available annotations per source.
 
 ::: tip
 First-time taxonomy selection downloads a database (~1 minute).
