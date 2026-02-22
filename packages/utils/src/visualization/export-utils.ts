@@ -2,7 +2,7 @@
  * Export utilities for ProtSpace visualizations
  */
 
-import { SHAPE_PATH_GENERATORS, renderPathOnCanvas, toDisplayValue } from './shapes';
+import { SHAPE_PATH_GENERATORS, LEGEND_VALUES, renderPathOnCanvas, toDisplayValue } from './shapes';
 
 // PDF generation libraries are imported dynamically for better browser compatibility
 declare const window: Window & typeof globalThis;
@@ -407,7 +407,7 @@ export class ProtSpaceExporter {
       this.element.selectedAnnotation,
       options.includeSelection === true ? this.selectedProteins : undefined,
     ).filter((it) => {
-      const key = it.value === 'N/A' ? 'null' : it.value;
+      const key = it.value === 'N/A' ? LEGEND_VALUES.NA_VALUE : it.value;
       return !hiddenSet.has(key);
     });
   }
@@ -437,14 +437,14 @@ export class ProtSpaceExporter {
         const viArray = annotationIndices[i];
         // A protein is visible if at least one of its annotation values is not hidden
         if (!Array.isArray(viArray) || viArray.length === 0) {
-          return !hiddenSet.has('null');
+          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
         }
         return viArray.some((vi) => {
           const value: string | null =
             typeof vi === 'number' && vi >= 0 && vi < annotationInfo.values.length
               ? (annotationInfo.values[vi] ?? null)
               : null;
-          const key = value === null ? 'null' : String(value);
+          const key = value === null ? LEGEND_VALUES.NA_VALUE : String(value);
           return !hiddenSet.has(key);
         });
       });
