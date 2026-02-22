@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { LEGEND_VALUES } from '@protspace/utils';
 import type { PlotDataPoint } from '@protspace/utils';
 import { proteinTooltipStyles } from './protein-tooltip.styles';
 
@@ -49,8 +50,9 @@ export class ProtspaceProteinTooltip extends LitElement {
               const score = this.showScores ? tooltipAnnotationScores[idx] : null;
               const scoreText =
                 typeof score === 'number' && Number.isFinite(score) ? `${score}` : '';
+              const displayValue = !value || value === LEGEND_VALUES.NA_VALUE ? 'N/A' : value;
               return html`<div class="tooltip-annotation">
-                <span>${value || 'N/A'}</span><span>${scoreText}</span>
+                <span>${displayValue}</span><span>${scoreText}</span>
               </div>`;
             })}
           </div>
@@ -65,7 +67,10 @@ export class ProtspaceProteinTooltip extends LitElement {
   private _getGeneName(protein: PlotDataPoint): string | null {
     const values = protein.annotationValues?.gene_name || protein.annotationValues?.['Gene name'];
     if (!values || values.length === 0) return null;
-    const filtered = values.map((value) => value.trim()).filter((value) => value.length > 0);
+    const filtered = values
+      .filter((value) => value !== LEGEND_VALUES.NA_VALUE)
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
     if (filtered.length === 0) return null;
     return filtered.join(', ');
   }
@@ -77,7 +82,10 @@ export class ProtspaceProteinTooltip extends LitElement {
     const values =
       protein.annotationValues?.protein_name || protein.annotationValues?.['Protein name'];
     if (!values || values.length === 0) return null;
-    const filtered = values.map((value) => value.trim()).filter((value) => value.length > 0);
+    const filtered = values
+      .filter((value) => value !== LEGEND_VALUES.NA_VALUE)
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
     if (filtered.length === 0) return null;
     return filtered.join(', ');
   }
@@ -88,7 +96,10 @@ export class ProtspaceProteinTooltip extends LitElement {
   private _getUniprotKbId(protein: PlotDataPoint): string | null {
     const values = protein.annotationValues?.uniprot_kb_id;
     if (!values || values.length === 0) return null;
-    const filtered = values.map((value) => value.trim()).filter((value) => value.length > 0);
+    const filtered = values
+      .filter((value) => value !== LEGEND_VALUES.NA_VALUE)
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
     if (filtered.length === 0) return null;
     return filtered.join(', ');
   }
