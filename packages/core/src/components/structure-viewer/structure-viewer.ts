@@ -38,8 +38,6 @@ export class ProtspaceStructureViewer extends LitElement {
   @query('.viewer-content') private _viewerContainer!: HTMLElement;
 
   protected updated(changedProperties: Map<string | number | symbol, unknown>) {
-    if (changedProperties.size > 0) {
-    }
     if (changedProperties.has('proteinId')) {
       // Defer loading to avoid triggering updates during update cycle
       requestAnimationFrame(() => {
@@ -51,7 +49,7 @@ export class ProtspaceStructureViewer extends LitElement {
       });
     }
     if (changedProperties.has('height')) {
-      this.style.setProperty('14rem', this.height);
+      this.style.height = this.height;
     }
   }
 
