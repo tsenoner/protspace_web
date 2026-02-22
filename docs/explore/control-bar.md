@@ -20,19 +20,27 @@ Switch between different dimensionality reduction methods:
 
 Different projections reveal different patterns - try switching between them!
 
+::: tip 3D Projections
+When a 3D projection is available, a **plane selector** (XY / XZ / YZ) appears, letting you view different 2D slices of the 3D space.
+:::
+
 ## 2. Annotation Selector
 
 Choose which annotation to use for coloring points:
 
-![Color By dropdown](./images/control-bar-colorby.png)
+![Annotation dropdown](./images/control-bar-annotation.png)
 
-The Color By dropdown features:
+The Annotation dropdown features:
 
 - **Grouped categories**: Features are organized into sections (UniProt, InterPro, Taxonomy, Other)
 - **Search**: Type to filter features by name (case-insensitive)
 - **Keyboard navigation**: Use arrow keys to navigate, Enter to select, Escape to close
 
-Available annotations depend on your dataset (taxonomy, family, function, etc.).
+Only categories present in your dataset appear in the dropdown. Any columns that don't match a known category appear under **Other**. See the [ProtSpace Python package](https://github.com/tsenoner/protspace) for the complete list of available annotations per source.
+
+::: info Tooltip-only annotations
+`gene_name`, `protein_name`, and `uniprot_kb_id` are excluded from the dropdown but are still shown in the [tooltip](/explore/scatterplot#protein-tooltip) on hover.
+:::
 
 ## 3. Search
 
@@ -93,12 +101,14 @@ Click **Export** to save your visualization:
 
 ![Export options](./images/control-bar-export.png)
 
-| Format          | Description                                  |
-| --------------- | -------------------------------------------- |
-| **PNG**         | Raster image                                 |
-| **PDF**         | Vector image                                 |
-| **JSON**        | Full data for isolated proteins              |
-| **Protein IDs** | Text file with newline-separated identifiers |
+| Format          | Description                                               |
+| --------------- | --------------------------------------------------------- |
+| **PNG**         | Raster image with legend                                  |
+| **PDF**         | PDF document with legend                                  |
+| **Protein IDs** | Text file with newline-separated identifiers              |
+| **Parquet**     | `.parquetbundle` file with all data and optional settings |
+
+See [Exporting Results](/explore/exporting) for image customization options (dimensions, legend size, font).
 
 ## 9. Import
 

@@ -104,25 +104,77 @@ test.describe('Zoom Animation', () => {
     const box = await plot.boundingBox();
     if (!box) throw new Error('Could not get plot bounding box');
 
-    const centerX = box.x + box.width / 2;
-    const centerY = box.y + box.height / 2;
+    // Find the centroid of the dense "three-finger toxin" cluster, ignoring outliers
+    const clusterCenter = await page.evaluate(() => {
+      const plot = document.querySelector('#myPlot') as any;
+      if (!plot?._plotData?.length || !plot._scales) return null;
+
+      const plotData = plot._plotData;
+      const scales = plot._scales;
+      const transform = plot._transform || { x: 0, y: 0, k: 1 };
+      const plotRect = plot.getBoundingClientRect();
+      const annotation = plot.selectedAnnotation;
+
+      // Collect screen coordinates of all target family points
+      const targetPoints: Array<{ sx: number; sy: number }> = [];
+      for (const point of plotData) {
+        const values = point.annotationValues?.[annotation] || [];
+        if (values.some((v: string) => v?.includes('three-finger toxin'))) {
+          const px = scales.x(point.x) * transform.k + transform.x;
+          const py = scales.y(point.y) * transform.k + transform.y;
+          targetPoints.push({ sx: plotRect.left + px, sy: plotRect.top + py });
+        }
+      }
+
+      if (targetPoints.length === 0) return null;
+
+      // Filter outliers using median absolute deviation (MAD)
+      const median = (arr: number[]) => {
+        const sorted = [...arr].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      };
+      const xs = targetPoints.map((p) => p.sx);
+      const ys = targetPoints.map((p) => p.sy);
+      const medX = median(xs);
+      const medY = median(ys);
+      const madX = median(xs.map((x) => Math.abs(x - medX))) * 1.4826;
+      const madY = median(ys.map((y) => Math.abs(y - medY))) * 1.4826;
+      const threshold = 2;
+
+      // Keep only points within threshold * MAD of the median
+      const filtered = targetPoints.filter(
+        (p) =>
+          (madX === 0 || Math.abs(p.sx - medX) <= threshold * madX) &&
+          (madY === 0 || Math.abs(p.sy - medY) <= threshold * madY),
+      );
+      const pts = filtered.length > 0 ? filtered : targetPoints;
+
+      const avgX = pts.reduce((s, p) => s + p.sx, 0) / pts.length;
+      const avgY = pts.reduce((s, p) => s + p.sy, 0) / pts.length;
+      return { x: avgX, y: avgY };
+    });
+
+    // Use the cluster centroid, or fall back to upper-right quadrant
+    const zoomX = clusterCenter ? clusterCenter.x : box.x + box.width * 0.85;
+    const zoomY = clusterCenter ? clusterCenter.y : box.y + box.height * 0.15;
 
     // Initialize visual indicators and action logging
     await initVisualIndicators(page);
 
-    // Move to center and wait before starting zoom
-    await trackedMouseMove(page, centerX, centerY, { steps: 15 });
+    // Move to zoom target and wait before starting zoom
+    await trackedMouseMove(page, zoomX, zoomY, { steps: 15 });
     await page.waitForTimeout(INITIAL_PAUSE);
 
-    // Show wheel indicator at center before zooming in
-    await showClickIndicator(page, centerX, centerY);
+    // Show wheel indicator before zooming in
+    await showClickIndicator(page, zoomX, zoomY);
     await page.waitForTimeout(200);
     // Zoom in smoothly
     await performZoomAnimation(page, -ZOOM_DELTA, ZOOM_STEPS, STEP_DELAY);
     await page.waitForTimeout(PAUSE_DURATION);
 
-    // Show wheel indicator at center before zooming out
-    await showClickIndicator(page, centerX, centerY);
+    // Show wheel indicator before zooming out
+    await showClickIndicator(page, zoomX, zoomY);
     await page.waitForTimeout(200);
     // Zoom out smoothly
     await performZoomAnimation(page, ZOOM_DELTA, ZOOM_STEPS, STEP_DELAY);
@@ -332,11 +384,73 @@ test.describe('Scatterplot Animation Captures', () => {
     const box = await plot.boundingBox();
     if (!box) throw new Error('Could not get plot bounding box');
 
-    // Perform box selection
-    const startX = box.x + box.width * 0.3;
-    const startY = box.y + box.height * 0.3;
-    const endX = box.x + box.width * 0.7;
-    const endY = box.y + box.height * 0.7;
+    // Find the bounding box of the dense "phospholipase A2" cluster, ignoring outliers
+    const clusterBBox = await page.evaluate(() => {
+      const plot = document.querySelector('#myPlot') as any;
+      if (!plot?._plotData?.length || !plot._scales) return null;
+
+      const plotData = plot._plotData;
+      const scales = plot._scales;
+      const transform = plot._transform || { x: 0, y: 0, k: 1 };
+      const plotRect = plot.getBoundingClientRect();
+      const annotation = plot.selectedAnnotation;
+
+      // Collect screen coordinates of all target family points
+      const targetPoints: Array<{ sx: number; sy: number }> = [];
+      for (const point of plotData) {
+        const values = point.annotationValues?.[annotation] || [];
+        if (values.some((v: string) => v?.includes('phospholipase A2'))) {
+          const sx = plotRect.left + scales.x(point.x) * transform.k + transform.x;
+          const sy = plotRect.top + scales.y(point.y) * transform.k + transform.y;
+          targetPoints.push({ sx, sy });
+        }
+      }
+
+      if (targetPoints.length === 0) return null;
+
+      // Filter outliers using median absolute deviation (MAD)
+      const median = (arr: number[]) => {
+        const sorted = [...arr].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      };
+      const xs = targetPoints.map((p) => p.sx);
+      const ys = targetPoints.map((p) => p.sy);
+      const medX = median(xs);
+      const medY = median(ys);
+      const madX = median(xs.map((x) => Math.abs(x - medX))) * 1.4826;
+      const madY = median(ys.map((y) => Math.abs(y - medY))) * 1.4826;
+      const threshold = 2;
+
+      // Keep only points within threshold * MAD of the median
+      const filtered = targetPoints.filter(
+        (p) =>
+          (madX === 0 || Math.abs(p.sx - medX) <= threshold * madX) &&
+          (madY === 0 || Math.abs(p.sy - medY) <= threshold * madY),
+      );
+      const pts = filtered.length > 0 ? filtered : targetPoints;
+
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
+      for (const p of pts) {
+        if (p.sx < minX) minX = p.sx;
+        if (p.sy < minY) minY = p.sy;
+        if (p.sx > maxX) maxX = p.sx;
+        if (p.sy > maxY) maxY = p.sy;
+      }
+
+      // Add padding around the cluster
+      const pad = 20;
+      return { x1: minX - pad, y1: minY - pad, x2: maxX + pad, y2: maxY + pad };
+    });
+
+    // Use cluster bbox or fall back to center region
+    const startX = clusterBBox ? clusterBBox.x1 : box.x + box.width * 0.3;
+    const startY = clusterBBox ? clusterBBox.y1 : box.y + box.height * 0.3;
+    const endX = clusterBBox ? clusterBBox.x2 : box.x + box.width * 0.7;
+    const endY = clusterBBox ? clusterBBox.y2 : box.y + box.height * 0.7;
 
     await logAction(
       page,
@@ -411,6 +525,24 @@ test.describe('Legend Animation Captures', () => {
     // Wait to show initial state (will be trimmed from GIF)
     await page.waitForTimeout(INITIAL_PAUSE);
 
+    // Helper: find legend item index by substring match or CSS class
+    const findLegendItemIndex = async (match: string, options?: { byClass?: string }) => {
+      return await page.evaluate(
+        ({ targetMatch, byClass }) => {
+          const legend = document.querySelector('#myLegend');
+          if (!legend || !legend.shadowRoot) return -1;
+          const items = legend.shadowRoot.querySelectorAll('.legend-item');
+          for (let i = 0; i < items.length; i++) {
+            if (byClass && items[i].classList.contains(byClass)) return i;
+            const text = items[i].querySelector('.legend-text')?.textContent?.trim() || '';
+            if (targetMatch && text.includes(targetMatch)) return i;
+          }
+          return -1;
+        },
+        { targetMatch: match, byClass: options?.byClass },
+      );
+    };
+
     // Helper function to get coordinates of a legend item by index
     const getLegendItemCoords = async (index: number) => {
       return await page.evaluate((idx) => {
@@ -425,67 +557,59 @@ test.describe('Legend Animation Captures', () => {
       }, index);
     };
 
-    // 1. Click first legend item (hides it)
-    const item0Coords = await getLegendItemCoords(0);
-    if (item0Coords) {
-      await trackedMouseMove(page, item0Coords.x, item0Coords.y, { steps: 15 });
-      await page.waitForTimeout(300);
-      await showClickIndicator(page, item0Coords.x, item0Coords.y);
+    // Find target legend items by name (substring match) or CSS class
+    const naIdx = await findLegendItemIndex('N/A');
+    const otherIdx = await findLegendItemIndex('', { byClass: 'legend-item-other' });
+    const threefingerIdx = await findLegendItemIndex('three-finger toxin');
+
+    if (naIdx < 0 || otherIdx < 0 || threefingerIdx < 0) {
+      throw new Error(
+        `Could not find legend items: N/A=${naIdx}, Other=${otherIdx}, three-finger toxin=${threefingerIdx}`,
+      );
     }
-    await toggleLegendItem(page, 0);
+
+    // 1. Click N/A to hide it
+    const naCoords = await getLegendItemCoords(naIdx);
+    if (naCoords) {
+      await trackedMouseMove(page, naCoords.x, naCoords.y, { steps: 15 });
+      await page.waitForTimeout(300);
+      await showClickIndicator(page, naCoords.x, naCoords.y);
+    }
+    await toggleLegendItem(page, naIdx);
     await page.waitForTimeout(800);
 
-    // 2. Click second legend item (hides it)
-    const item1Coords = await getLegendItemCoords(1);
-    if (item1Coords) {
-      await trackedMouseMove(page, item1Coords.x, item1Coords.y, { steps: 15 });
+    // 2. Click Other to hide it
+    const otherCoords = await getLegendItemCoords(otherIdx);
+    if (otherCoords) {
+      await trackedMouseMove(page, otherCoords.x, otherCoords.y, { steps: 15 });
       await page.waitForTimeout(300);
-      await showClickIndicator(page, item1Coords.x, item1Coords.y);
+      await showClickIndicator(page, otherCoords.x, otherCoords.y);
     }
-    await toggleLegendItem(page, 1);
+    await toggleLegendItem(page, otherIdx);
     await page.waitForTimeout(800);
 
-    // 3. Click third legend item (hides it)
-    const item2Coords = await getLegendItemCoords(2);
-    if (item2Coords) {
-      await trackedMouseMove(page, item2Coords.x, item2Coords.y, { steps: 15 });
+    // 3. Double-click Three-finger toxin to isolate it
+    const threefingerCoords = await getLegendItemCoords(threefingerIdx);
+    if (threefingerCoords) {
+      await trackedMouseMove(page, threefingerCoords.x, threefingerCoords.y, { steps: 15 });
       await page.waitForTimeout(300);
-      await showClickIndicator(page, item2Coords.x, item2Coords.y);
-    }
-    await toggleLegendItem(page, 2);
-    await page.waitForTimeout(800);
-
-    // 4. Click second legend item again (shows it again)
-    const item1CoordsAfter = await getLegendItemCoords(1);
-    if (item1CoordsAfter) {
-      await trackedMouseMove(page, item1CoordsAfter.x, item1CoordsAfter.y, { steps: 15 });
-      await page.waitForTimeout(300);
-      await showClickIndicator(page, item1CoordsAfter.x, item1CoordsAfter.y);
-    }
-    await toggleLegendItem(page, 1);
-    await page.waitForTimeout(800);
-
-    // 5. Double-click third legend item (shows only that category)
-    const item2CoordsAfter = await getLegendItemCoords(2);
-    if (item2CoordsAfter) {
-      await trackedMouseMove(page, item2CoordsAfter.x, item2CoordsAfter.y, { steps: 15 });
-      await page.waitForTimeout(300);
-      await showClickIndicator(page, item2CoordsAfter.x, item2CoordsAfter.y);
+      await showClickIndicator(page, threefingerCoords.x, threefingerCoords.y);
       await page.waitForTimeout(100);
-      await showClickIndicator(page, item2CoordsAfter.x, item2CoordsAfter.y);
+      await showClickIndicator(page, threefingerCoords.x, threefingerCoords.y);
     }
-    await doubleClickLegendItem(page, 2);
+    await doubleClickLegendItem(page, threefingerIdx);
     await page.waitForTimeout(1000);
 
-    // 6. Click third legend item again (shows all labels again - when only one remains)
-    // After double-click isolation, the third item should be the only visible one
-    const finalItemCoords = await getLegendItemCoords(2);
-    if (finalItemCoords) {
-      await trackedMouseMove(page, finalItemCoords.x, finalItemCoords.y, { steps: 15 });
+    // 4. Click Three-finger toxin again to restore all
+    const threefingerCoordsAfter = await getLegendItemCoords(threefingerIdx);
+    if (threefingerCoordsAfter) {
+      await trackedMouseMove(page, threefingerCoordsAfter.x, threefingerCoordsAfter.y, {
+        steps: 15,
+      });
       await page.waitForTimeout(300);
-      await showClickIndicator(page, finalItemCoords.x, finalItemCoords.y);
+      await showClickIndicator(page, threefingerCoordsAfter.x, threefingerCoordsAfter.y);
     }
-    await toggleLegendItem(page, 2);
+    await toggleLegendItem(page, threefingerIdx);
     await page.waitForTimeout(1000);
   });
 
@@ -496,7 +620,33 @@ test.describe('Legend Animation Captures', () => {
     // Wait to show initial state (will be trimmed from GIF)
     await page.waitForTimeout(INITIAL_PAUSE);
 
-    // Get coordinates of legend items dynamically
+    // Helper: find legend item index by its text label
+    const findLegendItemIndex = async (label: string) => {
+      return await page.evaluate((targetLabel) => {
+        const legend = document.querySelector('#myLegend');
+        if (!legend || !legend.shadowRoot) return -1;
+        const items = legend.shadowRoot.querySelectorAll('.legend-item');
+        for (let i = 0; i < items.length; i++) {
+          const text = items[i].querySelector('.legend-text')?.textContent?.trim();
+          if (text === targetLabel) return i;
+        }
+        return -1;
+      }, label);
+    };
+
+    const getDragHandleCoords = async (index: number) => {
+      return await page.evaluate((idx) => {
+        const legend = document.querySelector('#myLegend');
+        if (!legend || !legend.shadowRoot) return null;
+        const items = legend.shadowRoot.querySelectorAll('.legend-item');
+        if (!items[idx]) return null;
+        const handle = items[idx].querySelector('.drag-handle') as HTMLElement;
+        if (!handle) return null;
+        const rect = handle.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      }, index);
+    };
+
     const getLegendItemCoords = async (index: number) => {
       return await page.evaluate((idx) => {
         const legend = document.querySelector('#myLegend');
@@ -510,113 +660,51 @@ test.describe('Legend Animation Captures', () => {
       }, index);
     };
 
-    // Get initial coordinates
-    const firstItemCoords = await getLegendItemCoords(0);
-    const secondItemCoords = await getLegendItemCoords(1);
-    const thirdItemCoords = await getLegendItemCoords(2);
+    // Find the N/A item and the first item for target position
+    const naIdx = await findLegendItemIndex('N/A');
+    if (naIdx < 0) throw new Error('Could not find N/A legend item');
 
-    if (!firstItemCoords || !secondItemCoords || !thirdItemCoords) {
-      throw new Error('Could not get legend item coordinates');
+    const firstItemCoords = await getLegendItemCoords(0);
+    const naHandleCoords = await getDragHandleCoords(naIdx);
+
+    if (!firstItemCoords || !naHandleCoords) {
+      throw new Error('Could not get legend item / drag handle coordinates');
     }
 
-    // Calculate target position: between second and third item
-    const targetX = secondItemCoords.x;
-    const targetY = secondItemCoords.y + (thirdItemCoords.y - secondItemCoords.y) / 2;
+    // Target: above the first item (drag N/A to position 0)
+    const targetX = naHandleCoords.x;
+    const targetY = firstItemCoords.y - 10;
 
-    // Move to first item
-    await trackedMouseMove(page, firstItemCoords.x, firstItemCoords.y, { steps: 15 });
+    // Move to the drag handle of the N/A item
+    await trackedMouseMove(page, naHandleCoords.x, naHandleCoords.y, { steps: 15 });
     await page.waitForTimeout(300);
 
-    // Show click indicator to indicate we're starting the drag
-    await showClickIndicator(page, firstItemCoords.x, firstItemCoords.y);
+    // Show click indicator on the drag handle
+    await showClickIndicator(page, naHandleCoords.x, naHandleCoords.y);
     await page.waitForTimeout(200);
 
-    // Perform drag: trigger dragstart, then drag to target, then drop
-    await logAction(page, 'mouse', 'Drag Legend Item', 'Drag first item to third position');
+    await logAction(page, 'mouse', 'Drag Legend Item', 'Drag N/A to first position');
 
-    // Trigger dragstart event manually
-    await page.evaluate(() => {
-      const legend = document.querySelector('#myLegend');
-      if (!legend || !legend.shadowRoot) return;
-      const items = legend.shadowRoot.querySelectorAll('.legend-item');
-      if (items[0]) {
-        const dragStartEvent = new DragEvent('dragstart', {
-          bubbles: true,
-          cancelable: true,
-          dataTransfer: new DataTransfer(),
-        });
-        items[0].dispatchEvent(dragStartEvent);
-      }
-    });
-
-    // Mouse down and move to start the drag
-    await page.mouse.move(firstItemCoords.x, firstItemCoords.y);
+    // Use plain mouse events so Sortable.js (handle: '.drag-handle') detects the drag
+    await page.mouse.move(naHandleCoords.x, naHandleCoords.y);
     await trackedMouseDown(page);
-    await page.waitForTimeout(300);
 
-    // Move to target position with smooth animation
-    // During the move, trigger dragover events on the target item
+    // Small delay for Sortable.js to detect drag start
+    await page.waitForTimeout(200);
+
+    // Smooth move to the target position
     const steps = 30;
-    for (let i = 0; i <= steps; i++) {
-      const currentX = firstItemCoords.x + (targetX - firstItemCoords.x) * (i / steps);
-      const currentY = firstItemCoords.y + (targetY - firstItemCoords.y) * (i / steps);
+    for (let i = 1; i <= steps; i++) {
+      const currentX = naHandleCoords.x + (targetX - naHandleCoords.x) * (i / steps);
+      const currentY = naHandleCoords.y + (targetY - naHandleCoords.y) * (i / steps);
       await page.mouse.move(currentX, currentY);
-
-      // Trigger dragover on the item we're hovering over
-      if (i > steps / 2) {
-        // We're closer to the target, trigger dragover on second item
-        await page.evaluate(() => {
-          const legend = document.querySelector('#myLegend');
-          if (!legend || !legend.shadowRoot) return;
-          const items = legend.shadowRoot.querySelectorAll('.legend-item');
-          if (items[1]) {
-            const dragOverEvent = new DragEvent('dragover', {
-              bubbles: true,
-              cancelable: true,
-              dataTransfer: new DataTransfer(),
-            });
-            dragOverEvent.preventDefault();
-            items[1].dispatchEvent(dragOverEvent);
-          }
-        });
-      }
-      await page.waitForTimeout(10);
+      await page.waitForTimeout(15);
     }
 
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(300);
 
-    // Trigger drop event on the target item
-    await page.evaluate(() => {
-      const legend = document.querySelector('#myLegend');
-      if (!legend || !legend.shadowRoot) return;
-      const items = legend.shadowRoot.querySelectorAll('.legend-item');
-      if (items[1]) {
-        const dropEvent = new DragEvent('drop', {
-          bubbles: true,
-          cancelable: true,
-          dataTransfer: new DataTransfer(),
-        });
-        dropEvent.preventDefault();
-        items[1].dispatchEvent(dropEvent);
-      }
-    });
-
-    // Mouse up to complete
+    // Drop
     await trackedMouseUp(page);
-
-    // Trigger dragend
-    await page.evaluate(() => {
-      const legend = document.querySelector('#myLegend');
-      if (!legend || !legend.shadowRoot) return;
-      const items = legend.shadowRoot.querySelectorAll('.legend-item');
-      if (items[0]) {
-        const dragEndEvent = new DragEvent('dragend', {
-          bubbles: true,
-          cancelable: true,
-        });
-        items[0].dispatchEvent(dragEndEvent);
-      }
-    });
 
     // Show final result
     await page.waitForTimeout(2000);
@@ -626,66 +714,38 @@ test.describe('Legend Animation Captures', () => {
     // Initialize visual indicators and action logging
     await initVisualIndicators(page);
 
-    // Step 1: Switch to "genus" annotation to show the Others category
+    // Step 1: Move 2 categories into "Other" by reducing maxVisibleValues
     // This happens before INITIAL_PAUSE so it gets trimmed from the GIF
-    const colorBySelectCoords = await page.evaluate(() => {
-      const controlBar = document.querySelector('#myControlBar');
-      if (!controlBar || !controlBar.shadowRoot) return null;
-      const select = controlBar.shadowRoot.querySelector('#annotation-select') as HTMLElement;
-      if (!select) return null;
-      const rect = select.getBoundingClientRect();
-      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    });
-
-    if (colorBySelectCoords) {
-      await trackedMouseMove(page, colorBySelectCoords.x, colorBySelectCoords.y, { steps: 15 });
-      await page.waitForTimeout(300);
-    }
-
-    await logAction(page, 'mouse', 'Change Color By', 'Switch to genus annotation');
     await page.evaluate(() => {
-      const controlBar = document.querySelector('#myControlBar');
-      if (!controlBar || !controlBar.shadowRoot) return;
-      const select = controlBar.shadowRoot.querySelector('#annotation-select') as HTMLSelectElement;
-      if (select) {
-        // Find and select "genus" option
-        const options = Array.from(select.options);
-        const genusOption = options.find((opt) => opt.value.toLowerCase().includes('genus'));
-        if (genusOption) {
-          select.value = genusOption.value;
-          // Trigger change event
-          const changeEvent = new Event('change', { bubbles: true, cancelable: true });
-          select.dispatchEvent(changeEvent);
-        }
+      const legend = document.querySelector('#myLegend') as any;
+      if (legend) {
+        legend.maxVisibleValues = Math.max(1, legend.maxVisibleValues - 2);
       }
     });
-
-    // Wait for legend to update with new annotation
+    // Wait for legend to re-render after reducing visible items
     await waitForLegend(page);
     await page.waitForTimeout(500);
 
-    // Wait to show initial state (will be trimmed from GIF) - now after switching to genus
+    // Wait to show initial state (will be trimmed from GIF)
     await page.waitForTimeout(INITIAL_PAUSE);
 
-    // Step 2: Click "(view)" button in the "Other" category
-    const viewButtonCoords = await page.evaluate(() => {
-      const legend = document.querySelector('#myLegend');
-      if (!legend || !legend.shadowRoot) return null;
-      const items = legend.shadowRoot.querySelectorAll('.legend-item');
-      // Find the "Other" item
-      for (const item of items) {
-        const textElement = item.querySelector('.legend-text');
-        if (textElement && textElement.textContent?.trim() === 'Other') {
-          const viewButton = item.querySelector('.view-button') as HTMLElement;
-          if (viewButton) {
-            const rect = viewButton.getBoundingClientRect();
-            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-          }
-        }
-      }
-      return null;
-    });
+    // Helper: find the "Other" legend item's (view) button coords
+    const getViewButtonCoords = async () => {
+      return await page.evaluate(() => {
+        const legend = document.querySelector('#myLegend');
+        if (!legend || !legend.shadowRoot) return null;
+        // Find the Other item by its CSS class
+        const otherItem = legend.shadowRoot.querySelector('.legend-item-other');
+        if (!otherItem) return null;
+        const viewButton = otherItem.querySelector('.view-button') as HTMLElement;
+        if (!viewButton) return null;
+        const rect = viewButton.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      });
+    };
 
+    // Step 2: Click "(view)" button on the Other category
+    const viewButtonCoords = await getViewButtonCoords();
     if (viewButtonCoords) {
       await trackedMouseMove(page, viewButtonCoords.x, viewButtonCoords.y, { steps: 15 });
       await page.waitForTimeout(300);
@@ -695,67 +755,93 @@ test.describe('Legend Animation Captures', () => {
     await page.evaluate(() => {
       const legend = document.querySelector('#myLegend');
       if (!legend || !legend.shadowRoot) return;
-      const items = legend.shadowRoot.querySelectorAll('.legend-item');
-      // Find the "Other" item and click its view button
-      for (const item of items) {
-        const textElement = item.querySelector('.legend-text');
-        if (textElement && textElement.textContent?.trim() === 'Other') {
-          const viewButton = item.querySelector('.view-button') as HTMLElement;
-          if (viewButton) {
-            viewButton.click();
-            return;
-          }
-        }
-      }
+      const otherItem = legend.shadowRoot.querySelector('.legend-item-other');
+      if (!otherItem) return;
+      const viewButton = otherItem.querySelector('.view-button') as HTMLElement;
+      if (viewButton) viewButton.click();
     });
 
     // Wait for modal to appear
     await page.waitForTimeout(800);
 
-    // Step 3: Find and click "Extract" button next to "Olivierus"
+    // Step 3: Scroll "CRISP family" into view within the dialog, then extract it
+    await page.evaluate(() => {
+      const legend = document.querySelector('#myLegend');
+      if (!legend || !legend.shadowRoot) return;
+      const modal = legend.shadowRoot.querySelector('.modal-content');
+      if (!modal) return;
+      // Find the CRISP family item and scroll it into view
+      const otherItems = modal.querySelectorAll('.other-item');
+      for (const item of otherItems) {
+        const name = item.querySelector('.other-item-name')?.textContent?.trim() || '';
+        if (name.toLowerCase().includes('crisp')) {
+          (item as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+      }
+    });
+    await page.waitForTimeout(600);
+
+    // Pause to let the user see the dialog contents before extracting
+    await page.waitForTimeout(1500);
+
+    // Now get the (now visible) extract button coordinates
     const extractButtonCoords = await page.evaluate(() => {
       const legend = document.querySelector('#myLegend');
       if (!legend || !legend.shadowRoot) return null;
       const modal = legend.shadowRoot.querySelector('.modal-content');
       if (!modal) return null;
       const otherItems = modal.querySelectorAll('.other-item');
-      // Find the item with "Olivierus"
       for (const item of otherItems) {
-        const nameElement = item.querySelector('.other-item-name');
-        if (nameElement && nameElement.textContent?.includes('Olivierus')) {
-          const extractButton = item.querySelector('.extract-button') as HTMLElement;
-          if (extractButton) {
-            const rect = extractButton.getBoundingClientRect();
-            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        const name = item.querySelector('.other-item-name')?.textContent?.trim() || '';
+        if (name.toLowerCase().includes('crisp')) {
+          const extractBtn = item.querySelector('.extract-button') as HTMLElement;
+          if (extractBtn) {
+            const rect = extractBtn.getBoundingClientRect();
+            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, name };
           }
         }
       }
-      return null;
+      // Fallback: first extract button
+      const firstBtn = modal.querySelector('.extract-button') as HTMLElement;
+      if (!firstBtn) return null;
+      const rect = firstBtn.getBoundingClientRect();
+      const otherItem = firstBtn.closest('.other-item');
+      const fallbackName =
+        otherItem?.querySelector('.other-item-name')?.textContent?.trim() || 'first item';
+      return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        name: fallbackName,
+      };
     });
 
+    const extractName = (extractButtonCoords as any)?.name || 'CRISP family';
     if (extractButtonCoords) {
       await trackedMouseMove(page, extractButtonCoords.x, extractButtonCoords.y, { steps: 15 });
       await page.waitForTimeout(300);
       await showClickIndicator(page, extractButtonCoords.x, extractButtonCoords.y);
     }
-    await logAction(page, 'mouse', 'Click Extract Button', 'Extract Olivierus');
+    await logAction(page, 'mouse', 'Click Extract Button', `Extract ${extractName}`);
     await page.evaluate(() => {
       const legend = document.querySelector('#myLegend');
       if (!legend || !legend.shadowRoot) return;
       const modal = legend.shadowRoot.querySelector('.modal-content');
       if (!modal) return;
       const otherItems = modal.querySelectorAll('.other-item');
-      // Find and click extract button for "Olivierus"
       for (const item of otherItems) {
-        const nameElement = item.querySelector('.other-item-name');
-        if (nameElement && nameElement.textContent?.includes('Olivierus')) {
-          const extractButton = item.querySelector('.extract-button') as HTMLElement;
-          if (extractButton) {
-            extractButton.click();
+        const name = item.querySelector('.other-item-name')?.textContent?.trim() || '';
+        if (name.toLowerCase().includes('crisp')) {
+          const extractBtn = item.querySelector('.extract-button') as HTMLElement;
+          if (extractBtn) {
+            extractBtn.click();
             return;
           }
         }
       }
+      // Fallback: click first extract button
+      const firstBtn = modal.querySelector('.extract-button') as HTMLElement;
+      if (firstBtn) firstBtn.click();
     });
 
     // Wait for extraction to complete and modal to close

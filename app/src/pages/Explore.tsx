@@ -60,7 +60,7 @@ const Explore = () => {
           <protspace-control-bar
             id="myControlBar"
             selected-projection="UMAP"
-            selected-annotation="family"
+            selected-annotation="protein_families"
             selected-proteins-count="0"
             auto-sync="true"
             scatterplot-selector="#myPlot"

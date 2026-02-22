@@ -23,6 +23,9 @@ import {
 import './search';
 import './annotation-select';
 
+/** Annotations used only for tooltip display, hidden from the annotation dropdown */
+const TOOLTIP_ONLY_ANNOTATIONS = new Set(['gene_name', 'protein_name', 'uniprot_kb_id']);
+
 @customElement('protspace-control-bar')
 export class ProtspaceControlBar extends LitElement {
   @property({ type: Array }) projections: string[] = [];
@@ -1513,7 +1516,9 @@ export class ProtspaceControlBar extends LitElement {
     // Update projections and annotations
     this.projectionsMeta = data.projections || [];
     this.projections = this.projectionsMeta.map((p) => p.name) || [];
-    this.annotations = Object.keys(data.annotations || {});
+    this.annotations = Object.keys(data.annotations || {}).filter(
+      (a) => !TOOLTIP_ONLY_ANNOTATIONS.has(a),
+    );
 
     // Default selections if invalid
     if (!this.selectedProjection || !this.projections.includes(this.selectedProjection)) {
@@ -1900,7 +1905,7 @@ export class ProtspaceControlBar extends LitElement {
 
     // Compute membership for each protein
     const numProteins: number = Array.isArray(data.protein_ids) ? data.protein_ids.length : 0;
-    const indices: number[] = new Array(numProteins);
+    const indices: number[][] = new Array(numProteins);
 
     for (let i = 0; i < numProteins; i++) {
       let isMatch = true;
@@ -1926,8 +1931,8 @@ export class ProtspaceControlBar extends LitElement {
           break;
         }
       }
-      // 0 => Filtered Proteins, 1 => Other Proteins
-      indices[i] = isMatch ? 0 : 1;
+      // [0] => Filtered Proteins, [1] => Other Proteins
+      indices[i] = isMatch ? [0] : [1];
     }
 
     // Add or replace synthetic Custom annotation
@@ -1956,7 +1961,9 @@ export class ProtspaceControlBar extends LitElement {
     // Apply to scatterplot and select the Custom annotation
     sp.data = newData;
     if ('selectedAnnotation' in sp) sp.selectedAnnotation = customName;
-    this.annotations = Object.keys(newData.annotations || {});
+    this.annotations = Object.keys(newData.annotations || {}).filter(
+      (a) => !TOOLTIP_ONLY_ANNOTATIONS.has(a),
+    );
     this.selectedAnnotation = customName;
     this.annotationValuesMap = {
       ...this.annotationValuesMap,

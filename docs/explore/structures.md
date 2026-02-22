@@ -9,7 +9,7 @@ ProtSpace integrates with AlphaFold to display 3D protein structures alongside y
 When you select a protein with a UniProt accession:
 
 1. The structure viewer appears in the sidebar below the legend
-2. Links to [AlphaFold Database](https://alphafold.ebi.ac.uk/) and [UniProt](https://www.uniprot.org/) entry appear at the top - click them anytime
+2. Links to [AlphaFold Database](https://alphafold.ebi.ac.uk/), [UniProt](https://www.uniprot.org/), and [InterPro](https://www.interpro.org/) appear at the top - click them anytime
 3. The AlphaFold structure loads automatically via [3D-Beacons API](https://www.ebi.ac.uk/pdbe/pdbe-kb/3dbeacons/)
 
 ::: tip Supported Structures

@@ -53,7 +53,7 @@ Structures load automatically from AlphaFold if your protein IDs are UniProt acc
 
 ### Can I customize colors?
 
-Currently, colors are automatically generated. Custom color schemes will be supported in future versions.
+Yes! Click the **cog icon** (⚙️) in the legend panel to access settings. You can select from multiple **color palettes** (including colorblind-safe options), and your color choices persist per category across sessions.
 
 ### What are multi-label annotations?
 

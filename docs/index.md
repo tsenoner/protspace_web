@@ -19,7 +19,7 @@ Download example datasets from the [data folder on GitHub](https://github.com/ts
 - **Filter** and isolate specific protein groups
 - **Search** for specific proteins by ID
 - **View** 3D protein structures from AlphaFold
-- **Export** images (PNG, PDF), data (JSON), and protein IDs
+- **Export** images (PNG, PDF), data (Parquet), and protein IDs
 
 ## What's Next?
 
