@@ -8,6 +8,8 @@ import { getNavigation } from '../../../config/navigation';
 const mode = import.meta.env.MODE === 'production' ? 'production' : 'development';
 const navItems = getNavigation(mode);
 
+export const HEADER_HEIGHT_CLASS = 'h-12';
+
 type HeaderProps = {
   /**
    * Visual style variant for different page backgrounds.
@@ -40,7 +42,7 @@ const Header = ({ variant = 'default', className }: HeaderProps) => {
   return (
     <header className={headerClasses}>
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex h-12 items-center justify-between">
+        <div className={`flex ${HEADER_HEIGHT_CLASS} items-center justify-between`}>
           {/* Logo */}
           <Link to="/" className="flex items-center">
             <img

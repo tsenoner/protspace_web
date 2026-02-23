@@ -2,8 +2,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="app/public/wordmark-black.svg">
-    <img src="app/public/wordmark.svg" alt="ProtSpace" width="360">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/wordmark/wordmark-black.svg">
+    <img src="docs/assets/wordmark/wordmark.svg" alt="ProtSpace" width="360">
   </picture>
 </p>
 
