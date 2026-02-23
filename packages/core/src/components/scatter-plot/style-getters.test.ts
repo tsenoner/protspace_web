@@ -34,7 +34,7 @@ describe('style-getters', () => {
       z: 0,
       originalIndex: 0,
       annotationValues: {
-        test_annotation: annotationValue === null ? [null as unknown as string] : [annotationValue],
+        test_annotation: annotationValue === null ? ['__NA__'] : [annotationValue],
       },
     });
 
@@ -144,6 +144,23 @@ describe('style-getters', () => {
         const emptyStringPoint = createMockPoint('');
 
         expect(getters.getColors(emptyStringPoint)).toEqual(['#dddddd']);
+      });
+    });
+
+    describe('getPointShape with N/A shape mapping', () => {
+      it('should use shapeMapping.__NA__ for N/A annotation values', () => {
+        const data = createMockData([null, 'value1']);
+        const config = createDefaultStyleConfig({
+          shapeMapping: {
+            __NA__: 'square',
+            value1: 'diamond',
+          },
+        });
+
+        const getters = createStyleGetters(data, config);
+        const naPoint = createMockPoint(null);
+
+        expect(getters.getPointShape(naPoint)).toBe('square');
       });
     });
 

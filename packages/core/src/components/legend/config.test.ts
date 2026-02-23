@@ -3,7 +3,6 @@ import {
   SHAPE_PATH_GENERATORS,
   LEGEND_VALUES,
   toDisplayValue,
-  isNADataValue,
   isNAValue,
   toInternalValue,
   toDataValue,
@@ -53,36 +52,6 @@ describe('config', () => {
       const smallPath = SHAPE_PATH_GENERATORS.circle(10);
       const largePath = SHAPE_PATH_GENERATORS.circle(20);
       expect(largePath.length).toBeGreaterThanOrEqual(smallPath.length);
-    });
-  });
-
-  describe('isNADataValue', () => {
-    it('returns true for null', () => {
-      expect(isNADataValue(null)).toBe(true);
-    });
-
-    it('returns true for undefined', () => {
-      expect(isNADataValue(undefined)).toBe(true);
-    });
-
-    it('returns true for empty string', () => {
-      expect(isNADataValue('')).toBe(true);
-    });
-
-    it('returns true for whitespace-only string', () => {
-      expect(isNADataValue('   ')).toBe(true);
-      expect(isNADataValue('\t')).toBe(true);
-      expect(isNADataValue('\n')).toBe(true);
-    });
-
-    it('returns false for non-empty strings', () => {
-      expect(isNADataValue('value')).toBe(false);
-      expect(isNADataValue('0')).toBe(false);
-      expect(isNADataValue('false')).toBe(false);
-    });
-
-    it('returns false for __NA__ (internal value)', () => {
-      expect(isNADataValue(LEGEND_VALUES.NA_VALUE)).toBe(false);
     });
   });
 

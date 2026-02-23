@@ -2,7 +2,7 @@
  * Export utilities for ProtSpace visualizations
  */
 
-import { SHAPE_PATH_GENERATORS, renderPathOnCanvas, toDisplayValue } from './shapes';
+import { SHAPE_PATH_GENERATORS, LEGEND_VALUES, renderPathOnCanvas, toDisplayValue } from './shapes';
 
 // PDF generation libraries are imported dynamically for better browser compatibility
 declare const window: Window & typeof globalThis;
@@ -407,8 +407,7 @@ export class ProtSpaceExporter {
       this.element.selectedAnnotation,
       options.includeSelection === true ? this.selectedProteins : undefined,
     ).filter((it) => {
-      const key = it.value === 'N/A' ? 'null' : it.value;
-      return !hiddenSet.has(key);
+      return !hiddenSet.has(it.value);
     });
   }
 
@@ -437,14 +436,14 @@ export class ProtSpaceExporter {
         const viArray = annotationIndices[i];
         // A protein is visible if at least one of its annotation values is not hidden
         if (!Array.isArray(viArray) || viArray.length === 0) {
-          return !hiddenSet.has('null');
+          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
         }
         return viArray.some((vi) => {
           const value: string | null =
             typeof vi === 'number' && vi >= 0 && vi < annotationInfo.values.length
               ? (annotationInfo.values[vi] ?? null)
               : null;
-          const key = value === null ? 'null' : String(value);
+          const key = value === null ? LEGEND_VALUES.NA_VALUE : String(value);
           return !hiddenSet.has(key);
         });
       });
@@ -573,7 +572,7 @@ export class ProtSpaceExporter {
       annotation: string;
     }> = [];
     for (let i = 0; i < annotationInfo.values.length; i += 1) {
-      const value = annotationInfo.values[i] ?? 'N/A';
+      const value = annotationInfo.values[i] ?? LEGEND_VALUES.NA_VALUE;
       const color = annotationInfo.colors?.[i] ?? '#888';
       const shape = annotationInfo.shapes?.[i] ?? 'circle';
       const count = counts[i] ?? 0;
@@ -667,7 +666,7 @@ export class ProtSpaceExporter {
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'left';
       const textOffset = 8 * scaleFactor;
-      ctx.fillText(it.value, padding + symbolSize + textOffset, cy);
+      ctx.fillText(toDisplayValue(it.value), padding + symbolSize + textOffset, cy);
 
       // Draw count (right-aligned)
       const countStr = String(it.count);
@@ -700,7 +699,7 @@ export class ProtSpaceExporter {
 
   /**
    * Read hidden annotation values from the live scatterplot so exports mirror visibility.
-   * Returns keys in the same format used internally (e.g., "null" for null values).
+   * Returns keys in the same format used internally (e.g., "__NA__" for N/A values).
    */
   private readHiddenAnnotationValueKeys(): Set<string> {
     try {

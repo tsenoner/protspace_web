@@ -328,7 +328,8 @@ export class LegendDataProcessor {
       } else {
         // Default encoding - resolve color conflicts
         let { color, shape } = encoding;
-        if (claimedColors.has(color)) {
+        // N/A keeps its reserved default color even if another category uses the same color.
+        if (!isNAValue(value) && claimedColors.has(color)) {
           // Probe subsequent slots for an unclaimed color (cap at 30 to exceed
           // Kelly's 21-color palette and guarantee termination)
           let altSlot = slot + 1;

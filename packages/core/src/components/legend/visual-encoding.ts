@@ -5,7 +5,8 @@
  * Key principles:
  * - Visible items always get the most distinct colors (slots 0, 1, 2, ...)
  * - Items in "Other" bucket don't consume slots
- * - Special categories (Other, N/A) have fixed colors and always use circles
+ * - Other has fixed color and always uses a circle
+ * - N/A has a fixed color but participates in normal shape assignment
  * - Slot recycling ensures extracted items get available slots
  */
 
@@ -18,7 +19,6 @@ const SHAPES = ['circle', 'square', 'diamond', 'plus', 'triangle-up', 'triangle-
 /** Special slot values for reserved categories */
 export const SPECIAL_SLOTS = {
   OTHER: -1,
-  NA: -2,
 } as const;
 
 /** Special colors for reserved categories */
@@ -40,8 +40,8 @@ export function getVisualEncoding(
   shapesEnabled: boolean,
   categoryName?: string,
 ): VisualEncoding {
-  // Special categories get fixed colors and always circle shape
-  if (categoryName && categoryName in SPECIAL_COLORS) {
+  // "Other" remains a fixed visual encoding.
+  if (categoryName === LEGEND_VALUES.OTHER) {
     return {
       color: SPECIAL_COLORS[categoryName],
       shape: 'circle',
@@ -56,8 +56,11 @@ export function getVisualEncoding(
     };
   }
 
-  // Regular categories: cycle through colors and optionally shapes
-  const color = KELLYS_COLORS[slot % KELLYS_COLORS.length];
+  // Regular categories: cycle shapes; keep N/A color fixed.
+  const color =
+    categoryName === LEGEND_VALUES.NA_DISPLAY
+      ? SPECIAL_COLORS[LEGEND_VALUES.NA_DISPLAY]
+      : KELLYS_COLORS[slot % KELLYS_COLORS.length];
   const shape = shapesEnabled ? SHAPES[slot % SHAPES.length] : 'circle';
 
   return { color, shape };
@@ -81,16 +84,14 @@ export class SlotTracker {
 
   /**
    * Get or assign a slot for a category.
-   * - Special categories (Other, N/A) get reserved negative slots
+   * - "Other" gets a reserved negative slot
+   * - N/A participates in regular slot assignment
    * - Regular categories get the lowest available slot
    */
   getSlot(categoryName: string): number {
     // Special categories get fixed slots
     if (categoryName === LEGEND_VALUES.OTHER) {
       return SPECIAL_SLOTS.OTHER;
-    }
-    if (categoryName === LEGEND_VALUES.NA_DISPLAY) {
-      return SPECIAL_SLOTS.NA;
     }
 
     // Return existing slot if already assigned
@@ -115,8 +116,8 @@ export class SlotTracker {
    * The slot will be recycled for future use.
    */
   freeSlot(categoryName: string): void {
-    if (categoryName === LEGEND_VALUES.OTHER || categoryName === LEGEND_VALUES.NA_DISPLAY) {
-      return; // Special categories don't have freeable slots
+    if (categoryName === LEGEND_VALUES.OTHER) {
+      return; // "Other" doesn't have a freeable slot
     }
 
     const slot = this.slots.get(categoryName);
@@ -143,10 +144,12 @@ export class SlotTracker {
     const oldSlots = new Map(this.slots);
     const newSlots = new Map<string, number>();
 
-    // Assign slots 0, 1, 2, ... to visible items in order
-    visibleCategories.forEach((category, index) => {
-      if (category !== LEGEND_VALUES.OTHER && category !== LEGEND_VALUES.NA_DISPLAY) {
-        newSlots.set(category, index);
+    // Assign slots 0, 1, 2, ... to visible non-Other items in order.
+    let slotIndex = 0;
+    visibleCategories.forEach((category) => {
+      if (category !== LEGEND_VALUES.OTHER) {
+        newSlots.set(category, slotIndex);
+        slotIndex++;
       }
     });
 
@@ -160,9 +163,7 @@ export class SlotTracker {
 
     // Update state
     this.slots = newSlots;
-    this.nextSlot = visibleCategories.filter(
-      (c) => c !== LEGEND_VALUES.OTHER && c !== LEGEND_VALUES.NA_DISPLAY,
-    ).length;
+    this.nextSlot = slotIndex;
 
     // Freed slots are those beyond the visible count
     this.freedSlots = freedFromOld.filter((s) => s >= this.nextSlot).sort((a, b) => a - b);

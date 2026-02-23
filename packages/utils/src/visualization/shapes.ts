@@ -21,6 +21,21 @@ export const LEGEND_VALUES = {
 } as const;
 
 // ============================================================================
+// Legend Value Normalization
+// ============================================================================
+
+/**
+ * Convert a raw value to its internal legend key.
+ * N/A values (null, undefined, empty string, whitespace) become LEGEND_VALUES.NA_VALUE.
+ * All other values are stringified.
+ */
+export function toInternalValue(value: unknown): string {
+  if (value === null || value === undefined) return LEGEND_VALUES.NA_VALUE;
+  if (typeof value === 'string' && value.trim() === '') return LEGEND_VALUES.NA_VALUE;
+  return String(value);
+}
+
+// ============================================================================
 // Legend Display Text Utilities
 // ============================================================================
 

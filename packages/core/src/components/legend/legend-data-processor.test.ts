@@ -631,6 +631,31 @@ describe('legend-data-processor', () => {
       expect(items[0].color).toBe('#existing');
     });
 
+    it('keeps reserved N/A color even when another category uses the same color', () => {
+      const topItems: Array<[string, number]> = [
+        ['category1', 10],
+        [LEGEND_VALUES.NA_VALUE, 8],
+      ];
+      const persistedCategories = {
+        category1: { zOrder: 0, color: '#DDDDDD', shape: 'circle' },
+      };
+
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        false,
+        [],
+        true,
+        'size-desc',
+        new Map(),
+        persistedCategories,
+      );
+
+      const naItem = items.find((item) => item.value === LEGEND_VALUES.NA_VALUE);
+      expect(naItem?.color).toBe('#DDDDDD');
+    });
+
     it('applies shapes from persistedCategories', () => {
       const topItems: Array<[string, number]> = [
         ['category1', 10],
