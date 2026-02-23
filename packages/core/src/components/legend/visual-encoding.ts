@@ -19,8 +19,6 @@ const SHAPES = ['circle', 'square', 'diamond', 'plus', 'triangle-up', 'triangle-
 /** Special slot values for reserved categories */
 export const SPECIAL_SLOTS = {
   OTHER: -1,
-  // Kept for backwards compatibility; N/A now uses regular slots.
-  NA: -2,
 } as const;
 
 /** Special colors for reserved categories */

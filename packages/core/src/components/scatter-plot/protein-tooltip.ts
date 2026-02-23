@@ -1,8 +1,9 @@
 import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { LEGEND_VALUES } from '@protspace/utils';
+import { toDisplayValue, toInternalValue } from '@protspace/utils';
 import type { PlotDataPoint } from '@protspace/utils';
 import { proteinTooltipStyles } from './protein-tooltip.styles';
+import { getGeneName, getProteinName, getUniprotKbId } from './protein-tooltip-helpers';
 
 const SUPERSCRIPT_DIGITS: Record<string, string> = {
   '0': '\u2070',
@@ -45,9 +46,9 @@ export class ProtspaceProteinTooltip extends LitElement {
       return html``;
     }
 
-    const geneName = this._getGeneName(this.protein);
-    const proteinName = this._getProteinName(this.protein);
-    const uniprotKbId = this._getUniprotKbId(this.protein);
+    const geneName = getGeneName(this.protein.annotationValues);
+    const proteinName = getProteinName(this.protein.annotationValues);
+    const uniprotKbId = getUniprotKbId(this.protein.annotationValues);
     const tooltipAnnotationValues = this.protein.annotationValues[this.selectedAnnotation] ?? [];
     const tooltipAnnotationScores = this.protein.annotationScores?.[this.selectedAnnotation] ?? [];
     const tooltipAnnotationEvidence =
@@ -88,7 +89,7 @@ export class ProtspaceProteinTooltip extends LitElement {
                     ? visible.join(', ') + ', \u2026'
                     : visible.join(', ');
               }
-              const displayValue = !value || value === LEGEND_VALUES.NA_VALUE ? 'N/A' : value;
+              const displayValue = toDisplayValue(toInternalValue(value));
               return html`<div class="tooltip-annotation">
                 <span class="tooltip-annotation-label" title="${displayValue}">${displayValue}</span
                 >${scoreText
@@ -102,49 +103,6 @@ export class ProtspaceProteinTooltip extends LitElement {
         </div>
       </div>
     `;
-  }
-
-  /**
-   * Extract gene name from protein annotations
-   */
-  private _getGeneName(protein: PlotDataPoint): string | null {
-    const values = protein.annotationValues?.gene_name || protein.annotationValues?.['Gene name'];
-    if (!values || values.length === 0) return null;
-    const filtered = values
-      .filter((value) => value !== LEGEND_VALUES.NA_VALUE)
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
-    if (filtered.length === 0) return null;
-    return filtered.join(', ');
-  }
-
-  /**
-   * Extract protein name from protein annotations
-   */
-  private _getProteinName(protein: PlotDataPoint): string | null {
-    const values =
-      protein.annotationValues?.protein_name || protein.annotationValues?.['Protein name'];
-    if (!values || values.length === 0) return null;
-    const filtered = values
-      .filter((value) => value !== LEGEND_VALUES.NA_VALUE)
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
-    if (filtered.length === 0) return null;
-    return filtered.join(', ');
-  }
-
-  /**
-   * Extract UniProtKB ID from protein annotations
-   */
-  private _getUniprotKbId(protein: PlotDataPoint): string | null {
-    const values = protein.annotationValues?.uniprot_kb_id;
-    if (!values || values.length === 0) return null;
-    const filtered = values
-      .filter((value) => value !== LEGEND_VALUES.NA_VALUE)
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
-    if (filtered.length === 0) return null;
-    return filtered.join(', ');
   }
 }
 

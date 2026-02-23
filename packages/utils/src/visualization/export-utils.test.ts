@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ProtSpaceExporter, createExporter } from './export-utils';
 import type { ExportableElement, ExportableData, ExportOptions } from './export-utils';
 import { LEGEND_VALUES } from './shapes';
@@ -509,5 +509,120 @@ describe('N/A handling in export', () => {
 
       expect(visibleIds).toEqual(['P1']);
     });
+  });
+});
+
+/**
+ * Helper to call exportProteinIds via the real exporter and capture the downloaded IDs.
+ * Mocks the private downloadFile method to intercept the data URI.
+ */
+function callExportProteinIds(
+  data: ExportableData,
+  annotation: string,
+  hiddenAnnotationValues: string[] = [],
+): string[] {
+  const el = createMockElement({
+    getCurrentData: () => data,
+    selectedAnnotation: annotation,
+    hiddenAnnotationValues,
+  });
+  const exporter = createExporter(el);
+
+  let capturedUri = '';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  vi.spyOn(exporter as any, 'downloadFile').mockImplementation((uri: string) => {
+    capturedUri = uri;
+  });
+
+  exporter.exportProteinIds();
+
+  if (!capturedUri) return [];
+  const encoded = capturedUri.replace('data:text/plain;charset=utf-8,', '');
+  const decoded = decodeURIComponent(encoded);
+  return decoded ? decoded.split('\n') : [];
+}
+
+describe('exportProteinIds integration', () => {
+  const baseData: ExportableData = {
+    protein_ids: ['P1', 'P2', 'P3', 'P4'],
+    annotations: {
+      species: {
+        values: ['human', 'mouse', null],
+        colors: ['#ff0000', '#00ff00', '#888888'],
+        shapes: ['circle', 'square', 'triangle'],
+      },
+    },
+    annotation_data: { species: [[0], [1], [2], [0]] },
+  };
+
+  it('exports all IDs when nothing is hidden', () => {
+    const ids = callExportProteinIds(baseData, 'species', []);
+    expect(ids).toEqual(['P1', 'P2', 'P3', 'P4']);
+  });
+
+  it('excludes N/A proteins when __NA__ is hidden', () => {
+    const ids = callExportProteinIds(baseData, 'species', [LEGEND_VALUES.NA_VALUE]);
+    expect(ids).toEqual(['P1', 'P2', 'P4']);
+    expect(ids).not.toContain('P3');
+  });
+
+  it('excludes proteins matching a hidden regular value', () => {
+    const ids = callExportProteinIds(baseData, 'species', ['mouse']);
+    expect(ids).toEqual(['P1', 'P3', 'P4']);
+    expect(ids).not.toContain('P2');
+  });
+
+  it('excludes multiple hidden values including N/A', () => {
+    const ids = callExportProteinIds(baseData, 'species', ['mouse', LEGEND_VALUES.NA_VALUE]);
+    expect(ids).toEqual(['P1', 'P4']);
+  });
+
+  it('returns no visible IDs when all values are hidden', () => {
+    const ids = callExportProteinIds(baseData, 'species', [
+      'human',
+      'mouse',
+      LEGEND_VALUES.NA_VALUE,
+    ]);
+    expect(ids).toEqual([]);
+  });
+
+  it('treats proteins with empty annotation arrays as N/A', () => {
+    const data: ExportableData = {
+      protein_ids: ['P1', 'P2'],
+      annotations: {
+        species: {
+          values: ['human'],
+          colors: ['#ff0000'],
+          shapes: ['circle'],
+        },
+      },
+      annotation_data: { species: [[0], []] },
+    };
+
+    const ids = callExportProteinIds(data, 'species', [LEGEND_VALUES.NA_VALUE]);
+    expect(ids).toEqual(['P1']);
+  });
+
+  it('exports all IDs when annotation does not exist (fallback)', () => {
+    const ids = callExportProteinIds(baseData, 'nonexistent', [LEGEND_VALUES.NA_VALUE]);
+    expect(ids).toEqual(['P1', 'P2', 'P3', 'P4']);
+  });
+
+  it('handles multi-value annotations — visible if any value is not hidden', () => {
+    const data: ExportableData = {
+      protein_ids: ['P1', 'P2'],
+      annotations: {
+        tags: {
+          values: ['alpha', 'beta', null],
+          colors: ['#f00', '#0f0', '#888'],
+          shapes: ['circle', 'square', 'triangle'],
+        },
+      },
+      annotation_data: { tags: [[0, 2], [1]] },
+    };
+
+    // P1 has both 'alpha' and N/A — hiding N/A still keeps P1 because 'alpha' is visible
+    const ids = callExportProteinIds(data, 'tags', [LEGEND_VALUES.NA_VALUE]);
+    expect(ids).toEqual(['P1', 'P2']);
   });
 });
