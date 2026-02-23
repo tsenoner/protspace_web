@@ -53,6 +53,12 @@ The columns `gene_name`, `protein_name`, and `uniprot_kb_id` are **tooltip-only*
 - **Categorical**: Text values (taxonomy, family). Distinct colors per category.
 - **Multi-Label**: Semicolon-separated values (e.g., `EC:1.1.1;EC:2.1.1`). Displayed as pie charts.
 
+### Missing Values
+
+Proteins with missing, empty, or whitespace-only annotation values are displayed as **N/A** in
+the legend and tooltip. N/A items receive a dedicated color (#DDDDDD) and can be toggled,
+isolated, or reordered in the legend like any other category.
+
 ### Scored Annotations
 
 Annotation values can include a numeric score after a pipe character:
