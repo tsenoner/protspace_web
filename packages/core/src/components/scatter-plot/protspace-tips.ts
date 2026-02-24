@@ -85,23 +85,29 @@ export class ProtspaceTips extends LitElement {
           </div>
 
           <div class="tips-group">
-            <h4 class="tips-group-title">Selection</h4>
-            <ul class="tips-list">
-              <li><kbd>Shift + click</kbd> to select multiple points</li>
-              <li><kbd>Ctrl + click</kbd> to add/remove from selection</li>
-              <li><kbd>Click & drag</kbd> to select rectangular area</li>
-            </ul>
-          </div>
-
-          <div class="tips-group">
             <h4 class="tips-group-title">Data Exploration</h4>
             <ul class="tips-list">
+              <li>
+                Explore different <strong>projections</strong> and <strong>annotations</strong> in
+                the toolbar
+              </li>
               <li>
                 Hover over points to see protein details: <strong>Accession ID</strong>, Protein
                 Name, Gene Name, and the current data label
               </li>
-              <li>Use the legend to filter by categories</li>
-              <li>Switch between XY, XZ, and YZ projections</li>
+              <li>Use the legend to show, hide and reorder categories</li>
+            </ul>
+          </div>
+
+          <div class="tips-group">
+            <h4 class="tips-group-title">Selection</h4>
+            <ul class="tips-list">
+              <li><kbd>Click</kbd> a point to view its AlphaFold2 structure</li>
+              <li>Click <strong>Select</strong> in the toolbar to enter selection mode</li>
+              <li>In selection mode, <kbd>click & drag</kbd> to select multiple points</li>
+              <li>Press <kbd>Esc</kbd> or click <strong>Select</strong> again to exit</li>
+              <li>Click <strong>Isolate</strong> to focus on selected proteins</li>
+              <li>Click <strong>Reset</strong> to return to the full view</li>
             </ul>
           </div>
         </div>

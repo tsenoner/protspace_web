@@ -63,7 +63,7 @@ export const protspaceTipsStyles = css`
     left: 0;
     min-width: 18rem;
     max-width: min(24rem, calc(100vw - 2rem));
-    background: var(--protspace-tooltip-bg, rgba(255, 255, 255, 0.95));
+    background: var(--protspace-tooltip-bg, #ffffff);
     border: 1px solid var(--protspace-tooltip-border, #d9e2ec);
     border-radius: 0.5rem;
     box-shadow:
