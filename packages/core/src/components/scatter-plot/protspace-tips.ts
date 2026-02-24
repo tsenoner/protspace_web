@@ -47,8 +47,6 @@ export class ProtspaceTips extends LitElement {
         aria-describedby="protspace-tips-content"
         aria-expanded="${this._isTooltipVisible}"
         @keydown=${this._handleKeyDown}
-        @mouseenter=${this._showTooltip}
-        @mouseleave=${this._hideTooltip}
         @focus=${this._showTooltip}
         @blur=${this._handleFocusOut}
       >

@@ -80,15 +80,20 @@ export const protspaceTipsStyles = css`
     z-index: 1000;
   }
 
-  .content.visible {
-    pointer-events: auto;
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
+  /* Invisible bridge that covers the gap between trigger and popover so
+     the mouse can travel from the button into the popover without losing
+     :host(:hover). */
+  .content::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    width: 100%;
+    height: 0.5rem; /* matches the gap: top: calc(100% + 0.5rem) */
   }
 
-  /* Fallback hover support for mouse users */
-  :host(:hover) .content {
+  :host(:hover) .content,
+  .content.visible {
     pointer-events: auto;
     opacity: 1;
     visibility: visible;
