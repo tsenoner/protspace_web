@@ -121,6 +121,10 @@ export const responsiveStyles = css`
       min-width: 0;
     }
 
+    .right-controls .data-actions-group {
+      gap: var(--spacing-xs);
+    }
+
     .right-controls .filter-container,
     .right-controls .export-container {
       display: flex;

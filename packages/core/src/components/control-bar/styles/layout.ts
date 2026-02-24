@@ -32,7 +32,14 @@ export const layoutStyles = css`
   }
 
   .right-controls {
-    gap: var(--spacing-sm);
+    gap: var(--spacing-md);
+  }
+
+  .selection-group,
+  .data-actions-group {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
   }
 
   .control-group {
