@@ -14,6 +14,7 @@
     "docs:animations": "playwright test --project=animations",
     "docs:gifs": "tsx scripts/docs-screenshots/convert-to-gif.ts",
     "docs:images": "pnpm docs:screenshots && pnpm docs:animations && pnpm docs:gifs",
+    "test:tour": "playwright test -c app/tests/playwright.config.ts",
     "test": "turbo test",
     "test:ci": "turbo test:ci",
     "perf": "playwright test -c perf/playwright.config.ts perf/webgl-perf.spec.ts",

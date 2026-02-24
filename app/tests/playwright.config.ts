@@ -1,0 +1,42 @@
+import { defineConfig, devices } from '@playwright/test';
+
+/**
+ * Playwright configuration for ProtSpace app e2e tests (product tour, etc.).
+ *
+ * Assumes the dev server is already running on port 8080.
+ * Start it with: pnpm dev:app
+ */
+export default defineConfig({
+  testDir: '.',
+
+  fullyParallel: false,
+
+  forbidOnly: !!process.env.CI,
+
+  retries: process.env.CI ? 1 : 0,
+
+  workers: 1,
+
+  reporter: 'list',
+
+  timeout: 60_000,
+
+  use: {
+    baseURL: 'http://localhost:8080',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+
+  projects: [
+    {
+      name: 'product-tour',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /product-tour\.spec\.ts/,
+    },
+  ],
+
+  outputDir: '../test-results/',
+});

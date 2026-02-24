@@ -67,11 +67,16 @@ const Explore = () => {
           ></protspace-control-bar>
 
           <div className="visualization-container">
-            <protspace-scatterplot id="myPlot"></protspace-scatterplot>
+            <protspace-scatterplot
+              id="myPlot"
+              data-driver-id="scatterplot"
+              show-tour-button="true"
+            ></protspace-scatterplot>
 
             <div className="right-panel">
               <protspace-legend
                 id="myLegend"
+                data-driver-id="legend"
                 auto-sync="true"
                 auto-hide="true"
                 scatterplot-selector="#myPlot"

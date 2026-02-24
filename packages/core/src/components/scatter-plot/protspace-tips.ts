@@ -1,10 +1,13 @@
-import { LitElement, html } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import { protspaceTipsStyles } from './protspace-tips.styles';
 
 @customElement('protspace-tips')
 export class ProtspaceTips extends LitElement {
   static styles = protspaceTipsStyles;
+
+  /** When true, a "Take a Tour" button is rendered inside the popover. */
+  @property({ type: Boolean, attribute: 'show-tour-button' }) showTourButton = false;
 
   @state() private _isTooltipVisible = false;
 
@@ -35,6 +38,11 @@ export class ProtspaceTips extends LitElement {
     if (!this.contains(relatedTarget)) {
       this._hideTooltip();
     }
+  }
+
+  private _startTour() {
+    this._hideTooltip();
+    this.dispatchEvent(new CustomEvent('tour-start', { bubbles: true, composed: true }));
   }
 
   render() {
@@ -97,6 +105,25 @@ export class ProtspaceTips extends LitElement {
             </ul>
           </div>
         </div>
+
+        ${this.showTourButton
+          ? html`
+              <div class="tour-section">
+                <button class="tour-button" type="button" @click=${this._startTour}>
+                  <svg class="tour-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.5"
+                      d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"
+                    />
+                  </svg>
+                  Take a Tour
+                </button>
+              </div>
+            `
+          : nothing}
       </div>
     `;
   }

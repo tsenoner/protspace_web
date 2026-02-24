@@ -55,6 +55,7 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Array }) otherAnnotationValues: string[] = [];
   @property({ type: Boolean }) useShapes: boolean = false;
   @property({ type: Object }) config: Partial<ScatterplotConfig> = {};
+  @property({ type: Boolean, attribute: 'show-tour-button' }) showTourButton = false;
 
   // State
   @state() private _plotData: PlotDataPoint[] = [];
@@ -1580,7 +1581,7 @@ export class ProtspaceScatterplot extends LitElement {
           .projection=${this.data?.projections[this.selectedProjectionIndex] ?? null}
         ></protspace-projection-metadata>
 
-        <protspace-tips></protspace-tips>
+        <protspace-tips .showTourButton=${this.showTourButton}></protspace-tips>
 
         ${this._tooltipData
           ? html`

@@ -496,7 +496,7 @@ export class ProtspaceControlBar extends LitElement {
     return html`
       <div class="control-bar">
         <!-- Left side controls -->
-        <div class="left-controls">
+        <div class="left-controls" data-driver-id="projections">
           <!-- Projection selection -->
           <div class="control-group">
             <label for="projection-trigger">Projection:</label>
@@ -583,7 +583,7 @@ export class ProtspaceControlBar extends LitElement {
         </div>
 
         <!-- Search selection -->
-        <div class="control-group search-group">
+        <div class="control-group search-group" data-driver-id="search">
           <protspace-protein-search
             .availableProteinIds=${this.allProteinIds}
             .selectedProteinIds=${this.selectedIdsChips}
@@ -596,7 +596,7 @@ export class ProtspaceControlBar extends LitElement {
         <!-- Right side controls -->
         <div class="right-controls">
           <!-- Selection actions group -->
-          <div class="selection-group">
+          <div class="selection-group" data-driver-id="selection">
             <!-- Selection mode toggle -->
             <button
               class=${this.selectionMode
@@ -683,7 +683,7 @@ export class ProtspaceControlBar extends LitElement {
           </div>
 
           <!-- Filter / Export / Import group -->
-          <div class="data-actions-group">
+          <div class="data-actions-group" data-driver-id="data-actions">
             <div class="filter-container right-controls-filter">
               <button
                 class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''}"
@@ -1208,7 +1208,7 @@ export class ProtspaceControlBar extends LitElement {
                   `
                 : ''}
             </div>
-            <div class="export-container right-controls-data">
+            <div class="export-container right-controls-data" data-driver-id="import">
               <button class="btn-secondary" @click=${this.openFileDialog} title="Import Data">
                 <svg class="icon" viewBox="0 0 24 24">
                   <path

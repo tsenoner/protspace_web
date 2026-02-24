@@ -189,4 +189,43 @@ export const protspaceTipsStyles = css`
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
     font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
   }
+
+  /* ── Tour button section ─────────────────────────────────── */
+
+  .tour-section {
+    border-top: 1px solid #e2e8f0;
+    padding: 0.75rem 1rem;
+  }
+
+  .tour-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #fff;
+    background: var(--protspace-highlight-color, #00a3e0);
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .tour-button:hover {
+    background: #0090c7;
+    box-shadow: 0 2px 6px rgba(0, 163, 224, 0.3);
+  }
+
+  .tour-button:active {
+    transform: scale(0.98);
+  }
+
+  .tour-icon {
+    width: 0.875rem;
+    height: 0.875rem;
+    flex-shrink: 0;
+  }
 `;
