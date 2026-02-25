@@ -10,8 +10,8 @@ const STEP_TITLES = [
   'Import Your Data',
   'Projections & Annotations',
   'Search Proteins',
-  'Select & Isolate',
-  'Filter & Export',
+  'Selection Tools',
+  'Filter, Export & Import',
   'Interactive Scatterplot',
   'Legend Panel',
   'Expand Hidden Categories',
@@ -99,8 +99,10 @@ async function clickPrev(page: Page): Promise<void> {
  */
 async function assertHighlightedElement(page: Page, target: StepTarget): Promise<void> {
   if (target === null) {
-    // Centred popover – no element should be highlighted
-    const count = await page.locator('.driver-active-element').count();
+    // Centred popover – no real element should be highlighted.
+    // driver.js creates an invisible `#driver-dummy-element` for centred steps,
+    // so we exclude it and verify no other element is active.
+    const count = await page.locator('.driver-active-element:not(#driver-dummy-element)').count();
     expect(count).toBe(0);
     return;
   }

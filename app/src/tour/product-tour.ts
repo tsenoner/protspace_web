@@ -14,6 +14,7 @@
  */
 
 import { type Config, driver, type DriveStep, type PopoverDOM, type State } from 'driver.js';
+import { isMacOrIos } from '@protspace/utils';
 import './product-tour.css';
 import { waitForElement } from './wait-for-element';
 
@@ -120,8 +121,8 @@ function shadowStep(host: string, driverId: string, popover: DriveStep['popover'
       ...popover,
       onPrevClick: async (_el, _step, opts) => movePrevious(opts),
       onNextClick: async (_el, _step, opts) => moveNext(opts),
-      onDeselected: () => cleanupShadowElement(shadowEl(host, selector)),
     },
+    onDeselected: () => cleanupShadowElement(shadowEl(host, selector)),
   };
 }
 
@@ -156,35 +157,34 @@ const steps: DriveStep[] = [
   shadowStep(CONTROL_BAR, 'import', {
     title: 'Import Your Data',
     description:
-      'Click <strong>Import</strong> to load a <code>.parquetbundle</code> file with your own protein dataset. <a href="/docs/guide/data-preparation.html" target="_blank" rel="noopener">Learn how to prepare your data<svg class="external-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>.',
+      'Click <strong>Import</strong> or drag-and-drop a <code>.parquetbundle</code> file onto the canvas to load your own dataset. <a href="/docs/guide/data-preparation.html" target="_blank" rel="noopener">Learn how to prepare your data<svg class="external-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>.',
   }),
 
   // ── Step 3 – Projections & Annotations (Shadow DOM) ─────────
   shadowStep(CONTROL_BAR, 'projections', {
     title: 'Projections & Annotations',
     description:
-      'Switch between dimensionality reductions (UMAP, t-SNE, PCA) and choose which <strong>annotation</strong> to color the points by.',
+      'Switch between <strong>projections</strong> (UMAP, PCA, etc.) and choose which <strong>annotation</strong> to color the points by.',
   }),
 
   // ── Step 4 – Search (Shadow DOM) ────────────────────────────
   shadowStep(CONTROL_BAR, 'search', {
     title: 'Search Proteins',
-    description:
-      'Type a protein ID to find it instantly, or <strong>paste</strong> multiple IDs to select them all at once.',
+    description: `Press <kbd>${isMacOrIos() ? '⌘' : 'Ctrl+'}K</kbd> or click here to search. Type a protein ID to find it instantly, or <strong>paste</strong> multiple IDs to select them all at once.`,
   }),
 
-  // ── Step 5 – Select & Isolate (Shadow DOM) ─────────────────
+  // ── Step 5 – Selection Tools (Shadow DOM) ──────────────────
   shadowStep(CONTROL_BAR, 'selection', {
-    title: 'Select & Isolate',
+    title: 'Selection Tools',
     description:
-      'Click <strong>Select</strong> to enter selection mode, then click individual points or drag to lasso multiple proteins. Use <strong>Isolate</strong> to focus on your selection and <strong>Reset</strong> to return to the full dataset.',
+      '<strong>Select</strong> enters selection mode\u2009—\u2009click points or drag to lasso. Press <kbd>Esc</kbd> to exit.<br><br><strong>Clear</strong> deselects all, <strong>Isolate</strong> focuses on selected proteins, and <strong>Reset</strong> restores the full dataset.',
   }),
 
-  // ── Step 6 – Filter & Export (Shadow DOM) ───────────────────
+  // ── Step 6 – Filter, Export & Import (Shadow DOM) ──────────
   shadowStep(CONTROL_BAR, 'data-actions', {
-    title: 'Filter & Export',
+    title: 'Filter, Export & Import',
     description:
-      'Use <strong>Filter</strong> to narrow the dataset by annotation values, and <strong>Export</strong> your visualization as PNG, PDF, or a list of protein IDs.',
+      '<strong>Filter</strong> narrows the dataset by annotation values. <strong>Export</strong> as PNG, PDF, protein IDs, or a <code>.parquetbundle</code> that preserves your legend customizations. <strong>Import</strong> loads a new dataset.',
   }),
 
   // ── Step 7 – Scatterplot ────────────────────────────────────
@@ -193,7 +193,7 @@ const steps: DriveStep[] = [
     popover: {
       title: 'Interactive Scatterplot',
       description:
-        'Each point represents a protein. <strong>Hover</strong> over a point to see its details. <strong>Pan</strong> by dragging, <strong>zoom</strong> with the mouse wheel, and <strong>click</strong> a point to view its 3D structure.',
+        'Each point represents a protein. <strong>Hover</strong> over a point to see its details. <strong>Pan</strong> by dragging, <strong>zoom</strong> with the mouse wheel, and <strong>click</strong> a point to view its 3D structure (when available).',
       onPrevClick: async (_el, _step, opts) => movePrevious(opts),
       onNextClick: async (_el, _step, opts) => moveNext(opts),
     },
@@ -205,7 +205,7 @@ const steps: DriveStep[] = [
     popover: {
       title: 'Legend Panel',
       description:
-        '<strong>Click</strong> an entry to hide or show its points. <strong>Double-click</strong> to isolate a single category. Drag the <strong>grip handle</strong> to reorder layers\u2009—\u2009items higher in the list are drawn on top.',
+        '<strong>Click</strong> to hide/show, <strong>double-click</strong> to isolate a category. Drag <kbd><svg style="vertical-align:middle;display:inline" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg></kbd> to reorder\u2009—\u2009higher items are drawn on top.<br><br>Click a color swatch to change colors or shapes. Drag a category onto <strong>Other</strong> to merge it. Use <kbd><svg style="vertical-align:middle;display:inline" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4l4 4m6-2v12m0 0l4-4m-4 4l-4-4"/></svg></kbd> to reverse sort order or <kbd><svg style="vertical-align:middle;display:inline" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg></kbd> for advanced settings.',
       onPrevClick: async (_el, _step, opts) => movePrevious(opts),
       onNextClick: async (_el, _step, opts) => moveNext(opts),
     },
