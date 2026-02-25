@@ -1581,7 +1581,10 @@ export class ProtspaceScatterplot extends LitElement {
           .projection=${this.data?.projections[this.selectedProjectionIndex] ?? null}
         ></protspace-projection-metadata>
 
-        <protspace-tips .showTourButton=${this.showTourButton}></protspace-tips>
+        <protspace-tips
+          data-driver-id="tips"
+          .showTourButton=${this.showTourButton}
+        ></protspace-tips>
 
         ${this._tooltipData
           ? html`

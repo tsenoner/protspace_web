@@ -30,6 +30,9 @@ const CONTROL_BAR = '#myControlBar';
 /** Host selector for the legend custom element. */
 const LEGEND = '#myLegend';
 
+/** Host selector for the scatterplot custom element. */
+const SCATTERPLOT = '#myPlot';
+
 // ---------------------------------------------------------------------------
 // Driver instance (singleton)
 // ---------------------------------------------------------------------------
@@ -60,6 +63,37 @@ function cleanupShadowElement(element: Element | undefined) {
   element.removeAttribute('aria-haspopup');
   element.removeAttribute('aria-expanded');
   element.removeAttribute('aria-controls');
+}
+
+// ---------------------------------------------------------------------------
+// Tips icon spotlight (step 1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Add or remove a visual spotlight on the tips (?) trigger button.
+ * Used during the centred welcome step so the user can see where to find
+ * the tour later, even though the popover is not attached to the element.
+ *
+ * We target the `.trigger` button inside the `<protspace-tips>` shadow DOM
+ * (not the host) so the glow follows the button's rounded shape exactly.
+ */
+function spotlightTipsIcon(on: boolean) {
+  const host = shadowEl(SCATTERPLOT, '[data-driver-id="tips"]');
+  if (!host || !(host instanceof HTMLElement)) return;
+  const trigger = host.shadowRoot?.querySelector('.trigger');
+  if (!trigger || !(trigger instanceof HTMLElement)) return;
+
+  if (on) {
+    // Lift the host above the driver.js overlay (z-index ~100000)
+    host.style.zIndex = '100001';
+    // Glow on the rounded trigger button so there are no corner artifacts
+    trigger.style.boxShadow = '0 0 0 3px #00a3e0, 0 0 12px rgba(0, 163, 224, 0.5)';
+    trigger.style.transition = 'box-shadow 0.3s ease';
+  } else {
+    host.style.removeProperty('z-index');
+    trigger.style.removeProperty('box-shadow');
+    trigger.style.removeProperty('transition');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -131,12 +165,12 @@ function shadowStep(host: string, driverId: string, popover: DriveStep['popover'
 // ---------------------------------------------------------------------------
 
 const steps: DriveStep[] = [
-  // ── Step 1 – Welcome (centred, no element) ──────────────────
+  // ── Step 1 – Welcome (centred, ? icon spotlighted) ──────────
   {
     popover: {
       title: 'Welcome to ProtSpace',
       description:
-        'This short tour will walk you through the main features of the interactive protein visualization tool.',
+        'This short tour will walk you through the main features. You can skip it anytime\u2009—\u2009look for the highlighted <strong>?</strong> icon to replay it later or see shortcuts.',
       nextBtnText: 'Start Tour',
       showButtons: ['close', 'next'],
       onPopoverRender: (popover) => {
@@ -148,9 +182,13 @@ const steps: DriveStep[] = [
         skipButton.className = 'driver-tour-skip-btn';
         skipButton.addEventListener('click', () => driverObj.destroy());
         popover.nextButton.insertAdjacentElement('beforebegin', skipButton);
+
+        // Spotlight the ? icon so the user knows where to find it
+        spotlightTipsIcon(true);
       },
       onNextClick: async (_el, _step, opts) => moveNext(opts),
     },
+    onDeselected: () => spotlightTipsIcon(false),
   },
 
   // ── Step 2 – Import button (Shadow DOM) ─────────────────────
@@ -223,7 +261,7 @@ const steps: DriveStep[] = [
     popover: {
       title: "You're All Set!",
       description:
-        'You now know the essentials. To replay this tour at any time, hover over the <strong>tips</strong> icon in the scatterplot and click <em>"Take a Tour"</em>. For more details, visit the <a href="/docs/" target="_blank" rel="noopener">documentation<svg class="external-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>. Happy exploring!',
+        'You now know the essentials. Remember, the <strong>?</strong> icon has shortcuts and a link to replay this tour. For more details, visit the <a href="/docs/" target="_blank" rel="noopener">documentation<svg class="external-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>. Happy exploring!',
       showButtons: ['close', 'previous', 'next'],
       nextBtnText: 'Finish',
       onPrevClick: async (_el, _step, opts) => movePrevious(opts),
