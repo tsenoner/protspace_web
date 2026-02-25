@@ -115,8 +115,8 @@ export const protspaceTipsStyles = css`
   }
 
   .header {
-    padding: 0.75rem 1rem;
-    font-size: 0.875rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: #334155;
     border-bottom: 1px solid #e2e8f0;
@@ -124,66 +124,64 @@ export const protspaceTipsStyles = css`
     border-radius: 0.5rem 0.5rem 0 0;
   }
 
-  .tips-section {
-    padding: 1rem;
-  }
+  /* ── Shortcuts table ───────────────────────────────────────── */
 
-  .tips-group {
-    margin-bottom: 1.5rem;
-  }
-
-  .tips-group:last-child {
-    margin-bottom: 0;
-  }
-
-  .tips-group-title {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: #1e293b;
-    margin: 0 0 0.5rem 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .tips-group-title::before {
-    content: '💡';
+  .shortcuts-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 0.75rem;
+    line-height: 1.4;
   }
 
-  .tips-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .tips-list li {
-    font-size: 0.75rem;
+  .shortcuts-table td {
+    padding: 0.25rem 0.75rem;
     color: #64748b;
-    line-height: 1.5;
-    margin-bottom: 0.375rem;
-    padding-left: 0.75rem;
-    position: relative;
+    vertical-align: baseline;
   }
 
-  .tips-list li:last-child {
-    margin-bottom: 0;
+  .shortcuts-table td:first-child {
+    white-space: nowrap;
+    color: #475569;
+    width: 1%;
+    padding-right: 0.5rem;
   }
 
-  .tips-list li::before {
-    content: '•';
-    position: absolute;
-    left: 0;
-    color: var(--protspace-highlight-color, #00a3e0);
-    font-weight: bold;
+  .shortcuts-table td:last-child {
+    padding-right: 0.75rem;
+  }
+
+  .section-label td {
+    padding-top: 0.625rem;
+    padding-bottom: 0.1875rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* Remove top padding on the very first section label */
+  .shortcuts-table tr:first-child.section-label td {
+    padding-top: 0.375rem;
+  }
+
+  .mod-key {
+    font-size: 0.875rem;
+    line-height: 0;
+    vertical-align: -0.0625rem;
+  }
+
+  .hint {
+    font-size: 0.625rem;
+    color: #94a3b8;
   }
 
   kbd {
     background: #f1f5f9;
     border: 1px solid #e2e8f0;
     border-radius: 0.25rem;
-    padding: 0.125rem 0.375rem;
-    font-size: 0.6875rem;
+    padding: 0.0625rem 0.3125rem;
+    font-size: 0.75rem;
     font-weight: 500;
     color: #475569;
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
@@ -194,7 +192,7 @@ export const protspaceTipsStyles = css`
 
   .tour-section {
     border-top: 1px solid #e2e8f0;
-    padding: 0.75rem 1rem;
+    padding: 0.625rem 0.75rem;
   }
 
   .tour-button {
@@ -203,7 +201,7 @@ export const protspaceTipsStyles = css`
     justify-content: center;
     gap: 0.375rem;
     width: 100%;
-    padding: 0.5rem 0.75rem;
+    padding: 0.4375rem 0.75rem;
     font-size: 0.8125rem;
     font-weight: 500;
     color: #fff;
