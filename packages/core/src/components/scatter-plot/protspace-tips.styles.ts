@@ -171,11 +171,6 @@ export const protspaceTipsStyles = css`
     vertical-align: -0.0625rem;
   }
 
-  .hint {
-    font-size: 0.625rem;
-    color: #94a3b8;
-  }
-
   kbd {
     background: #f1f5f9;
     border: 1px solid #e2e8f0;

@@ -110,13 +110,13 @@
   align-items: center;
   gap: 0.1rem;
   background: #f1f5f9;
-  border: 1px solid #d9e2ec;
+  border: 1px solid #e2e8f0;
   border-radius: 0.25rem;
   padding: 0.1rem 0.35rem;
   font-size: 0.8125rem;
   font-family: 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
   color: #334155;
-  box-shadow: 0 1px 0 #d9e2ec;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
   vertical-align: baseline;
   line-height: 1.4;
 }
