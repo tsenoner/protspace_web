@@ -17,6 +17,7 @@ import {
   hasStorageItemsForHash,
 } from '@protspace/utils';
 import { maybeRunWebglPerfSuite } from './webgl-perf-suite';
+import { startProductTour } from '../tour/product-tour';
 
 // Export initialization function that can be called when the component mounts
 export async function initializeDemo() {
@@ -684,6 +685,19 @@ export async function initializeDemo() {
         alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     });
+
+    plotElement.addEventListener('tour-start', () => {
+      startProductTour({ force: true });
+    });
+
+    dataLoader.addEventListener(
+      'data-loaded',
+      () => {
+        // Small delay so the loading overlay has time to fade out
+        setTimeout(() => startProductTour(), 800);
+      },
+      { once: true },
+    );
 
     console.log('ProtSpace components loaded and connected!');
     console.log('Data will be loaded from data.parquetbundle file');

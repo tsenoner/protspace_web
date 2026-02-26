@@ -496,7 +496,7 @@ export class ProtspaceControlBar extends LitElement {
     return html`
       <div class="control-bar">
         <!-- Left side controls -->
-        <div class="left-controls">
+        <div class="left-controls" data-driver-id="projections">
           <!-- Projection selection -->
           <div class="control-group">
             <label for="projection-trigger">Projection:</label>
@@ -583,7 +583,7 @@ export class ProtspaceControlBar extends LitElement {
         </div>
 
         <!-- Search selection -->
-        <div class="control-group search-group">
+        <div class="control-group search-group" data-driver-id="search">
           <protspace-protein-search
             .availableProteinIds=${this.allProteinIds}
             .selectedProteinIds=${this.selectedIdsChips}
@@ -595,575 +595,604 @@ export class ProtspaceControlBar extends LitElement {
 
         <!-- Right side controls -->
         <div class="right-controls">
-          <!-- Selection mode toggle -->
-
-          <button
-            class=${this.selectionMode
-              ? 'btn-primary right-controls-button right-controls-select'
-              : 'btn-secondary right-controls-select right-controls-button'}
-            ?disabled=${this._selectionDisabled}
-            @click=${this.handleToggleSelectionMode}
-            title=${this._selectionDisabled
-              ? 'Selection disabled: Insufficient data points'
-              : 'Select proteins by clicking or dragging to enclose multiple points'}
-          >
-            <svg class="icon" viewBox="0 0 24 24">
-              <rect
-                x="3"
-                y="3"
-                width="18"
-                height="18"
-                rx="1"
-                stroke="currentColor"
-                stroke-dasharray="2 1"
-                fill="none"
-              />
-              <circle cx="8" cy="8" r="1.5" fill="currentColor" />
-              <circle cx="12" cy="14" r="1.5" fill="currentColor" />
-              <circle cx="16" cy="10" r="1.5" fill="currentColor" />
-              <circle cx="7" cy="16" r="1.5" fill="currentColor" />
-              <circle cx="17" cy="17" r="1.5" fill="currentColor" />
-            </svg>
-            Select
-          </button>
-
-          <!-- Clear selections button -->
-          <button
-            class="btn-secondary right-controls-button right-controls-clear"
-            ?disabled=${this.selectedProteinsCount === 0}
-            @click=${this.handleClearSelections}
-            title="Clear all selected proteins"
-          >
-            <svg class="icon" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            Clear
-          </button>
-
-          <!-- Isolate data button -->
-          <button
-            class="btn-secondary right-controls-button right-controls-split"
-            ?disabled=${this.selectedProteinsCount === 0}
-            @click=${this.handleSplitData}
-            title="Isolate selected proteins to focus on them"
-          >
-            <svg class="icon" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="2" fill="currentColor" />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M12 1v5m0 12v5M3.93 3.93l3.54 3.54m9.06 9.06l3.54 3.54M1 12h5m12 0h5M3.93 20.07l3.54-3.54m9.06-9.06l3.54-3.54"
-                opacity="0.6"
-              />
-            </svg>
-            Isolate
-          </button>
-
-          <!-- Reset split button -->
-          ${this.isolationMode
-            ? html`
-                <button
-                  @click=${this.handleResetSplit}
-                  title="Reset to original dataset"
-                  class="btn-secondary"
-                >
-                  <svg class="icon" viewBox="0 0 24 24">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8.002 8.002 0 0115.356 2m-15.356-2L4 4m15.356 6l2.5-2.5"
-                    />
-                  </svg>
-                  Reset
-                </button>
-              `
-            : ''}
-
-          <!-- Filter dropdown -->
-          <div class="filter-container right-controls-filter">
+          <!-- Selection actions group -->
+          <div class="selection-group" data-driver-id="selection">
+            <!-- Selection mode toggle -->
             <button
-              class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''}"
-              @click=${this.toggleFilterMenu}
-              @keydown=${this.handleFilterKeydown}
-              title="Filter Options"
+              class=${this.selectionMode
+                ? 'btn-primary right-controls-button right-controls-select'
+                : 'btn-secondary right-controls-select right-controls-button'}
+              ?disabled=${this._selectionDisabled}
+              @click=${this.handleToggleSelectionMode}
+              title=${this._selectionDisabled
+                ? 'Selection disabled: Insufficient data points'
+                : 'Select proteins by clicking or dragging to enclose multiple points'}
             >
               <svg class="icon" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h18M6 12h12M10 19h4" />
+                <rect
+                  x="3"
+                  y="3"
+                  width="18"
+                  height="18"
+                  rx="1"
+                  stroke="currentColor"
+                  stroke-dasharray="2 1"
+                  fill="none"
+                />
+                <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                <circle cx="12" cy="14" r="1.5" fill="currentColor" />
+                <circle cx="16" cy="10" r="1.5" fill="currentColor" />
+                <circle cx="7" cy="16" r="1.5" fill="currentColor" />
+                <circle cx="17" cy="17" r="1.5" fill="currentColor" />
               </svg>
-              Filter
-              <svg class="chevron-down" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
+              Select
             </button>
 
-            ${this.showFilterMenu
+            <!-- Clear selections button -->
+            <button
+              class="btn-secondary right-controls-button right-controls-clear"
+              ?disabled=${this.selectedProteinsCount === 0}
+              @click=${this.handleClearSelections}
+              title="Clear all selected proteins"
+            >
+              <svg class="icon" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear
+            </button>
+
+            <!-- Isolate data button -->
+            <button
+              class="btn-secondary right-controls-button right-controls-split"
+              ?disabled=${this.selectedProteinsCount === 0}
+              @click=${this.handleSplitData}
+              title="Isolate selected proteins to focus on them"
+            >
+              <svg class="icon" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="2" fill="currentColor" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M12 1v5m0 12v5M3.93 3.93l3.54 3.54m9.06 9.06l3.54 3.54M1 12h5m12 0h5M3.93 20.07l3.54-3.54m9.06-9.06l3.54-3.54"
+                  opacity="0.6"
+                />
+              </svg>
+              Isolate
+            </button>
+
+            <!-- Reset split button -->
+            ${this.isolationMode
               ? html`
-                  <div class="filter-menu" @keydown=${this.handleFilterKeydown}>
-                    <ul class="filter-menu-list">
-                      ${this.annotations.map((annotation, index) => {
-                        const cfg = this.filterConfig[annotation] || {
-                          enabled: false,
-                          values: [],
-                        };
-                        const values = this.annotationValuesMap[annotation] || [];
-                        return html` <li
-                          class="filter-menu-list-item ${cfg.enabled
-                            ? 'filter-enabled'
-                            : ''} ${index === this.filterHighlightIndex ? 'highlighted' : ''}"
-                          @mouseenter=${() => {
-                            this.filterHighlightIndex = index;
-                          }}
-                        >
-                          <div class="filter-item-header">
-                            <label class="filter-item-checkbox-label">
-                              <input
-                                type="checkbox"
-                                class="filter-item-checkbox"
-                                .checked=${cfg.enabled}
-                                @change=${(e: Event) => {
-                                  const target = e.target as HTMLInputElement;
-                                  this.handleFilterToggle(annotation, target.checked);
-                                }}
-                              />
-                              <span class="filter-item-name">${annotation}</span>
-                            </label>
-                            ${cfg.enabled && cfg.values && cfg.values.length > 0
-                              ? html`<span class="filter-item-badge"
-                                  >${cfg.values.length} selected</span
-                                >`
-                              : ''}
-                          </div>
-                          <button
-                            class="btn-secondary filter-item-values-button"
-                            ?disabled=${!cfg.enabled}
-                            @click=${() => this.toggleValueMenu(annotation)}
-                          >
-                            ${cfg.values && cfg.values.length > 0 ? 'Edit values' : 'Select values'}
-                            <svg class="chevron-down" viewBox="0 0 24 24">
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M19 9l-7 7-7-7"
-                              />
-                            </svg>
-                          </button>
-                          ${this.openValueMenus[annotation] && cfg.enabled
-                            ? html`
-                                <div class="filter-menu-list-item-options">
-                                  <div class="filter-menu-list-item-options-selection">
-                                    <button
-                                      class="btn-danger"
-                                      @click=${() => this.clearAllValues(annotation)}
-                                    >
-                                      Clear all
-                                    </button>
-                                    <button
-                                      class="btn-secondary"
-                                      @click=${() => this.selectAllValues(annotation)}
-                                    >
-                                      Select all
-                                    </button>
-                                  </div>
-                                  <div class="filter-menu-list-item-options-inputs">
-                                    ${values.some((v) => v === LEGEND_VALUES.NA_VALUE)
-                                      ? html`
-                                          <label class="filter-value-label">
-                                            <input
-                                              type="checkbox"
-                                              class="filter-value-checkbox"
-                                              .checked=${(cfg.values || []).includes(
-                                                LEGEND_VALUES.NA_VALUE,
-                                              )}
-                                              @change=${(e: Event) =>
-                                                this.handleValueToggle(
-                                                  annotation,
-                                                  LEGEND_VALUES.NA_VALUE,
-                                                  (e.target as HTMLInputElement).checked,
-                                                )}
-                                            />
-                                            <span class="filter-value-text"
-                                              >${LEGEND_VALUES.NA_DISPLAY}</span
-                                            >
-                                          </label>
-                                        `
-                                      : ''}
-                                    ${Array.from(
-                                      new Set(values.filter((v) => v !== LEGEND_VALUES.NA_VALUE)),
-                                    ).map(
-                                      (v) => html`
-                                        <label class="filter-value-label">
-                                          <input
-                                            type="checkbox"
-                                            class="filter-value-checkbox"
-                                            .checked=${(cfg.values || []).includes(String(v))}
-                                            @change=${(e: Event) =>
-                                              this.handleValueToggle(
-                                                annotation,
-                                                String(v),
-                                                (e.target as HTMLInputElement).checked,
-                                              )}
-                                          />
-                                          <span class="filter-value-text">${String(v)}</span>
-                                        </label>
-                                      `,
-                                    )}
-                                  </div>
-                                  <div class="filter-menu-list-item-options-done">
-                                    <button
-                                      class="btn-primary"
-                                      @click=${() => this.toggleValueMenu(annotation)}
-                                    >
-                                      Done
-                                    </button>
-                                  </div>
-                                </div>
-                              `
-                            : ''}
-                        </li>`;
-                      })}
-                    </ul>
-                    <div class="filter-menu-buttons">
-                      <button
-                        class="btn-secondary"
-                        @click=${() => {
-                          this.showFilterMenu = false;
-                        }}
-                      >
-                        Cancel
-                      </button>
-                      <button class="btn-primary" @click=${this.applyFilters}>Apply</button>
-                    </div>
-                  </div>
+                  <button
+                    @click=${this.handleResetSplit}
+                    title="Reset to original dataset"
+                    class="btn-secondary"
+                  >
+                    <svg class="icon" viewBox="0 0 24 24">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8.002 8.002 0 0115.356 2m-15.356-2L4 4m15.356 6l2.5-2.5"
+                      />
+                    </svg>
+                    Reset
+                  </button>
                 `
               : ''}
           </div>
 
-          <!-- Export dropdown -->
-          <div class="export-container right-controls-export">
-            <button
-              class="dropdown-trigger ${this.showExportMenu ? 'open' : ''}"
-              @click=${this.toggleExportMenu}
-              @keydown=${this.handleExportKeydown}
-              title="${this.hasFileSettings
-                ? 'Export Options (file contains custom settings)'
-                : 'Export Options'}"
-            >
-              <svg class="icon" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                />
-              </svg>
-              Export
-              <svg class="chevron-down" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+          <!-- Filter / Export / Import group -->
+          <div class="data-actions-group" data-driver-id="data-actions">
+            <div class="filter-container right-controls-filter">
+              <button
+                class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''}"
+                @click=${this.toggleFilterMenu}
+                @keydown=${this.handleFilterKeydown}
+                title="Filter Options"
+              >
+                <svg class="icon" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 5h18M6 12h12M10 19h4"
+                  />
+                </svg>
+                Filter
+                <svg class="chevron-down" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
-            ${this.showExportMenu
-              ? html`
-                  <div class="export-menu" @keydown=${this.handleExportKeydown}>
-                    <div class="export-menu-header">
-                      <span>Export Options</span>
+              ${this.showFilterMenu
+                ? html`
+                    <div class="filter-menu" @keydown=${this.handleFilterKeydown}>
+                      <ul class="filter-menu-list">
+                        ${this.annotations.map((annotation, index) => {
+                          const cfg = this.filterConfig[annotation] || {
+                            enabled: false,
+                            values: [],
+                          };
+                          const values = this.annotationValuesMap[annotation] || [];
+                          return html` <li
+                            class="filter-menu-list-item ${cfg.enabled
+                              ? 'filter-enabled'
+                              : ''} ${index === this.filterHighlightIndex ? 'highlighted' : ''}"
+                            @mouseenter=${() => {
+                              this.filterHighlightIndex = index;
+                            }}
+                          >
+                            <div class="filter-item-header">
+                              <label class="filter-item-checkbox-label">
+                                <input
+                                  type="checkbox"
+                                  class="filter-item-checkbox"
+                                  .checked=${cfg.enabled}
+                                  @change=${(e: Event) => {
+                                    const target = e.target as HTMLInputElement;
+                                    this.handleFilterToggle(annotation, target.checked);
+                                  }}
+                                />
+                                <span class="filter-item-name">${annotation}</span>
+                              </label>
+                              ${cfg.enabled && cfg.values && cfg.values.length > 0
+                                ? html`<span class="filter-item-badge"
+                                    >${cfg.values.length} selected</span
+                                  >`
+                                : ''}
+                            </div>
+                            <button
+                              class="btn-secondary filter-item-values-button"
+                              ?disabled=${!cfg.enabled}
+                              @click=${() => this.toggleValueMenu(annotation)}
+                            >
+                              ${cfg.values && cfg.values.length > 0
+                                ? 'Edit values'
+                                : 'Select values'}
+                              <svg class="chevron-down" viewBox="0 0 24 24">
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M19 9l-7 7-7-7"
+                                />
+                              </svg>
+                            </button>
+                            ${this.openValueMenus[annotation] && cfg.enabled
+                              ? html`
+                                  <div class="filter-menu-list-item-options">
+                                    <div class="filter-menu-list-item-options-selection">
+                                      <button
+                                        class="btn-danger"
+                                        @click=${() => this.clearAllValues(annotation)}
+                                      >
+                                        Clear all
+                                      </button>
+                                      <button
+                                        class="btn-secondary"
+                                        @click=${() => this.selectAllValues(annotation)}
+                                      >
+                                        Select all
+                                      </button>
+                                    </div>
+                                    <div class="filter-menu-list-item-options-inputs">
+                                      ${values.some((v) => v === LEGEND_VALUES.NA_VALUE)
+                                        ? html`
+                                            <label class="filter-value-label">
+                                              <input
+                                                type="checkbox"
+                                                class="filter-value-checkbox"
+                                                .checked=${(cfg.values || []).includes(
+                                                  LEGEND_VALUES.NA_VALUE,
+                                                )}
+                                                @change=${(e: Event) =>
+                                                  this.handleValueToggle(
+                                                    annotation,
+                                                    LEGEND_VALUES.NA_VALUE,
+                                                    (e.target as HTMLInputElement).checked,
+                                                  )}
+                                              />
+                                              <span class="filter-value-text"
+                                                >${LEGEND_VALUES.NA_DISPLAY}</span
+                                              >
+                                            </label>
+                                          `
+                                        : ''}
+                                      ${Array.from(
+                                        new Set(values.filter((v) => v !== LEGEND_VALUES.NA_VALUE)),
+                                      ).map(
+                                        (v) => html`
+                                          <label class="filter-value-label">
+                                            <input
+                                              type="checkbox"
+                                              class="filter-value-checkbox"
+                                              .checked=${(cfg.values || []).includes(String(v))}
+                                              @change=${(e: Event) =>
+                                                this.handleValueToggle(
+                                                  annotation,
+                                                  String(v),
+                                                  (e.target as HTMLInputElement).checked,
+                                                )}
+                                            />
+                                            <span class="filter-value-text">${String(v)}</span>
+                                          </label>
+                                        `,
+                                      )}
+                                    </div>
+                                    <div class="filter-menu-list-item-options-done">
+                                      <button
+                                        class="btn-primary"
+                                        @click=${() => this.toggleValueMenu(annotation)}
+                                      >
+                                        Done
+                                      </button>
+                                    </div>
+                                  </div>
+                                `
+                              : ''}
+                          </li>`;
+                        })}
+                      </ul>
+                      <div class="filter-menu-buttons">
+                        <button
+                          class="btn-secondary"
+                          @click=${() => {
+                            this.showFilterMenu = false;
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button class="btn-primary" @click=${this.applyFilters}>Apply</button>
+                      </div>
                     </div>
+                  `
+                : ''}
+            </div>
 
-                    <div class="export-menu-content">
-                      <!-- Format Selection -->
-                      <div class="export-option-group">
-                        <label class="export-option-label">Format</label>
-                        <div class="export-format-options">
-                          <button
-                            class="btn-secondary btn-compact ${this.exportFormat === 'png'
-                              ? 'active'
-                              : ''}"
-                            @click=${() => {
-                              this.exportFormat = 'png';
-                            }}
-                            title="Export as PNG image"
-                          >
-                            PNG
-                          </button>
-                          <button
-                            class="btn-secondary btn-compact ${this.exportFormat === 'pdf'
-                              ? 'active'
-                              : ''}"
-                            @click=${() => {
-                              this.exportFormat = 'pdf';
-                            }}
-                            title="Export as PDF document"
-                          >
-                            PDF
-                          </button>
-                          <button
-                            class="btn-secondary btn-compact ${this.exportFormat === 'ids'
-                              ? 'active'
-                              : ''}"
-                            @click=${() => {
-                              this.exportFormat = 'ids';
-                            }}
-                            title="Export protein IDs list"
-                          >
-                            IDs
-                          </button>
-                          <button
-                            class="btn-secondary btn-compact ${this.exportFormat === 'parquet'
-                              ? 'active'
-                              : ''}"
-                            @click=${() => {
-                              this.exportFormat = 'parquet';
-                            }}
-                            title="Export as Parquet bundle"
-                          >
-                            Parquet
-                          </button>
-                        </div>
+            <!-- Export dropdown -->
+            <div class="export-container right-controls-export">
+              <button
+                class="dropdown-trigger ${this.showExportMenu ? 'open' : ''}"
+                @click=${this.toggleExportMenu}
+                @keydown=${this.handleExportKeydown}
+                title="${this.hasFileSettings
+                  ? 'Export Options (file contains custom settings)'
+                  : 'Export Options'}"
+              >
+                <svg class="icon" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+                Export
+                <svg class="chevron-down" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              ${this.showExportMenu
+                ? html`
+                    <div class="export-menu" @keydown=${this.handleExportKeydown}>
+                      <div class="export-menu-header">
+                        <span>Export Options</span>
                       </div>
 
-                      <!-- Parquet Settings -->
-                      ${this.exportFormat === 'parquet'
-                        ? html`
-                            <div class="export-option-group">
-                              <label class="export-checkbox-label">
-                                <input
-                                  type="checkbox"
-                                  class="export-checkbox"
-                                  .checked=${this.exportIncludeSettings}
-                                  @change=${(e: Event) => {
-                                    this.exportIncludeSettings = (
-                                      e.target as HTMLInputElement
-                                    ).checked;
-                                  }}
-                                />
-                                <span>Include legend settings</span>
-                              </label>
-                              <div class="export-parquet-help">
-                                Legend customizations (colors, order, visibility) will be saved in
-                                the file and restored when loading.
-                              </div>
-                            </div>
-                          `
-                        : ''}
+                      <div class="export-menu-content">
+                        <!-- Format Selection -->
+                        <div class="export-option-group">
+                          <label class="export-option-label">Format</label>
+                          <div class="export-format-options">
+                            <button
+                              class="btn-secondary btn-compact ${this.exportFormat === 'png'
+                                ? 'active'
+                                : ''}"
+                              @click=${() => {
+                                this.exportFormat = 'png';
+                              }}
+                              title="Export as PNG image"
+                            >
+                              PNG
+                            </button>
+                            <button
+                              class="btn-secondary btn-compact ${this.exportFormat === 'pdf'
+                                ? 'active'
+                                : ''}"
+                              @click=${() => {
+                                this.exportFormat = 'pdf';
+                              }}
+                              title="Export as PDF document"
+                            >
+                              PDF
+                            </button>
+                            <button
+                              class="btn-secondary btn-compact ${this.exportFormat === 'ids'
+                                ? 'active'
+                                : ''}"
+                              @click=${() => {
+                                this.exportFormat = 'ids';
+                              }}
+                              title="Export protein IDs list"
+                            >
+                              IDs
+                            </button>
+                            <button
+                              class="btn-secondary btn-compact ${this.exportFormat === 'parquet'
+                                ? 'active'
+                                : ''}"
+                              @click=${() => {
+                                this.exportFormat = 'parquet';
+                              }}
+                              title="Export as Parquet bundle"
+                            >
+                              Parquet
+                            </button>
+                          </div>
+                        </div>
 
-                      <!-- Image Settings (for PNG/PDF only) -->
-                      ${this.exportFormat === 'png' || this.exportFormat === 'pdf'
-                        ? html`
-                            <div class="export-dimensions-group">
+                        <!-- Parquet Settings -->
+                        ${this.exportFormat === 'parquet'
+                          ? html`
                               <div class="export-option-group">
-                                <label class="export-option-label" for="export-width">
-                                  Width
-                                  <div class="export-option-value-wrapper">
-                                    <input
-                                      type="number"
-                                      class="export-option-value-input"
-                                      min="800"
-                                      max="8192"
-                                      step="1"
-                                      .value=${String(this.exportImageWidth)}
-                                      @change=${(e: Event) => {
-                                        const value = parseInt(
-                                          (e.target as HTMLInputElement).value,
-                                        );
-                                        if (!isNaN(value)) {
-                                          this.handleWidthChange(this.clamp(value, 800, 8192));
-                                        }
-                                      }}
-                                      @blur=${(e: Event) =>
-                                        this.handleNumberInputBlur(e, 800, 8192, (v) =>
-                                          this.handleWidthChange(v),
-                                        )}
-                                    />
-                                    <span class="export-option-value-unit">px</span>
-                                  </div>
-                                </label>
-                                <input
-                                  type="range"
-                                  id="export-width"
-                                  class="export-slider"
-                                  min="800"
-                                  max="8192"
-                                  step="1"
-                                  .value=${String(this.exportImageWidth)}
-                                  @input=${(e: Event) => {
-                                    this.handleWidthChange(
-                                      parseInt((e.target as HTMLInputElement).value),
-                                    );
-                                  }}
-                                />
-                                <div class="export-slider-labels">
-                                  <span>800px</span>
-                                  <span>8192px</span>
-                                </div>
-                              </div>
-
-                              <div class="export-option-group">
-                                <label class="export-option-label" for="export-height">
-                                  Height
-                                  <div class="export-option-value-wrapper">
-                                    <input
-                                      type="number"
-                                      class="export-option-value-input"
-                                      min="600"
-                                      max="8192"
-                                      step="1"
-                                      .value=${String(this.exportImageHeight)}
-                                      @change=${(e: Event) => {
-                                        const value = parseInt(
-                                          (e.target as HTMLInputElement).value,
-                                        );
-                                        if (!isNaN(value)) {
-                                          this.handleHeightChange(this.clamp(value, 600, 8192));
-                                        }
-                                      }}
-                                      @blur=${(e: Event) =>
-                                        this.handleNumberInputBlur(e, 600, 8192, (v) =>
-                                          this.handleHeightChange(v),
-                                        )}
-                                    />
-                                    <span class="export-option-value-unit">px</span>
-                                  </div>
-                                </label>
-                                <input
-                                  type="range"
-                                  id="export-height"
-                                  class="export-slider"
-                                  min="600"
-                                  max="8192"
-                                  step="128"
-                                  .value=${String(this.exportImageHeight)}
-                                  @input=${(e: Event) => {
-                                    this.handleHeightChange(
-                                      parseInt((e.target as HTMLInputElement).value),
-                                    );
-                                  }}
-                                />
-                                <div class="export-slider-labels">
-                                  <span>600px</span>
-                                  <span>8192px</span>
-                                </div>
-                              </div>
-
-                              <label class="export-checkbox-label">
-                                <input
-                                  type="checkbox"
-                                  class="export-checkbox"
-                                  .checked=${this.exportLockAspectRatio}
-                                  @change=${(e: Event) => {
-                                    this.exportLockAspectRatio = (
-                                      e.target as HTMLInputElement
-                                    ).checked;
-                                  }}
-                                />
-                                <span>Lock aspect ratio</span>
-                              </label>
-                            </div>
-
-                            <div class="export-option-group">
-                              <label class="export-option-label" for="export-legend-width">
-                                Legend Width
-                                <div class="export-option-value-wrapper">
+                                <label class="export-checkbox-label">
                                   <input
-                                    type="number"
-                                    class="export-option-value-input"
-                                    min="15"
-                                    max="50"
-                                    step="1"
-                                    .value=${String(this.exportLegendWidthPercent)}
+                                    type="checkbox"
+                                    class="export-checkbox"
+                                    .checked=${this.exportIncludeSettings}
                                     @change=${(e: Event) => {
-                                      const value = parseInt((e.target as HTMLInputElement).value);
-                                      if (!isNaN(value)) {
-                                        this.exportLegendWidthPercent = this.clamp(value, 15, 50);
-                                      }
+                                      this.exportIncludeSettings = (
+                                        e.target as HTMLInputElement
+                                      ).checked;
                                     }}
-                                    @blur=${(e: Event) =>
-                                      this.handleNumberInputBlur(
-                                        e,
-                                        15,
-                                        50,
-                                        (v) => (this.exportLegendWidthPercent = v),
-                                      )}
                                   />
-                                  <span class="export-option-value-unit">%</span>
+                                  <span>Include legend settings</span>
+                                </label>
+                                <div class="export-parquet-help">
+                                  Legend customizations (colors, order, visibility) will be saved in
+                                  the file and restored when loading.
                                 </div>
-                              </label>
-                              <input
-                                type="range"
-                                id="export-legend-width"
-                                class="export-slider"
-                                min="15"
-                                max="50"
-                                step="1"
-                                .value=${String(this.exportLegendWidthPercent)}
-                                @input=${(e: Event) => {
-                                  this.exportLegendWidthPercent = parseInt(
-                                    (e.target as HTMLInputElement).value,
-                                  );
-                                }}
-                              />
-                              <div class="export-slider-labels">
-                                <span>15%</span>
-                                <span>50%</span>
                               </div>
-                            </div>
+                            `
+                          : ''}
 
-                            <div class="export-option-group">
-                              <label class="export-option-label" for="export-legend-font">
-                                Legend Font
-                                <div class="export-option-value-wrapper">
+                        <!-- Image Settings (for PNG/PDF only) -->
+                        ${this.exportFormat === 'png' || this.exportFormat === 'pdf'
+                          ? html`
+                              <div class="export-dimensions-group">
+                                <div class="export-option-group">
+                                  <label class="export-option-label" for="export-width">
+                                    Width
+                                    <div class="export-option-value-wrapper">
+                                      <input
+                                        type="number"
+                                        class="export-option-value-input"
+                                        min="800"
+                                        max="8192"
+                                        step="1"
+                                        .value=${String(this.exportImageWidth)}
+                                        @change=${(e: Event) => {
+                                          const value = parseInt(
+                                            (e.target as HTMLInputElement).value,
+                                          );
+                                          if (!isNaN(value)) {
+                                            this.handleWidthChange(this.clamp(value, 800, 8192));
+                                          }
+                                        }}
+                                        @blur=${(e: Event) =>
+                                          this.handleNumberInputBlur(e, 800, 8192, (v) =>
+                                            this.handleWidthChange(v),
+                                          )}
+                                      />
+                                      <span class="export-option-value-unit">px</span>
+                                    </div>
+                                  </label>
                                   <input
-                                    type="number"
-                                    class="export-option-value-input"
-                                    min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
-                                    max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
+                                    type="range"
+                                    id="export-width"
+                                    class="export-slider"
+                                    min="800"
+                                    max="8192"
                                     step="1"
-                                    .value=${String(this.exportLegendFontSizePx)}
+                                    .value=${String(this.exportImageWidth)}
+                                    @input=${(e: Event) => {
+                                      this.handleWidthChange(
+                                        parseInt((e.target as HTMLInputElement).value),
+                                      );
+                                    }}
+                                  />
+                                  <div class="export-slider-labels">
+                                    <span>800px</span>
+                                    <span>8192px</span>
+                                  </div>
+                                </div>
+
+                                <div class="export-option-group">
+                                  <label class="export-option-label" for="export-height">
+                                    Height
+                                    <div class="export-option-value-wrapper">
+                                      <input
+                                        type="number"
+                                        class="export-option-value-input"
+                                        min="600"
+                                        max="8192"
+                                        step="1"
+                                        .value=${String(this.exportImageHeight)}
+                                        @change=${(e: Event) => {
+                                          const value = parseInt(
+                                            (e.target as HTMLInputElement).value,
+                                          );
+                                          if (!isNaN(value)) {
+                                            this.handleHeightChange(this.clamp(value, 600, 8192));
+                                          }
+                                        }}
+                                        @blur=${(e: Event) =>
+                                          this.handleNumberInputBlur(e, 600, 8192, (v) =>
+                                            this.handleHeightChange(v),
+                                          )}
+                                      />
+                                      <span class="export-option-value-unit">px</span>
+                                    </div>
+                                  </label>
+                                  <input
+                                    type="range"
+                                    id="export-height"
+                                    class="export-slider"
+                                    min="600"
+                                    max="8192"
+                                    step="128"
+                                    .value=${String(this.exportImageHeight)}
+                                    @input=${(e: Event) => {
+                                      this.handleHeightChange(
+                                        parseInt((e.target as HTMLInputElement).value),
+                                      );
+                                    }}
+                                  />
+                                  <div class="export-slider-labels">
+                                    <span>600px</span>
+                                    <span>8192px</span>
+                                  </div>
+                                </div>
+
+                                <label class="export-checkbox-label">
+                                  <input
+                                    type="checkbox"
+                                    class="export-checkbox"
+                                    .checked=${this.exportLockAspectRatio}
                                     @change=${(e: Event) => {
-                                      const value = parseInt((e.target as HTMLInputElement).value);
-                                      if (!isNaN(value)) {
-                                        this.exportLegendFontSizePx = this.clamp(
-                                          value,
+                                      this.exportLockAspectRatio = (
+                                        e.target as HTMLInputElement
+                                      ).checked;
+                                    }}
+                                  />
+                                  <span>Lock aspect ratio</span>
+                                </label>
+                              </div>
+
+                              <div class="export-option-group">
+                                <label class="export-option-label" for="export-legend-width">
+                                  Legend Width
+                                  <div class="export-option-value-wrapper">
+                                    <input
+                                      type="number"
+                                      class="export-option-value-input"
+                                      min="15"
+                                      max="50"
+                                      step="1"
+                                      .value=${String(this.exportLegendWidthPercent)}
+                                      @change=${(e: Event) => {
+                                        const value = parseInt(
+                                          (e.target as HTMLInputElement).value,
+                                        );
+                                        if (!isNaN(value)) {
+                                          this.exportLegendWidthPercent = this.clamp(value, 15, 50);
+                                        }
+                                      }}
+                                      @blur=${(e: Event) =>
+                                        this.handleNumberInputBlur(
+                                          e,
+                                          15,
+                                          50,
+                                          (v) => (this.exportLegendWidthPercent = v),
+                                        )}
+                                    />
+                                    <span class="export-option-value-unit">%</span>
+                                  </div>
+                                </label>
+                                <input
+                                  type="range"
+                                  id="export-legend-width"
+                                  class="export-slider"
+                                  min="15"
+                                  max="50"
+                                  step="1"
+                                  .value=${String(this.exportLegendWidthPercent)}
+                                  @input=${(e: Event) => {
+                                    this.exportLegendWidthPercent = parseInt(
+                                      (e.target as HTMLInputElement).value,
+                                    );
+                                  }}
+                                />
+                                <div class="export-slider-labels">
+                                  <span>15%</span>
+                                  <span>50%</span>
+                                </div>
+                              </div>
+
+                              <div class="export-option-group">
+                                <label class="export-option-label" for="export-legend-font">
+                                  Legend Font
+                                  <div class="export-option-value-wrapper">
+                                    <input
+                                      type="number"
+                                      class="export-option-value-input"
+                                      min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
+                                      max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
+                                      step="1"
+                                      .value=${String(this.exportLegendFontSizePx)}
+                                      @change=${(e: Event) => {
+                                        const value = parseInt(
+                                          (e.target as HTMLInputElement).value,
+                                        );
+                                        if (!isNaN(value)) {
+                                          this.exportLegendFontSizePx = this.clamp(
+                                            value,
+                                            EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
+                                            EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
+                                          );
+                                        }
+                                      }}
+                                      @blur=${(e: Event) =>
+                                        this.handleNumberInputBlur(
+                                          e,
                                           EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
                                           EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
-                                        );
-                                      }
-                                    }}
-                                    @blur=${(e: Event) =>
-                                      this.handleNumberInputBlur(
-                                        e,
-                                        EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
-                                        EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
-                                        (v) => (this.exportLegendFontSizePx = v),
-                                      )}
-                                  />
-                                  <span class="export-option-value-unit">px</span>
+                                          (v) => (this.exportLegendFontSizePx = v),
+                                        )}
+                                    />
+                                    <span class="export-option-value-unit">px</span>
+                                  </div>
+                                </label>
+                                <input
+                                  type="range"
+                                  id="export-legend-font"
+                                  class="export-slider"
+                                  min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
+                                  max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
+                                  step="1"
+                                  .value=${String(this.exportLegendFontSizePx)}
+                                  @input=${(e: Event) => {
+                                    this.exportLegendFontSizePx = parseInt(
+                                      (e.target as HTMLInputElement).value,
+                                    );
+                                  }}
+                                />
+                                <div class="export-slider-labels">
+                                  <span>${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}px</span>
+                                  <span>${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}px</span>
                                 </div>
-                              </label>
-                              <input
-                                type="range"
-                                id="export-legend-font"
-                                class="export-slider"
-                                min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
-                                max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
-                                step="1"
-                                .value=${String(this.exportLegendFontSizePx)}
-                                @input=${(e: Event) => {
-                                  this.exportLegendFontSizePx = parseInt(
-                                    (e.target as HTMLInputElement).value,
-                                  );
-                                }}
-                              />
-                              <div class="export-slider-labels">
-                                <span>${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}px</span>
-                                <span>${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}px</span>
                               </div>
-                            </div>
 
-                            <div class="export-actions">
-                              <button class="btn-danger" @click=${this.resetExportSettings}>
-                                Reset
-                              </button>
-                              <button class="btn-primary" @click=${this.handleExport}>
+                              <div class="export-actions">
+                                <button class="btn-danger" @click=${this.resetExportSettings}>
+                                  Reset
+                                </button>
+                                <button class="btn-primary" @click=${this.handleExport}>
+                                  <svg class="icon" viewBox="0 0 24 24">
+                                    <path
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                    />
+                                  </svg>
+                                  Export
+                                </button>
+                              </div>
+                            `
+                          : html`
+                              <button
+                                class="btn-primary export-action-btn"
+                                @click=${this.handleExport}
+                              >
                                 <svg class="icon" viewBox="0 0 24 24">
                                   <path
                                     stroke-linecap="round"
@@ -1171,41 +1200,26 @@ export class ProtspaceControlBar extends LitElement {
                                     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                                   />
                                 </svg>
-                                Export
+                                Export ${this.exportFormat.toUpperCase()}
                               </button>
-                            </div>
-                          `
-                        : html`
-                            <button
-                              class="btn-primary export-action-btn"
-                              @click=${this.handleExport}
-                            >
-                              <svg class="icon" viewBox="0 0 24 24">
-                                <path
-                                  stroke-linecap="round"
-                                  stroke-linejoin="round"
-                                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                                />
-                              </svg>
-                              Export ${this.exportFormat.toUpperCase()}
-                            </button>
-                          `}
+                            `}
+                      </div>
                     </div>
-                  </div>
-                `
-              : ''}
-          </div>
-          <div class="export-container right-controls-data">
-            <button class="btn-secondary" @click=${this.openFileDialog} title="Import Data">
-              <svg class="icon" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L9 8m3-4v12"
-                />
-              </svg>
-              Import
-            </button>
+                  `
+                : ''}
+            </div>
+            <div class="export-container right-controls-data" data-driver-id="import">
+              <button class="btn-secondary" @click=${this.openFileDialog} title="Import Data">
+                <svg class="icon" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L9 8m3-4v12"
+                  />
+                </svg>
+                Import
+              </button>
+            </div>
           </div>
         </div>
       </div>

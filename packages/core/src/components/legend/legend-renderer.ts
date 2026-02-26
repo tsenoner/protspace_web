@@ -1,5 +1,5 @@
 import type { TemplateResult } from 'lit';
-import { html } from 'lit';
+import { html, nothing } from 'lit';
 import type { LegendItem } from './types';
 import {
   LEGEND_DEFAULTS,
@@ -252,6 +252,7 @@ export class LegendRenderer {
         part="item"
         role="option"
         data-value="${item.value}"
+        data-driver-id=${item.value === LEGEND_VALUES.OTHER ? 'other-row' : nothing}
         aria-selected="${item.isVisible}"
         aria-label="${displayLabel}: ${item.count} items${!item.isVisible ? ' (hidden)' : ''}"
         tabindex="${itemIndex === 0 ? '0' : '-1'}"

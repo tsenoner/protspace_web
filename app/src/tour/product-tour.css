@@ -1,0 +1,232 @@
+/* Import driver.js base styles */
+@import 'driver.js/dist/driver.css';
+
+/*
+ * ProtSpace theme overrides for driver.js
+ *
+ * All values are resolved from the design tokens defined in
+ * packages/core/src/styles/tokens.ts and the button mixin in
+ * packages/core/src/styles/mixins.ts so the popover looks consistent
+ * with the rest of the toolbar UI.
+ */
+
+/* ── Popover container ────────────────────────────────────── */
+
+.driver-popover {
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  border-radius: 0.5rem;
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.15),
+    0 2px 10px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  max-width: 380px;
+}
+
+/* ── Typography ───────────────────────────────────────────── */
+
+.driver-popover .driver-popover-title {
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #334155; /* --text-primary */
+}
+
+.driver-popover .driver-popover-description {
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 0.875rem; /* --text-base */
+  color: #5b6b7a; /* --text-secondary */
+  line-height: 1.6;
+}
+
+.driver-popover .driver-popover-progress-text {
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* ── Links inside descriptions ────────────────────────────── */
+
+.driver-popover .driver-popover-description a {
+  color: #00a3e0; /* --primary */
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.driver-popover .driver-popover-description a:hover {
+  color: #008ec4; /* --primary-hover */
+}
+
+.driver-popover .driver-popover-description a .external-link-icon {
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  vertical-align: baseline;
+  margin-left: 0.15em;
+  position: relative;
+  top: 0.05em;
+}
+
+/* ── Inline code ──────────────────────────────────────────── */
+
+.driver-popover .driver-popover-description code {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.8125rem;
+  font-family: 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
+  color: #334155;
+}
+
+/* ── Modifier key glyph (⌘) size bump ────────────────────── */
+
+.driver-popover .driver-popover-description .mod-key {
+  font-size: 1rem;
+  line-height: 0;
+  vertical-align: -0.0625rem;
+}
+
+/* ── Keyboard shortcut badges ────────────────────────────── */
+
+.driver-popover .driver-popover-description kbd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.8125rem;
+  font-family: 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
+  color: #334155;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+  vertical-align: baseline;
+  line-height: 1.4;
+}
+
+/* ── Shared button base ───────────────────────────────────── *
+ *
+ * driver.js base uses `.driver-popover-footer button` (0,1,1 specificity)
+ * with a `font` shorthand that resets font-size.  We qualify every rule
+ * with `.driver-popover-footer` so our declarations always win.
+ */
+
+.driver-popover-footer .driver-popover-prev-btn,
+.driver-popover-footer .driver-popover-next-btn,
+.driver-popover-footer .driver-popover-close-btn-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 0.875rem; /* --text-base  – matches toolbar buttons */
+  font-weight: 500;
+  line-height: 1.5;
+  padding: 0.375rem 1rem; /* slightly more generous than toolbar for readability */
+  border-radius: 0.25rem; /* --radius */
+  white-space: nowrap;
+  box-sizing: border-box;
+  text-shadow: none; /* override driver.js white text-shadow */
+}
+
+.driver-popover-footer .driver-popover-prev-btn:focus-visible,
+.driver-popover-footer .driver-popover-next-btn:focus-visible,
+.driver-popover-footer .driver-popover-close-btn-text:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px #00a3e0,
+    0 0 0 3px #e1f1fb;
+}
+
+/* ── Primary button (Next / Finish) ───────────────────────── */
+
+.driver-popover-footer .driver-popover-next-btn,
+.driver-popover-footer .driver-popover-close-btn-text {
+  background: #00a3e0; /* --primary */
+  border: 1px solid #00a3e0;
+  color: #ffffff; /* --text-light */
+}
+
+.driver-popover-footer .driver-popover-next-btn:hover,
+.driver-popover-footer .driver-popover-close-btn-text:hover {
+  background: #008ec4; /* --primary-hover */
+  border-color: #008ec4;
+  box-shadow: 0 2px 6px rgba(0, 163, 224, 0.3); /* --primary-alpha-30 */
+}
+
+.driver-popover-footer .driver-popover-next-btn:focus-visible:hover,
+.driver-popover-footer .driver-popover-close-btn-text:focus-visible:hover {
+  box-shadow:
+    0 0 0 1px #00a3e0,
+    0 0 0 3px #e1f1fb,
+    0 2px 6px rgba(0, 163, 224, 0.3);
+}
+
+/* ── Secondary button (Back) ──────────────────────────────── */
+
+.driver-popover-footer .driver-popover-prev-btn {
+  background: #ffffff; /* --surface */
+  border: 1px solid #d9e2ec; /* --border */
+  color: #334155; /* --text-primary */
+}
+
+.driver-popover-footer .driver-popover-prev-btn:hover {
+  background: #f0f4f8; /* --hover-bg-alt */
+  border-color: #b8c5d0; /* --border-hover */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.driver-popover-footer .driver-popover-prev-btn:focus-visible:hover {
+  box-shadow:
+    0 0 0 1px #00a3e0,
+    0 0 0 3px #e1f1fb,
+    0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* ── Skip button (ghost, first step only) ─────────────────── */
+
+.driver-popover-footer .driver-tour-skip-btn {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  color: #94a3b8;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.375rem 0.5rem;
+  transition: color 0.2s ease;
+}
+
+.driver-popover-footer .driver-tour-skip-btn:hover {
+  color: #64748b;
+}
+
+/* Overlay colour and opacity are controlled via the driver.js JS config
+   (overlayColor / overlayOpacity) so no CSS override is needed here. */

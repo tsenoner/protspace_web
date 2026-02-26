@@ -53,7 +53,7 @@ docs/.vitepress/dist
 /publication
 
 # playwright
-/test-results
+**/test-results
 /temp-videos
 /playwright-report
 .playwright-mcp

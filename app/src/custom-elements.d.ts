@@ -7,6 +7,7 @@ declare namespace JSX {
     'protspace-data-loader': React.DetailedHTMLProps<
       React.HTMLAttributes<HTMLElement> & {
         id?: string;
+        'data-driver-id'?: string;
       },
       HTMLElement
     >;
@@ -18,12 +19,15 @@ declare namespace JSX {
         'selected-proteins-count'?: string;
         'auto-sync'?: string;
         'scatterplot-selector'?: string;
+        'data-driver-id'?: string;
       },
       HTMLElement
     >;
     'protspace-scatterplot': React.DetailedHTMLProps<
       React.HTMLAttributes<HTMLElement> & {
         id?: string;
+        'show-tour-button'?: string;
+        'data-driver-id'?: string;
       },
       HTMLElement
     >;
@@ -33,6 +37,7 @@ declare namespace JSX {
         'auto-sync'?: string;
         'auto-hide'?: string;
         'scatterplot-selector'?: string;
+        'data-driver-id'?: string;
       },
       HTMLElement
     >;
@@ -52,4 +57,3 @@ declare namespace JSX {
     >;
   }
 }
-

@@ -63,7 +63,7 @@ export const protspaceTipsStyles = css`
     left: 0;
     min-width: 18rem;
     max-width: min(24rem, calc(100vw - 2rem));
-    background: var(--protspace-tooltip-bg, rgba(255, 255, 255, 0.95));
+    background: var(--protspace-tooltip-bg, #ffffff);
     border: 1px solid var(--protspace-tooltip-border, #d9e2ec);
     border-radius: 0.5rem;
     box-shadow:
@@ -80,15 +80,20 @@ export const protspaceTipsStyles = css`
     z-index: 1000;
   }
 
-  .content.visible {
-    pointer-events: auto;
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
+  /* Invisible bridge that covers the gap between trigger and popover so
+     the mouse can travel from the button into the popover without losing
+     :host(:hover). */
+  .content::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    width: 100%;
+    height: 0.5rem; /* matches the gap: top: calc(100% + 0.5rem) */
   }
 
-  /* Fallback hover support for mouse users */
-  :host(:hover) .content {
+  :host(:hover) .content,
+  .content.visible {
     pointer-events: auto;
     opacity: 1;
     visibility: visible;
@@ -110,8 +115,8 @@ export const protspaceTipsStyles = css`
   }
 
   .header {
-    padding: 0.75rem 1rem;
-    font-size: 0.875rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: #334155;
     border-bottom: 1px solid #e2e8f0;
@@ -119,69 +124,91 @@ export const protspaceTipsStyles = css`
     border-radius: 0.5rem 0.5rem 0 0;
   }
 
-  .tips-section {
-    padding: 1rem;
-  }
+  /* ── Shortcuts table ───────────────────────────────────────── */
 
-  .tips-group {
-    margin-bottom: 1.5rem;
-  }
-
-  .tips-group:last-child {
-    margin-bottom: 0;
-  }
-
-  .tips-group-title {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: #1e293b;
-    margin: 0 0 0.5rem 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .tips-group-title::before {
-    content: '💡';
+  .shortcuts-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 0.75rem;
+    line-height: 1.4;
   }
 
-  .tips-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .tips-list li {
-    font-size: 0.75rem;
+  .shortcuts-table td {
+    padding: 0.25rem 0.75rem;
     color: #64748b;
-    line-height: 1.5;
-    margin-bottom: 0.375rem;
-    padding-left: 0.75rem;
-    position: relative;
+    vertical-align: baseline;
   }
 
-  .tips-list li:last-child {
-    margin-bottom: 0;
+  .shortcuts-table td:first-child {
+    white-space: nowrap;
+    color: #475569;
+    width: 1%;
+    padding-right: 0.5rem;
   }
 
-  .tips-list li::before {
-    content: '•';
-    position: absolute;
-    left: 0;
-    color: var(--protspace-highlight-color, #00a3e0);
-    font-weight: bold;
+  .shortcuts-table td:last-child {
+    padding-right: 0.75rem;
+  }
+
+  .section-label td {
+    padding-top: 0.625rem;
+    padding-bottom: 0.1875rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* Remove top padding on the very first section label */
+  .shortcuts-table tr:first-child.section-label td {
+    padding-top: 0.375rem;
+  }
+
+  .mod-key {
+    font-size: 0.875rem;
+    line-height: 0;
+    vertical-align: -0.0625rem;
   }
 
   kbd {
     background: #f1f5f9;
     border: 1px solid #e2e8f0;
     border-radius: 0.25rem;
-    padding: 0.125rem 0.375rem;
-    font-size: 0.6875rem;
+    padding: 0.0625rem 0.3125rem;
+    font-size: 0.75rem;
     font-weight: 500;
     color: #475569;
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
     font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  }
+
+  /* ── Tour button section ─────────────────────────────────── */
+
+  .tour-section {
+    border-top: 1px solid #e2e8f0;
+    padding: 0.625rem 0.75rem;
+  }
+
+  .tour-button {
+    width: 100%;
+    padding: 0.4375rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #fff;
+    background: var(--protspace-highlight-color, #00a3e0);
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .tour-button:hover {
+    background: #0090c7;
+    box-shadow: 0 2px 6px rgba(0, 163, 224, 0.3);
+  }
+
+  .tour-button:active {
+    transform: scale(0.98);
   }
 `;

@@ -1,10 +1,14 @@
-import { LitElement, html } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { isMacOrIos } from '@protspace/utils';
 import { protspaceTipsStyles } from './protspace-tips.styles';
 
 @customElement('protspace-tips')
 export class ProtspaceTips extends LitElement {
   static styles = protspaceTipsStyles;
+
+  /** When true, a "Take a Tour" button is rendered inside the popover. */
+  @property({ type: Boolean, attribute: 'show-tour-button' }) showTourButton = false;
 
   @state() private _isTooltipVisible = false;
 
@@ -37,27 +41,37 @@ export class ProtspaceTips extends LitElement {
     }
   }
 
+  private _startTour() {
+    this._hideTooltip();
+    this.dispatchEvent(new CustomEvent('tour-start', { bubbles: true, composed: true }));
+  }
+
+  private _modKey() {
+    return isMacOrIos() ? html`<span class="mod-key">⌘</span>` : 'Ctrl+';
+  }
+
   render() {
     return html`
       <button
         class="trigger ${this._isTooltipVisible ? 'active' : ''}"
         type="button"
         tabindex="0"
-        aria-label="View ProtSpace tips and shortcuts"
+        aria-label="Tips & shortcuts"
         aria-describedby="protspace-tips-content"
         aria-expanded="${this._isTooltipVisible}"
         @keydown=${this._handleKeyDown}
-        @mouseenter=${this._showTooltip}
-        @mouseleave=${this._hideTooltip}
         @focus=${this._showTooltip}
         @blur=${this._handleFocusOut}
       >
         <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" stroke-width="1.5" />
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
-            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+            stroke-width="1.5"
+            d="M9.09 9a3 3 0 015.83 1c0 2-3.01 2-3.01 4"
           />
+          <circle cx="12" cy="17.5" r="0.5" fill="currentColor" stroke="none" />
         </svg>
       </button>
 
@@ -67,38 +81,77 @@ export class ProtspaceTips extends LitElement {
         role="tooltip"
         aria-hidden="${!this._isTooltipVisible}"
       >
-        <div class="header">ProtSpace Tips & Shortcuts</div>
-        <div class="tips-section">
-          <div class="tips-group">
-            <h4 class="tips-group-title">Navigation</h4>
-            <ul class="tips-list">
-              <li><kbd>Click & drag</kbd> to pan around the plot</li>
-              <li><kbd>Mouse wheel</kbd> to zoom in/out</li>
-              <li><kbd>Double-click</kbd> to reset zoom</li>
-            </ul>
-          </div>
+        <div class="header">Tips & Shortcuts</div>
+        <table class="shortcuts-table">
+          <tbody>
+            <tr class="section-label">
+              <td colspan="2">Navigation</td>
+            </tr>
+            <tr>
+              <td><kbd>Drag</kbd></td>
+              <td>Pan around the plot</td>
+            </tr>
+            <tr>
+              <td><kbd>Scroll</kbd></td>
+              <td>Zoom in / out</td>
+            </tr>
+            <tr>
+              <td><kbd>Double-click</kbd></td>
+              <td>Reset zoom</td>
+            </tr>
+            <tr class="section-label">
+              <td colspan="2">Interaction</td>
+            </tr>
+            <tr>
+              <td><kbd>Hover</kbd></td>
+              <td>See protein details</td>
+            </tr>
+            <tr>
+              <td><kbd>Click</kbd> point</td>
+              <td>View 3D structure</td>
+            </tr>
+            <tr>
+              <td><kbd>${this._modKey()}K</kbd></td>
+              <td>Search proteins</td>
+            </tr>
+            <tr>
+              <td><kbd>Paste</kbd> IDs</td>
+              <td>Select multiple at once</td>
+            </tr>
+            <tr class="section-label">
+              <td colspan="2">Selection</td>
+            </tr>
+            <tr>
+              <td><kbd>${this._modKey()}Click</kbd></td>
+              <td>Toggle individual point</td>
+            </tr>
+            <tr>
+              <td><kbd>Esc</kbd></td>
+              <td>Exit selection mode</td>
+            </tr>
+            <tr class="section-label">
+              <td colspan="2">Legend</td>
+            </tr>
+            <tr>
+              <td><kbd>Click</kbd> entry</td>
+              <td>Hide / show category</td>
+            </tr>
+            <tr>
+              <td><kbd>Double-click</kbd></td>
+              <td>Isolate category</td>
+            </tr>
+          </tbody>
+        </table>
 
-          <div class="tips-group">
-            <h4 class="tips-group-title">Selection</h4>
-            <ul class="tips-list">
-              <li><kbd>Shift + click</kbd> to select multiple points</li>
-              <li><kbd>Ctrl + click</kbd> to add/remove from selection</li>
-              <li><kbd>Click & drag</kbd> to select rectangular area</li>
-            </ul>
-          </div>
-
-          <div class="tips-group">
-            <h4 class="tips-group-title">Data Exploration</h4>
-            <ul class="tips-list">
-              <li>
-                Hover over points to see protein details: <strong>Accession ID</strong>, Protein
-                Name, Gene Name, and the current data label
-              </li>
-              <li>Use the legend to filter by categories</li>
-              <li>Switch between XY, XZ, and YZ projections</li>
-            </ul>
-          </div>
-        </div>
+        ${this.showTourButton
+          ? html`
+              <div class="tour-section">
+                <button class="tour-button" type="button" @click=${this._startTour}>
+                  Take a Tour
+                </button>
+              </div>
+            `
+          : nothing}
       </div>
     `;
   }

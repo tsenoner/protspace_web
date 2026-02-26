@@ -72,6 +72,18 @@ export const projectionMetadataStyles = css`
       visibility 0.2s;
   }
 
+  /* Invisible bridge that covers the gap between trigger and popover so
+     the mouse can travel from the button into the popover without losing
+     :host(:hover). */
+  .content::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    width: 100%;
+    height: 0.5rem; /* matches the gap: top: calc(100% + 0.5rem) */
+  }
+
   :host(:hover) .content,
   .trigger:focus-visible + .content {
     pointer-events: auto;
