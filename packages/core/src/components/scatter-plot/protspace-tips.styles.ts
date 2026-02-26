@@ -191,10 +191,6 @@ export const protspaceTipsStyles = css`
   }
 
   .tour-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.375rem;
     width: 100%;
     padding: 0.4375rem 0.75rem;
     font-size: 0.8125rem;
@@ -214,11 +210,5 @@ export const protspaceTipsStyles = css`
 
   .tour-button:active {
     transform: scale(0.98);
-  }
-
-  .tour-icon {
-    width: 0.875rem;
-    height: 0.875rem;
-    flex-shrink: 0;
   }
 `;
