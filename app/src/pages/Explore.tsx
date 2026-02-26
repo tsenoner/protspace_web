@@ -59,6 +59,7 @@ const Explore = () => {
 
           <protspace-control-bar
             id="myControlBar"
+            data-driver-id="control-bar"
             selected-projection="UMAP"
             selected-annotation="protein_families"
             selected-proteins-count="0"

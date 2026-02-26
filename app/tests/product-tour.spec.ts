@@ -32,14 +32,14 @@ type StepTarget = null | { driverId: string } | { shadow: string; host: string }
 
 const STEP_TARGETS: StepTarget[] = [
   null, // Welcome
-  { shadow: '[data-driver-id="import"]', host: '#myControlBar' }, // Import
-  { shadow: '[data-driver-id="projections"]', host: '#myControlBar' }, // Projections & Annotations
-  { shadow: '[data-driver-id="search"]', host: '#myControlBar' }, // Search
-  { shadow: '[data-driver-id="selection"]', host: '#myControlBar' }, // Select & Isolate
-  { shadow: '[data-driver-id="data-actions"]', host: '#myControlBar' }, // Filter & Export
+  { shadow: '[data-driver-id="import"]', host: '[data-driver-id="control-bar"]' }, // Import
+  { shadow: '[data-driver-id="projections"]', host: '[data-driver-id="control-bar"]' }, // Projections & Annotations
+  { shadow: '[data-driver-id="search"]', host: '[data-driver-id="control-bar"]' }, // Search
+  { shadow: '[data-driver-id="selection"]', host: '[data-driver-id="control-bar"]' }, // Select & Isolate
+  { shadow: '[data-driver-id="data-actions"]', host: '[data-driver-id="control-bar"]' }, // Filter & Export
   { driverId: 'scatterplot' }, // Scatterplot
   { driverId: 'legend' }, // Legend
-  { shadow: '[data-driver-id="other-row"]', host: '#myLegend' }, // Expand Hidden Categories
+  { shadow: '[data-driver-id="other-row"]', host: '[data-driver-id="legend"]' }, // Expand Hidden Categories
   null, // You're All Set!
 ];
 

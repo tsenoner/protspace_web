@@ -25,13 +25,13 @@ import { waitForElement } from './wait-for-element';
 const STORAGE_KEY = 'driver.overviewTour';
 
 /** Host selector for the control-bar custom element. */
-const CONTROL_BAR = '#myControlBar';
+const CONTROL_BAR = '[data-driver-id="control-bar"]';
 
 /** Host selector for the legend custom element. */
-const LEGEND = '#myLegend';
+const LEGEND = '[data-driver-id="legend"]';
 
 /** Host selector for the scatterplot custom element. */
-const SCATTERPLOT = '#myPlot';
+const SCATTERPLOT = '[data-driver-id="scatterplot"]';
 
 // ---------------------------------------------------------------------------
 // Driver instance (singleton)
