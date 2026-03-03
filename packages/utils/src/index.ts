@@ -16,3 +16,4 @@ export {
   getAnnotationScores,
   getAnnotationEvidence,
 } from './data/columnar-types';
+export { ColumnarDataProcessor } from './data/columnar-processor';
