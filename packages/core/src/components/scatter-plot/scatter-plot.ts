@@ -1,14 +1,19 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import * as d3 from 'd3';
-import type { VisualizationData, PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
-import { DataProcessor } from '@protspace/utils';
+import type {
+  VisualizationData,
+  PlotDataPoint,
+  ScatterplotConfig,
+  ColumnarData,
+} from '@protspace/utils';
+import { DataProcessor, ColumnarDataProcessor } from '@protspace/utils';
 import { scatterplotStyles } from './scatter-plot.styles';
 import './projection-metadata';
 import './protspace-tips';
 import './protein-tooltip';
 import { DEFAULT_CONFIG } from './config';
-import { createStyleGetters } from './style-getters';
+import { createStyleGetters, createColumnarStyleGetters } from './style-getters';
 import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer } from './webgl';
 import { QuadtreeIndex } from './quadtree-index';
 import {
@@ -131,6 +136,11 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _webglRenderPerf = new WebglRenderPerfRunner(this);
 
+  // Columnar data for memory-efficient projection switching.
+  // Annotations are stored once and shared across projection switches.
+  private _columnarData: ColumnarData | null = null;
+  private _lastDataRef: VisualizationData | null = null;
+
   // Computed properties with caching
   private get _scales(): ScalePair | null {
     const config = this._mergedConfig;
@@ -148,12 +158,19 @@ export class ProtspaceScatterplot extends LitElement {
       this._scalesCacheDeps.margin.left !== config.margin.left;
 
     if (needsRecompute) {
-      const computedScales = DataProcessor.createScales(
-        this._plotData,
-        config.width,
-        config.height,
-        config.margin,
-      ) as ScalePair | null;
+      const computedScales = this._columnarData
+        ? ColumnarDataProcessor.createScales(
+            this._columnarData,
+            config.width,
+            config.height,
+            config.margin,
+          )
+        : (DataProcessor.createScales(
+            this._plotData,
+            config.width,
+            config.height,
+            config.margin,
+          ) as ScalePair | null);
       this._cachedScales = computedScales;
       this._scalesCacheDeps = {
         plotDataLength: this._plotData.length,
@@ -393,25 +410,7 @@ export class ProtspaceScatterplot extends LitElement {
       changedProperties.has('config') ||
       changedProperties.has('useShapes')
     ) {
-      this._styleGettersCache = createStyleGetters(this.data, {
-        selectedProteinIds: this.selectedProteinIds,
-        highlightedProteinIds: this.highlightedProteinIds,
-        selectedAnnotation: this.selectedAnnotation,
-        hiddenAnnotationValues: this.hiddenAnnotationValues,
-        otherAnnotationValues: this.otherAnnotationValues,
-        useShapes: this.useShapes,
-        zOrderMapping: this._zOrderMapping,
-        colorMapping: this._colorMapping,
-        shapeMapping: this._shapeMapping,
-        sizes: {
-          base: this._mergedConfig.pointSize,
-        },
-        opacities: {
-          base: this._mergedConfig.baseOpacity,
-          selected: this._mergedConfig.selectedOpacity,
-          faded: this._mergedConfig.fadedOpacity,
-        },
-      });
+      this._styleGettersCache = this._buildStyleGetters();
     }
     if (
       changedProperties.has('selectedProteinIds') ||
@@ -462,19 +461,68 @@ export class ProtspaceScatterplot extends LitElement {
   private _processData() {
     const dataToUse = this.data;
     if (!dataToUse) return;
-    this._plotData = DataProcessor.processVisualizationData(
-      dataToUse,
-      this.selectedProjectionIndex,
-      this._isolationMode,
-      this._isolationHistory,
-      this.projectionPlane,
-    );
+
+    // Detect whether only the projection changed (same data reference, not in isolation mode).
+    // In this case we take the fast path: swap coordinate Float32Arrays (~4MB)
+    // instead of rebuilding all PlotDataPoint objects with annotation data (~700MB for 500k proteins).
+    const onlyProjectionChanged =
+      this._columnarData !== null && this._lastDataRef === dataToUse && !this._isolationMode;
+
+    if (onlyProjectionChanged) {
+      // Fast path: swap coordinates only
+      this._columnarData = ColumnarDataProcessor.switchProjection(
+        this._columnarData!,
+        dataToUse,
+        this.selectedProjectionIndex,
+        this.projectionPlane,
+      );
+      this._updatePlotDataCoordinates();
+    } else {
+      // Full rebuild path
+      if (!this._isolationMode) {
+        this._columnarData = ColumnarDataProcessor.buildColumnarData(
+          dataToUse,
+          this.selectedProjectionIndex,
+          this.projectionPlane,
+        );
+      } else {
+        this._columnarData = null;
+      }
+
+      this._plotData = DataProcessor.processVisualizationData(
+        dataToUse,
+        this.selectedProjectionIndex,
+        this._isolationMode,
+        this._isolationHistory,
+        this.projectionPlane,
+      );
+    }
+
+    this._lastDataRef = dataToUse;
 
     // z-order is resolved in WebGL depth (see style getters), so we avoid sorting 500k+ points on CPU.
 
     // Invalidate scales cache when plot data changes
     this._invalidateScalesCache();
     this._invalidateVirtualizationCache();
+  }
+
+  /**
+   * Update PlotDataPoint coordinates in-place from columnar arrays after a projection switch.
+   * This avoids rebuilding the full PlotDataPoint array with annotation data.
+   */
+  private _updatePlotDataCoordinates() {
+    if (!this._columnarData) return;
+    const { x, y, z } = this._columnarData;
+    for (let i = 0; i < this._plotData.length; i++) {
+      this._plotData[i].x = x[i];
+      this._plotData[i].y = y[i];
+      if (z) {
+        this._plotData[i].z = z[i];
+      }
+    }
+    // New array reference so Lit detects the change
+    this._plotData = [...this._plotData];
   }
 
   private _buildQuadtree() {
@@ -1281,27 +1329,56 @@ export class ProtspaceScatterplot extends LitElement {
     return getters.getStrokeWidth(point);
   }
 
+  /**
+   * Build style getters using columnar lookups (when columnar data is available)
+   * or legacy per-point lookups (fallback for isolation mode).
+   */
+  private _buildStyleGetters(): ReturnType<typeof createStyleGetters> {
+    const styleConfig = {
+      selectedProteinIds: this.selectedProteinIds,
+      highlightedProteinIds: this.highlightedProteinIds,
+      selectedAnnotation: this.selectedAnnotation,
+      hiddenAnnotationValues: this.hiddenAnnotationValues,
+      otherAnnotationValues: this.otherAnnotationValues,
+      useShapes: this.useShapes,
+      zOrderMapping: this._zOrderMapping,
+      colorMapping: this._colorMapping,
+      shapeMapping: this._shapeMapping,
+      sizes: {
+        base: this._mergedConfig.pointSize,
+      },
+      opacities: {
+        base: this._mergedConfig.baseOpacity,
+        selected: this._mergedConfig.selectedOpacity,
+        faded: this._mergedConfig.fadedOpacity,
+      },
+    };
+
+    if (this._columnarData) {
+      // Use index-based columnar lookups — annotation data is shared, never duplicated
+      const cg = createColumnarStyleGetters(
+        this._columnarData.annotationStore,
+        this._columnarData.ids,
+        styleConfig,
+      );
+      return {
+        getColors: (point: PlotDataPoint) => cg.getColors(point.originalIndex),
+        getPointSize: (point: PlotDataPoint) => cg.getPointSize(point.originalIndex),
+        getOpacity: (point: PlotDataPoint) => cg.getOpacity(point.originalIndex),
+        getDepth: (point: PlotDataPoint) => cg.getDepth(point.originalIndex),
+        getStrokeColor: (point: PlotDataPoint) => cg.getStrokeColor(point.originalIndex),
+        getStrokeWidth: (point: PlotDataPoint) => cg.getStrokeWidth(point.originalIndex),
+        getPointShape: (point: PlotDataPoint) => cg.getShape(point.originalIndex),
+      };
+    }
+
+    // Fallback: legacy per-point lookups (used in isolation mode)
+    return createStyleGetters(this.data, styleConfig);
+  }
+
   private _getStyleGetters() {
     if (!this._styleGettersCache) {
-      this._styleGettersCache = createStyleGetters(this.data, {
-        selectedProteinIds: this.selectedProteinIds,
-        highlightedProteinIds: this.highlightedProteinIds,
-        selectedAnnotation: this.selectedAnnotation,
-        hiddenAnnotationValues: this.hiddenAnnotationValues,
-        otherAnnotationValues: this.otherAnnotationValues,
-        useShapes: this.useShapes,
-        zOrderMapping: this._zOrderMapping,
-        colorMapping: this._colorMapping,
-        shapeMapping: this._shapeMapping,
-        sizes: {
-          base: this._mergedConfig.pointSize,
-        },
-        opacities: {
-          base: this._mergedConfig.baseOpacity,
-          selected: this._mergedConfig.selectedOpacity,
-          faded: this._mergedConfig.fadedOpacity,
-        },
-      });
+      this._styleGettersCache = this._buildStyleGetters();
     }
     return this._styleGettersCache;
   }
