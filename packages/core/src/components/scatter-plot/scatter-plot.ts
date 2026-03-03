@@ -1,19 +1,14 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import * as d3 from 'd3';
-import type {
-  VisualizationData,
-  PlotDataPoint,
-  ScatterplotConfig,
-  ColumnarData,
-} from '@protspace/utils';
-import { DataProcessor, ColumnarDataProcessor } from '@protspace/utils';
+import type { VisualizationData, PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
+import { DataProcessor } from '@protspace/utils';
 import { scatterplotStyles } from './scatter-plot.styles';
 import './projection-metadata';
 import './protspace-tips';
 import './protein-tooltip';
 import { DEFAULT_CONFIG } from './config';
-import { createStyleGetters, createColumnarStyleGetters } from './style-getters';
+import { createStyleGetters } from './style-getters';
 import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer } from './webgl';
 import { QuadtreeIndex } from './quadtree-index';
 import {
@@ -136,9 +131,7 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _webglRenderPerf = new WebglRenderPerfRunner(this);
 
-  // Columnar data for memory-efficient projection switching.
-  // Annotations are stored once and shared across projection switches.
-  private _columnarData: ColumnarData | null = null;
+  // Track data reference to detect projection-only changes (same data object, different projection index).
   private _lastDataRef: VisualizationData | null = null;
 
   // Computed properties with caching
@@ -158,19 +151,12 @@ export class ProtspaceScatterplot extends LitElement {
       this._scalesCacheDeps.margin.left !== config.margin.left;
 
     if (needsRecompute) {
-      const computedScales = this._columnarData
-        ? ColumnarDataProcessor.createScales(
-            this._columnarData,
-            config.width,
-            config.height,
-            config.margin,
-          )
-        : (DataProcessor.createScales(
-            this._plotData,
-            config.width,
-            config.height,
-            config.margin,
-          ) as ScalePair | null);
+      const computedScales = DataProcessor.createScales(
+        this._plotData,
+        config.width,
+        config.height,
+        config.margin,
+      ) as ScalePair | null;
       this._cachedScales = computedScales;
       this._scalesCacheDeps = {
         plotDataLength: this._plotData.length,
@@ -463,32 +449,17 @@ export class ProtspaceScatterplot extends LitElement {
     if (!dataToUse) return;
 
     // Detect whether only the projection changed (same data reference, not in isolation mode).
-    // In this case we take the fast path: swap coordinate Float32Arrays (~4MB)
+    // In this case we take the fast path: update coordinates in-place
     // instead of rebuilding all PlotDataPoint objects with annotation data (~700MB for 500k proteins).
     const onlyProjectionChanged =
-      this._columnarData !== null && this._lastDataRef === dataToUse && !this._isolationMode;
+      this._plotData.length > 0 && this._lastDataRef === dataToUse && !this._isolationMode;
 
     if (onlyProjectionChanged) {
-      // Fast path: swap coordinates only
-      this._columnarData = ColumnarDataProcessor.switchProjection(
-        this._columnarData!,
-        dataToUse,
-        this.selectedProjectionIndex,
-        this.projectionPlane,
-      );
-      this._updatePlotDataCoordinates();
+      // Fast path: update coordinates in-place from the new projection data.
+      // No new object allocation — just overwrite x/y/z on existing PlotDataPoints.
+      this._updatePlotDataCoordinates(dataToUse);
     } else {
       // Full rebuild path
-      if (!this._isolationMode) {
-        this._columnarData = ColumnarDataProcessor.buildColumnarData(
-          dataToUse,
-          this.selectedProjectionIndex,
-          this.projectionPlane,
-        );
-      } else {
-        this._columnarData = null;
-      }
-
       this._plotData = DataProcessor.processVisualizationData(
         dataToUse,
         this.selectedProjectionIndex,
@@ -508,19 +479,37 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   /**
-   * Update PlotDataPoint coordinates in-place from columnar arrays after a projection switch.
-   * This avoids rebuilding the full PlotDataPoint array with annotation data.
+   * Update PlotDataPoint coordinates in-place from a new projection.
+   * Reads directly from VisualizationData.projections — no intermediate allocation.
+   * This avoids the ~700MB memory spike from rebuilding the full PlotDataPoint array.
    */
-  private _updatePlotDataCoordinates() {
-    if (!this._columnarData) return;
-    const { x, y, z } = this._columnarData;
+  private _updatePlotDataCoordinates(data: VisualizationData) {
+    const projection = data.projections[this.selectedProjectionIndex];
+    if (!projection) return;
+
     for (let i = 0; i < this._plotData.length; i++) {
-      this._plotData[i].x = x[i];
-      this._plotData[i].y = y[i];
-      if (z) {
-        this._plotData[i].z = z[i];
+      const point = this._plotData[i];
+      const coords = (projection.data[point.originalIndex] ?? [0, 0]) as
+        | [number, number]
+        | [number, number, number];
+
+      let xVal = coords[0];
+      let yVal = coords[1];
+
+      if (coords.length === 3) {
+        point.z = coords[2];
+        if (this.projectionPlane === 'xz') {
+          yVal = coords[2];
+        } else if (this.projectionPlane === 'yz') {
+          xVal = coords[1];
+          yVal = coords[2];
+        }
       }
+
+      point.x = xVal;
+      point.y = yVal;
     }
+
     // New array reference so Lit detects the change
     this._plotData = [...this._plotData];
   }
@@ -1334,7 +1323,7 @@ export class ProtspaceScatterplot extends LitElement {
    * or legacy per-point lookups (fallback for isolation mode).
    */
   private _buildStyleGetters(): ReturnType<typeof createStyleGetters> {
-    const styleConfig = {
+    return createStyleGetters(this.data, {
       selectedProteinIds: this.selectedProteinIds,
       highlightedProteinIds: this.highlightedProteinIds,
       selectedAnnotation: this.selectedAnnotation,
@@ -1352,28 +1341,7 @@ export class ProtspaceScatterplot extends LitElement {
         selected: this._mergedConfig.selectedOpacity,
         faded: this._mergedConfig.fadedOpacity,
       },
-    };
-
-    if (this._columnarData) {
-      // Use index-based columnar lookups — annotation data is shared, never duplicated
-      const cg = createColumnarStyleGetters(
-        this._columnarData.annotationStore,
-        this._columnarData.ids,
-        styleConfig,
-      );
-      return {
-        getColors: (point: PlotDataPoint) => cg.getColors(point.originalIndex),
-        getPointSize: (point: PlotDataPoint) => cg.getPointSize(point.originalIndex),
-        getOpacity: (point: PlotDataPoint) => cg.getOpacity(point.originalIndex),
-        getDepth: (point: PlotDataPoint) => cg.getDepth(point.originalIndex),
-        getStrokeColor: (point: PlotDataPoint) => cg.getStrokeColor(point.originalIndex),
-        getStrokeWidth: (point: PlotDataPoint) => cg.getStrokeWidth(point.originalIndex),
-        getPointShape: (point: PlotDataPoint) => cg.getShape(point.originalIndex),
-      };
-    }
-
-    // Fallback: legacy per-point lookups (used in isolation mode)
-    return createStyleGetters(this.data, styleConfig);
+    });
   }
 
   private _getStyleGetters() {
