@@ -10,3 +10,9 @@ export * from './message';
 export * from './storage';
 export * from './platform';
 export * from './parquet';
+export type { ColumnarData, AnnotationStore } from './data/columnar-types';
+export {
+  getAnnotationValues,
+  getAnnotationScores,
+  getAnnotationEvidence,
+} from './data/columnar-types';
