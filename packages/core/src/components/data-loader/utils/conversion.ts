@@ -4,6 +4,19 @@ import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
 import type { Rows } from './types';
 
+/**
+ * Fast yield using MessageChannel instead of setTimeout(0).
+ * setTimeout(0) has a ~4ms minimum delay in browsers;
+ * MessageChannel.postMessage fires in ~0.1ms.
+ */
+function fastYield(): Promise<void> {
+  return new Promise((resolve) => {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = () => resolve();
+    ch.port2.postMessage(null);
+  });
+}
+
 /** Column names that should be excluded when identifying annotation columns */
 const ID_COLUMNS = [
   'projection_name',
@@ -356,7 +369,7 @@ async function convertBundleFormatDataOptimized(
   columnNames: string[],
   projectionsMetadata?: Rows,
 ): Promise<VisualizationData> {
-  const chunkSize = 5000;
+  const chunkSize = 50000;
   const proteinIdCol =
     findColumn(columnNames, ['identifier', 'protein_id', 'id', 'protein', 'uniprot']) ||
     columnNames[0];
@@ -379,7 +392,7 @@ async function convertBundleFormatDataOptimized(
     }
     // yield
 
-    await new Promise((r) => setTimeout(r, 0));
+    await fastYield();
   }
 
   const uniqueProteinIds = Array.from(uniqueProteinIdsSet);
@@ -411,11 +424,18 @@ async function convertBundleFormatDataOptimized(
     });
     // yield
 
-    await new Promise((r) => setTimeout(r, 0));
+    await fastYield();
   }
 
+  // Use only base projection's rows for annotations (not all rows across projections)
+  const baseProjectionRows = projectionGroups.values().next().value || rows;
   const { annotations, annotation_data, annotation_scores, annotation_evidence } =
-    await extractAnnotationsOptimized(rows, columnNames, proteinIdCol, uniqueProteinIds);
+    await extractAnnotationsOptimized(
+      baseProjectionRows,
+      columnNames,
+      proteinIdCol,
+      uniqueProteinIds,
+    );
 
   return {
     protein_ids: uniqueProteinIds,
@@ -697,77 +717,104 @@ export async function extractAnnotationsOptimized(
   const annotation_scores: Record<string, (number[] | null)[][]> = {};
   const annotation_evidence: Record<string, (string | null)[][]> = {};
 
-  const chunkSize = 10000;
-  for (const annotationCol of annotationColumns) {
-    const annotationMap = new Map<string, string[]>();
-    const annotationScoreMap = new Map<string, (number[] | null)[]>();
-    const annotationEvidenceMap = new Map<string, (string | null)[]>();
-    const valueCountMap = new Map<string | null, number>();
+  if (annotationColumns.length === 0) {
+    return { annotations, annotation_data, annotation_scores, annotation_evidence };
+  }
+
+  // Build protein ID → index map once (shared across all columns)
+  const idToIndex = new Map<string, number>();
+  for (let i = 0; i < uniqueProteinIds.length; i++) {
+    idToIndex.set(uniqueProteinIds[i], i);
+  }
+
+  const numProteins = uniqueProteinIds.length;
+  const chunkSize = 50000;
+
+  // Process one column at a time so GC can reclaim between columns
+  for (let colIdx = 0; colIdx < annotationColumns.length; colIdx++) {
+    const annotationCol = annotationColumns[colIdx];
+
+    // === Pass 1: Collect unique values, frequency counts, detect scores/evidence ===
+    const valueCountMap = new Map<string, number>();
     let columnHasScores = false;
     let columnHasEvidence = false;
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const chunk = rows.slice(i, Math.min(i + chunkSize, rows.length));
-      for (const row of chunk) {
-        const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-        const rawValue = row[annotationCol];
 
-        if (rawValue == null) {
-          annotationMap.set(proteinId, []);
-          annotationScoreMap.set(proteinId, []);
-          annotationEvidenceMap.set(proteinId, []);
-          continue;
-        }
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const end = Math.min(i + chunkSize, rows.length);
+      for (let r = i; r < end; r++) {
+        const rawValue = rows[r][annotationCol];
+        if (rawValue == null) continue;
 
         const rawValues = String(rawValue).split(';');
-        const labels: string[] = [];
-        const scores: (number[] | null)[] = [];
-        const evidences: (string | null)[] = [];
         for (const raw of rawValues) {
           const parsed = parseAnnotationValue(raw);
-          labels.push(parsed.label);
-          scores.push(parsed.scores.length > 0 ? parsed.scores : null);
-          evidences.push(parsed.evidence);
+          valueCountMap.set(parsed.label, (valueCountMap.get(parsed.label) || 0) + 1);
           if (parsed.scores.length > 0) columnHasScores = true;
           if (parsed.evidence) columnHasEvidence = true;
-          valueCountMap.set(parsed.label, (valueCountMap.get(parsed.label) || 0) + 1);
         }
-        annotationMap.set(proteinId, labels);
-        annotationScoreMap.set(proteinId, scores);
-        annotationEvidenceMap.set(proteinId, evidences);
       }
-      // yield
-
-      await new Promise((r) => setTimeout(r, 0));
+      await fastYield();
     }
 
-    const uniqueValues = Array.from(valueCountMap.keys());
+    // Sort unique values by frequency (most frequent first)
+    const uniqueValues = Array.from(valueCountMap.keys()).sort(
+      (a, b) => (valueCountMap.get(b) || 0) - (valueCountMap.get(a) || 0),
+    );
+
     const valueToIndex = new Map<string | null, number>();
     uniqueValues.forEach((val, idx) => valueToIndex.set(val, idx));
 
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
 
-    const annotationDataArray = new Array<number[]>(uniqueProteinIds.length);
+    // === Pass 2: Build output arrays directly (no intermediate string arrays) ===
+    const annotationDataArray = new Array<number[]>(numProteins);
+    const scoresArray = columnHasScores ? new Array<(number[] | null)[]>(numProteins) : null;
+    const evidenceArray = columnHasEvidence ? new Array<(string | null)[]>(numProteins) : null;
 
-    for (let i = 0; i < uniqueProteinIds.length; i++) {
-      const valueArray = annotationMap.get(uniqueProteinIds[i]) ?? null;
-      annotationDataArray[i] = (valueArray ?? []).map((v) => valueToIndex.get(v) ?? -1);
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const end = Math.min(i + chunkSize, rows.length);
+      for (let r = i; r < end; r++) {
+        const row = rows[r];
+        const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
+        const idx = idToIndex.get(proteinId);
+        if (idx === undefined) continue;
+
+        const rawValue = row[annotationCol];
+        if (rawValue == null) continue;
+
+        const rawValues = String(rawValue).split(';');
+        const indices: number[] = [];
+        const scores: (number[] | null)[] | null = scoresArray ? [] : null;
+        const evidences: (string | null)[] | null = evidenceArray ? [] : null;
+
+        for (const raw of rawValues) {
+          const parsed = parseAnnotationValue(raw);
+          indices.push(valueToIndex.get(parsed.label) ?? -1);
+          if (scores) scores.push(parsed.scores.length > 0 ? parsed.scores : null);
+          if (evidences) evidences.push(parsed.evidence);
+        }
+
+        annotationDataArray[idx] = indices;
+        if (scoresArray && scores) scoresArray[idx] = scores;
+        if (evidenceArray && evidences) evidenceArray[idx] = evidences;
+      }
+      await fastYield();
     }
 
-    if (columnHasScores) {
-      annotation_scores[annotationCol] = uniqueProteinIds.map(
-        (proteinId) => annotationScoreMap.get(proteinId) ?? [],
-      );
-    }
-
-    if (columnHasEvidence) {
-      annotation_evidence[annotationCol] = uniqueProteinIds.map(
-        (proteinId) => annotationEvidenceMap.get(proteinId) ?? [],
-      );
+    // Fill empty arrays for proteins not found in this column's rows
+    for (let p = 0; p < numProteins; p++) {
+      if (annotationDataArray[p] === undefined) {
+        annotationDataArray[p] = [];
+        if (scoresArray) scoresArray[p] = [];
+        if (evidenceArray) evidenceArray[p] = [];
+      }
     }
 
     annotations[annotationCol] = { values: uniqueValues, colors, shapes };
     annotation_data[annotationCol] = annotationDataArray;
+    if (scoresArray) annotation_scores[annotationCol] = scoresArray;
+    if (evidenceArray) annotation_evidence[annotationCol] = evidenceArray;
   }
 
   return { annotations, annotation_data, annotation_scores, annotation_evidence };
