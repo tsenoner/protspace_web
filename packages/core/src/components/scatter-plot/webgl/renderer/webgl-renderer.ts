@@ -90,28 +90,48 @@ const float SQRT3 = 1.73205080757;
 
 void main() {
   vec2 coord = gl_PointCoord * 2.0 - 1.0;
-  bool discard_fragment = false;
 
-  // Shape rendering (0=circle, 1=square, 2=diamond, 3=triangle-up, 4=triangle-down, 5=plus)
+  // Compute signed edge distance for each shape.
+  // Positive = inside, zero = on boundary, negative = outside.
+  // This single computation drives both anti-aliasing and the outline effect.
+  float edgeDist;
+
   if (v_shape < 0.5) { // Circle
-    discard_fragment = dot(coord, coord) > 1.0;
+    edgeDist = 1.0 - length(coord);
   } else if (v_shape < 1.5) { // Square
-    discard_fragment = abs(coord.x) > 1.0 || abs(coord.y) > 1.0;
+    edgeDist = 1.0 - max(abs(coord.x), abs(coord.y));
   } else if (v_shape < 2.5) { // Diamond
     // Match d3.symbolDiamond proportions (same mapping as D3's "tan30" constant, i.e. sqrt(1/3))
-    discard_fragment = abs(coord.x) * SQRT3 + abs(coord.y) > 1.0;
+    edgeDist = 1.0 - (abs(coord.x) * SQRT3 + abs(coord.y));
   } else if (v_shape < 3.5) { // Triangle Up
-    discard_fragment = abs(coord.x) * SQRT3 > 1.0 + coord.y;
+    // Inside region: abs(x)*SQRT3 <= 1 + y, clipped to point quad [-1,1]^2.
+    float eSides = (1.0 + coord.y - abs(coord.x) * SQRT3) / 2.0;
+    float eBottom = 1.0 - coord.y;
+    float eLR = 1.0 - abs(coord.x);
+    edgeDist = min(eSides, min(eBottom, eLR));
   } else if (v_shape < 4.5) { // Triangle Down
-    discard_fragment = abs(coord.x) * SQRT3 > 1.0 - coord.y;
-  } else { // Plus
+    // Inside region: abs(x)*SQRT3 <= 1 - y, clipped to point quad [-1,1]^2.
+    float eSides = (1.0 - coord.y - abs(coord.x) * SQRT3) / 2.0;
+    float eTop = 1.0 + coord.y;
+    float eLR = 1.0 - abs(coord.x);
+    edgeDist = min(eSides, min(eTop, eLR));
+  } else { // Plus — SDF as union of vertical and horizontal arms
     float thickness = 0.35;
-    bool inVertical = abs(coord.x) < thickness;
-    bool inHorizontal = abs(coord.y) < thickness;
-    discard_fragment = !(inVertical || inHorizontal);
+    // SDF for vertical arm (half-extents: thickness x 1.0)
+    vec2 dV = abs(coord) - vec2(thickness, 1.0);
+    float sdfV = length(max(dV, 0.0)) + min(max(dV.x, dV.y), 0.0);
+    // SDF for horizontal arm (half-extents: 1.0 x thickness)
+    vec2 dH = abs(coord) - vec2(1.0, thickness);
+    float sdfH = length(max(dH, 0.0)) + min(max(dH.x, dH.y), 0.0);
+    // Union of both arms; negate so positive = inside
+    edgeDist = -min(sdfV, sdfH);
   }
 
-  if (discard_fragment) discard;
+  // Anti-aliased shape edge: smooth alpha over ~1 screen pixel using
+  // screen-space derivatives of the distance field.
+  float aa = fwidth(edgeDist);
+  float shapeAlpha = smoothstep(0.0, aa, edgeDist);
+  if (shapeAlpha < 0.001) discard;
 
   vec3 finalColor = v_color.rgb;
 
@@ -136,61 +156,13 @@ void main() {
     finalColor = pow(max(texColor.rgb, vec3(0.0)), vec3(u_gamma));
   }
 
-  // Apply a cheap "outline" effect by darkening near the edge of each shape.
-  // (This is distinct from the SVG renderer's true stroke color/width.)
-  //
-  // NOTE: Users expect "non-circle" shapes to also have a border similar to circles.
-  // We implement a simple per-shape edge-distance metric and darken near the edge.
-  // This is not a true stroke color/width pipeline; it's an inexpensive outline effect.
-  float strokeWidth = 0.15;
-  float edgeDist = 1e6; // larger = far from edge
-
-  if (v_shape < 0.5) { // Circle
-    float dist = length(coord);
-    edgeDist = 1.0 - dist;
-  } else if (v_shape < 1.5) { // Square
-    edgeDist = 1.0 - max(abs(coord.x), abs(coord.y));
-  } else if (v_shape < 2.5) { // Diamond
-    edgeDist = 1.0 - (abs(coord.x) * SQRT3 + abs(coord.y));
-  } else if (v_shape < 3.5) { // Triangle Up
-    // Inside region: abs(x)*SQRT3 <= 1 + y, clipped to point quad [-1,1]^2.
-    // Triangle apex at (0, -1), slanted sides meet point sprite at (±1, sqrt(3)-1).
-    // Perpendicular distance to slanted edge (normalized by edge length factor 2).
-    float eSides = (1.0 + coord.y - abs(coord.x) * SQRT3) / 2.0;
-    float eBottom = 1.0 - coord.y;  // distance to y = 1 (point sprite bottom)
-    float eLR = 1.0 - abs(coord.x); // distance to x = ±1 (point sprite sides)
-    edgeDist = min(eSides, min(eBottom, eLR));
-  } else if (v_shape < 4.5) { // Triangle Down
-    // Inside region: abs(x)*SQRT3 <= 1 - y, clipped to point quad [-1,1]^2.
-    // Triangle apex at (0, 1), slanted sides meet point sprite at (±1, -(sqrt(3)-1)).
-    // Perpendicular distance to slanted edge (normalized by edge length factor 2).
-    float eSides = (1.0 - coord.y - abs(coord.x) * SQRT3) / 2.0;
-    float eTop = 1.0 + coord.y;     // distance to y = -1 (point sprite top)
-    float eLR = 1.0 - abs(coord.x); // distance to x = ±1 (point sprite sides)
-    edgeDist = min(eSides, min(eTop, eLR));
-  } else { // Plus
-    float thickness = 0.35;
-    bool inVertical = abs(coord.x) < thickness;
-    bool inHorizontal = abs(coord.y) < thickness;
-    // For each rectangle arm, edge distance is min distance to its 4 edges.
-    float edgeV = 1e6;
-    float edgeH = 1e6;
-    if (inVertical) {
-      edgeV = min(thickness - abs(coord.x), 1.0 - abs(coord.y));
-    }
-    if (inHorizontal) {
-      edgeH = min(thickness - abs(coord.y), 1.0 - abs(coord.x));
-    }
-    edgeDist = min(edgeV, edgeH);
-  }
-
   // Darken near the edge to mimic a border/outline.
-  // Clamp to avoid NaNs if something goes slightly negative due to precision.
+  float strokeWidth = 0.15;
   if (max(edgeDist, 0.0) < strokeWidth) {
     finalColor = finalColor * 0.5;
   }
 
-  float finalAlpha = v_color.a;
+  float finalAlpha = v_color.a * shapeAlpha;
   fragColor = vec4(finalColor * finalAlpha, finalAlpha);
 }`;
 const GAMMA_VERTEX_SHADER = `#version 300 es
