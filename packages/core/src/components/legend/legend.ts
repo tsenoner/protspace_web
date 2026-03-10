@@ -466,8 +466,12 @@ export class ProtspaceLegend extends LitElement {
       }
     }
 
-    // Update dataset hash when protein IDs change
-    if (changedProperties.has('proteinIds') && this.proteinIds.length > 0) {
+    // Update dataset hash when protein IDs change.
+    // Skip during isolation mode: isolation filters protein IDs to a subset,
+    // which would produce a different hash and cause settings (maxVisibleValues,
+    // sort order, z-order) to be reset to defaults. Keep the full dataset hash
+    // so persisted settings are preserved across isolation transitions.
+    if (changedProperties.has('proteinIds') && this.proteinIds.length > 0 && !this.isolationMode) {
       this._persistenceController.updateDatasetHash(this.proteinIds);
     }
 
