@@ -64,6 +64,8 @@ export interface ExportOptions {
   backgroundColor?: string;
   /** Whether to render per-category shapes in legend */
   includeShapes?: boolean;
+  /** Whether to include the legend panel in the exported image (default: true) */
+  includeLegend?: boolean;
 }
 
 export class ProtSpaceExporter {
@@ -103,12 +105,13 @@ export class ProtSpaceExporter {
     return {
       backgroundColor: options.backgroundColor || ProtSpaceExporter.DEFAULT_BACKGROUND,
       legendScaleFactor: options.legendScaleFactor ?? ProtSpaceExporter.DEFAULT_LEGEND_SCALE,
-      legendWidthPercent: options.legendWidthPercent ?? 25,
+      legendWidthPercent: options.legendWidthPercent ?? 20,
       targetWidth: options.targetWidth,
       targetHeight: options.targetHeight,
       exportName: options.exportName,
       includeSelection: options.includeSelection,
       includeShapes: options.includeShapes,
+      includeLegend: options.includeLegend ?? true,
     };
   }
 
@@ -488,26 +491,32 @@ export class ProtSpaceExporter {
       opts.backgroundColor,
     );
 
-    // Generate legend canvas
-    const legendCanvas = this.generateLegendCanvas(scatterCanvas, opts);
+    let outCanvas: HTMLCanvasElement;
 
-    // Composite scatterplot and legend
-    // Use actual legend width to ensure it's not cut off
-    const combinedWidth = scatterCanvas.width + legendCanvas.width;
-    const combinedHeight = Math.max(scatterCanvas.height, legendCanvas.height);
-    const outCanvas = document.createElement('canvas');
-    outCanvas.width = combinedWidth;
-    outCanvas.height = combinedHeight;
-    const ctx = outCanvas.getContext('2d');
-    if (!ctx) {
-      console.error('Could not get 2D context for output canvas');
-      return;
+    if (opts.includeLegend) {
+      // Generate legend canvas
+      const legendCanvas = this.generateLegendCanvas(scatterCanvas, opts);
+
+      // Composite scatterplot and legend
+      const combinedWidth = scatterCanvas.width + legendCanvas.width;
+      const combinedHeight = Math.max(scatterCanvas.height, legendCanvas.height);
+      outCanvas = document.createElement('canvas');
+      outCanvas.width = combinedWidth;
+      outCanvas.height = combinedHeight;
+      const ctx = outCanvas.getContext('2d');
+      if (!ctx) {
+        console.error('Could not get 2D context for output canvas');
+        return;
+      }
+
+      ctx.fillStyle = opts.backgroundColor;
+      ctx.fillRect(0, 0, combinedWidth, combinedHeight);
+      ctx.drawImage(scatterCanvas, 0, 0);
+      ctx.drawImage(legendCanvas, scatterCanvas.width, 0);
+    } else {
+      // Export scatterplot only (no legend)
+      outCanvas = scatterCanvas;
     }
-
-    ctx.fillStyle = opts.backgroundColor;
-    ctx.fillRect(0, 0, combinedWidth, combinedHeight);
-    ctx.drawImage(scatterCanvas, 0, 0);
-    ctx.drawImage(legendCanvas, scatterCanvas.width, 0);
 
     // Download
     const dataUrl = outCanvas.toDataURL('image/png');
@@ -780,57 +789,84 @@ export class ProtSpaceExporter {
       opts.backgroundColor,
     );
 
-    // Generate legend canvas
-    const legendCanvas = this.generateLegendCanvas(scatterCanvas, opts);
-
-    // Convert to images
     const scatterImg = scatterCanvas.toDataURL('image/png', 1.0);
-    const legendImg = legendCanvas.toDataURL('image/png', 1.0);
     const scatterRatio = scatterCanvas.width / scatterCanvas.height;
-    const legendRatio = legendCanvas.width / legendCanvas.height;
-
-    // Calculate PDF dimensions
     const margin = ProtSpaceExporter.PDF_MARGIN;
-    const gap = ProtSpaceExporter.PDF_GAP;
     const maxWidth = ProtSpaceExporter.PDF_MAX_WIDTH - 2 * margin;
-    const availableWidth = maxWidth - gap;
 
-    // Distribute width proportionally based on aspect ratios
-    const totalRatioWidth = scatterRatio + legendRatio;
-    const scatterTargetW = availableWidth * (scatterRatio / totalRatioWidth);
-    const legendTargetW = availableWidth * (legendRatio / totalRatioWidth);
+    let pdfWidth: number;
+    let pdfHeight: number;
 
-    // Calculate heights maintaining aspect ratios
-    const scatterTargetH = scatterTargetW / scatterRatio;
-    const legendTargetH = legendTargetW / legendRatio;
-    const contentHeight = Math.max(scatterTargetH, legendTargetH);
+    if (opts.includeLegend) {
+      // Generate legend canvas
+      const legendCanvas = this.generateLegendCanvas(scatterCanvas, opts);
+      const legendImg = legendCanvas.toDataURL('image/png', 1.0);
+      const legendRatio = legendCanvas.width / legendCanvas.height;
 
-    // Create custom page size that fits content exactly
-    const pdfWidth = maxWidth + 2 * margin;
-    const pdfHeight = contentHeight + 2 * margin;
+      const gap = ProtSpaceExporter.PDF_GAP;
+      const availableWidth = maxWidth - gap;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdf: any = new (jsPDF as any)({
-      orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
-      unit: 'mm',
-      format: [pdfWidth, pdfHeight],
-    });
+      // Distribute width proportionally based on aspect ratios
+      const totalRatioWidth = scatterRatio + legendRatio;
+      const scatterTargetW = availableWidth * (scatterRatio / totalRatioWidth);
+      const legendTargetW = availableWidth * (legendRatio / totalRatioWidth);
 
-    pdf.setProperties({
-      title: 'ProtSpace Visualization',
-      subject: 'ProtSpace export',
-      author: 'ProtSpace',
-      creator: 'ProtSpace',
-    });
+      // Calculate heights maintaining aspect ratios
+      const scatterTargetH = scatterTargetW / scatterRatio;
+      const legendTargetH = legendTargetW / legendRatio;
+      const contentHeight = Math.max(scatterTargetH, legendTargetH);
 
-    // Place images
-    const xScatter = margin;
-    const xLegend = xScatter + scatterTargetW + gap;
-    pdf.addImage(scatterImg, 'PNG', xScatter, margin, scatterTargetW, scatterTargetH);
-    pdf.addImage(legendImg, 'PNG', xLegend, margin, legendTargetW, legendTargetH);
+      pdfWidth = maxWidth + 2 * margin;
+      pdfHeight = contentHeight + 2 * margin;
 
-    const fileName = opts.exportName || this.generateExportFileName('pdf');
-    pdf.save(fileName);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pdf: any = new (jsPDF as any)({
+        orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: [pdfWidth, pdfHeight],
+      });
+
+      pdf.setProperties({
+        title: 'ProtSpace Visualization',
+        subject: 'ProtSpace export',
+        author: 'ProtSpace',
+        creator: 'ProtSpace',
+      });
+
+      const xScatter = margin;
+      const xLegend = xScatter + scatterTargetW + gap;
+      pdf.addImage(scatterImg, 'PNG', xScatter, margin, scatterTargetW, scatterTargetH);
+      pdf.addImage(legendImg, 'PNG', xLegend, margin, legendTargetW, legendTargetH);
+
+      const fileName = opts.exportName || this.generateExportFileName('pdf');
+      pdf.save(fileName);
+    } else {
+      // Export scatterplot only (no legend)
+      const scatterTargetW = maxWidth;
+      const scatterTargetH = scatterTargetW / scatterRatio;
+
+      pdfWidth = maxWidth + 2 * margin;
+      pdfHeight = scatterTargetH + 2 * margin;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pdf: any = new (jsPDF as any)({
+        orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: [pdfWidth, pdfHeight],
+      });
+
+      pdf.setProperties({
+        title: 'ProtSpace Visualization',
+        subject: 'ProtSpace export',
+        author: 'ProtSpace',
+        creator: 'ProtSpace',
+      });
+
+      pdf.addImage(scatterImg, 'PNG', margin, margin, scatterTargetW, scatterTargetH);
+
+      const fileName = opts.exportName || this.generateExportFileName('pdf');
+      pdf.save(fileName);
+    }
   }
 
   /**
