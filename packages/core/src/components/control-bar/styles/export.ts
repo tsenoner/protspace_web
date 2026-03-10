@@ -165,6 +165,10 @@ export const exportStyles = css`
     flex-shrink: 0;
   }
 
+  .export-include-legend-label {
+    margin-bottom: var(--spacing-sm);
+  }
+
   .export-parquet-help {
     font-size: var(--text-xs);
     color: var(--muted);

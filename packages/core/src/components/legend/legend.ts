@@ -120,6 +120,7 @@ export class ProtspaceLegend extends LitElement {
   @state() private _hiddenValues: string[] = [];
   @state() private _annotationSortModes: Record<string, LegendSortMode> = {};
   @state() private _showOtherDialog = false;
+  private _preIsolationVisibleValues: Set<string> = new Set();
   @state() private _showSettingsDialog = false;
   @state() private _statusMessage = '';
   @state() private _colorPickerItem: string | null = null;
@@ -466,8 +467,12 @@ export class ProtspaceLegend extends LitElement {
       }
     }
 
-    // Update dataset hash when protein IDs change
-    if (changedProperties.has('proteinIds') && this.proteinIds.length > 0) {
+    // Update dataset hash when protein IDs change.
+    // Skip during isolation mode: isolation filters protein IDs to a subset,
+    // which would produce a different hash and cause settings (maxVisibleValues,
+    // sort order, z-order) to be reset to defaults. Keep the full dataset hash
+    // so persisted settings are preserved across isolation transitions.
+    if (changedProperties.has('proteinIds') && this.proteinIds.length > 0 && !this.isolationMode) {
       this._persistenceController.updateDatasetHash(this.proteinIds);
     }
 
@@ -495,7 +500,9 @@ export class ProtspaceLegend extends LitElement {
       changedProperties.has('annotationValues') ||
       changedProperties.has('proteinIds') ||
       changedProperties.has('maxVisibleValues') ||
-      changedProperties.has('includeShapes')
+      changedProperties.has('includeShapes') ||
+      changedProperties.has('isolationMode') ||
+      changedProperties.has('isolationHistory')
     ) {
       this._rebuildLegendItems();
     }
@@ -615,6 +622,7 @@ export class ProtspaceLegend extends LitElement {
     // Reset isolation state
     this.isolationMode = false;
     this.isolationHistory = [];
+    this._preIsolationVisibleValues = new Set();
 
     // Clear data properties
     this.data = null;
@@ -656,6 +664,12 @@ export class ProtspaceLegend extends LitElement {
 
     // Sync isolation state
     const { isolationMode, isolationHistory } = this._scatterplotController.getIsolationState();
+
+    // Save visible values before entering isolation so "Other" items stay grouped
+    if (isolationMode && !this.isolationMode) {
+      this._preIsolationVisibleValues = this._visibleValues;
+    }
+
     this.isolationMode = isolationMode;
     this.isolationHistory = isolationHistory;
   }
@@ -741,8 +755,9 @@ export class ProtspaceLegend extends LitElement {
       // When none of these apply (true initial load), use empty set so maxVisibleValues is respected.
       const hasPendingOps = pendingExtract !== undefined || pendingMerge !== undefined;
       const hasExistingItems = this._legendItems.some((i) => i.value !== LEGEND_VALUES.OTHER);
-      const visibleValues =
-        this._persistenceController.hasPersistedSettings() || hasPendingOps || hasExistingItems
+      const visibleValues = this.isolationMode
+        ? this._preIsolationVisibleValues
+        : this._persistenceController.hasPersistedSettings() || hasPendingOps || hasExistingItems
           ? this._visibleValues
           : new Set<string>();
 

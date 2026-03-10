@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { StyleConfig } from './style-getters';
-import { createStyleGetters } from './style-getters';
-import type { VisualizationData, PlotDataPoint } from '@protspace/utils';
+import { createStyleGetters, createColumnarStyleGetters } from './style-getters';
+import type { VisualizationData, PlotDataPoint, AnnotationStore } from '@protspace/utils';
+import { toInternalValue } from '@protspace/utils';
 
 /**
  * Tests for style-getters.ts focusing on N/A value handling.
@@ -378,6 +379,115 @@ describe('style-getters', () => {
       expect(depthA).toBe(depthB);
       expect(depthA).toBeGreaterThanOrEqual(0);
       expect(depthA).toBeLessThanOrEqual(1);
+    });
+  });
+
+  describe('createColumnarStyleGetters', () => {
+    function buildAnnotationStore(annotationValues: (string | null)[]): {
+      store: AnnotationStore;
+      ids: string[];
+    } {
+      const normalizedValues = annotationValues.map((v) => toInternalValue(v));
+      const ids = annotationValues.map((_, i) => `protein_${i}`);
+
+      const store: AnnotationStore = {
+        annotations: {
+          test_annotation: {
+            values: normalizedValues,
+            colors: annotationValues.map(() => '#ff0000'),
+            shapes: annotationValues.map(() => 'circle'),
+          },
+        },
+        indices: {
+          test_annotation: annotationValues.map((_, i) => new Uint16Array([i])),
+        },
+        scores: {},
+        evidence: {},
+      };
+
+      return { store, ids };
+    }
+
+    const createDefaultStyleConfig = (overrides: Partial<StyleConfig> = {}): StyleConfig => ({
+      selectedProteinIds: [],
+      highlightedProteinIds: [],
+      selectedAnnotation: 'test_annotation',
+      hiddenAnnotationValues: [],
+      otherAnnotationValues: [],
+      useShapes: false,
+      zOrderMapping: null,
+      colorMapping: null,
+      shapeMapping: null,
+      sizes: { base: 10 },
+      opacities: { base: 1, selected: 1, faded: 0.3 },
+      ...overrides,
+    });
+
+    it('should return correct opacity for hidden N/A values', () => {
+      const { store, ids } = buildAnnotationStore([null, 'value1', 'value2']);
+      const config = createDefaultStyleConfig({
+        hiddenAnnotationValues: ['__NA__'],
+      });
+
+      const getters = createColumnarStyleGetters(store, ids, config);
+      expect(getters.getOpacity(0)).toBe(0);
+      expect(getters.getOpacity(1)).toBe(1);
+    });
+
+    it('should return correct colors from colorMapping', () => {
+      const { store, ids } = buildAnnotationStore([null, 'value1']);
+      const config = createDefaultStyleConfig({
+        colorMapping: {
+          __NA__: '#dddddd',
+          value1: '#ff0000',
+        },
+      });
+
+      const getters = createColumnarStyleGetters(store, ids, config);
+      expect(getters.getColors(0)).toEqual(['#dddddd']);
+      expect(getters.getColors(1)).toEqual(['#ff0000']);
+    });
+
+    it('should return correct shapes from shapeMapping', () => {
+      const { store, ids } = buildAnnotationStore([null, 'value1']);
+      const config = createDefaultStyleConfig({
+        shapeMapping: {
+          __NA__: 'square',
+          value1: 'diamond',
+        },
+      });
+
+      const getters = createColumnarStyleGetters(store, ids, config);
+      expect(getters.getShape(0)).toBe('square');
+      expect(getters.getShape(1)).toBe('diamond');
+    });
+
+    it('should match point-based getters for depth ordering', () => {
+      const annotationValues = ['categoryA', 'categoryB', 'categoryC'];
+      const { store, ids } = buildAnnotationStore(annotationValues);
+      const config = createDefaultStyleConfig({
+        zOrderMapping: {
+          categoryA: 0,
+          categoryB: 1,
+          categoryC: 2,
+        },
+      });
+
+      const getters = createColumnarStyleGetters(store, ids, config);
+      const depthA = getters.getDepth(0);
+      const depthB = getters.getDepth(1);
+      const depthC = getters.getDepth(2);
+
+      expect(depthA).toBeLessThan(depthB);
+      expect(depthB).toBeLessThan(depthC);
+    });
+
+    it('should return base point size', () => {
+      const { store, ids } = buildAnnotationStore(['value1']);
+      const config = createDefaultStyleConfig();
+
+      const getters = createColumnarStyleGetters(store, ids, config);
+      expect(getters.getPointSize(0)).toBe(10);
     });
   });
 });

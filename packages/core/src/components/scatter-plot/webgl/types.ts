@@ -15,6 +15,16 @@ export interface WebGLStyleGetters {
   getShape: (point: PlotDataPoint) => string;
 }
 
+export interface ColumnarStyleGetters {
+  getColors: (pointIndex: number) => string[];
+  getPointSize: (pointIndex: number) => number;
+  getOpacity: (pointIndex: number) => number;
+  getDepth: (pointIndex: number) => number;
+  getStrokeColor: (pointIndex: number) => string;
+  getStrokeWidth: (pointIndex: number) => number;
+  getShape: (pointIndex: number) => string;
+}
+
 export type ScalePair = {
   x: d3.ScaleLinear<number, number>;
   y: d3.ScaleLinear<number, number>;
