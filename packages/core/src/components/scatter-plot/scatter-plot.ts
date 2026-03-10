@@ -1758,6 +1758,10 @@ export class ProtspaceScatterplot extends LitElement {
     this._isolationMode = false;
     this.selectedProteinIds = [];
 
+    // Invalidate data ref so _processData takes the full rebuild path
+    // instead of the fast coordinate-only path (which would keep the filtered subset)
+    this._lastDataRef = null;
+
     // Process data and update rendering
     this._processData();
     this._buildQuadtree();
