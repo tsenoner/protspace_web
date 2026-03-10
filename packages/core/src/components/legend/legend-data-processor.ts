@@ -195,10 +195,7 @@ export class LegendDataProcessor {
         filtered = filtered.filter(([v]) => !isNAValue(v));
       }
       const sorted = filtered.sort(sortFn);
-      topItems = (isolationMode ? sorted.filter(([v]) => frequencyMap.has(v)) : sorted).slice(
-        0,
-        maxVisibleValues,
-      );
+      topItems = sorted.slice(0, maxVisibleValues);
     }
 
     // Items beyond the cap go to "Other" (excluding N/A which is handled separately)

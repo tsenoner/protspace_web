@@ -500,7 +500,9 @@ export class ProtspaceLegend extends LitElement {
       changedProperties.has('annotationValues') ||
       changedProperties.has('proteinIds') ||
       changedProperties.has('maxVisibleValues') ||
-      changedProperties.has('includeShapes')
+      changedProperties.has('includeShapes') ||
+      changedProperties.has('isolationMode') ||
+      changedProperties.has('isolationHistory')
     ) {
       this._rebuildLegendItems();
     }
@@ -620,6 +622,7 @@ export class ProtspaceLegend extends LitElement {
     // Reset isolation state
     this.isolationMode = false;
     this.isolationHistory = [];
+    this._preIsolationVisibleValues = new Set();
 
     // Clear data properties
     this.data = null;
