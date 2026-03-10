@@ -402,7 +402,7 @@ describe('legend-data-processor', () => {
         ['category1', 10],
         ['category2', 5],
       ];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, false, [], false);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, [], false);
       expect(items).toHaveLength(2);
       expect(items[0].value).toBe('category1');
       expect(items[0].count).toBe(10);
@@ -413,14 +413,15 @@ describe('legend-data-processor', () => {
 
     it('adds Other item when otherCount > 0', () => {
       const topItems: Array<[string, number]> = [['category1', 10]];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, false, [], false);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, [], false);
       expect(items.some((i) => i.value === 'Other')).toBe(true);
     });
 
-    it('does not add Other item in isolation mode', () => {
+    it('adds Other item in isolation mode when otherCount > 0', () => {
       const topItems: Array<[string, number]> = [['category1', 10]];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, true, [], false);
-      expect(items.some((i) => i.value === 'Other')).toBe(false);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, [], false);
+      expect(items.some((i) => i.value === 'Other')).toBe(true);
+      expect(items.find((i) => i.value === 'Other')?.count).toBe(5);
     });
 
     it('preserves existing z-order in manual mode', () => {
@@ -443,7 +444,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'manual',
@@ -472,7 +472,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'size-desc',
@@ -512,7 +511,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'manual-reverse',
@@ -528,7 +526,7 @@ describe('legend-data-processor', () => {
         ['category1', 10],
         ['category2', 5],
       ];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, false, [], true);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, [], true);
       const shapes = new Set(items.map((i) => i.shape));
       expect(shapes.size).toBeGreaterThan(1);
     });
@@ -546,7 +544,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -576,7 +573,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'size-desc',
@@ -595,7 +591,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -621,7 +616,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'size-desc',
@@ -644,7 +638,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         true,
         'size-desc',
@@ -669,7 +662,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -696,7 +688,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'size-desc',
@@ -722,7 +713,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         true, // shapesEnabled = true
         'size-desc',
@@ -752,7 +742,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'size-desc',
@@ -771,7 +760,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -798,7 +786,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -830,7 +817,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -860,7 +846,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         true, // shapesEnabled
         'size-desc',
@@ -888,7 +873,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         true, // shapesEnabled
         'size-desc',
@@ -915,7 +899,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false, // shapesEnabled = false
         'size-desc',
@@ -1011,6 +994,28 @@ describe('legend-data-processor', () => {
       );
       // Only p1 and p3 are in isolation, both have value 'a'
       expect(result.legendItems.find((i) => i.value === 'a')?.count).toBe(2);
+    });
+
+    it('preserves Other category during isolation mode', () => {
+      // 7 unique values but maxVisibleValues=3 → 4 overflow into Other
+      const values = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+      const proteinIds = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'];
+      const result = LegendDataProcessor.processLegendItems(
+        ctx,
+        'annotation1',
+        values,
+        proteinIds,
+        3,
+        true,
+        [proteinIds], // all proteins in isolation history
+        [],
+        'size-desc',
+        false,
+      );
+      // Should still have Other with the 4 overflow items
+      expect(result.legendItems.some((i) => i.value === 'Other')).toBe(true);
+      expect(result.legendItems.find((i) => i.value === 'Other')?.count).toBe(4);
+      expect(result.otherItems.length).toBe(4);
     });
 
     it('preserves existing z-order across processing in manual mode', () => {

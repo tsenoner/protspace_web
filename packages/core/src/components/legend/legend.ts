@@ -120,6 +120,7 @@ export class ProtspaceLegend extends LitElement {
   @state() private _hiddenValues: string[] = [];
   @state() private _annotationSortModes: Record<string, LegendSortMode> = {};
   @state() private _showOtherDialog = false;
+  private _preIsolationVisibleValues: Set<string> = new Set();
   @state() private _showSettingsDialog = false;
   @state() private _statusMessage = '';
   @state() private _colorPickerItem: string | null = null;
@@ -660,6 +661,12 @@ export class ProtspaceLegend extends LitElement {
 
     // Sync isolation state
     const { isolationMode, isolationHistory } = this._scatterplotController.getIsolationState();
+
+    // Save visible values before entering isolation so "Other" items stay grouped
+    if (isolationMode && !this.isolationMode) {
+      this._preIsolationVisibleValues = this._visibleValues;
+    }
+
     this.isolationMode = isolationMode;
     this.isolationHistory = isolationHistory;
   }
@@ -745,8 +752,9 @@ export class ProtspaceLegend extends LitElement {
       // When none of these apply (true initial load), use empty set so maxVisibleValues is respected.
       const hasPendingOps = pendingExtract !== undefined || pendingMerge !== undefined;
       const hasExistingItems = this._legendItems.some((i) => i.value !== LEGEND_VALUES.OTHER);
-      const visibleValues =
-        this._persistenceController.hasPersistedSettings() || hasPendingOps || hasExistingItems
+      const visibleValues = this.isolationMode
+        ? this._preIsolationVisibleValues
+        : this._persistenceController.hasPersistedSettings() || hasPendingOps || hasExistingItems
           ? this._visibleValues
           : new Set<string>();
 
