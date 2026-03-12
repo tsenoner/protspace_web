@@ -68,18 +68,6 @@ function findStorageKeysByHash(datasetHash: string): string[] {
 }
 
 /**
- * Check if localStorage has any entries for a specific dataset hash.
- * Used to distinguish first-ever loads from reloads where settings already exist.
- */
-export function hasStorageItemsForHash(datasetHash: string): boolean {
-  try {
-    return findStorageKeysByHash(datasetHash).length > 0;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Remove all localStorage entries for a specific dataset hash.
  * This is used when importing a parquetbundle with settings to ensure
  * the imported settings are the only source of truth.
