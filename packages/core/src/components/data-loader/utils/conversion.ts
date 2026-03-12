@@ -25,31 +25,20 @@ function getIdColumnsSet(proteinIdCol: string): Set<string> {
 /** Keys to exclude when building metadata */
 const METADATA_EXCLUDED_KEYS = new Set(['projection_name', 'name', 'info_json']);
 
-/** Known ECO evidence codes, priority-ordered */
-const KNOWN_EVIDENCE_CODES = new Set([
-  'EXP',
-  'HDA',
-  'IDA',
-  'TAS',
-  'NAS',
-  'IC',
-  'ISS',
-  'SAM',
-  'COMB',
-  'IMP',
-  'IEA',
-]);
+/** Match GO/ECO evidence codes: 2–5 uppercase letters OR ECO:NNNNNNN */
+const EVIDENCE_CODE_RE = /^(?:[A-Z]{2,5}|ECO:\d+)$/;
 
 /**
  * Parse an annotation value that may contain a pipe-separated score or evidence code suffix.
  * Format: `label|score`, `label|score1,score2,...`, or `label|EVIDENCE_CODE`
  * If the part after the last `|` is numeric → scores.
- * If it matches a known evidence code → evidence.
+ * If it matches an evidence code pattern (2–5 uppercase letters or ECO:digits) → evidence.
  * Otherwise the full string is kept as the label.
  * Examples:
  *   "PF00001 (7tm_1)|1.5e-10"       → { label: "PF00001 (7tm_1)", scores: [1.5e-10], evidence: null }
  *   "PF00001|1.5e-10,2.3e-5"        → { label: "PF00001", scores: [1.5e-10, 2.3e-5], evidence: null }
  *   "Cytoplasm|EXP"                  → { label: "Cytoplasm", scores: [], evidence: "EXP" }
+ *   "Cytoplasm|ECO:0000269"          → { label: "Cytoplasm", scores: [], evidence: "ECO:0000269" }
  *   "GO:0005524|ATP binding"         → { label: "GO:0005524|ATP binding", scores: [], evidence: null }
  *   "taxonomy_value"                 → { label: "taxonomy_value", scores: [], evidence: null }
  */
@@ -66,8 +55,8 @@ export const parseAnnotationValue = (
 
   const suffix = trimmed.substring(lastPipe + 1).trim();
 
-  // Check for known evidence code
-  if (KNOWN_EVIDENCE_CODES.has(suffix)) {
+  // Check for evidence code pattern (2–5 uppercase letters or ECO:digits)
+  if (EVIDENCE_CODE_RE.test(suffix)) {
     const label = trimmed.substring(0, lastPipe).trim();
     return { label, scores: [], evidence: suffix };
   }
