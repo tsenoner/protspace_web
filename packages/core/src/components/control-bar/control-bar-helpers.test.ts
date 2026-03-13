@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   EXPORT_DEFAULTS,
+  createDefaultExportOptions,
   calculateHeightFromWidth,
   calculateWidthFromHeight,
   isProjection3D,
@@ -55,6 +56,18 @@ describe('control-bar-helpers', () => {
 
       requiredKeys.forEach((key) => {
         expect(EXPORT_DEFAULTS).toHaveProperty(key);
+      });
+    });
+
+    it('creates default export options including parquet toggles', () => {
+      expect(createDefaultExportOptions()).toEqual({
+        imageWidth: EXPORT_DEFAULTS.IMAGE_WIDTH,
+        imageHeight: EXPORT_DEFAULTS.IMAGE_HEIGHT,
+        lockAspectRatio: EXPORT_DEFAULTS.LOCK_ASPECT_RATIO,
+        legendWidthPercent: EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT,
+        legendFontSizePx: EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX,
+        includeLegendSettings: true,
+        includeExportOptions: true,
       });
     });
 

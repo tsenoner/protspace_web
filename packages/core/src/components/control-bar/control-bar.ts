@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { controlBarStyles } from './control-bar.styles';
+import type { ExportOptionsMap, PersistedExportOptions } from '@protspace/utils';
 import type {
   DataChangeDetail,
   ProtspaceData,
@@ -13,6 +14,7 @@ import { toInternalValue } from '../legend/config';
 import { handleDropdownEscape, isAnyDropdownOpen } from '../../utils/dropdown-helpers';
 import {
   EXPORT_DEFAULTS,
+  createDefaultExportOptions,
   calculateHeightFromWidth,
   calculateWidthFromHeight,
   isProjection3D,
@@ -20,6 +22,7 @@ import {
   toggleProteinSelection,
   mergeProteinSelections,
 } from './control-bar-helpers';
+import { ExportPersistenceController } from './export-persistence-controller';
 import './search';
 import './annotation-select';
 
@@ -77,8 +80,13 @@ export class ProtspaceControlBar extends LitElement {
   @state() private exportLegendWidthPercent: number = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
   @state() private exportLegendFontSizePx: number = EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX;
   @state() private exportLockAspectRatio: boolean = EXPORT_DEFAULTS.LOCK_ASPECT_RATIO;
-  @state() private exportIncludeSettings: boolean = true;
+  @state() private exportIncludeLegendSettings: boolean = true;
+  @state() private exportIncludeExportOptions: boolean = true;
   private _scatterplotElement: ScatterplotElementLike | null = null;
+  private _exportPersistence = new ExportPersistenceController({
+    onSettingsLoaded: (settings) => this._applyPersistedExportSettings(settings),
+    getCurrentSettings: () => this._getCurrentExportSettings(),
+  });
 
   // Search state
   @state() private allProteinIds: string[] = [];
@@ -283,13 +291,20 @@ export class ProtspaceControlBar extends LitElement {
 
   private handleAnnotationSelected(event: CustomEvent<{ annotation: string }>) {
     const annotation = event.detail.annotation;
+    if (annotation !== this.selectedAnnotation) {
+      this.selectedAnnotation = annotation;
+      this._exportPersistence.updateSelectedAnnotation(annotation);
+      this._exportPersistence.loadSettings();
+    }
+
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
       if ('selectedAnnotation' in this._scatterplotElement) {
         (this._scatterplotElement as ScatterplotElementLike).selectedAnnotation = annotation;
-        this.selectedAnnotation = annotation;
       }
     }
+
+    this.selectedAnnotation = annotation;
 
     const customEvent = new CustomEvent('annotation-change', {
       detail: { annotation },
@@ -388,7 +403,8 @@ export class ProtspaceControlBar extends LitElement {
         imageHeight: this.exportImageHeight,
         legendWidthPercent: this.exportLegendWidthPercent,
         legendFontSizePx: this.exportLegendFontSizePx,
-        includeSettings: this.exportIncludeSettings,
+        includeLegendSettings: this.exportIncludeLegendSettings,
+        includeExportOptions: this.exportIncludeExportOptions,
       },
       bubbles: true,
       composed: true,
@@ -430,31 +446,39 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private resetExportSettings() {
-    const defaults = EXPORT_DEFAULTS;
-    this.exportImageWidth = defaults.IMAGE_WIDTH;
-    this.exportImageHeight = defaults.IMAGE_HEIGHT;
-    this.exportLegendWidthPercent = defaults.LEGEND_WIDTH_PERCENT;
-    this.exportLegendFontSizePx = defaults.LEGEND_FONT_SIZE_PX;
-    this.exportLockAspectRatio = defaults.LOCK_ASPECT_RATIO;
-    this.exportIncludeSettings = true;
+    this._applyUserExportSettingsChange(() => {
+      this._applyPersistedExportSettings(createDefaultExportOptions());
+    });
   }
 
   private handleWidthChange(newWidth: number) {
-    const oldWidth = this.exportImageWidth;
-    this.exportImageWidth = newWidth;
+    this._applyUserExportSettingsChange(() => {
+      const oldWidth = this.exportImageWidth;
+      this.exportImageWidth = newWidth;
 
-    if (this.exportLockAspectRatio) {
-      this.exportImageHeight = calculateHeightFromWidth(newWidth, oldWidth, this.exportImageHeight);
-    }
+      if (this.exportLockAspectRatio) {
+        this.exportImageHeight = calculateHeightFromWidth(
+          newWidth,
+          oldWidth,
+          this.exportImageHeight,
+        );
+      }
+    });
   }
 
   private handleHeightChange(newHeight: number) {
-    const oldHeight = this.exportImageHeight;
-    this.exportImageHeight = newHeight;
+    this._applyUserExportSettingsChange(() => {
+      const oldHeight = this.exportImageHeight;
+      this.exportImageHeight = newHeight;
 
-    if (this.exportLockAspectRatio) {
-      this.exportImageWidth = calculateWidthFromHeight(newHeight, oldHeight, this.exportImageWidth);
-    }
+      if (this.exportLockAspectRatio) {
+        this.exportImageWidth = calculateWidthFromHeight(
+          newHeight,
+          oldHeight,
+          this.exportImageWidth,
+        );
+      }
+    });
   }
 
   /**
@@ -481,6 +505,70 @@ export class ProtspaceControlBar extends LitElement {
       setter(max);
     } else {
       setter(value);
+    }
+  }
+
+  public getAllPersistedExportOptions(): ExportOptionsMap {
+    return this._exportPersistence.getAllSettingsForExport(this.annotations);
+  }
+
+  public setFileSettings(
+    settings: ExportOptionsMap | null,
+    datasetHash?: string,
+    clearExistingStorage: boolean = true,
+  ): void {
+    this._exportPersistence.setFileSettings(settings, datasetHash, clearExistingStorage);
+
+    if (settings?.[this.selectedAnnotation]) {
+      this._exportPersistence.loadSettings();
+    }
+  }
+
+  public clearForNewDataset(datasetHash: string): void {
+    this._exportPersistence.clearForNewDataset(datasetHash);
+    this._applyPersistedExportSettings(createDefaultExportOptions());
+    this.exportFormat = EXPORT_DEFAULTS.FORMAT;
+  }
+
+  private _getCurrentExportSettings(): PersistedExportOptions {
+    return {
+      imageWidth: this.exportImageWidth,
+      imageHeight: this.exportImageHeight,
+      lockAspectRatio: this.exportLockAspectRatio,
+      legendWidthPercent: this.exportLegendWidthPercent,
+      legendFontSizePx: this.exportLegendFontSizePx,
+      includeLegendSettings: this.exportIncludeLegendSettings,
+      includeExportOptions: this.exportIncludeExportOptions,
+    };
+  }
+
+  private _applyPersistedExportSettings(settings: PersistedExportOptions): void {
+    this.exportImageWidth = settings.imageWidth;
+    this.exportImageHeight = settings.imageHeight;
+    this.exportLockAspectRatio = settings.lockAspectRatio;
+    this.exportLegendWidthPercent = settings.legendWidthPercent;
+    this.exportLegendFontSizePx = settings.legendFontSizePx;
+    this.exportIncludeLegendSettings = settings.includeLegendSettings;
+    this.exportIncludeExportOptions = settings.includeExportOptions;
+  }
+
+  private _applyUserExportSettingsChange(update: () => void): void {
+    update();
+    this._exportPersistence.saveSettings();
+  }
+
+  private _syncExportPersistenceFromData(data: ProtspaceData): void {
+    const proteinIds = Array.isArray(data.protein_ids) ? data.protein_ids : [];
+    const hashChanged = this._exportPersistence.updateDatasetHash(proteinIds);
+
+    const annotationChanged = this._exportPersistence.updateSelectedAnnotation(
+      this.selectedAnnotation,
+    );
+    if (
+      (hashChanged || annotationChanged || !this._exportPersistence.settingsLoaded) &&
+      this.selectedAnnotation
+    ) {
+      this._exportPersistence.loadSettings();
     }
   }
 
@@ -938,18 +1026,35 @@ export class ProtspaceControlBar extends LitElement {
                                   <input
                                     type="checkbox"
                                     class="export-checkbox"
-                                    .checked=${this.exportIncludeSettings}
+                                    .checked=${this.exportIncludeLegendSettings}
                                     @change=${(e: Event) => {
-                                      this.exportIncludeSettings = (
-                                        e.target as HTMLInputElement
-                                      ).checked;
+                                      this._applyUserExportSettingsChange(() => {
+                                        this.exportIncludeLegendSettings = (
+                                          e.target as HTMLInputElement
+                                        ).checked;
+                                      });
                                     }}
                                   />
                                   <span>Include legend settings</span>
                                 </label>
+                                <label class="export-checkbox-label">
+                                  <input
+                                    type="checkbox"
+                                    class="export-checkbox"
+                                    .checked=${this.exportIncludeExportOptions}
+                                    @change=${(e: Event) => {
+                                      this._applyUserExportSettingsChange(() => {
+                                        this.exportIncludeExportOptions = (
+                                          e.target as HTMLInputElement
+                                        ).checked;
+                                      });
+                                    }}
+                                  />
+                                  <span>Include export options settings</span>
+                                </label>
                                 <div class="export-parquet-help">
-                                  Legend customizations (colors, order, visibility) will be saved in
-                                  the file and restored when loading.
+                                  Legend customizations and remembered export dimensions can be
+                                  saved in the file and restored when loading.
                                 </div>
                               </div>
                             `
@@ -1059,9 +1164,11 @@ export class ProtspaceControlBar extends LitElement {
                                     class="export-checkbox"
                                     .checked=${this.exportLockAspectRatio}
                                     @change=${(e: Event) => {
-                                      this.exportLockAspectRatio = (
-                                        e.target as HTMLInputElement
-                                      ).checked;
+                                      this._applyUserExportSettingsChange(() => {
+                                        this.exportLockAspectRatio = (
+                                          e.target as HTMLInputElement
+                                        ).checked;
+                                      });
                                     }}
                                   />
                                   <span>Lock aspect ratio</span>
@@ -1084,15 +1191,20 @@ export class ProtspaceControlBar extends LitElement {
                                           (e.target as HTMLInputElement).value,
                                         );
                                         if (!isNaN(value)) {
-                                          this.exportLegendWidthPercent = this.clamp(value, 15, 50);
+                                          this._applyUserExportSettingsChange(() => {
+                                            this.exportLegendWidthPercent = this.clamp(
+                                              value,
+                                              15,
+                                              50,
+                                            );
+                                          });
                                         }
                                       }}
                                       @blur=${(e: Event) =>
-                                        this.handleNumberInputBlur(
-                                          e,
-                                          15,
-                                          50,
-                                          (v) => (this.exportLegendWidthPercent = v),
+                                        this.handleNumberInputBlur(e, 15, 50, (v) =>
+                                          this._applyUserExportSettingsChange(() => {
+                                            this.exportLegendWidthPercent = v;
+                                          }),
                                         )}
                                     />
                                     <span class="export-option-value-unit">%</span>
@@ -1107,9 +1219,11 @@ export class ProtspaceControlBar extends LitElement {
                                   step="1"
                                   .value=${String(this.exportLegendWidthPercent)}
                                   @input=${(e: Event) => {
-                                    this.exportLegendWidthPercent = parseInt(
-                                      (e.target as HTMLInputElement).value,
-                                    );
+                                    this._applyUserExportSettingsChange(() => {
+                                      this.exportLegendWidthPercent = parseInt(
+                                        (e.target as HTMLInputElement).value,
+                                      );
+                                    });
                                   }}
                                 />
                                 <div class="export-slider-labels">
@@ -1134,11 +1248,13 @@ export class ProtspaceControlBar extends LitElement {
                                           (e.target as HTMLInputElement).value,
                                         );
                                         if (!isNaN(value)) {
-                                          this.exportLegendFontSizePx = this.clamp(
-                                            value,
-                                            EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
-                                            EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
-                                          );
+                                          this._applyUserExportSettingsChange(() => {
+                                            this.exportLegendFontSizePx = this.clamp(
+                                              value,
+                                              EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
+                                              EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
+                                            );
+                                          });
                                         }
                                       }}
                                       @blur=${(e: Event) =>
@@ -1146,7 +1262,10 @@ export class ProtspaceControlBar extends LitElement {
                                           e,
                                           EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
                                           EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
-                                          (v) => (this.exportLegendFontSizePx = v),
+                                          (v) =>
+                                            this._applyUserExportSettingsChange(() => {
+                                              this.exportLegendFontSizePx = v;
+                                            }),
                                         )}
                                     />
                                     <span class="export-option-value-unit">px</span>
@@ -1161,9 +1280,11 @@ export class ProtspaceControlBar extends LitElement {
                                   step="1"
                                   .value=${String(this.exportLegendFontSizePx)}
                                   @input=${(e: Event) => {
-                                    this.exportLegendFontSizePx = parseInt(
-                                      (e.target as HTMLInputElement).value,
-                                    );
+                                    this._applyUserExportSettingsChange(() => {
+                                      this.exportLegendFontSizePx = parseInt(
+                                        (e.target as HTMLInputElement).value,
+                                      );
+                                    });
                                   }}
                                 />
                                 <div class="export-slider-labels">
@@ -1425,6 +1546,8 @@ export class ProtspaceControlBar extends LitElement {
     } catch (e) {
       console.error(e);
     }
+
+    this._syncExportPersistenceFromData(data);
     this.requestUpdate();
   }
 
@@ -1625,6 +1748,7 @@ export class ProtspaceControlBar extends LitElement {
           this.selectedAnnotation = this.annotations[0];
         }
 
+        this._syncExportPersistenceFromData(data);
         this.requestUpdate();
       }
     }

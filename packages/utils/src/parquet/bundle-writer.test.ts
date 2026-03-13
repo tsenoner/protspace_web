@@ -45,29 +45,31 @@ const createMockVisualizationData = (): VisualizationData => ({
 });
 
 const createMockSettings = (): BundleSettings => ({
-  organism: {
-    maxVisibleValues: 10,
-    includeShapes: true,
-    shapeSize: 24,
-    sortMode: 'size-desc',
-    hiddenValues: [],
-    categories: {
-      human: { zOrder: 0, color: '#ff0000', shape: 'circle' },
-      mouse: { zOrder: 1, color: '#00ff00', shape: 'square' },
+  legendSettings: {
+    organism: {
+      maxVisibleValues: 10,
+      includeShapes: true,
+      shapeSize: 24,
+      sortMode: 'size-desc',
+      hiddenValues: [],
+      categories: {
+        human: { zOrder: 0, color: '#ff0000', shape: 'circle' },
+        mouse: { zOrder: 1, color: '#00ff00', shape: 'square' },
+      },
+      enableDuplicateStackUI: false,
+      selectedPaletteId: 'kellys',
     },
-    enableDuplicateStackUI: false,
   },
-  family: {
-    maxVisibleValues: 15,
-    includeShapes: false,
-    shapeSize: 20,
-    sortMode: 'alpha-asc',
-    hiddenValues: ['kinase'],
-    categories: {
-      kinase: { zOrder: 1, color: '#0000ff', shape: 'diamond' },
-      protease: { zOrder: 0, color: '#ffff00', shape: 'triangle-up' },
+  exportOptions: {
+    organism: {
+      imageWidth: 2048,
+      imageHeight: 1024,
+      lockAspectRatio: true,
+      legendWidthPercent: 25,
+      legendFontSizePx: 24,
+      includeLegendSettings: true,
+      includeExportOptions: true,
     },
-    enableDuplicateStackUI: true,
   },
 });
 
@@ -123,7 +125,7 @@ describe('bundle-writer', () => {
 
       const buffer = createParquetBundle(data, {
         includeSettings: true,
-        settings: {},
+        settings: { legendSettings: {}, exportOptions: {} },
       });
 
       const uint8Array = new Uint8Array(buffer);

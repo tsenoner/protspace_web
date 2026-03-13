@@ -1,4 +1,13 @@
-import type { LegendPersistedSettings, PersistedCategoryData, LegendSortMode } from '../types';
+import type {
+  BundleSettings,
+  ExportOptionsMap,
+  LegacyBundleSettings,
+  LegendPersistedSettings,
+  LegendSettingsMap,
+  PersistedCategoryData,
+  PersistedExportOptions,
+  LegendSortMode,
+} from '../types';
 
 /**
  * Valid sort mode values for legend persistence.
@@ -70,22 +79,98 @@ export function isValidLegendSettings(obj: unknown): obj is LegendPersistedSetti
 }
 
 /**
- * Validates a BundleSettings object (annotation name -> legend settings map).
- * Returns true if all values are valid LegendPersistedSettings.
+ * Validates that a value is a valid PersistedExportOptions object.
  */
-export function isValidBundleSettings(
+export function isValidPersistedExportOptions(obj: unknown): obj is PersistedExportOptions {
+  if (typeof obj !== 'object' || obj === null) return false;
+
+  const settings = obj as Record<string, unknown>;
+  return (
+    typeof settings.imageWidth === 'number' &&
+    typeof settings.imageHeight === 'number' &&
+    typeof settings.lockAspectRatio === 'boolean' &&
+    typeof settings.legendWidthPercent === 'number' &&
+    typeof settings.legendFontSizePx === 'number' &&
+    typeof settings.includeLegendSettings === 'boolean' &&
+    typeof settings.includeExportOptions === 'boolean'
+  );
+}
+
+function isValidSettingsMap<Value>(
   obj: unknown,
-): obj is Record<string, LegendPersistedSettings> {
+  validator: (value: unknown) => value is Value,
+): obj is Record<string, Value> {
   if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
     return false;
   }
 
-  const settings = obj as Record<string, unknown>;
-  for (const key of Object.keys(settings)) {
-    if (!isValidLegendSettings(settings[key])) {
+  const values = obj as Record<string, unknown>;
+  for (const key of Object.keys(values)) {
+    if (!validator(values[key])) {
       return false;
     }
   }
 
   return true;
+}
+
+/**
+ * Validates a legend settings map (annotation -> legend settings).
+ */
+export function isValidLegendSettingsMap(obj: unknown): obj is LegendSettingsMap {
+  return isValidSettingsMap(obj, isValidLegendSettings);
+}
+
+/**
+ * Validates an export options map (annotation -> export options).
+ */
+export function isValidExportOptionsMap(obj: unknown): obj is ExportOptionsMap {
+  return isValidSettingsMap(obj, isValidPersistedExportOptions);
+}
+
+/**
+ * Detects the legacy bundle settings format that stored only legend settings.
+ */
+export function isLegacyBundleSettings(obj: unknown): obj is LegacyBundleSettings {
+  return isValidLegendSettingsMap(obj);
+}
+
+/**
+ * Validates the current normalized bundle settings object.
+ */
+export function isNormalizedBundleSettings(obj: unknown): obj is BundleSettings {
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
+    return false;
+  }
+
+  const settings = obj as Record<string, unknown>;
+  return (
+    isValidLegendSettingsMap(settings.legendSettings) &&
+    isValidExportOptionsMap(settings.exportOptions)
+  );
+}
+
+/**
+ * Validates bundle settings in either the current or legacy format.
+ */
+export function isValidBundleSettings(obj: unknown): obj is BundleSettings | LegacyBundleSettings {
+  return isNormalizedBundleSettings(obj) || isLegacyBundleSettings(obj);
+}
+
+/**
+ * Normalize bundle settings to the current format.
+ */
+export function normalizeBundleSettings(obj: unknown): BundleSettings | null {
+  if (isNormalizedBundleSettings(obj)) {
+    return obj;
+  }
+
+  if (isLegacyBundleSettings(obj)) {
+    return {
+      legendSettings: obj,
+      exportOptions: {},
+    };
+  }
+
+  return null;
 }

@@ -2,7 +2,7 @@ import { parquetReadObjects } from 'hyparquet';
 import {
   BUNDLE_DELIMITER_BYTES,
   findBundleDelimiterPositions,
-  isValidBundleSettings,
+  normalizeBundleSettings,
   type BundleSettings,
 } from '@protspace/utils';
 import type { Rows, GenericRow } from './types';
@@ -118,14 +118,14 @@ async function extractSettings(settingsBuffer: ArrayBuffer): Promise<BundleSetti
     }
 
     const parsed = JSON.parse(settingsJson);
+    const normalized = normalizeBundleSettings(parsed);
 
-    // Validate structure using schema validation
-    if (!isValidBundleSettings(parsed)) {
+    if (!normalized) {
       console.warn('Settings JSON does not match expected schema, using defaults');
       return null;
     }
 
-    return parsed;
+    return normalized;
   } catch (error) {
     console.warn('Failed to parse settings from bundle, using defaults:', error);
     return null;
