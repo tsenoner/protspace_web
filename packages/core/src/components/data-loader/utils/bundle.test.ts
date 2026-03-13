@@ -137,98 +137,117 @@ describe('bundle utilities', () => {
 describe('BundleSettings type', () => {
   it('should have correct structure', () => {
     const settings: BundleSettings = {
-      organism: {
-        maxVisibleValues: 10,
-        includeShapes: true,
-        shapeSize: 24,
-        sortMode: 'size-desc',
-        hiddenValues: ['unknown'],
-        categories: {
-          human: { zOrder: 0, color: '#ff0000', shape: 'circle' },
+      legendSettings: {
+        organism: {
+          maxVisibleValues: 10,
+          includeShapes: true,
+          shapeSize: 24,
+          sortMode: 'size-desc',
+          hiddenValues: ['unknown'],
+          categories: {
+            human: { zOrder: 0, color: '#ff0000', shape: 'circle' },
+          },
+          enableDuplicateStackUI: false,
+          selectedPaletteId: 'kellys',
         },
-        enableDuplicateStackUI: false,
-        selectedPaletteId: 'kellys',
+      },
+      exportOptions: {
+        organism: {
+          imageWidth: 2048,
+          imageHeight: 1024,
+          lockAspectRatio: true,
+          legendWidthPercent: 25,
+          legendFontSizePx: 24,
+          includeLegendSettings: true,
+          includeExportOptions: true,
+        },
       },
     };
 
-    expect(settings.organism.maxVisibleValues).toBe(10);
-    expect(settings.organism.sortMode).toBe('size-desc');
-    expect(settings.organism.categories.human.color).toBe('#ff0000');
+    expect(settings.legendSettings.organism.maxVisibleValues).toBe(10);
+    expect(settings.legendSettings.organism.sortMode).toBe('size-desc');
+    expect(settings.legendSettings.organism.categories.human.color).toBe('#ff0000');
+    expect(settings.exportOptions.organism.imageWidth).toBe(2048);
   });
 
-  it('should accept settings with empty categories', () => {
+  it('should accept settings with empty maps', () => {
     const settings: BundleSettings = {
-      organism: {
-        maxVisibleValues: 10,
-        includeShapes: true,
-        shapeSize: 24,
-        sortMode: 'size-desc',
-        hiddenValues: [],
-        categories: {},
-        enableDuplicateStackUI: false,
-        selectedPaletteId: 'kellys',
-      },
+      legendSettings: {},
+      exportOptions: {},
     };
 
-    expect(Object.keys(settings.organism.categories)).toHaveLength(0);
-    expect(settings.organism.hiddenValues).toHaveLength(0);
+    expect(Object.keys(settings.legendSettings)).toHaveLength(0);
+    expect(Object.keys(settings.exportOptions)).toHaveLength(0);
   });
 
   it('should accept settings with extra/unknown fields (forward compatibility)', () => {
     // This simulates loading settings from a newer version with additional fields
     const settingsWithExtras = {
-      organism: {
-        maxVisibleValues: 10,
-        includeShapes: true,
-        shapeSize: 24,
-        sortMode: 'size-desc',
-        hiddenValues: [],
-        categories: {},
-        enableDuplicateStackUI: false,
-        selectedPaletteId: 'kellys',
-        // Future fields that might be added
-        unknownField: 'some value',
-        futureFeature: { nested: true },
-        newOption: 42,
+      legendSettings: {
+        organism: {
+          maxVisibleValues: 10,
+          includeShapes: true,
+          shapeSize: 24,
+          sortMode: 'size-desc',
+          hiddenValues: [],
+          categories: {},
+          enableDuplicateStackUI: false,
+          selectedPaletteId: 'kellys',
+          unknownField: 'some value',
+        },
       },
+      exportOptions: {},
     };
 
     // Type-cast to BundleSettings - extra fields should be ignored
     const settings = settingsWithExtras as BundleSettings;
-    expect(settings.organism.maxVisibleValues).toBe(10);
-    expect(settings.organism.sortMode).toBe('size-desc');
+    expect(settings.legendSettings.organism.maxVisibleValues).toBe(10);
+    expect(settings.legendSettings.organism.sortMode).toBe('size-desc');
   });
 
   it('should work with multiple annotations', () => {
     const settings: BundleSettings = {
-      organism: {
-        maxVisibleValues: 10,
-        includeShapes: true,
-        shapeSize: 24,
-        sortMode: 'size-desc',
-        hiddenValues: ['unknown'],
-        categories: {
-          human: { zOrder: 0, color: '#ff0000', shape: 'circle' },
+      legendSettings: {
+        organism: {
+          maxVisibleValues: 10,
+          includeShapes: true,
+          shapeSize: 24,
+          sortMode: 'size-desc',
+          hiddenValues: ['unknown'],
+          categories: {
+            human: { zOrder: 0, color: '#ff0000', shape: 'circle' },
+          },
+          enableDuplicateStackUI: false,
+          selectedPaletteId: 'kellys',
         },
-        enableDuplicateStackUI: false,
-        selectedPaletteId: 'kellys',
+        family: {
+          maxVisibleValues: 5,
+          includeShapes: false,
+          shapeSize: 16,
+          sortMode: 'alpha-asc',
+          hiddenValues: [],
+          categories: {
+            kinase: { zOrder: 1, color: '#00ff00', shape: 'square' },
+            phosphatase: { zOrder: 0, color: '#0000ff', shape: 'diamond' },
+          },
+          enableDuplicateStackUI: true,
+          selectedPaletteId: 'kellys',
+        },
       },
-      family: {
-        maxVisibleValues: 5,
-        includeShapes: false,
-        shapeSize: 16,
-        sortMode: 'alpha-asc',
-        hiddenValues: [],
-        categories: {
-          kinase: { zOrder: 1, color: '#00ff00', shape: 'square' },
-          phosphatase: { zOrder: 0, color: '#0000ff', shape: 'diamond' },
+      exportOptions: {
+        organism: {
+          imageWidth: 2048,
+          imageHeight: 1024,
+          lockAspectRatio: true,
+          legendWidthPercent: 25,
+          legendFontSizePx: 24,
+          includeLegendSettings: true,
+          includeExportOptions: true,
         },
-        enableDuplicateStackUI: true,
-        selectedPaletteId: 'kellys',
       },
     };
 
-    expect(Object.keys(settings)).toHaveLength(2);
-    expect(settings.family.categories.kinase.color).toBe('#00ff00');
+    expect(Object.keys(settings.legendSettings)).toHaveLength(2);
+    expect(settings.legendSettings.family.categories.kinase.color).toBe('#00ff00');
   });
 });

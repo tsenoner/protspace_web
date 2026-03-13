@@ -573,6 +573,7 @@ export async function initializeDemo() {
       // Clear all component state before loading new data (skip on reload to preserve settings)
       if (!isReload && legendElement) {
         legendElement.clearForNewDataset(datasetHash);
+        controlBar.clearForNewDataset(datasetHash);
       }
 
       // Load the new data into all components
@@ -580,12 +581,16 @@ export async function initializeDemo() {
 
       // Apply file-based settings to legend if present (skip on reload to preserve user changes)
       if (!isReload && settings && legendElement) {
-        legendElement.setFileSettings(settings, datasetHash);
+        legendElement.setFileSettings(settings.legendSettings, datasetHash, true);
+        controlBar.setFileSettings(settings.exportOptions, datasetHash, false);
       }
 
       // Update control bar to indicate file has custom settings
       if (controlBar) {
-        controlBar.hasFileSettings = settings !== null;
+        controlBar.hasFileSettings =
+          settings !== null &&
+          (Object.keys(settings.legendSettings).length > 0 ||
+            Object.keys(settings.exportOptions).length > 0);
       }
     });
 
@@ -618,7 +623,8 @@ export async function initializeDemo() {
         imageHeight,
         legendWidthPercent,
         legendFontSizePx,
-        includeSettings,
+        includeLegendSettings,
+        includeExportOptions,
       } = customEvent.detail;
 
       try {
@@ -629,10 +635,13 @@ export async function initializeDemo() {
             throw new Error('No data available for export');
           }
 
-          // Get settings from legend if includeSettings is true
+          const includeSettings = includeLegendSettings || includeExportOptions;
           let settings: BundleSettings | undefined;
-          if (includeSettings && legendElement) {
-            settings = legendElement.getAllPersistedSettings();
+          if (includeSettings) {
+            settings = {
+              legendSettings: includeLegendSettings ? legendElement.getAllPersistedSettings() : {},
+              exportOptions: includeExportOptions ? controlBar.getAllPersistedExportOptions() : {},
+            };
           }
 
           const filename = generateBundleFilename(includeSettings);

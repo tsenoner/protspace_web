@@ -143,6 +143,17 @@ function createSettingsParquet(settings: BundleSettings): ArrayBuffer {
   return parquetWriteBuffer({ columnData });
 }
 
+function hasBundleSettings(settings: BundleSettings | undefined): settings is BundleSettings {
+  if (!settings) {
+    return false;
+  }
+
+  return (
+    Object.keys(settings.legendSettings).length > 0 ||
+    Object.keys(settings.exportOptions).length > 0
+  );
+}
+
 /**
  * Concatenate multiple ArrayBuffers with delimiters.
  */
@@ -174,9 +185,9 @@ function concatenateBuffers(buffers: ArrayBuffer[], delimiter: Uint8Array): Arra
 }
 
 export interface CreateBundleOptions {
-  /** Include legend settings in the bundle (4-part format) */
+  /** Include persisted settings in the bundle (4-part format) */
   includeSettings?: boolean;
-  /** Legend settings to include (required if includeSettings is true) */
+  /** Persisted settings to include (required if includeSettings is true) */
   settings?: BundleSettings;
 }
 
@@ -201,7 +212,7 @@ export function createParquetBundle(
   const buffers: ArrayBuffer[] = [annotationsBuffer, metadataBuffer, projectionsBuffer];
 
   // Optionally add settings as 4th part
-  if (includeSettings && settings && Object.keys(settings).length > 0) {
+  if (includeSettings && hasBundleSettings(settings)) {
     const settingsBuffer = createSettingsParquet(settings);
     buffers.push(settingsBuffer);
   }

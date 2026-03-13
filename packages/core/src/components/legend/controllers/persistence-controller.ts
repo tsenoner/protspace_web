@@ -6,7 +6,7 @@ import {
   setStorageItem,
   removeStorageItem,
   removeAllStorageItemsByHash,
-  type BundleSettings,
+  type LegendSettingsMap,
 } from '@protspace/utils';
 import type {
   LegendPersistedSettings,
@@ -51,7 +51,7 @@ export class PersistenceController implements ReactiveController {
    * File-based settings loaded from a parquetbundle.
    * These take priority over localStorage when present.
    */
-  private _fileSettings: BundleSettings | null = null;
+  private _fileSettings: LegendSettingsMap | null = null;
 
   /**
    * Track which annotations have had their file settings applied.
@@ -299,7 +299,11 @@ export class PersistenceController implements ReactiveController {
    * @param datasetHash - Optional dataset hash to use for localStorage keys (required when
    *                      the component's hash isn't yet computed from the new data)
    */
-  setFileSettings(settings: BundleSettings | null, datasetHash?: string): void {
+  setFileSettings(
+    settings: LegendSettingsMap | null,
+    datasetHash?: string,
+    clearExistingStorage: boolean = true,
+  ): void {
     this._fileSettings = settings;
     this._appliedFileAnnotations.clear();
 
@@ -308,7 +312,9 @@ export class PersistenceController implements ReactiveController {
     if (settings && hashToUse) {
       // Clear ALL existing settings for this hash before applying imported settings
       // This ensures the imported file is the single source of truth
-      removeAllStorageItemsByHash(hashToUse);
+      if (clearExistingStorage) {
+        removeAllStorageItemsByHash(hashToUse);
+      }
 
       // Persist all settings to localStorage so they're available for future exports
       for (const [annotationName, annotationSettings] of Object.entries(settings)) {
@@ -375,8 +381,8 @@ export class PersistenceController implements ReactiveController {
    * @param annotationNames - List of all available annotation names
    * @returns All persisted settings mapped by annotation name
    */
-  getAllSettingsForExport(annotationNames: string[]): BundleSettings {
-    const result: BundleSettings = {};
+  getAllSettingsForExport(annotationNames: string[]): LegendSettingsMap {
+    const result: LegendSettingsMap = {};
 
     // First, add the current annotation's settings (from live state)
     if (this._selectedAnnotation) {

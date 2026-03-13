@@ -65,6 +65,7 @@ describe('PersistenceController', () => {
         shapeSize: 16,
         sortMode: 'size-desc' as const,
         enableDuplicateStackUI: false,
+        selectedPaletteId: 'kellys',
       }),
     };
 
@@ -189,6 +190,7 @@ describe('PersistenceController', () => {
         shapeSize: 20,
         sortMode: 'alpha-asc' as const,
         enableDuplicateStackUI: true,
+        selectedPaletteId: 'kellys',
       });
 
       controller.saveSettings();
@@ -205,6 +207,7 @@ describe('PersistenceController', () => {
           [LEGEND_VALUES.NA_VALUE]: { zOrder: 1, color: '#888', shape: 'circle' },
         },
         enableDuplicateStackUI: true,
+        selectedPaletteId: 'kellys',
       });
     });
   });
@@ -584,6 +587,7 @@ describe('PersistenceController', () => {
           shapeSize: 20,
           sortMode: 'alpha-asc' as const,
           enableDuplicateStackUI: true,
+          selectedPaletteId: 'kellys',
         });
 
         const settings = controller.getCurrentSettingsForExport();
