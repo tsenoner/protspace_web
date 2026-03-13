@@ -98,21 +98,65 @@ describe('parseAnnotationValue', () => {
     expect(result.evidence).toBe('IDA');
   });
 
-  it('does not treat unknown codes as evidence', () => {
-    const result = parseAnnotationValue('value|UNKNOWN');
-    expect(result.label).toBe('value|UNKNOWN');
+  it('does not treat long unknown codes as evidence', () => {
+    const result = parseAnnotationValue('value|TOOLONG123');
+    expect(result.label).toBe('value|TOOLONG123');
     expect(result.scores).toEqual([]);
     expect(result.evidence).toBeNull();
   });
 
-  it('parses all known evidence codes', () => {
-    const codes = ['EXP', 'HDA', 'IDA', 'TAS', 'NAS', 'IC', 'ISS', 'SAM', 'COMB', 'IMP', 'IEA'];
+  it('does not treat single uppercase letter as evidence', () => {
+    const result = parseAnnotationValue('value|A');
+    expect(result.label).toBe('value|A');
+    expect(result.scores).toEqual([]);
+    expect(result.evidence).toBeNull();
+  });
+
+  it('parses all standard GO evidence codes', () => {
+    const codes = [
+      // Original 11
+      'EXP',
+      'HDA',
+      'IDA',
+      'TAS',
+      'NAS',
+      'IC',
+      'ISS',
+      'SAM',
+      'COMB',
+      'IMP',
+      'IEA',
+      // Additional GO evidence codes
+      'IPI',
+      'IGI',
+      'IEP',
+      'HTP',
+      'HMP',
+      'HGI',
+      'HEP',
+      'IBA',
+      'IBD',
+      'IKR',
+      'IRD',
+      'ISA',
+      'ISO',
+      'ISM',
+      'RCA',
+      'ND',
+    ];
     for (const code of codes) {
       const result = parseAnnotationValue(`some label|${code}`);
       expect(result.label).toBe('some label');
       expect(result.scores).toEqual([]);
       expect(result.evidence).toBe(code);
     }
+  });
+
+  it('parses raw ECO ID format as evidence', () => {
+    const result = parseAnnotationValue('Cytoplasm|ECO:0000269');
+    expect(result.label).toBe('Cytoplasm');
+    expect(result.scores).toEqual([]);
+    expect(result.evidence).toBe('ECO:0000269');
   });
 
   it('prefers numeric score over evidence code for numeric suffixes', () => {
