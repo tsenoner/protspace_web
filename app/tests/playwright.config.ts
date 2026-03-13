@@ -36,6 +36,14 @@ export default defineConfig({
       },
       testMatch: /product-tour\.spec\.ts/,
     },
+    {
+      name: 'dataset-reload',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /dataset-reload\.spec\.ts/,
+    },
   ],
 
   outputDir: '../test-results/',

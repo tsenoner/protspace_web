@@ -14,7 +14,6 @@ import {
   exportParquetBundle,
   generateBundleFilename,
   generateDatasetHash,
-  hasStorageItemsForHash,
 } from '@protspace/utils';
 import { maybeRunWebglPerfSuite } from './webgl-perf-suite';
 import { startProductTour } from '../tour/product-tour';
@@ -46,8 +45,6 @@ export async function initializeDemo() {
     // Track state
     let hiddenValues: string[] = [];
     let selectedProteins: string[] = [];
-    let selectionMode = false;
-    let isolationMode = false;
 
     // Performance monitoring
     const performanceMetrics = {
@@ -150,8 +147,6 @@ export async function initializeDemo() {
         // Reset all state
         hiddenValues = [];
         selectedProteins = [];
-        selectionMode = false;
-        isolationMode = false;
 
         // Update progress
         if (isLargeDataset) {
@@ -512,11 +507,6 @@ export async function initializeDemo() {
       updateLegend();
     });
 
-    // Handle selection mode toggle for local state
-    controlBar.addEventListener('toggle-selection-mode', () => {
-      selectionMode = plotElement.selectionMode; // Sync with scatterplot state
-    });
-
     // Handle data-change from scatterplot to sync selections
     plotElement.addEventListener('data-change', () => {
       // When data changes (e.g. after a split), the selection is often cleared.
@@ -561,17 +551,13 @@ export async function initializeDemo() {
     // Handle successful data loading
     dataLoader.addEventListener('data-loaded', async (event: Event) => {
       const customEvent = event as CustomEvent<DataLoadedEventDetail>;
-      const { data, settings, source } = customEvent.detail;
+      const { data, settings } = customEvent.detail;
 
       // Compute dataset hash upfront for clearing and settings
       const datasetHash = generateDatasetHash(data.protein_ids);
 
-      // On auto-load (page reload), skip clearing/overwriting if localStorage already has settings.
-      // On first-ever auto-load (no localStorage entries), treat as fresh load so file settings apply.
-      const isReload = source === 'auto' && hasStorageItemsForHash(datasetHash);
-
-      // Clear all component state before loading new data (skip on reload to preserve settings)
-      if (!isReload && legendElement) {
+      // Clear all component state before loading new data
+      if (legendElement) {
         legendElement.clearForNewDataset(datasetHash);
         controlBar.clearForNewDataset(datasetHash);
       }
@@ -579,8 +565,8 @@ export async function initializeDemo() {
       // Load the new data into all components
       await loadNewData(data);
 
-      // Apply file-based settings to legend if present (skip on reload to preserve user changes)
-      if (!isReload && settings && legendElement) {
+      // Apply file-based settings to legend/export options if present
+      if (settings && legendElement) {
         legendElement.setFileSettings(settings.legendSettings, datasetHash, true);
         controlBar.setFileSettings(settings.exportOptions, datasetHash, false);
       }
