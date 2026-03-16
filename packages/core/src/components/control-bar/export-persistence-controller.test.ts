@@ -163,4 +163,85 @@ describe('ExportPersistenceController', () => {
     expect(controller.hasFileSettings).toBe(false);
     expect(controller.settingsLoaded).toBe(false);
   });
+
+  describe('hasFileSettings getter', () => {
+    it('returns false initially', () => {
+      expect(controller.hasFileSettings).toBe(false);
+    });
+
+    it('returns true after setting file settings', () => {
+      controller.setFileSettings({ organism: createSettings() });
+      expect(controller.hasFileSettings).toBe(true);
+    });
+
+    it('returns false after clearing with null', () => {
+      controller.setFileSettings({ organism: createSettings() });
+      controller.setFileSettings(null);
+      expect(controller.hasFileSettings).toBe(false);
+    });
+
+    it('returns false after clearForNewDataset', () => {
+      controller.updateDatasetHash(['P1']);
+      controller.setFileSettings({ organism: createSettings() });
+      controller.clearForNewDataset('hash_NEW');
+      expect(controller.hasFileSettings).toBe(false);
+    });
+  });
+
+  it('getAllSettingsForExport with mixed annotations (some in storage, some not)', () => {
+    vi.mocked(callbacks.getCurrentSettings).mockReturnValue(createSettings({ imageWidth: 3000 }));
+    vi.mocked(getStorageItem).mockImplementation((key: string) => {
+      if (key === 'control-bar_hash_P1_family') {
+        return { legendFontSizePx: 36 };
+      }
+      if (key === 'control-bar_hash_P1_pathway') {
+        return {};
+      }
+      if (key === 'control-bar_hash_P1_taxonomy') {
+        return {};
+      }
+      return {};
+    });
+
+    controller.updateDatasetHash(['P1']);
+    controller.updateSelectedAnnotation('organism');
+
+    const result = controller.getAllSettingsForExport([
+      'organism',
+      'family',
+      'pathway',
+      'taxonomy',
+    ]);
+
+    // organism: live settings (current annotation)
+    expect(result.organism).toEqual(createSettings({ imageWidth: 3000 }));
+    // family: merged from localStorage
+    expect(result.family).toEqual(createSettings({ legendFontSizePx: 36 }));
+    // pathway & taxonomy: empty in storage, should be excluded
+    expect(result.pathway).toBeUndefined();
+    expect(result.taxonomy).toBeUndefined();
+  });
+
+  it('clearForNewDataset followed by setFileSettings works correctly', () => {
+    controller.updateDatasetHash(['P1']);
+    controller.updateSelectedAnnotation('organism');
+    controller.setFileSettings({ organism: createSettings({ imageWidth: 4096 }) });
+
+    controller.clearForNewDataset('hash_NEW');
+    vi.clearAllMocks();
+
+    // Start new dataset lifecycle
+    controller.updateDatasetHash(['P2']);
+    controller.updateSelectedAnnotation('family');
+    controller.setFileSettings({ family: createSettings({ legendFontSizePx: 48 }) }, 'hash_P2');
+
+    expect(removeAllStorageItemsByHash).toHaveBeenCalledWith('hash_P2');
+    expect(setStorageItem).toHaveBeenCalledWith(
+      'control-bar_hash_P2_family',
+      createSettings({ legendFontSizePx: 48 }),
+    );
+    expect(controller.hasFileSettings).toBe(true);
+    expect(controller.hasFileSettingsForAnnotation('family')).toBe(true);
+    expect(controller.hasFileSettingsForAnnotation('organism')).toBe(false);
+  });
 });

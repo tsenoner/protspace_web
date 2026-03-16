@@ -4,18 +4,22 @@ ProtSpace uses `.parquetbundle` files - a single file containing all visualizati
 
 ## What is a .parquetbundle?
 
-A `.parquetbundle` is a single file containing three Parquet tables bundled together:
+A `.parquetbundle` is a single file containing three Parquet tables bundled together, with an optional settings section:
 
 ```
 .parquetbundle file
-├── selected_annotations.parquet # Protein metadata and annotations
-├── ---PARQUET_DELIMITER---      # Separator
-├── projections_metadata.parquet # Projection method information
-├── ---PARQUET_DELIMITER---      # Separator
-└── projections_data.parquet     # 2D/3D coordinates
+├── selected_annotations.parquet  # Protein metadata and annotations
+├── ---PARQUET_DELIMITER---       # Separator
+├── projections_metadata.parquet  # Projection method information
+├── ---PARQUET_DELIMITER---       # Separator
+├── projections_data.parquet      # 2D/3D coordinates
+├── ---PARQUET_DELIMITER---       # Optional separator
+└── settings.json                 # Optional: legend + export settings
 ```
 
 This bundled format allows efficient loading in the browser while keeping everything in one convenient file.
+
+The optional `settings.json` section stores legend customizations (colors, shapes, ordering, visibility, palette) and export options (image dimensions, legend sizing) per annotation. When present, these settings are applied automatically on load so the visualization renders exactly as it was exported.
 
 ## Tables
 
