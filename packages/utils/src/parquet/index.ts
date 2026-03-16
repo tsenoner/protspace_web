@@ -23,14 +23,24 @@ export { sanitizeValue, bigIntReplacer } from './bigint-utils';
 export {
   isValidLegendSettings,
   isValidBundleSettings,
+  isNormalizedBundleSettings,
+  isLegacyBundleSettings,
   isValidPersistedCategoryData,
+  isValidPersistedExportOptions,
+  isValidLegendSettingsMap,
+  isValidExportOptionsMap,
   isValidSortMode,
+  normalizeBundleSettings,
 } from './settings-validation';
 
 // Types
 export type {
   BundleSettings,
+  ExportOptionsMap,
+  LegacyBundleSettings,
   LegendPersistedSettings,
+  LegendSettingsMap,
+  PersistedExportOptions,
   PersistedCategoryData,
   LegendSortMode,
 } from '../types';
