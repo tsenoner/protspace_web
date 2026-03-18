@@ -1,13 +1,5 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import {
-  generateDatasetHash,
-  buildStorageKey,
-  getStorageItem,
-  setStorageItem,
-  removeStorageItem,
-  removeAllStorageItemsByHash,
-  type LegendSettingsMap,
-} from '@protspace/utils';
+import { setStorageItem, removeStorageItem, type LegendSettingsMap } from '@protspace/utils';
 import type {
   LegendPersistedSettings,
   LegendItem,
@@ -16,6 +8,7 @@ import type {
 } from '../types';
 import { LEGEND_VALUES } from '../config';
 import { createDefaultSettings } from '../legend-helpers';
+import { BasePersistenceController } from '../../../controllers/base-persistence-controller';
 
 /**
  * Callback interface for persistence events
@@ -39,26 +32,16 @@ export interface PersistenceCallbacks {
  * Handles saving and loading legend settings per dataset/annotation combination.
  * Also supports file-based persistence for parquetbundle export/import.
  */
-export class PersistenceController implements ReactiveController {
+export class PersistenceController
+  extends BasePersistenceController<LegendPersistedSettings, LegendSettingsMap>
+  implements ReactiveController
+{
+  protected readonly storageKeyPrefix = 'legend';
   private callbacks: PersistenceCallbacks;
-
-  private _datasetHash: string = '';
-  private _selectedAnnotation: string = '';
-  private _settingsLoaded: boolean = false;
   private _pendingCategories: Record<string, PersistedCategoryData> = {};
 
-  /**
-   * File-based settings loaded from a parquetbundle.
-   * These take priority over localStorage when present.
-   */
-  private _fileSettings: LegendSettingsMap | null = null;
-
-  /**
-   * Track which annotations have had their file settings applied.
-   */
-  private _appliedFileAnnotations: Set<string> = new Set();
-
   constructor(host: ReactiveControllerHost, callbacks: PersistenceCallbacks) {
+    super();
     this.callbacks = callbacks;
     host.addController(this);
   }
@@ -71,43 +54,19 @@ export class PersistenceController implements ReactiveController {
     // No cleanup needed
   }
 
+  protected createDefaults(annotation: string): LegendPersistedSettings {
+    return createDefaultSettings(annotation);
+  }
+
+  protected override onClearForNewDataset(): void {
+    this._pendingCategories = {};
+  }
+
   /**
    * Get pending categories (to apply after legend items are created)
    */
   get pendingCategories(): Record<string, PersistedCategoryData> {
     return this._pendingCategories;
-  }
-
-  /**
-   * Check if settings have been loaded for current annotation
-   */
-  get settingsLoaded(): boolean {
-    return this._settingsLoaded;
-  }
-
-  /**
-   * Update dataset hash from protein IDs.
-   */
-  updateDatasetHash(proteinIds: string[]): boolean {
-    const newHash = generateDatasetHash(proteinIds);
-    if (newHash !== this._datasetHash) {
-      this._datasetHash = newHash;
-      this._settingsLoaded = false;
-      return true; // Hash changed
-    }
-    return false; // No change
-  }
-
-  /**
-   * Update selected annotation and reset settings loaded flag if changed
-   */
-  updateSelectedAnnotation(annotation: string): boolean {
-    if (annotation !== this._selectedAnnotation) {
-      this._selectedAnnotation = annotation;
-      this._settingsLoaded = false;
-      return true; // Annotation changed
-    }
-    return false; // No change
   }
 
   /**
@@ -117,31 +76,15 @@ export class PersistenceController implements ReactiveController {
   loadSettings(): void {
     if (!this._selectedAnnotation) return;
 
-    const defaultSettings = createDefaultSettings(this._selectedAnnotation);
+    const fileSettings = this.tryLoadFileSettings();
     let mergedSettings: LegendPersistedSettings;
 
-    // Check for file-based settings first (priority over localStorage)
-    if (
-      this._fileSettings?.[this._selectedAnnotation] &&
-      !this._appliedFileAnnotations.has(this._selectedAnnotation)
-    ) {
-      const fileSettings = this._fileSettings[this._selectedAnnotation];
-      mergedSettings = {
-        ...defaultSettings,
-        ...fileSettings,
-      };
-      // Mark as applied so subsequent loads use localStorage
-      this._appliedFileAnnotations.add(this._selectedAnnotation);
+    if (fileSettings) {
+      mergedSettings = fileSettings;
     } else {
-      // Fall back to localStorage
-      const key = this._getStorageKey();
-      if (!key) return;
-
-      const saved = getStorageItem<Partial<LegendPersistedSettings>>(key, defaultSettings);
-      mergedSettings = {
-        ...defaultSettings,
-        ...saved,
-      };
+      const storageSettings = this.loadFromStorage();
+      if (!storageSettings) return;
+      mergedSettings = storageSettings;
     }
 
     this._pendingCategories = mergedSettings.categories;
@@ -194,6 +137,25 @@ export class PersistenceController implements ReactiveController {
       }
     });
     return categories;
+  }
+
+  /**
+   * Get the current settings for the selected annotation.
+   * Returns the current state built from legend items and component settings.
+   */
+  getCurrentSettingsForExport(): LegendPersistedSettings {
+    const currentSettings = this.callbacks.getCurrentSettings();
+
+    return {
+      maxVisibleValues: currentSettings.maxVisibleValues,
+      includeShapes: currentSettings.includeShapes,
+      shapeSize: currentSettings.shapeSize,
+      sortMode: currentSettings.sortMode,
+      hiddenValues: this.callbacks.getHiddenValues(),
+      categories: this._buildCategoriesFromItems(),
+      enableDuplicateStackUI: currentSettings.enableDuplicateStackUI,
+      selectedPaletteId: currentSettings.selectedPaletteId,
+    };
   }
 
   /**
@@ -266,146 +228,5 @@ export class PersistenceController implements ReactiveController {
       }
       return item;
     });
-  }
-
-  private _getStorageKey(): string | null {
-    if (!this._datasetHash || !this._selectedAnnotation) {
-      return null;
-    }
-    return buildStorageKey('legend', this._datasetHash, this._selectedAnnotation);
-  }
-
-  // ─────────────────────────────────────────────────────────────────
-  // File-based persistence (parquetbundle export/import)
-  // ─────────────────────────────────────────────────────────────────
-
-  /**
-   * Check if file-based settings are currently loaded.
-   */
-  get hasFileSettings(): boolean {
-    return this._fileSettings !== null;
-  }
-
-  /**
-   * Set file-based settings loaded from a parquetbundle.
-   * These will be used instead of localStorage for annotations that have settings.
-   * Also persists all settings to localStorage so they're available for future exports.
-   *
-   * When settings are provided, ALL existing localStorage entries for this dataset hash
-   * are cleared first. This ensures the imported file is the single source of truth
-   * and the visualization renders exactly as it was exported.
-   *
-   * @param settings - All annotation settings from the file, or null to clear
-   * @param datasetHash - Optional dataset hash to use for localStorage keys (required when
-   *                      the component's hash isn't yet computed from the new data)
-   */
-  setFileSettings(
-    settings: LegendSettingsMap | null,
-    datasetHash?: string,
-    clearExistingStorage: boolean = true,
-  ): void {
-    this._fileSettings = settings;
-    this._appliedFileAnnotations.clear();
-
-    const hashToUse = datasetHash || this._datasetHash;
-
-    if (settings && hashToUse) {
-      // Clear ALL existing settings for this hash before applying imported settings
-      // This ensures the imported file is the single source of truth
-      if (clearExistingStorage) {
-        removeAllStorageItemsByHash(hashToUse);
-      }
-
-      // Persist all settings to localStorage so they're available for future exports
-      for (const [annotationName, annotationSettings] of Object.entries(settings)) {
-        const key = buildStorageKey('legend', hashToUse, annotationName);
-        setStorageItem(key, annotationSettings);
-      }
-    }
-
-    // If we have file settings for the current annotation, trigger reload
-    if (settings && this._selectedAnnotation && settings[this._selectedAnnotation]) {
-      this._settingsLoaded = false;
-    }
-  }
-
-  /**
-   * Clear all persistence state in preparation for loading a new dataset.
-   * Removes localStorage entries for the specified dataset hash and resets internal state.
-   *
-   * @param datasetHash - The hash of the NEW dataset to clear localStorage for
-   */
-  clearForNewDataset(datasetHash: string, clearPersistedState: boolean = true): void {
-    if (clearPersistedState) {
-      removeAllStorageItemsByHash(datasetHash);
-    }
-
-    // Reset internal state
-    this._datasetHash = '';
-    this._selectedAnnotation = '';
-    this._settingsLoaded = false;
-    this._pendingCategories = {};
-    this._fileSettings = null;
-    this._appliedFileAnnotations.clear();
-  }
-
-  /**
-   * Check if file settings exist for a specific annotation.
-   */
-  hasFileSettingsForAnnotation(annotation: string): boolean {
-    return this._fileSettings !== null && annotation in this._fileSettings;
-  }
-
-  /**
-   * Get the current settings for the selected annotation.
-   * Returns the current state built from legend items and component settings.
-   */
-  getCurrentSettingsForExport(): LegendPersistedSettings {
-    const currentSettings = this.callbacks.getCurrentSettings();
-
-    return {
-      maxVisibleValues: currentSettings.maxVisibleValues,
-      includeShapes: currentSettings.includeShapes,
-      shapeSize: currentSettings.shapeSize,
-      sortMode: currentSettings.sortMode,
-      hiddenValues: this.callbacks.getHiddenValues(),
-      categories: this._buildCategoriesFromItems(),
-      enableDuplicateStackUI: currentSettings.enableDuplicateStackUI,
-      selectedPaletteId: currentSettings.selectedPaletteId,
-    };
-  }
-
-  /**
-   * Get all annotation settings from localStorage for export.
-   * This collects settings for all annotations that have been persisted.
-   *
-   * @param annotationNames - List of all available annotation names
-   * @returns All persisted settings mapped by annotation name
-   */
-  getAllSettingsForExport(annotationNames: string[]): LegendSettingsMap {
-    const result: LegendSettingsMap = {};
-
-    // First, add the current annotation's settings (from live state)
-    if (this._selectedAnnotation) {
-      result[this._selectedAnnotation] = this.getCurrentSettingsForExport();
-    }
-
-    // Then, add settings for other annotations from localStorage
-    for (const annotation of annotationNames) {
-      if (annotation === this._selectedAnnotation) continue; // Already added
-
-      const key = buildStorageKey('legend', this._datasetHash, annotation);
-      if (!key) continue;
-
-      const defaultSettings = createDefaultSettings(annotation);
-      const saved = getStorageItem<Partial<LegendPersistedSettings>>(key, {});
-
-      // Only include if there are actual persisted settings
-      if (Object.keys(saved).length > 0) {
-        result[annotation] = { ...defaultSettings, ...saved };
-      }
-    }
-
-    return result;
   }
 }

@@ -4,18 +4,22 @@ ProtSpace uses `.parquetbundle` files - a single file containing all visualizati
 
 ## What is a .parquetbundle?
 
-A `.parquetbundle` is a single file containing three Parquet tables bundled together:
+A `.parquetbundle` is a single file containing three Parquet tables bundled together, with an optional settings section:
 
 ```
 .parquetbundle file
-├── selected_annotations.parquet # Protein metadata and annotations
-├── ---PARQUET_DELIMITER---      # Separator
-├── projections_metadata.parquet # Projection method information
-├── ---PARQUET_DELIMITER---      # Separator
-└── projections_data.parquet     # 2D/3D coordinates
+├── selected_annotations.parquet  # Protein metadata and annotations
+├── ---PARQUET_DELIMITER---       # Separator
+├── projections_metadata.parquet  # Projection method information
+├── ---PARQUET_DELIMITER---       # Separator
+├── projections_data.parquet      # 2D/3D coordinates
+├── ---PARQUET_DELIMITER---       # Optional separator
+└── settings.json                 # Optional: legend + export settings
 ```
 
 This bundled format allows efficient loading in the browser while keeping everything in one convenient file.
+
+The optional `settings.json` section stores legend customizations (colors, shapes, ordering, visibility, palette) and export options (image dimensions, legend sizing) per annotation. When present, these settings are applied automatically on load so the visualization renders exactly as it was exported.
 
 ## Tables
 
@@ -75,7 +79,7 @@ Annotation values can include an [ECO evidence code](https://www.evidenceontolog
 - `Cytoplasm|EXP` (experimental evidence)
 - `apoptotic process|IDA` (inferred from direct assay)
 
-Recognized evidence codes: `EXP`, `HDA`, `IDA`, `TAS`, `NAS`, `IC`, `ISS`, `SAM`, `COMB`, `IMP`, `IEA`
+Evidence codes are recognized by pattern: any 2–5 uppercase letter code (e.g., `EXP`, `IDA`, `IPI`, `IGI`, `IEP`, `COMB`) or raw ECO identifiers (e.g., `ECO:0000269`). This covers all standard [GO evidence codes](http://geneontology.org/docs/guide-go-evidence-codes/) and ECO ontology IDs.
 
 Evidence codes are displayed in the protein tooltip alongside the annotation value.
 
