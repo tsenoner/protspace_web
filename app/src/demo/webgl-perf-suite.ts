@@ -11,6 +11,11 @@ type PerfSuiteResult = {
   results: unknown[];
 };
 
+type PerfSuiteGlobalState = typeof globalThis & {
+  __protspaceWebglPerfSuiteInFlight?: boolean;
+  __protspaceWebglPerfSuiteConsumed?: boolean;
+};
+
 const PERF_OVERLAY_ID = 'webgl-perf-suite-overlay';
 const PERF_OVERLAY_STYLE_ID = 'webgl-perf-suite-overlay-style';
 
@@ -153,8 +158,6 @@ function hidePerfOverlay() {
 
 async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Promise<void> {
   const url = `/data/${datasetId}.parquetbundle`;
-  const plotAny = args.plotElement as any;
-  const loaderAny = args.dataLoader as any;
 
   const dataChange = new Promise<void>((resolve) => {
     args.plotElement.addEventListener('data-change', () => resolve(), { once: true });
@@ -164,7 +167,10 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
     args.dataLoader.addEventListener('data-loaded', () => resolve(), { once: true });
     args.dataLoader.addEventListener(
       'data-error',
-      (event: any) => reject(new Error(String(event?.detail?.error ?? 'unknown error'))),
+      (event: Event) => {
+        const detail = (event as CustomEvent<{ error?: unknown }>).detail;
+        reject(new Error(String(detail?.error ?? 'unknown error')));
+      },
       { once: true },
     );
   });
@@ -178,11 +184,11 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
     type: 'application/octet-stream',
   });
 
-  await loaderAny.loadFromFile(file);
+  await args.dataLoader.loadFromFile(file);
   await loaderDone;
   await dataChange;
 
-  await waitUntil(() => !!plotAny?.data?.protein_ids?.length, timeoutMs);
+  await waitUntil(() => !!args.plotElement.data?.protein_ids?.length, timeoutMs);
   await waitUntil(() => !document.getElementById('progressive-loading'), timeoutMs);
 }
 
@@ -190,7 +196,7 @@ export async function maybeRunWebglPerfSuite(args: Args): Promise<void> {
   const params = new URLSearchParams(window.location.search);
   if (params.get('webglPerf') !== '1') return;
 
-  const g = globalThis as any;
+  const g = globalThis as PerfSuiteGlobalState;
   if (g.__protspaceWebglPerfSuiteInFlight || g.__protspaceWebglPerfSuiteConsumed) return;
   g.__protspaceWebglPerfSuiteInFlight = true;
   showPerfOverlay();
@@ -211,8 +217,7 @@ export async function maybeRunWebglPerfSuite(args: Args): Promise<void> {
     for (const datasetId of datasets) {
       await loadDataset(args, datasetId, timeoutMs);
 
-      const plotAny = args.plotElement as any;
-      const result = await plotAny.runWebGLRenderPerfMeasurements(iterations, {
+      const result = await args.plotElement.runWebGLRenderPerfMeasurements(iterations, {
         download: false,
         dataset: { id: datasetId, url: `/data/${datasetId}.parquetbundle` },
       });

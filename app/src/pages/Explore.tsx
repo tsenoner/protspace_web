@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import type { DataLoader } from '@protspace/core';
 import Header, { HEADER_HEIGHT_CLASS } from '@/components/Header';
 import './Explore.css';
 
@@ -8,11 +9,11 @@ const Explore = () => {
     let scatterplot: HTMLElement | null = null;
 
     // Setup file drop handler
-    const handleFileDrop = (e: CustomEvent) => {
+    const handleFileDrop = (e: CustomEvent<{ file?: File }>) => {
       const file = e.detail.file;
-      const loader = document.getElementById('myDataLoader') as any;
+      const loader = document.getElementById('myDataLoader') as DataLoader | null;
       if (file && loader) {
-        loader.loadFromFile(file);
+        void loader.loadFromFile(file);
       }
     };
 
