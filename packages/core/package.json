@@ -35,7 +35,6 @@
   "license": "MIT",
   "dependencies": {
     "@protspace/utils": "workspace:*",
-    "apache-arrow": "^20.0.0",
     "d3": "^7.9.0",
     "hyparquet": "^1.17.1",
     "lit": "^3.3.0",
@@ -44,8 +43,6 @@
   "devDependencies": {
     "@types/d3": "^7.4.3",
     "@types/sortablejs": "^1.15.9",
-    "@typescript-eslint/eslint-plugin": "^8.46.0",
-    "@typescript-eslint/parser": "^8.46.0",
     "eslint": "^9.27.0",
     "jsdom": "^27.4.0",
     "typescript": "^5.8.3",
