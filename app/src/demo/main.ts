@@ -356,6 +356,19 @@ export async function initializeDemo() {
       }
     };
 
+    /** Clear corrupted persisted dataset, alert the user, and fall back to the demo. */
+    const handleCorruptedPersistedDataset = async (context: string) => {
+      try {
+        await clearLastImportedFile();
+      } catch (clearError) {
+        console.warn('Failed to clear invalid persisted dataset:', clearError);
+      }
+      alert(
+        `The previously saved dataset ${context} and was cleared. Loading the default demo dataset instead.`,
+      );
+      await loadDefaultDemoFile();
+    };
+
     const loadDefaultDemoFile = async () => {
       try {
         setCurrentDatasetName(DEFAULT_DEMO_DATASET_NAME);
@@ -410,9 +423,8 @@ export async function initializeDemo() {
       } catch (error) {
         console.error('❌ Failed to restore persisted dataset:', error);
         if (error instanceof StoredDatasetCorruptError) {
-          alert(
-            'The previously saved dataset in browser storage is corrupted and was cleared. Loading the default demo dataset instead.',
-          );
+          await handleCorruptedPersistedDataset('in browser storage is corrupted');
+          return;
         }
       }
 
@@ -636,10 +648,7 @@ export async function initializeDemo() {
           (Object.keys(settings.legendSettings).length > 0 ||
             Object.keys(settings.exportOptions).length > 0);
 
-        if (source === 'user' && file) {
-          setCurrentDatasetName(file.name);
-          setCurrentDatasetIsDemo(false);
-        } else if (pendingAutoLoadKind === 'opfs' && file) {
+        if ((source === 'user' || pendingAutoLoadKind === 'opfs') && file) {
           setCurrentDatasetName(file.name);
           setCurrentDatasetIsDemo(false);
         } else if (pendingAutoLoadKind === 'default') {
@@ -657,11 +666,9 @@ export async function initializeDemo() {
             'This dataset was loaded, but ProtSpace could not save it in browser storage for automatic reloads.',
           );
         }
-
-        return;
+      } else {
+        pendingAutoLoadKind = null;
       }
-
-      pendingAutoLoadKind = null;
     });
 
     // Handle data loading errors
@@ -672,16 +679,7 @@ export async function initializeDemo() {
 
       if (pendingAutoLoadKind === 'opfs') {
         pendingAutoLoadKind = null;
-        try {
-          await clearLastImportedFile();
-        } catch (clearError) {
-          console.warn('Failed to clear invalid persisted dataset:', clearError);
-        }
-
-        alert(
-          'The previously saved dataset could not be loaded and was cleared. Loading the default demo dataset instead.',
-        );
-        await loadDefaultDemoFile();
+        await handleCorruptedPersistedDataset('could not be loaded');
         return;
       }
 
