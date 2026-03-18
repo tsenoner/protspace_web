@@ -32,14 +32,23 @@ Don't have data yet? Download example `.parquetbundle` files from the [GitHub da
 After successfully loading a file:
 
 1. **Scatterplot populates**: All proteins appear as colored points
-2. **First projection loads**: Typically PCA if available
-3. **Colors are assigned**: Based on the first annotation in your data
+2. **Defaults applied**: First available projection and annotation are selected
+3. **Settings restored**: Previously saved or bundled customizations are applied
 4. **Legend appears**: Shows all categories with color assignments
 5. **Ready to explore**: You can now pan, zoom, and interact with the data
 
 ::: info Loading Time
 Small datasets (< 10K proteins) load instantly. Larger datasets may take a few seconds to process and render.
 :::
+
+## Data & Settings Persistence
+
+All persistence is local to your browser — **your data is never sent to a server**.
+
+- **Your dataset is remembered**: The last imported file is saved in your browser's local storage and automatically restored when you revisit ProtSpace. Switching to the demo dataset clears the stored file.
+- **Settings persist per dataset**: Legend customizations (colors, shapes, hidden categories, sort order) and export options are saved per dataset. When you reload or revisit the same dataset, your settings are restored.
+- **File-embedded settings take priority**: If a `.parquetbundle` includes saved settings (via the export dialog's "Include legend/export settings" options), those are applied on import, replacing any previously stored settings for that dataset.
+- **Starting fresh**: To reset all settings for a dataset, re-import a `.parquetbundle` that has embedded settings, or clear site data in your browser settings.
 
 ## Need a Data File?
 
