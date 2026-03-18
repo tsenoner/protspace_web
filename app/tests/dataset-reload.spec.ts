@@ -186,7 +186,7 @@ async function isImportChevronVisible(page: Page): Promise<boolean> {
       '[data-driver-id="import"] .chevron-down',
     );
 
-    if (!(chevron instanceof HTMLElement)) {
+    if (!(chevron instanceof Element)) {
       return false;
     }
 
