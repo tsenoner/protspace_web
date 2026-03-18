@@ -24,6 +24,8 @@ export interface DataLoadedEventDetail {
   /** Settings loaded from bundle (null if not present or not a bundle) */
   settings: BundleSettings | null;
   source: DataLoadSource;
+  /** Original file for file-based loads, used by app-level persistence flows */
+  file?: File;
 }
 
 /**
@@ -176,7 +178,7 @@ export class DataLoader extends LitElement {
           projectionsMetadata,
         );
         this.completeStep();
-        this.dispatchDataLoaded(visualizationData, settings, source);
+        this.dispatchDataLoaded(visualizationData, settings, source, file);
       } else {
         // For regular parquet: validate magic -> parse -> validate rows -> convert
         this.addSteps(4);
@@ -188,7 +190,7 @@ export class DataLoader extends LitElement {
         this.completeStep();
         const visualizationData = await convertParquetToVisualizationDataOptimized(table);
         this.completeStep();
-        this.dispatchDataLoaded(visualizationData, null, source);
+        this.dispatchDataLoaded(visualizationData, null, source, file);
       }
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -247,8 +249,9 @@ export class DataLoader extends LitElement {
     data: VisualizationData,
     settings: BundleSettings | null,
     source: DataLoadSource,
+    file?: File,
   ) {
-    const detail: DataLoadedEventDetail = { data, settings, source };
+    const detail: DataLoadedEventDetail = { data, settings, source, file };
     this.dispatchEvent(
       new CustomEvent('data-loaded', {
         detail,

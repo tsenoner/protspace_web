@@ -85,8 +85,10 @@ export abstract class BasePersistenceController<
     }
   }
 
-  clearForNewDataset(datasetHash: string): void {
-    removeAllStorageItemsByHash(datasetHash);
+  clearForNewDataset(datasetHash: string, clearPersistedState: boolean = true): void {
+    if (clearPersistedState) {
+      removeAllStorageItemsByHash(datasetHash);
+    }
 
     this._datasetHash = '';
     this._selectedAnnotation = '';
