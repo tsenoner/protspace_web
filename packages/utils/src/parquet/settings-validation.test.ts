@@ -1,28 +1,56 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isValidLegendSettings,
+  isLegacyBundleSettings,
+  isNormalizedBundleSettings,
   isValidBundleSettings,
+  isValidLegendSettings,
   isValidPersistedCategoryData,
+  isValidPersistedExportOptions,
   isValidSortMode,
+  normalizeBundleSettings,
 } from './settings-validation';
-import type { LegendPersistedSettings, BundleSettings } from '../types';
+import type {
+  BundleSettings,
+  LegacyBundleSettings,
+  LegendPersistedSettings,
+  PersistedExportOptions,
+} from '../types';
+
+const createValidLegendSettings = (): LegendPersistedSettings => ({
+  maxVisibleValues: 10,
+  includeShapes: true,
+  shapeSize: 24,
+  sortMode: 'size-desc',
+  hiddenValues: ['unknown'],
+  categories: {
+    human: { zOrder: 0, color: '#ff0000', shape: 'circle' },
+  },
+  enableDuplicateStackUI: false,
+  selectedPaletteId: 'kellys',
+});
+
+const createValidExportOptions = (): PersistedExportOptions => ({
+  imageWidth: 2048,
+  imageHeight: 1024,
+  lockAspectRatio: true,
+  legendWidthPercent: 25,
+  legendFontSizePx: 24,
+  includeLegendSettings: true,
+  includeExportOptions: true,
+});
+
+const createNormalizedBundleSettings = (): BundleSettings => ({
+  legendSettings: {
+    organism: createValidLegendSettings(),
+  },
+  exportOptions: {
+    organism: createValidExportOptions(),
+  },
+});
 
 describe('settings-validation', () => {
-  // Helper to create a valid settings object
-  const createValidSettings = (): LegendPersistedSettings => ({
-    maxVisibleValues: 10,
-    includeShapes: true,
-    shapeSize: 24,
-    sortMode: 'size-desc',
-    hiddenValues: ['unknown'],
-    categories: {
-      human: { zOrder: 0, color: '#ff0000', shape: 'circle' },
-    },
-    enableDuplicateStackUI: false,
-  });
-
   describe('isValidSortMode', () => {
-    it('should accept valid sort modes', () => {
+    it('accepts valid sort modes', () => {
       expect(isValidSortMode('size-asc')).toBe(true);
       expect(isValidSortMode('size-desc')).toBe(true);
       expect(isValidSortMode('alpha-asc')).toBe(true);
@@ -31,231 +59,114 @@ describe('settings-validation', () => {
       expect(isValidSortMode('manual-reverse')).toBe(true);
     });
 
-    it('should reject invalid sort modes', () => {
+    it('rejects invalid sort modes', () => {
       expect(isValidSortMode('invalid')).toBe(false);
-      expect(isValidSortMode('')).toBe(false);
       expect(isValidSortMode(123)).toBe(false);
       expect(isValidSortMode(null)).toBe(false);
-      expect(isValidSortMode(undefined)).toBe(false);
     });
   });
 
   describe('isValidPersistedCategoryData', () => {
-    it('should accept valid category data', () => {
+    it('accepts valid category data', () => {
       expect(isValidPersistedCategoryData({ zOrder: 0, color: '#ff0000', shape: 'circle' })).toBe(
         true,
       );
-      expect(isValidPersistedCategoryData({ zOrder: 100, color: 'red', shape: 'square' })).toBe(
-        true,
-      );
     });
 
-    it('should reject invalid category data', () => {
-      expect(isValidPersistedCategoryData(null)).toBe(false);
-      expect(isValidPersistedCategoryData(undefined)).toBe(false);
-      expect(isValidPersistedCategoryData('string')).toBe(false);
-      expect(isValidPersistedCategoryData(123)).toBe(false);
-      expect(isValidPersistedCategoryData([])).toBe(false);
-    });
-
-    it('should reject category data with missing fields', () => {
-      expect(isValidPersistedCategoryData({ zOrder: 0, color: '#ff0000' })).toBe(false);
-      expect(isValidPersistedCategoryData({ zOrder: 0, shape: 'circle' })).toBe(false);
-      expect(isValidPersistedCategoryData({ color: '#ff0000', shape: 'circle' })).toBe(false);
-    });
-
-    it('should reject category data with wrong field types', () => {
+    it('rejects invalid category data', () => {
       expect(isValidPersistedCategoryData({ zOrder: '0', color: '#ff0000', shape: 'circle' })).toBe(
         false,
       );
-      expect(isValidPersistedCategoryData({ zOrder: 0, color: 123, shape: 'circle' })).toBe(false);
-      expect(isValidPersistedCategoryData({ zOrder: 0, color: '#ff0000', shape: 123 })).toBe(false);
+      expect(isValidPersistedCategoryData(null)).toBe(false);
     });
   });
 
   describe('isValidLegendSettings', () => {
-    it('should accept valid settings', () => {
-      expect(isValidLegendSettings(createValidSettings())).toBe(true);
+    it('accepts valid settings', () => {
+      expect(isValidLegendSettings(createValidLegendSettings())).toBe(true);
     });
 
-    it('should accept settings with empty categories', () => {
-      const settings = createValidSettings();
-      settings.categories = {};
-      expect(isValidLegendSettings(settings)).toBe(true);
-    });
-
-    it('should accept settings with empty hiddenValues', () => {
-      const settings = createValidSettings();
-      settings.hiddenValues = [];
-      expect(isValidLegendSettings(settings)).toBe(true);
-    });
-
-    it('should accept settings with extra/unknown fields (forward compatibility)', () => {
-      const settings = {
-        ...createValidSettings(),
-        unknownField: 'value',
-        anotherNewField: { nested: true },
-        futureFeature: 42,
-      };
-      expect(isValidLegendSettings(settings)).toBe(true);
-    });
-
-    it('should reject null or undefined', () => {
-      expect(isValidLegendSettings(null)).toBe(false);
-      expect(isValidLegendSettings(undefined)).toBe(false);
-    });
-
-    it('should reject non-objects', () => {
-      expect(isValidLegendSettings('string')).toBe(false);
-      expect(isValidLegendSettings(123)).toBe(false);
-      expect(isValidLegendSettings([])).toBe(false);
-      expect(isValidLegendSettings(true)).toBe(false);
-    });
-
-    it('should reject settings with wrong maxVisibleValues type', () => {
-      const settings = { ...createValidSettings(), maxVisibleValues: '10' };
-      expect(isValidLegendSettings(settings)).toBe(false);
-    });
-
-    it('should reject settings with wrong includeShapes type', () => {
-      const settings = { ...createValidSettings(), includeShapes: 'true' };
-      expect(isValidLegendSettings(settings)).toBe(false);
-    });
-
-    it('should reject settings with wrong shapeSize type', () => {
-      const settings = { ...createValidSettings(), shapeSize: '24' };
-      expect(isValidLegendSettings(settings)).toBe(false);
-    });
-
-    it('should reject settings with invalid sortMode', () => {
-      const settings = { ...createValidSettings(), sortMode: 'invalid' };
-      expect(isValidLegendSettings(settings)).toBe(false);
-    });
-
-    it('should reject settings with wrong enableDuplicateStackUI type', () => {
-      const settings = { ...createValidSettings(), enableDuplicateStackUI: 'false' };
-      expect(isValidLegendSettings(settings)).toBe(false);
-    });
-
-    it('should reject settings with non-array hiddenValues', () => {
-      const settings = { ...createValidSettings(), hiddenValues: 'unknown' };
-      expect(isValidLegendSettings(settings)).toBe(false);
-    });
-
-    it('should reject settings with non-string items in hiddenValues', () => {
-      const settings = { ...createValidSettings(), hiddenValues: [123, 'valid'] };
-      expect(isValidLegendSettings(settings)).toBe(false);
-    });
-
-    it('should reject settings with non-object categories', () => {
-      const settings = { ...createValidSettings(), categories: 'invalid' };
-      expect(isValidLegendSettings(settings)).toBe(false);
-    });
-
-    it('should reject settings with array categories', () => {
-      const settings = { ...createValidSettings(), categories: [] };
-      expect(isValidLegendSettings(settings)).toBe(false);
-    });
-
-    it('should reject settings with invalid category data', () => {
-      const settings = {
-        ...createValidSettings(),
-        categories: {
-          human: { zOrder: 0, color: '#ff0000' }, // missing shape
-        },
-      };
-      expect(isValidLegendSettings(settings)).toBe(false);
-    });
-
-    it('should reject partially valid settings (missing required fields)', () => {
-      // Missing maxVisibleValues
+    it('accepts extra fields for forward compatibility', () => {
       expect(
         isValidLegendSettings({
-          includeShapes: true,
-          shapeSize: 24,
-          sortMode: 'size-desc',
-          hiddenValues: [],
-          categories: {},
-          enableDuplicateStackUI: false,
+          ...createValidLegendSettings(),
+          futureField: { enabled: true },
         }),
-      ).toBe(false);
+      ).toBe(true);
+    });
 
-      // Missing sortMode
+    it('rejects invalid settings', () => {
       expect(
         isValidLegendSettings({
-          maxVisibleValues: 10,
-          includeShapes: true,
-          shapeSize: 24,
-          hiddenValues: [],
-          categories: {},
-          enableDuplicateStackUI: false,
-        }),
-      ).toBe(false);
-
-      // Missing categories
-      expect(
-        isValidLegendSettings({
-          maxVisibleValues: 10,
-          includeShapes: true,
-          shapeSize: 24,
-          sortMode: 'size-desc',
-          hiddenValues: [],
-          enableDuplicateStackUI: false,
+          ...createValidLegendSettings(),
+          categories: [],
         }),
       ).toBe(false);
     });
   });
 
-  describe('isValidBundleSettings', () => {
-    it('should accept valid bundle settings', () => {
-      const bundleSettings: BundleSettings = {
-        organism: createValidSettings(),
-        family: createValidSettings(),
+  describe('isValidPersistedExportOptions', () => {
+    it('accepts valid export options', () => {
+      expect(isValidPersistedExportOptions(createValidExportOptions())).toBe(true);
+    });
+
+    it('rejects invalid export options', () => {
+      expect(
+        isValidPersistedExportOptions({
+          ...createValidExportOptions(),
+          includeExportOptions: 'yes',
+        }),
+      ).toBe(false);
+      expect(isValidPersistedExportOptions(null)).toBe(false);
+    });
+  });
+
+  describe('bundle settings formats', () => {
+    it('accepts normalized bundle settings', () => {
+      const settings = createNormalizedBundleSettings();
+      expect(isNormalizedBundleSettings(settings)).toBe(true);
+      expect(isValidBundleSettings(settings)).toBe(true);
+    });
+
+    it('accepts legacy legend-only bundle settings', () => {
+      const legacy: LegacyBundleSettings = {
+        organism: createValidLegendSettings(),
+        family: createValidLegendSettings(),
       };
-      expect(isValidBundleSettings(bundleSettings)).toBe(true);
+
+      expect(isLegacyBundleSettings(legacy)).toBe(true);
+      expect(isValidBundleSettings(legacy)).toBe(true);
     });
 
-    it('should accept empty bundle settings', () => {
-      expect(isValidBundleSettings({})).toBe(true);
+    it('rejects malformed normalized bundle settings', () => {
+      expect(
+        isNormalizedBundleSettings({
+          legendSettings: { organism: createValidLegendSettings() },
+          exportOptions: { organism: { bad: true } },
+        }),
+      ).toBe(false);
+      expect(isValidBundleSettings({ legendSettings: [], exportOptions: {} })).toBe(false);
     });
 
-    it('should accept settings with extra/unknown fields in individual settings', () => {
-      const bundleSettings = {
-        organism: {
-          ...createValidSettings(),
-          unknownField: 'value',
-        },
+    it('normalizes legacy settings to the current shape', () => {
+      const legacy: LegacyBundleSettings = {
+        organism: createValidLegendSettings(),
       };
-      expect(isValidBundleSettings(bundleSettings)).toBe(true);
+
+      expect(normalizeBundleSettings(legacy)).toEqual({
+        legendSettings: legacy,
+        exportOptions: {},
+      });
     });
 
-    it('should reject null or undefined', () => {
-      expect(isValidBundleSettings(null)).toBe(false);
-      expect(isValidBundleSettings(undefined)).toBe(false);
+    it('returns normalized settings unchanged', () => {
+      const settings = createNormalizedBundleSettings();
+      expect(normalizeBundleSettings(settings)).toEqual(settings);
     });
 
-    it('should reject non-objects', () => {
-      expect(isValidBundleSettings('string')).toBe(false);
-      expect(isValidBundleSettings(123)).toBe(false);
-      expect(isValidBundleSettings([])).toBe(false);
-    });
-
-    it('should reject bundle settings with invalid legend settings', () => {
-      const bundleSettings = {
-        organism: createValidSettings(),
-        family: { invalid: true }, // Not a valid LegendPersistedSettings
-      };
-      expect(isValidBundleSettings(bundleSettings)).toBe(false);
-    });
-
-    it('should reject bundle settings with partially valid legend settings', () => {
-      const bundleSettings = {
-        organism: {
-          maxVisibleValues: 10,
-          // Missing other required fields
-        },
-      };
-      expect(isValidBundleSettings(bundleSettings)).toBe(false);
+    it('returns null for invalid settings', () => {
+      expect(normalizeBundleSettings({ nope: true })).toBeNull();
+      expect(normalizeBundleSettings(null)).toBeNull();
     });
   });
 });

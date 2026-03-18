@@ -36,6 +36,7 @@ The exported image includes the scatterplot and legend side by side.
 Export a `.parquetbundle` file that can be loaded back into ProtSpace or shared with others.
 
 - **Include legend settings**: When checked, your current legend customizations (colors, shapes, ordering, visibility, palette) are saved inside the file. Anyone who loads it will see the same visual configuration.
+- **Include export options**: When checked, your current image export settings (width, height, aspect ratio lock, legend width, legend font size) are saved inside the file. This lets you preserve consistent export dimensions across sessions or when sharing files.
 
 ## Protein IDs Export
 

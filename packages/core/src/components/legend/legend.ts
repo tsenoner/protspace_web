@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { COLOR_SCHEMES } from '@protspace/utils';
+import type { LegendSettingsMap } from '@protspace/utils';
 
 // Configuration and styles
 import {
@@ -564,7 +565,7 @@ export class ProtspaceLegend extends LitElement {
    *
    * @returns Record mapping annotation names to their persisted settings
    */
-  public getAllPersistedSettings(): Record<string, LegendPersistedSettings> {
+  public getAllPersistedSettings(): LegendSettingsMap {
     const annotationNames = Object.keys(this.data?.annotations ?? {});
     return this._persistenceController.getAllSettingsForExport(annotationNames);
   }
@@ -579,10 +580,11 @@ export class ProtspaceLegend extends LitElement {
    *                      the component's hash isn't yet computed from the new data)
    */
   public setFileSettings(
-    settings: Record<string, LegendPersistedSettings> | null,
+    settings: LegendSettingsMap | null,
     datasetHash?: string,
+    clearExistingStorage: boolean = true,
   ): void {
-    this._persistenceController.setFileSettings(settings, datasetHash);
+    this._persistenceController.setFileSettings(settings, datasetHash, clearExistingStorage);
 
     // If current annotation has file settings, reload and apply them immediately
     if (settings?.[this.selectedAnnotation]) {

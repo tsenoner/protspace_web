@@ -88,6 +88,31 @@ export interface LegendPersistedSettings {
 }
 
 /**
- * Bundle settings map: annotation name -> legend settings for that annotation.
+ * Export settings persisted per dataset + annotation.
  */
-export type BundleSettings = Record<string, LegendPersistedSettings>;
+export interface PersistedExportOptions {
+  imageWidth: number;
+  imageHeight: number;
+  lockAspectRatio: boolean;
+  legendWidthPercent: number;
+  legendFontSizePx: number;
+  includeLegendSettings: boolean;
+  includeExportOptions: boolean;
+}
+
+export type LegendSettingsMap = Record<string, LegendPersistedSettings>;
+
+export type ExportOptionsMap = Record<string, PersistedExportOptions>;
+
+/**
+ * Current bundle settings format.
+ */
+export interface BundleSettings {
+  legendSettings: LegendSettingsMap;
+  exportOptions: ExportOptionsMap;
+}
+
+/**
+ * Legacy bundle settings format used before export options were added.
+ */
+export type LegacyBundleSettings = LegendSettingsMap;

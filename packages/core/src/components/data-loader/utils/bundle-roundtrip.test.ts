@@ -57,17 +57,30 @@ describe('round-trip with real data files', () => {
 
     // Create mock settings
     const mockSettings = {
-      testAnnotation: {
-        maxVisibleValues: 10,
-        includeShapes: true,
-        shapeSize: 24,
-        sortMode: 'size-desc' as const,
-        hiddenValues: [],
-        categories: {
-          category1: { zOrder: 0, color: '#ff0000', shape: 'circle' },
+      legendSettings: {
+        testAnnotation: {
+          maxVisibleValues: 10,
+          includeShapes: true,
+          shapeSize: 24,
+          sortMode: 'size-desc' as const,
+          hiddenValues: [],
+          categories: {
+            category1: { zOrder: 0, color: '#ff0000', shape: 'circle' },
+          },
+          enableDuplicateStackUI: false,
+          selectedPaletteId: 'kellys',
         },
-        enableDuplicateStackUI: false,
-        selectedPaletteId: 'kellys',
+      },
+      exportOptions: {
+        testAnnotation: {
+          imageWidth: 2048,
+          imageHeight: 1024,
+          lockAspectRatio: true,
+          legendWidthPercent: 25,
+          legendFontSizePx: 24,
+          includeLegendSettings: true,
+          includeExportOptions: true,
+        },
       },
     };
 
