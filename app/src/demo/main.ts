@@ -4,10 +4,11 @@ import type {
   ProtspaceScatterplot,
   ProtspaceLegend,
   ProtspaceStructureViewer,
+  ProtspaceControlBar,
   DataLoader,
   DataLoadedEventDetail,
 } from '@protspace/core';
-import { ProtspaceControlBar, EXPORT_DEFAULTS } from '@protspace/core';
+import { EXPORT_DEFAULTS } from '@protspace/core';
 import {
   createExporter,
   showNotification,

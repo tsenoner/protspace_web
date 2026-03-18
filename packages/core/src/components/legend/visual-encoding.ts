@@ -27,7 +27,7 @@ const SPECIAL_COLORS: Record<string, string> = {
   [LEGEND_VALUES.NA_DISPLAY]: '#DDDDDD',
 };
 
-export interface VisualEncoding {
+interface VisualEncoding {
   color: string;
   shape: string;
 }

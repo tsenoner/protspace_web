@@ -7,9 +7,6 @@ import type {
 } from './types';
 import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_ANNOTATIONS, LEGEND_VALUES } from './config';
 
-// Re-export ItemAction for backwards compatibility
-export type { ItemAction };
-
 /**
  * Pure helper functions for legend component.
  * These are extracted to enable easier unit testing.

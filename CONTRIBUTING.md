@@ -111,7 +111,6 @@ For general questions:
 packages/
 ├── core/          # Core web components (Lit)
 ├── utils/         # Utility functions
-├── react-bridge/  # React wrappers
 app/               # Demo application + landing page
 docs/              # Documentation site (VitePress)
 ```

@@ -7,7 +7,13 @@ export default [
     ignores: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/*.d.ts', '**/.turbo/**'],
   },
   {
-    files: ['packages/**/*.{ts,tsx}', 'examples/**/*.{ts,tsx}', 'docs/**/*.{ts,tsx}', '*.mjs'],
+    files: [
+      'packages/**/*.{ts,tsx}',
+      'app/src/**/*.{ts,tsx}',
+      'examples/**/*.{ts,tsx}',
+      'docs/**/*.{ts,tsx}',
+      '*.mjs',
+    ],
     languageOptions: {
       parser: tsParser,
       ecmaVersion: 'latest',

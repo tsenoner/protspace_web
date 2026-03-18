@@ -64,7 +64,7 @@ interface GroupedAnnotation {
  * Custom dropdown component for annotation selection with section headers and search
  */
 @customElement('protspace-annotation-select')
-export class ProtspaceAnnotationSelect extends LitElement {
+class ProtspaceAnnotationSelect extends LitElement {
   static styles = annotationSelectStyles;
 
   @property({ type: Array }) annotations: string[] = [];

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.ts"],
+      "project": ["scripts/**/*.ts"],
+    },
+    "packages/core": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
+    },
+    "packages/utils": {
+      "project": ["src/**/*.ts"],
+    },
+    "app": {
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignore": [
+        "src/custom-elements.d.ts",
+        // shadcn/ui components export complete sets by convention
+        "src/components/ui/**",
+      ],
+    },
+  },
+  "ignoreWorkspaces": ["docs"],
+  "ignoreExportsUsedInFile": false,
+}

@@ -4,7 +4,7 @@ import { isMacOrIos } from '@protspace/utils';
 import { protspaceTipsStyles } from './protspace-tips.styles';
 
 @customElement('protspace-tips')
-export class ProtspaceTips extends LitElement {
+class ProtspaceTips extends LitElement {
   static styles = protspaceTipsStyles;
 
   /** When true, a "Take a Tour" button is rendered inside the popover. */

@@ -44,39 +44,11 @@ export interface LegendAnnotationData {
 /** Item action types for legend events */
 export type ItemAction = 'toggle' | 'isolate' | 'extract';
 
-/** Detail for legend-item-click event */
-export interface LegendItemClickEventDetail {
-  /** Category value. N/A items use '__NA__' */
-  value: string;
-  action: ItemAction;
-}
-
-/** Detail for legend-zorder-change event */
-export interface LegendZOrderChangeEventDetail {
-  zOrderMapping: Record<string, number>;
-}
-
-/** Detail for legend-colormapping-change event */
-export interface LegendColorMappingChangeEventDetail {
-  colorMapping: Record<string, string>;
-  shapeMapping: Record<string, string>;
-}
-
 /** Detail for legend-error event */
 export interface LegendErrorEventDetail {
   message: string;
   source: 'data-processing' | 'persistence' | 'scatterplot-sync' | 'rendering';
   originalError?: Error;
-}
-
-/** Typed custom events for the legend component */
-export interface LegendEventMap {
-  'legend-item-click': CustomEvent<LegendItemClickEventDetail>;
-  'legend-zorder-change': CustomEvent<LegendZOrderChangeEventDetail>;
-  'legend-colormapping-change': CustomEvent<LegendColorMappingChangeEventDetail>;
-  'legend-customize': CustomEvent<void>;
-  'legend-download': CustomEvent<void>;
-  'legend-error': CustomEvent<LegendErrorEventDetail>;
 }
 
 export interface LegendDataInput {

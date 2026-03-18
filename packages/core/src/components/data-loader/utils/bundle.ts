@@ -132,10 +132,7 @@ async function extractSettings(settingsBuffer: ArrayBuffer): Promise<BundleSetti
   }
 }
 
-export function mergeProjectionsWithAnnotations(
-  projectionsData: Rows,
-  annotationsData: Rows,
-): Rows {
+function mergeProjectionsWithAnnotations(projectionsData: Rows, annotationsData: Rows): Rows {
   // Build map of annotations keyed by protein id
   const annotationIdColumn = findColumn(
     annotationsData.length > 0 ? Object.keys(annotationsData[0]) : [],

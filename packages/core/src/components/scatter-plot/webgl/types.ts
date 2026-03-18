@@ -21,16 +21,6 @@ export type ScalePair = {
 };
 
 /**
- * Configuration for gamma-correct rendering pipeline
- */
-export interface GammaConfig {
-  /** Enable gamma-correct rendering pipeline (default: true for WebGL2) */
-  enabled: boolean;
-  /** Gamma value for display (standard sRGB is ~2.2) */
-  gamma: number;
-}
-
-/**
  * Framebuffer resources for offscreen rendering
  */
 export interface FramebufferResources {
