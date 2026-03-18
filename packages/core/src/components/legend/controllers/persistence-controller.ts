@@ -335,9 +335,10 @@ export class PersistenceController implements ReactiveController {
    *
    * @param datasetHash - The hash of the NEW dataset to clear localStorage for
    */
-  clearForNewDataset(datasetHash: string): void {
-    // Clear localStorage for the new dataset hash
-    removeAllStorageItemsByHash(datasetHash);
+  clearForNewDataset(datasetHash: string, clearPersistedState: boolean = true): void {
+    if (clearPersistedState) {
+      removeAllStorageItemsByHash(datasetHash);
+    }
 
     // Reset internal state
     this._datasetHash = '';

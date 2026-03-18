@@ -53,6 +53,10 @@ export class ProtspaceControlBar extends LitElement {
   isolationHistory: string[][] = [];
   @property({ type: Boolean, attribute: 'has-file-settings' })
   hasFileSettings: boolean = false;
+  @property({ type: String, attribute: 'current-dataset-name' })
+  currentDatasetName: string = '';
+  @property({ type: Boolean, attribute: 'current-dataset-is-demo' })
+  currentDatasetIsDemo: boolean = false;
 
   @state() private _selectionDisabled: boolean = false;
 
@@ -63,6 +67,7 @@ export class ProtspaceControlBar extends LitElement {
   autoSync: boolean = true;
 
   @state() private showExportMenu: boolean = false;
+  @state() private showImportMenu: boolean = false;
   @state() private showFilterMenu: boolean = false;
   @state() private showProjectionMenu: boolean = false;
   @state() private annotationValuesMap: Record<string, string[]> = {};
@@ -107,10 +112,11 @@ export class ProtspaceControlBar extends LitElement {
   /**
    * Close all dropdowns except the specified one
    */
-  private closeOtherDropdowns(except: 'projection' | 'filter' | 'export') {
+  private closeOtherDropdowns(except: 'projection' | 'filter' | 'export' | 'import') {
     if (except !== 'projection') this.showProjectionMenu = false;
     if (except !== 'filter') this.showFilterMenu = false;
     if (except !== 'export') this.showExportMenu = false;
+    if (except !== 'import') this.showImportMenu = false;
 
     // Close annotation dropdown via event
     this.shadowRoot
@@ -427,6 +433,20 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
+  private toggleImportMenu(event?: Event) {
+    event?.stopPropagation();
+    this.showImportMenu = !this.showImportMenu;
+    if (this.showImportMenu) {
+      this.closeOtherDropdowns('import');
+      this.updateComplete.then(() => {
+        const firstImportAction = this.shadowRoot?.querySelector(
+          '.import-menu button',
+        ) as HTMLButtonElement | null;
+        firstImportAction?.focus();
+      });
+    }
+  }
+
   private handleExportKeydown(event: KeyboardEvent) {
     if (!this.showExportMenu) {
       // Handle trigger button keys
@@ -441,6 +461,22 @@ export class ProtspaceControlBar extends LitElement {
     if (event.key === 'Escape') {
       handleDropdownEscape(event, () => {
         this.showExportMenu = false;
+      });
+    }
+  }
+
+  private handleImportKeydown(event: KeyboardEvent) {
+    if (!this.showImportMenu) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        this.toggleImportMenu();
+      }
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      handleDropdownEscape(event, () => {
+        this.showImportMenu = false;
       });
     }
   }
@@ -524,8 +560,8 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
-  public clearForNewDataset(datasetHash: string): void {
-    this._exportPersistence.clearForNewDataset(datasetHash);
+  public clearForNewDataset(datasetHash: string, clearPersistedState: boolean = true): void {
+    this._exportPersistence.clearForNewDataset(datasetHash, clearPersistedState);
     this._applyPersistedExportSettings(createDefaultExportOptions());
     this.exportFormat = EXPORT_DEFAULTS.FORMAT;
   }
@@ -573,11 +609,22 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private openFileDialog() {
+    this.showImportMenu = false;
     const loader = document.querySelector('protspace-data-loader') as DataLoaderElement;
     const fileInput = loader?.shadowRoot?.querySelector(
       'input[type="file"]',
     ) as HTMLInputElement | null;
     fileInput?.click();
+  }
+
+  private handleLoadDemoDataset() {
+    this.showImportMenu = false;
+    this.dispatchEvent(
+      new CustomEvent('load-demo-dataset', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   render() {
@@ -1330,7 +1377,14 @@ export class ProtspaceControlBar extends LitElement {
                 : ''}
             </div>
             <div class="export-container right-controls-data" data-driver-id="import">
-              <button class="btn-secondary" @click=${this.openFileDialog} title="Import Data">
+              <button
+                class="dropdown-trigger ${this.showImportMenu ? 'open' : ''}"
+                @click=${this.toggleImportMenu}
+                @keydown=${this.handleImportKeydown}
+                title="Import Data"
+                aria-haspopup="menu"
+                aria-expanded=${this.showImportMenu}
+              >
                 <svg class="icon" viewBox="0 0 24 24">
                   <path
                     stroke-linecap="round"
@@ -1338,8 +1392,44 @@ export class ProtspaceControlBar extends LitElement {
                     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L9 8m3-4v12"
                   />
                 </svg>
-                Import
+                <span class="dropdown-trigger-text">Import</span>
+                <svg class="chevron-down" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
+
+              ${this.showImportMenu
+                ? html`
+                    <div class="dropdown-menu align-right import-menu" role="menu">
+                      <div class="import-current-dataset">
+                        <span class="import-current-dataset-label">Current dataset</span>
+                        <span
+                          class="import-current-dataset-name"
+                          title=${this.currentDatasetName || 'No dataset loaded'}
+                        >
+                          ${this.currentDatasetName || 'No dataset loaded'}
+                        </span>
+                      </div>
+                      <div class="import-actions">
+                        <button
+                          class="btn-primary"
+                          @click=${this.openFileDialog}
+                          data-driver-id="import-own-dataset"
+                        >
+                          Load your dataset
+                        </button>
+                        <button
+                          class="btn-secondary"
+                          @click=${this.handleLoadDemoDataset}
+                          data-driver-id="import-demo-dataset"
+                          ?disabled=${this.currentDatasetIsDemo}
+                        >
+                          Load demo dataset
+                        </button>
+                      </div>
+                    </div>
+                  `
+                : ''}
             </div>
           </div>
         </div>
@@ -1357,6 +1447,7 @@ export class ProtspaceControlBar extends LitElement {
       this.showProjectionMenu = false;
       this.showFilterMenu = false;
       this.showExportMenu = false;
+      this.showImportMenu = false;
       // Close search when annotation opens
       this.shadowRoot
         ?.querySelector('protspace-protein-search')
@@ -1368,6 +1459,7 @@ export class ProtspaceControlBar extends LitElement {
       this.showProjectionMenu = false;
       this.showFilterMenu = false;
       this.showExportMenu = false;
+      this.showImportMenu = false;
       // Close annotation when search opens
       this.shadowRoot
         ?.querySelector('protspace-annotation-select')
@@ -1414,6 +1506,7 @@ export class ProtspaceControlBar extends LitElement {
           projection: this.showProjectionMenu,
           filter: this.showFilterMenu,
           export: this.showExportMenu,
+          import: this.showImportMenu,
         })
       ) {
         return;
@@ -1442,6 +1535,7 @@ export class ProtspaceControlBar extends LitElement {
       this.shadowRoot?.querySelector('.dropdown-menu.align-left'), // Projection
       this.shadowRoot?.querySelector('.filter-menu'), // Filter
       this.shadowRoot?.querySelector('.export-menu'), // Export
+      this.shadowRoot?.querySelector('.import-menu'), // Import
       // Get annotation-select element
       this.shadowRoot?.querySelector('protspace-annotation-select'),
       // Get search element
@@ -1458,6 +1552,7 @@ export class ProtspaceControlBar extends LitElement {
     if (!clickInsideDropdown) {
       // Close control-bar dropdowns
       this.showExportMenu = false;
+      this.showImportMenu = false;
       this.showFilterMenu = false;
       this.showProjectionMenu = false;
       this.openValueMenus = {};
