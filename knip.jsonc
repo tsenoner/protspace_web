@@ -12,18 +12,6 @@
     "packages/utils": {
       "project": ["src/**/*.ts"],
     },
-    "packages/react-bridge": {
-      "entry": ["src/index.ts"],
-      "project": ["src/**/*.{ts,tsx}"],
-      // TODO: This package is mostly empty. Either populate it or remove these unused devDependencies
-      "ignoreDependencies": [
-        "@protspace/core", // Listed as devDep but should be peerDep only
-        "@types/react", // Not used (package is empty)
-        "@types/react-dom", // Not used (package is empty)
-        "react", // Listed as devDep but should be peerDep only
-        "react-dom", // Listed as devDep but should be peerDep only
-      ],
-    },
     "app": {
       "project": ["src/**/*.{ts,tsx}"],
       // TODO: Decide if this file is needed - it provides JSX types for web components

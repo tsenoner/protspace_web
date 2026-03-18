@@ -26,9 +26,6 @@
     },
     {
       "path": "./packages/utils"
-    },
-    {
-      "path": "./packages/react-bridge"
     }
   ]
 }
