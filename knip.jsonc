@@ -14,19 +14,13 @@
     },
     "app": {
       "project": ["src/**/*.{ts,tsx}"],
-      // TODO: Decide if this file is needed - it provides JSX types for web components
-      "ignore": ["src/custom-elements.d.ts"],
+      "ignore": [
+        "src/custom-elements.d.ts",
+        // shadcn/ui components export complete sets by convention
+        "src/components/ui/**",
+      ],
     },
   },
   "ignoreWorkspaces": ["docs"],
-  // TODO: Set to false and fix unused exports
-  "ignoreExportsUsedInFile": true,
-  // TODO: Remove this rules section to enable export/type checking, then fix reported issues:
-  // - Remove unused exports (e.g., buttonVariants, CardHeader, toast, Tooltip components in app/src/components/ui/)
-  // - Remove unused exports in packages/core (ProtspaceAnnotationSelect, ProtspaceProteinSearch, data-loader utils, etc.)
-  // - Remove unused type exports (ButtonProps, ControlBarState, various internal types)
-  "rules": {
-    "exports": "off",
-    "types": "off",
-  },
+  "ignoreExportsUsedInFile": false,
 }

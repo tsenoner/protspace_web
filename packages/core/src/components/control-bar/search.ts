@@ -7,7 +7,7 @@ import { isMacOrIos } from '@protspace/utils';
  * Protein search component with autocomplete suggestions and multi-select state (no chips UI)
  */
 @customElement('protspace-protein-search')
-export class ProtspaceProteinSearch extends LitElement {
+class ProtspaceProteinSearch extends LitElement {
   static styles = searchStyles;
 
   @property({ type: Array }) availableProteinIds: string[] = [];

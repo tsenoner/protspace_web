@@ -9,9 +9,9 @@ const PERF_GLOBAL_RESULTS_KEY = '__protspaceWebGLRenderPerfMeasurements';
 
 export type RenderWebGLTrigger = 'zoom' | 'plot' | 'unknown';
 
-export type PerfScenarioName = 'annotationChange' | 'zoomInOut' | 'dragCanvas' | 'clickPoint';
+type PerfScenarioName = 'annotationChange' | 'zoomInOut' | 'dragCanvas' | 'clickPoint';
 
-export type PerfRenderPass = {
+type PerfRenderPass = {
   seq: number;
   trigger: RenderWebGLTrigger;
   startTs: number;
@@ -20,7 +20,7 @@ export type PerfRenderPass = {
   renderedPoints: number;
 };
 
-export type PerfScenarioRun = {
+type PerfScenarioRun = {
   name: PerfScenarioName;
   iterations: number;
   startTs: number;
@@ -35,7 +35,7 @@ export type PerfDatasetInfo = {
   proteinCount?: number;
 };
 
-export type PerfMeasurementResult = {
+type PerfMeasurementResult = {
   createdAt: string;
   iterations: number;
   metadata: Record<string, unknown>;

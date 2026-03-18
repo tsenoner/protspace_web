@@ -520,7 +520,7 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
   };
 }
 
-export function findProjectionPairs(
+function findProjectionPairs(
   columnNames: string[],
 ): Array<{ name: string; xCol: string; yCol: string }> {
   const pairs: Array<{ name: string; xCol: string; yCol: string }> = [];
@@ -580,7 +580,7 @@ export function findProjectionPairs(
   return pairs;
 }
 
-export function formatProjectionName(name: string): string {
+function formatProjectionName(name: string): string {
   if (name.toUpperCase() === 'PCA_2') return 'PCA 2';
   if (name.toUpperCase() === 'PCA_3') return 'PCA 3';
   if (/^PCA_?\d+$/i.test(name)) {
@@ -600,7 +600,7 @@ export function formatProjectionName(name: string): string {
     .join(' ');
 }
 
-export function inferProjectionName(xCol: string, yCol: string): string {
+function inferProjectionName(xCol: string, yCol: string): string {
   const lx = xCol.toLowerCase();
   const ly = yCol.toLowerCase();
   if (lx.includes('umap') || ly.includes('umap')) return 'UMAP';
@@ -620,7 +620,7 @@ export function inferProjectionName(xCol: string, yCol: string): string {
  * @param count - Number of colors to generate
  * @returns Array of hex color strings
  */
-export function generateColors(count: number): string[] {
+function generateColors(count: number): string[] {
   if (count <= 0) return [];
 
   const kellysPalette = COLOR_SCHEMES.kellys as readonly string[];
@@ -642,7 +642,7 @@ export function generateColors(count: number): string[] {
  * @param count - Number of shapes to generate
  * @returns Array of shape names
  */
-export function generateShapes(count: number): string[] {
+function generateShapes(count: number): string[] {
   if (count <= 0) return [];
 
   // Shapes ordered by visual distinctness for optimal category separation
@@ -667,7 +667,7 @@ export function generateShapes(count: number): string[] {
   return shapes;
 }
 
-export async function extractAnnotationsOptimized(
+async function extractAnnotationsOptimized(
   rows: Rows,
   columnNames: string[],
   proteinIdCol: string,

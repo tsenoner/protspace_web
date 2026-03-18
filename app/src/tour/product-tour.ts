@@ -295,7 +295,7 @@ driverObj.setConfig({
 // Public API
 // ---------------------------------------------------------------------------
 
-export interface ProductTourOptions {
+interface ProductTourOptions {
   /** When `true` the tour starts regardless of localStorage state. */
   force?: boolean;
 }
@@ -319,11 +319,4 @@ export function startProductTour(options: ProductTourOptions = {}) {
   localStorage.setItem(STORAGE_KEY, 'true');
 
   driverObj.drive();
-}
-
-/**
- * Programmatically destroy the active tour (if any).
- */
-export function destroyProductTour() {
-  driverObj.destroy();
 }

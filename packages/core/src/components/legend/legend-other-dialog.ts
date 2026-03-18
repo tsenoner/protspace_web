@@ -5,14 +5,14 @@ import { toDisplayValue } from './config';
 /**
  * State for the Other dialog
  */
-export interface OtherDialogState {
+interface OtherDialogState {
   otherItems: OtherItem[];
 }
 
 /**
  * Callbacks for the Other dialog
  */
-export interface OtherDialogCallbacks {
+interface OtherDialogCallbacks {
   onExtract: (value: string) => void;
   onClose: () => void;
   onOverlayMouseDown: (e: MouseEvent) => void;

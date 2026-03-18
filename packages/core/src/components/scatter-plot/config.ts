@@ -1,12 +1,5 @@
 import type { ScatterplotConfig } from '@protspace/utils';
 
-/**
- * Duplicate stack UI threshold:
- * - Below this zoom level, we hide duplicate count badges to reduce visual clutter.
- * - Must be within `zoomExtent`.
- */
-export const DUPLICATE_STACK_BADGES_MIN_ZOOM = 20;
-
 // Centralized default configuration for the scatterplot component
 export const DEFAULT_CONFIG: Required<ScatterplotConfig> = {
   width: 800,

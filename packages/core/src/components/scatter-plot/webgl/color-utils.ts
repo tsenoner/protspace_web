@@ -43,13 +43,6 @@ export function resolveColor(color: string): [number, number, number] {
   return result;
 }
 
-/**
- * Clears the color cache. Useful for testing or when memory needs to be freed.
- */
-export function clearColorCache(): void {
-  COLOR_CACHE.clear();
-}
-
 const DEFAULT_RGB: [number, number, number] = [1, 1, 1];
 
 function parseNormalizedColor(

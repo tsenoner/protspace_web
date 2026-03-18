@@ -35,7 +35,7 @@ function formatScore(value: number): string {
 }
 
 @customElement('protspace-protein-tooltip')
-export class ProtspaceProteinTooltip extends LitElement {
+class ProtspaceProteinTooltip extends LitElement {
   @property({ type: Object }) protein: PlotDataPoint | null = null;
   @property({ type: String }) selectedAnnotation = '';
 

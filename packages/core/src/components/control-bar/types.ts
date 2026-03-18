@@ -2,15 +2,6 @@
  * Control bar-related type definitions
  */
 
-export interface ControlBarState {
-  projections: string[];
-  annotations: string[];
-  selectedProjection: string;
-  selectedAnnotation: string;
-  selectionMode: boolean;
-  selectedProteinsCount: number;
-}
-
 export interface ProtspaceData {
   projections?: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>;
   annotations?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;

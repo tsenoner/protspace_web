@@ -1,6 +1,6 @@
 // Mol* dynamic loader and viewer factory
 
-export const MOLSTAR_VERSION = '3.44.0';
+const MOLSTAR_VERSION = '3.44.0';
 const MOLSTAR_SCRIPT_URL = `https://cdn.jsdelivr.net/npm/molstar@${MOLSTAR_VERSION}/build/viewer/molstar.js`;
 const MOLSTAR_CSS_URL = `https://cdn.jsdelivr.net/npm/molstar@${MOLSTAR_VERSION}/build/viewer/molstar.css`;
 
@@ -41,7 +41,7 @@ declare global {
   }
 }
 
-export async function ensureMolstarResourcesLoaded(): Promise<void> {
+async function ensureMolstarResourcesLoaded(): Promise<void> {
   if (!document.getElementById('molstar-script')) {
     await new Promise<void>((resolve, reject) => {
       const script = document.createElement('script');

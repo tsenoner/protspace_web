@@ -4,7 +4,7 @@ import type { Projection } from '@protspace/utils';
 import { projectionMetadataStyles } from './projection-metadata.styles';
 
 @customElement('protspace-projection-metadata')
-export class ProtspaceProjectionMetadata extends LitElement {
+class ProtspaceProjectionMetadata extends LitElement {
   @property({ type: Object }) projection: Projection | null = null;
 
   static styles = projectionMetadataStyles;

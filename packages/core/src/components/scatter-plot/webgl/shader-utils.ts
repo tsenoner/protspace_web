@@ -5,7 +5,7 @@
 /**
  * Creates and compiles a WebGL shader.
  */
-export function createShader(
+function createShader(
   gl: WebGL2RenderingContext | WebGLRenderingContext,
   type: number,
   source: string,
@@ -28,7 +28,7 @@ export function createShader(
 /**
  * Creates and links a WebGL program from vertex and fragment shaders.
  */
-export function createProgram(
+function createProgram(
   gl: WebGL2RenderingContext | WebGLRenderingContext,
   vertexShader: WebGLShader,
   fragmentShader: WebGLShader,
