@@ -596,7 +596,7 @@ export class ProtspaceLegend extends LitElement {
    *
    * @param datasetHash - The hash of the NEW dataset (used to clear its localStorage entries)
    */
-  public clearForNewDataset(datasetHash: string): void {
+  public clearForNewDataset(datasetHash: string, clearPersistedState: boolean = true): void {
     // Reset visual encoding state
     this._processorContext.slotTracker.reset();
 
@@ -607,7 +607,7 @@ export class ProtspaceLegend extends LitElement {
     this._hiddenValues = [];
 
     // Clear persistence state for the new dataset
-    this._persistenceController.clearForNewDataset(datasetHash);
+    this._persistenceController.clearForNewDataset(datasetHash, clearPersistedState);
 
     // Reset UI state
     this._showSettingsDialog = false;

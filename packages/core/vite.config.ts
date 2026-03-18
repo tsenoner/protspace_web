@@ -7,6 +7,10 @@ export default defineConfig({
     dts({
       tsconfigPath: './tsconfig.json',
       insertTypesEntry: true,
+      include: ['src/**/*'],
+      exclude: ['src/**/*.test.ts'],
+      rollupTypes: false,
+      copyDtsFiles: true,
     }),
   ],
   build: {

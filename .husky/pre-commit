@@ -1,1 +1,1 @@
-pnpm lint-staged && pnpm knip && pnpm type-check && pnpm test:ci
+pnpm lint-staged && pnpm type-check && pnpm knip && pnpm test:ci

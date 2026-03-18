@@ -169,16 +169,14 @@ export const responsiveStyles = css`
     }
   }
 
-  /* Hide chevrons in right-controls as LAST RESORT */
+  /* Keep right-side dropdown chevrons visible on compact screens so
+     Import/Export still read as menus rather than immediate actions. */
   @media (max-width: 600px) {
     /* --breakpoint-sm */
-    .right-controls .chevron-down {
-      display: none;
-    }
-
-    /* Keep text centered when chevron is hidden */
     .right-controls .dropdown-trigger {
-      justify-content: center;
+      justify-content: space-between;
+      gap: var(--spacing-2xs, 0.25rem);
+      padding: var(--button-padding-y) var(--spacing-xs);
     }
   }
 

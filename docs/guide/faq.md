@@ -10,7 +10,7 @@ No. ProtSpace is designed for biologists and researchers - you only need protein
 
 ### Is my data uploaded to a server?
 
-No. Everything runs in your browser - your data never leaves your computer.
+No. Everything runs in your browser — your data never leaves your computer. Even persisted data (dataset files and settings) is stored locally in the browser. See [Data & Settings Persistence](/explore/importing-data#data-settings-persistence) for details.
 
 ### Which file formats are supported?
 
@@ -95,13 +95,14 @@ Not recommended. Performance degrades above 500K proteins - consider subsetting.
 
 ### What's inside a .parquetbundle?
 
-Three Parquet files bundled together:
+Three or four Parquet files bundled together:
 
 1. Annotation data (protein metadata)
 2. Projection metadata (methods, parameters)
 3. Projection coordinates (x, y, z)
+4. Settings (optional — legend colors, shapes, export options)
 
-See [Data Format](/guide/data-format) for details.
+The optional settings table is included when you export with "Include legend/export settings" enabled. See [Data Format](/guide/data-format) for details.
 
 ## Contributing
 

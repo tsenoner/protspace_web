@@ -184,4 +184,45 @@ export const exportStyles = css`
   .export-actions button {
     flex: 1;
   }
+
+  .import-menu {
+    width: 240px;
+    padding: var(--spacing-md);
+    box-sizing: border-box;
+  }
+
+  .import-current-dataset {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2xs, 0.25rem);
+    padding: 0 0 var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border-bottom: var(--border-width) solid var(--border);
+  }
+
+  .import-current-dataset-label {
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .import-current-dataset-name {
+    font-size: var(--text-base);
+    font-weight: var(--font-medium);
+    color: var(--text-primary);
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  .import-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .import-actions button {
+    width: 100%;
+  }
 `;

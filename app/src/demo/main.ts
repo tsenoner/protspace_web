@@ -17,7 +17,15 @@ import {
   generateDatasetHash,
 } from '@protspace/utils';
 import { maybeRunWebglPerfSuite } from './webgl-perf-suite';
+import {
+  StoredDatasetCorruptError,
+  clearLastImportedFile,
+  loadLastImportedFile,
+  saveLastImportedFile,
+} from './opfs-dataset-store';
 import { startProductTour } from '../tour/product-tour';
+
+const DEFAULT_DEMO_DATASET_NAME = 'Demo dataset';
 
 // Export initialization function that can be called when the component mounts
 export async function initializeDemo() {
@@ -46,11 +54,20 @@ export async function initializeDemo() {
     // Track state
     let hiddenValues: string[] = [];
     let selectedProteins: string[] = [];
+    let pendingAutoLoadKind: 'default' | 'opfs' | null = null;
 
     // Performance monitoring
     const performanceMetrics = {
       lastDataSize: 0,
       loadingTime: 0,
+    };
+
+    const setCurrentDatasetName = (name: string) => {
+      controlBar.currentDatasetName = name;
+    };
+
+    const setCurrentDatasetIsDemo = (isDemo: boolean) => {
+      controlBar.currentDatasetIsDemo = isDemo;
     };
 
     // Helper to show/update loading overlay
@@ -340,9 +357,23 @@ export async function initializeDemo() {
       }
     };
 
-    // Load data from the parquet bundle file
-    const loadDataFromFile = async () => {
+    /** Clear corrupted persisted dataset, alert the user, and fall back to the demo. */
+    const handleCorruptedPersistedDataset = async (context: string) => {
       try {
+        await clearLastImportedFile();
+      } catch (clearError) {
+        console.warn('Failed to clear invalid persisted dataset:', clearError);
+      }
+      alert(
+        `The previously saved dataset ${context} and was cleared. Loading the default demo dataset instead.`,
+      );
+      await loadDefaultDemoFile();
+    };
+
+    const loadDefaultDemoFile = async () => {
+      try {
+        setCurrentDatasetName(DEFAULT_DEMO_DATASET_NAME);
+        setCurrentDatasetIsDemo(true);
         console.log('🔄 Loading data from data.parquetbundle...');
 
         // First, try to fetch the file directly to check if it exists
@@ -360,8 +391,10 @@ export async function initializeDemo() {
         console.log(`📁 File loaded: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
         // Use loadFromFile instead of loadFromUrl for better error handling
+        pendingAutoLoadKind = 'default';
         await dataLoader.loadFromFile(file, { source: 'auto' });
       } catch (error) {
+        pendingAutoLoadKind = null;
         console.error('❌ Failed to load data from file:', error);
         console.log('💡 Make sure data.parquetbundle exists in the public directory');
         console.log(
@@ -375,6 +408,37 @@ export async function initializeDemo() {
           '📋 The data loader is ready for drag-and-drop. Simply drag the data.parquetbundle file onto the component.',
         );
       }
+    };
+
+    const loadPersistedOrDefaultDataset = async () => {
+      try {
+        const persistedFile = await loadLastImportedFile();
+        if (persistedFile) {
+          console.log(`♻️ Restoring persisted dataset from OPFS: ${persistedFile.name}`);
+          pendingAutoLoadKind = 'opfs';
+          setCurrentDatasetName(persistedFile.name);
+          setCurrentDatasetIsDemo(false);
+          await dataLoader.loadFromFile(persistedFile, { source: 'auto' });
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Failed to restore persisted dataset:', error);
+        if (error instanceof StoredDatasetCorruptError) {
+          await handleCorruptedPersistedDataset('in browser storage is corrupted');
+          return;
+        }
+      }
+
+      await loadDefaultDemoFile();
+    };
+
+    const loadDemoDatasetAndClearPersistedFile = async () => {
+      try {
+        await clearLastImportedFile();
+      } catch (error) {
+        console.warn('Failed to clear persisted dataset before loading demo:', error);
+      }
+      await loadDefaultDemoFile();
     };
 
     // Initialize control bar - auto-sync handles most initialization
@@ -552,22 +616,28 @@ export async function initializeDemo() {
     // Handle successful data loading
     dataLoader.addEventListener('data-loaded', async (event: Event) => {
       const customEvent = event as CustomEvent<DataLoadedEventDetail>;
-      const { data, settings } = customEvent.detail;
+      const { data, settings, source, file } = customEvent.detail;
 
       // Compute dataset hash upfront for clearing and settings
       const datasetHash = generateDatasetHash(data.protein_ids);
+      const shouldClearPersistedState =
+        pendingAutoLoadKind === 'default' || (!!settings && pendingAutoLoadKind !== 'opfs');
 
       // Clear all component state before loading new data
       if (legendElement) {
-        legendElement.clearForNewDataset(datasetHash);
-        controlBar.clearForNewDataset(datasetHash);
+        legendElement.clearForNewDataset(datasetHash, shouldClearPersistedState);
+        controlBar.clearForNewDataset(datasetHash, shouldClearPersistedState);
       }
 
       // Load the new data into all components
       await loadNewData(data);
 
+      // For OPFS restores, keep localStorage as the live source of truth for settings.
+      // Embedded file settings are only re-applied on direct imports/default demo loads.
+      const shouldApplyEmbeddedFileSettings = settings && pendingAutoLoadKind !== 'opfs';
+
       // Apply file-based settings to legend/export options if present
-      if (settings && legendElement) {
+      if (shouldApplyEmbeddedFileSettings && legendElement) {
         legendElement.setFileSettings(settings.legendSettings, datasetHash, true);
         controlBar.setFileSettings(settings.exportOptions, datasetHash, false);
       }
@@ -578,14 +648,41 @@ export async function initializeDemo() {
           settings !== null &&
           (Object.keys(settings.legendSettings).length > 0 ||
             Object.keys(settings.exportOptions).length > 0);
+
+        if ((source === 'user' || pendingAutoLoadKind === 'opfs') && file) {
+          setCurrentDatasetName(file.name);
+          setCurrentDatasetIsDemo(false);
+        } else if (pendingAutoLoadKind === 'default') {
+          setCurrentDatasetName(DEFAULT_DEMO_DATASET_NAME);
+          setCurrentDatasetIsDemo(true);
+        }
+      }
+
+      if (source === 'user' && file) {
+        try {
+          await saveLastImportedFile(file);
+        } catch (error) {
+          console.error('Failed to persist imported dataset in OPFS:', error);
+          alert(
+            'This dataset was loaded, but ProtSpace could not save it in browser storage for automatic reloads.',
+          );
+        }
+      } else {
+        pendingAutoLoadKind = null;
       }
     });
 
     // Handle data loading errors
-    dataLoader.addEventListener('data-error', (event: Event) => {
+    dataLoader.addEventListener('data-error', async (event: Event) => {
       const customEvent = event as CustomEvent;
       const { error } = customEvent.detail;
       console.error('❌ Data loading error:', error);
+
+      if (pendingAutoLoadKind === 'opfs') {
+        pendingAutoLoadKind = null;
+        await handleCorruptedPersistedDataset('could not be loaded');
+        return;
+      }
 
       // You could show a toast notification or error message here
       alert(`Failed to load data: ${error}`);
@@ -598,8 +695,12 @@ export async function initializeDemo() {
     if (shouldRunPerfSuite) {
       void maybeRunWebglPerfSuite({ plotElement, dataLoader });
     } else {
-      loadDataFromFile();
+      void loadPersistedOrDefaultDataset();
     }
+
+    controlBar.addEventListener('load-demo-dataset', () => {
+      void loadDemoDatasetAndClearPersistedFile();
+    });
 
     // Handle export
     controlBar.addEventListener('export', async (event: Event) => {
@@ -696,7 +797,7 @@ export async function initializeDemo() {
     );
 
     console.log('ProtSpace components loaded and connected!');
-    console.log('Data will be loaded from data.parquetbundle file');
+    console.log('Data will be loaded from OPFS when available, otherwise from data.parquetbundle');
     console.log('Use the control bar to change annotations and toggle selection modes!');
   } else {
     console.error('Could not find one or more required elements.');
