@@ -376,11 +376,19 @@ export class ProtspaceScatterplot extends LitElement {
     ) {
       this._scheduleQuadtreeRebuild();
       this._webglRenderer?.invalidateStyleCache();
-      // Visibility might change (points hidden/shown), so we must rebuild position buffer
-      // to keep colors and positions in sync in the dense arrays
-      this._webglRenderer?.invalidatePositionCache();
       this._updateStyleSignature();
       this._webglRenderer?.setStyleSignature(this._styleSig);
+
+      // Position/sort rebuild only when annotation or "Other" category changes
+      // (affects colors, shapes, z-order). Visibility toggles only change alpha
+      // values — hidden points stay in GPU arrays with alpha=0, preserving sort
+      // order and enabling the fast color-only update path.
+      if (
+        changedProperties.has('selectedAnnotation') ||
+        changedProperties.has('otherAnnotationValues')
+      ) {
+        this._webglRenderer?.invalidatePositionCache();
+      }
     }
     if (changedProperties.has('selectionMode')) {
       this._updateSelectionMode();

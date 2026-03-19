@@ -133,6 +133,10 @@ void main() {
   float shapeAlpha = smoothstep(0.0, aa, edgeDist);
   if (shapeAlpha < 0.001) discard;
 
+  // Early-out for hidden points (alpha=0). These remain in GPU arrays to
+  // preserve sort order across visibility toggles, avoiding costly re-sorts.
+  if (v_color.a < 0.001) discard;
+
   vec3 finalColor = v_color.rgb;
 
   // Pie Chart Logic (only for multi-label points, which always use circle shape)
@@ -264,6 +268,10 @@ export class WebGLRenderer {
 
   // Store last rendered points for off-screen export rendering
   private lastRenderedPoints: PlotDataPoint[] | null = null;
+
+  // Cached sorted point order from last full rebuild. Used by the color-only
+  // update path so it iterates points in the same order as the position buffer.
+  private sortedPoints: PlotDataPoint[] = [];
 
   // Caching
   private lastDataSignature: string | null = null;
@@ -601,11 +609,15 @@ export class WebGLRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     if (this.selectionActive) {
-      gl.disable(gl.BLEND);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LESS);
+      gl.depthMask(true);
     } else {
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.disable(gl.DEPTH_TEST);
+      gl.depthMask(false);
     }
     this.renderPoints(transform);
 
@@ -658,11 +670,15 @@ export class WebGLRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     if (this.selectionActive) {
-      gl.disable(gl.BLEND);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LESS);
+      gl.depthMask(true);
     } else {
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.disable(gl.DEPTH_TEST);
+      gl.depthMask(false);
     }
 
     this.renderPoints(transform);
@@ -1452,6 +1468,7 @@ export class WebGLRenderer {
     this.lastDataSignature = null;
     this.lastStyleSignature = null;
     this.renderedPointIds.clear();
+    this.sortedPoints = [];
   }
 
   private initializePointShaders(gl: WebGL2RenderingContext): boolean {
@@ -1671,7 +1688,9 @@ export class WebGLRenderer {
       for (let i = 0; i < points.length && staged.length < maxPoints; i++) {
         const point = points[i];
         const opacity = this.style.getOpacity(point);
-        if (opacity === 0) continue;
+        // Include hidden points (opacity=0) in the buffer with alpha=0.
+        // This preserves sort order across visibility toggles, enabling the
+        // fast color-only update path instead of a full rebuild + re-sort.
         const depth = this.style.getDepth(point);
         staged.push({ point, opacity, depth });
       }
@@ -1680,10 +1699,13 @@ export class WebGLRenderer {
       // NOTE: `getDepth` is defined such that smaller depth is "closer" (wins in LESS mode).
       staged.sort((a, b) => b.depth - a.depth);
 
+      // Cache sorted point order for the color-only update path
+      this.sortedPoints = staged.map((s) => s.point);
+
       for (let s = 0; s < staged.length; s++) {
         const { point, opacity, depth } = staged[s];
 
-        if (this.trackRenderedPointIds) {
+        if (this.trackRenderedPointIds && opacity > 0) {
           this.renderedPointIds.add(point.id);
         }
 
@@ -1725,13 +1747,14 @@ export class WebGLRenderer {
         idx++;
       }
     } else if (updateStyles) {
-      // Color-only update: no reordering needed, just update color/shape buffers
-      for (let i = 0; i < points.length && idx < maxPoints; i++) {
-        const point = points[i];
+      // Color-only update: no reordering needed, just update color/shape buffers.
+      // Iterate sortedPoints to match the buffer order from the last full rebuild.
+      const source = this.sortedPoints;
+      for (let i = 0; i < source.length && idx < maxPoints; i++) {
+        const point = source[i];
         const opacity = this.style.getOpacity(point);
-        if (opacity === 0) continue;
 
-        if (this.trackRenderedPointIds) {
+        if (this.trackRenderedPointIds && opacity > 0) {
           this.renderedPointIds.add(point.id);
         }
 
@@ -1768,14 +1791,17 @@ export class WebGLRenderer {
         idx++;
       }
     } else {
-      // No reordering and no style updates: only update positions if needed
-      for (let i = 0; i < points.length && idx < maxPoints; i++) {
-        const point = points[i];
-        const opacity = this.style.getOpacity(point);
-        if (opacity === 0) continue;
+      // No reordering and no style updates: only update positions if needed.
+      // Iterate sortedPoints to match the buffer order from the last full rebuild.
+      const source = this.sortedPoints;
+      for (let i = 0; i < source.length && idx < maxPoints; i++) {
+        const point = source[i];
 
         if (this.trackRenderedPointIds) {
-          this.renderedPointIds.add(point.id);
+          const opacity = this.style.getOpacity(point);
+          if (opacity > 0) {
+            this.renderedPointIds.add(point.id);
+          }
         }
 
         if (updatePositions) {
