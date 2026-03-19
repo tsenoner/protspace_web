@@ -201,8 +201,6 @@ export class ProtspaceStructureViewer extends LitElement {
     }
   }
 
-  // Removed _loadMolstarResources and _createViewer; logic moved to molstar-loader
-
   private async _displayStructure(structureData: StructureData): Promise<void> {
     if (!this._viewer) {
       throw new Error('Viewer not initialized');
@@ -366,7 +364,7 @@ export class ProtspaceStructureViewer extends LitElement {
         ? html`
             <div class="tips">
               <strong>Tip:</strong> Left-click and drag to rotate. Click and drag to move. Scroll to
-              zoom. Colors show pLDDT confidence (blue = high, red = low).
+              zoom.<br />Colors show pLDDT confidence (blue = high, red = low).
             </div>
           `
         : ''}

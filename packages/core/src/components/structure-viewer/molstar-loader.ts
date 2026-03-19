@@ -5,7 +5,6 @@ const MOLSTAR_SCRIPT_URL = `https://cdn.jsdelivr.net/npm/molstar@${MOLSTAR_VERSI
 const MOLSTAR_CSS_URL = `https://cdn.jsdelivr.net/npm/molstar@${MOLSTAR_VERSION}/build/viewer/molstar.css`;
 
 export interface MolstarViewer {
-  loadPdb: (pdbId: string) => Promise<void>;
   loadStructureFromUrl: (
     url: string,
     format?: string,

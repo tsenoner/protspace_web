@@ -50,16 +50,12 @@ export class StructureService {
 
       if (prediction.cifUrl) {
         structureUrl = prediction.cifUrl;
-        format = 'mmcif';
-        isBinary = false;
       } else if (prediction.bcifUrl) {
         structureUrl = prediction.bcifUrl;
-        format = 'mmcif';
         isBinary = true;
       } else if (prediction.pdbUrl) {
         structureUrl = prediction.pdbUrl;
         format = 'pdb';
-        isBinary = false;
       } else {
         throw new Error(`No structure URL found for ${formattedId}`);
       }
