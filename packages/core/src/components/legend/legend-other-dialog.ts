@@ -14,6 +14,7 @@ interface OtherDialogState {
  */
 interface OtherDialogCallbacks {
   onExtract: (value: string) => void;
+  onExtractAll: () => void;
   onClose: () => void;
   onOverlayMouseDown: (e: MouseEvent) => void;
   onOverlayMouseUp: () => void;
@@ -99,8 +100,14 @@ export function renderOtherDialog(
         </div>
 
         <div class="modal-footer">
-          <button class="btn-secondary modal-close-button" @click=${callbacks.onClose}>
-            Close
+          <button
+            class="btn-danger extract-all-button"
+            @click=${callbacks.onExtractAll}
+            title="This cannot be undone."
+            aria-label="Extract all from Other (irreversible)"
+            ?disabled=${state.otherItems.length === 0}
+          >
+            Extract all from Other
           </button>
         </div>
       </div>

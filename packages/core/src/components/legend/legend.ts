@@ -888,6 +888,50 @@ export class ProtspaceLegend extends LitElement {
     });
   }
 
+  private _handleExtractAllFromOther(): void {
+    if (this._otherItems.length === 0) return;
+
+    // "Total number of categories" == current non-synthetic legend items (excluding 'Other')
+    // plus all concrete values currently represented in _otherItems.
+    const nonOtherCount = this._legendItems.filter((i) => i.value !== LEGEND_VALUES.OTHER).length;
+    const targetMaxVisibleValues = nonOtherCount + this._otherItems.length;
+
+    // No-op guard (shouldn't happen if Other exists, but safe).
+    if (targetMaxVisibleValues <= this.maxVisibleValues) {
+      this._showOtherDialog = false;
+      return;
+    }
+
+    // Clear any pending single-item operations to avoid interaction.
+    this._pendingExtractValue = undefined;
+    this._pendingMergeValue = undefined;
+
+    // Keep settings dialog in sync if it's open.
+    if (this._showSettingsDialog) {
+      this._dialogSettings = {
+        ...this._dialogSettings,
+        maxVisibleValues: targetMaxVisibleValues,
+      };
+    }
+
+    // Close the Other dialog first; legend rebuild happens via maxVisibleValues update.
+    this._showOtherDialog = false;
+    this._mouseDownOutsideOther = false;
+
+    // Dispatch individual extract events for parity with extracting each item manually.
+    for (const oi of this._otherItems) {
+      this._dispatchItemAction(oi.value, 'extract');
+    }
+
+    this._announceStatus('Extracted all items from Other category');
+    this.maxVisibleValues = targetMaxVisibleValues;
+
+    // Persist after Lit finishes the update cycle.
+    this.updateComplete.then(() => {
+      this._persistenceController.saveSettings();
+    });
+  }
+
   private _handleMergeToOther(value: string): void {
     // Set pending merge value - will be used by processor to remove this item from visible set
     this._pendingMergeValue = value;
@@ -1351,6 +1395,7 @@ export class ProtspaceLegend extends LitElement {
       { otherItems: this._otherItems },
       {
         onExtract: (value) => this._handleExtractFromOther(value),
+        onExtractAll: () => this._handleExtractAllFromOther(),
         onClose: () => {
           this._showOtherDialog = false;
           this._mouseDownOutsideOther = false;
