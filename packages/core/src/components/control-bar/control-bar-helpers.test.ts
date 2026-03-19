@@ -52,6 +52,7 @@ describe('control-bar-helpers', () => {
         'MIN_LEGEND_FONT_SIZE_PX',
         'MAX_LEGEND_FONT_SIZE_PX',
         'LOCK_ASPECT_RATIO',
+        'INCLUDE_LEGEND',
       ];
 
       requiredKeys.forEach((key) => {
@@ -69,6 +70,10 @@ describe('control-bar-helpers', () => {
         includeLegendSettings: true,
         includeExportOptions: true,
       });
+    });
+
+    it('defaults INCLUDE_LEGEND to true', () => {
+      expect(EXPORT_DEFAULTS.INCLUDE_LEGEND).toBe(true);
     });
 
     it('has valid numeric ranges', () => {
