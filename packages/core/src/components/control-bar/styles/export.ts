@@ -13,7 +13,10 @@ export const exportStyles = css`
     font-family: var(--font-family);
     font-size: var(--text-base);
     box-sizing: border-box;
+    max-height: 50vh;
+    overflow-y: auto;
     overflow-x: hidden;
+    scrollbar-width: thin;
   }
 
   .export-menu-header {
