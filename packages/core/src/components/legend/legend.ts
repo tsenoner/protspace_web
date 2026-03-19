@@ -878,7 +878,7 @@ export class ProtspaceLegend extends LitElement {
     // updated() which calls it. If we call it here, it will be called twice and the
     // pending value will be cleared after the first call, causing the second call to not
     // respect the extract operation.
-    this._showOtherDialog = false;
+    this._closeOtherDialog();
 
     this._announceStatus(`Extracted ${toDisplayValue(value)} from Other category`);
     this._dispatchItemAction(value, 'extract');
@@ -888,9 +888,12 @@ export class ProtspaceLegend extends LitElement {
     });
   }
 
-  private _handleExtractAllFromOther(): void {
-    if (this._otherItems.length === 0) return;
+  private _closeOtherDialog(): void {
+    this._showOtherDialog = false;
+    this._mouseDownOutsideOther = false;
+  }
 
+  private _handleExtractAllFromOther(): void {
     const nonOtherCount = this._legendItems.filter((i) => i.value !== LEGEND_VALUES.OTHER).length;
     const targetMaxVisibleValues = nonOtherCount + this._otherItems.length;
 
@@ -902,10 +905,12 @@ export class ProtspaceLegend extends LitElement {
       };
     }
 
-    this._showOtherDialog = false;
-    this._mouseDownOutsideOther = false;
+    this._closeOtherDialog();
 
     this._announceStatus('Extracted all items from Other category');
+    for (const item of this._otherItems) {
+      this._dispatchItemAction(item.value, 'extract');
+    }
     this.maxVisibleValues = targetMaxVisibleValues;
 
     this.updateComplete.then(() => {
@@ -1228,8 +1233,7 @@ export class ProtspaceLegend extends LitElement {
   private _handleOtherOverlayMouseUp(): void {
     // Only close if mousedown also occurred outside the dialog content
     if (this._mouseDownOutsideOther) {
-      this._showOtherDialog = false;
-      this._mouseDownOutsideOther = false;
+      this._closeOtherDialog();
     }
   }
 
@@ -1377,10 +1381,7 @@ export class ProtspaceLegend extends LitElement {
       {
         onExtract: (value) => this._handleExtractFromOther(value),
         onExtractAll: () => this._handleExtractAllFromOther(),
-        onClose: () => {
-          this._showOtherDialog = false;
-          this._mouseDownOutsideOther = false;
-        },
+        onClose: () => this._closeOtherDialog(),
         onOverlayMouseDown: (e) => this._handleOtherOverlayMouseDown(e),
         onOverlayMouseUp: () => this._handleOtherOverlayMouseUp(),
       },
