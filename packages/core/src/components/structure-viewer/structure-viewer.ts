@@ -201,8 +201,6 @@ export class ProtspaceStructureViewer extends LitElement {
     }
   }
 
-  // Removed _loadMolstarResources and _createViewer; logic moved to molstar-loader
-
   private async _displayStructure(structureData: StructureData): Promise<void> {
     if (!this._viewer) {
       throw new Error('Viewer not initialized');
@@ -212,7 +210,11 @@ export class ProtspaceStructureViewer extends LitElement {
     switch (structureData.source) {
       case 'alphafold':
         if (structureData.url) {
-          await this._viewer.loadStructureFromUrl(structureData.url, structureData.format);
+          await this._viewer.loadStructureFromUrl(
+            structureData.url,
+            structureData.format,
+            structureData.isBinary,
+          );
         } else {
           throw new Error('AlphaFold structure URL not available');
         }
@@ -362,7 +364,7 @@ export class ProtspaceStructureViewer extends LitElement {
         ? html`
             <div class="tips">
               <strong>Tip:</strong> Left-click and drag to rotate. Click and drag to move. Scroll to
-              zoom.
+              zoom.<br />Colors show pLDDT confidence (blue = high, red = low).
             </div>
           `
         : ''}
