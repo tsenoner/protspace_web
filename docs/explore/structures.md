@@ -16,6 +16,10 @@ When you select a protein with a UniProt accession:
 Currently, ProtSpace supports **AlphaFold structures** only. PDB experimental structures are not yet integrated.
 :::
 
+## Confidence Coloring (pLDDT)
+
+Structures are colored by **predicted Local Distance Difference Test (pLDDT)** confidence scores—the same scheme used on the [AlphaFold Database](https://alphafold.ebi.ac.uk/). Regions in **blue** are high-confidence, **yellow** moderate, and **red** low-confidence. This helps you quickly spot which parts of the model are more reliable.
+
 ## Viewer Controls
 
 | Action           | Effect               |

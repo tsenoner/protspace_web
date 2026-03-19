@@ -43,24 +43,23 @@ export class StructureService {
 
       const prediction = predictions[0];
 
-      // Determine the best available format (prefer PDB for compatibility)
+      // Prefer mmCIF over PDB so Mol* can apply pLDDT confidence coloring (requires ma_qa_metric in mmCIF)
       let structureUrl = '';
-      let format: 'pdb' | 'cif' | 'mmcif' = 'pdb';
-      let binary = false;
+      let format: 'pdb' | 'mmcif' = 'mmcif';
+      let isBinary = false;
 
-      // Use PDB format first as it's most compatible with Molstar
-      if (prediction.pdbUrl) {
-        structureUrl = prediction.pdbUrl;
-        format = 'pdb';
-        binary = false;
-      } else if (prediction.cifUrl) {
+      if (prediction.cifUrl) {
         structureUrl = prediction.cifUrl;
         format = 'mmcif';
-        binary = false;
+        isBinary = false;
       } else if (prediction.bcifUrl) {
         structureUrl = prediction.bcifUrl;
-        format = 'cif';
-        binary = true;
+        format = 'mmcif';
+        isBinary = true;
+      } else if (prediction.pdbUrl) {
+        structureUrl = prediction.pdbUrl;
+        format = 'pdb';
+        isBinary = false;
       } else {
         throw new Error(`No structure URL found for ${formattedId}`);
       }
@@ -72,13 +71,13 @@ export class StructureService {
         throw new Error(`Failed to fetch structure file: ${structureResponse.status}`);
       }
 
-      const structureData = binary
+      const structureData = isBinary
         ? await structureResponse.arrayBuffer()
         : await structureResponse.text();
 
       // Create blob and blob URL
       const blob = new Blob([structureData], {
-        type: binary ? 'application/octet-stream' : 'text/plain',
+        type: isBinary ? 'application/octet-stream' : 'text/plain',
       });
       const blobUrl = URL.createObjectURL(blob);
 
@@ -87,6 +86,7 @@ export class StructureService {
         source: 'alphafold',
         url: blobUrl,
         format,
+        isBinary,
         metadata: {
           confidence: 'high',
           method: 'predicted',
@@ -183,7 +183,8 @@ export interface StructureData {
   proteinId: string;
   source: 'alphafold';
   url: string | null;
-  format: 'pdb' | 'cif' | 'mmcif'; // 'cif' = binary CIF, 'mmcif' = regular CIF, 'pdb' = PDB
+  format: 'pdb' | 'mmcif';
+  isBinary: boolean;
   metadata: {
     confidence: 'high' | 'medium' | 'low' | 'experimental';
     method: 'predicted' | 'experimental';

@@ -9,6 +9,7 @@ export interface MolstarViewer {
   loadStructureFromUrl: (
     url: string,
     format?: string,
+    isBinary?: boolean,
     options?: Record<string, unknown>,
   ) => Promise<void>;
   dispose: () => void;
