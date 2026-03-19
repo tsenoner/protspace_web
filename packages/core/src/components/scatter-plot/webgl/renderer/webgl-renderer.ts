@@ -395,6 +395,15 @@ export class WebGLRenderer {
     this.positionsDirty = true;
   }
 
+  /**
+   * Release references to PlotDataPoint arrays so GC can reclaim old data
+   * before a new dataset is allocated. Call before processing a new dataset.
+   */
+  releaseDataReferences() {
+    this.lastRenderedPoints = null;
+    this.sortedPoints = [];
+  }
+
   resize(width: number, height: number) {
     if (this.isContextLost()) return;
     const dpr = window.devicePixelRatio || 1;

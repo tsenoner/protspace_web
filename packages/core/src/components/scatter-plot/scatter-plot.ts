@@ -467,7 +467,14 @@ export class ProtspaceScatterplot extends LitElement {
       // No new object allocation — just overwrite x/y/z on existing PlotDataPoints.
       this._updatePlotDataCoordinates(dataToUse);
     } else {
-      // Full rebuild path
+      // Release old data references before allocating the new dataset.
+      // Without this, old and new arrays coexist in memory during processing
+      // (e.g. 100K + 570K points), which can cause OOM on constrained devices.
+      this._plotData = [];
+      this._visiblePlotData = [];
+      this._quadtreeIndex.clear();
+      this._webglRenderer?.releaseDataReferences();
+
       this._plotData = DataProcessor.processVisualizationData(
         dataToUse,
         this.selectedProjectionIndex,
