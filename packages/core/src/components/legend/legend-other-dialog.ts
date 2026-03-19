@@ -103,11 +103,11 @@ export function renderOtherDialog(
           <button
             class="btn-danger extract-all-button"
             @click=${callbacks.onExtractAll}
-            title="This cannot be undone."
-            aria-label="Extract all from Other (irreversible)"
+            title="Undo through Settings > Legend > Max legend items"
+            aria-label="Extract all"
             ?disabled=${state.otherItems.length === 0}
           >
-            Extract all from Other
+            Extract all
           </button>
         </div>
       </div>
