@@ -27,9 +27,6 @@
     "knip": "knip",
     "knip:fix": "knip --fix",
     "precommit": "pnpm format && pnpm lint:fix && pnpm type-check && pnpm knip && pnpm test:ci",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release": "turbo build && changeset publish",
     "prepare": "husky"
   },
   "keywords": [],
@@ -44,7 +41,6 @@
     ]
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.7",
     "@playwright/test": "^1.57.0",
     "@types/node": "^22.18.10",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
