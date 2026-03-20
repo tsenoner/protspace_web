@@ -25,12 +25,11 @@ export default defineConfig({
       fileName: (format) => `index.${format === 'es' ? 'esm.js' : 'js'}`,
     },
     rollupOptions: {
-      external: ['lit', 'd3', 'html2canvas-pro', 'jspdf'],
+      external: ['lit', 'd3', 'jspdf'],
       output: {
         globals: {
           lit: 'Lit',
           d3: 'D3',
-          'html2canvas-pro': 'html2canvas',
           jspdf: 'jspdf',
         },
       },

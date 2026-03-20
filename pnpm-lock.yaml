@@ -184,9 +184,6 @@ importers:
       d3:
         specifier: ^7.9.0
         version: 7.9.0
-      html2canvas-pro:
-        specifier: ^1.5.11
-        version: 1.5.12
       hyparquet-writer:
         specifier: ^0.7.0
         version: 0.7.0
@@ -200,6 +197,9 @@ importers:
       eslint:
         specifier: ^9.27.0
         version: 9.37.0(jiti@2.6.1)
+      jsdom:
+        specifier: ^27.4.0
+        version: 27.4.0
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -2795,10 +2795,6 @@ packages:
 
   html-void-elements@3.0.0:
     resolution: {integrity: sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg==}
-
-  html2canvas-pro@1.5.12:
-    resolution: {integrity: sha512-egtJIe6YXMKSLX/ls400OJD6tzEVtATJOE++mnXmxMWyqcu9HDXDoLiWeXnGv45QW2ZaIiDlXw46Gxqrqw6SEw==}
-    engines: {node: '>=16.0.0'}
 
   html2canvas@1.4.1:
     resolution: {integrity: sha512-fPU6BHNpsyIhr8yyMpTLLxAbkaK8ArIBcmZIRiBLiDhjeqvXolaEmDGmELFuX9I4xDcaKKcJl+TKZLqruBbmWA==}
@@ -5994,7 +5990,8 @@ snapshots:
 
   balanced-match@1.0.2: {}
 
-  base64-arraybuffer@1.0.2: {}
+  base64-arraybuffer@1.0.2:
+    optional: true
 
   baseline-browser-mapping@2.8.28: {}
 
@@ -6148,6 +6145,7 @@ snapshots:
   css-line-break@2.1.0:
     dependencies:
       utrie: 1.0.2
+    optional: true
 
   css-tree@3.1.0:
     dependencies:
@@ -6739,11 +6737,6 @@ snapshots:
       - '@exodus/crypto'
 
   html-void-elements@3.0.0: {}
-
-  html2canvas-pro@1.5.12:
-    dependencies:
-      css-line-break: 2.1.0
-      text-segmentation: 1.0.3
 
   html2canvas@1.4.1:
     dependencies:
@@ -7705,6 +7698,7 @@ snapshots:
   text-segmentation@1.0.3:
     dependencies:
       utrie: 1.0.2
+    optional: true
 
   thenify-all@1.6.0:
     dependencies:
@@ -7845,6 +7839,7 @@ snapshots:
   utrie@1.0.2:
     dependencies:
       base64-arraybuffer: 1.0.2
+    optional: true
 
   vfile-message@4.0.3:
     dependencies:
