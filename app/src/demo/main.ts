@@ -8,14 +8,18 @@ import type {
   DataLoader,
   DataLoadedEventDetail,
 } from '@protspace/core';
-import { EXPORT_DEFAULTS } from '@protspace/core';
+import type { FigurePresetId, LegendPlacement } from '@protspace/utils';
 import {
-  createExporter,
+  createScatterCaptureFromElement,
+  exportPublicationFigure,
+  exportUtils,
+  generateProtspaceExportBasename,
   showNotification,
   exportParquetBundle,
   generateBundleFilename,
   generateDatasetHash,
 } from '@protspace/utils';
+import { buildPublicationLegendModelFromDom } from './publication-export-bridge';
 import { maybeRunWebglPerfSuite } from './webgl-perf-suite';
 import {
   StoredDatasetCorruptError,
@@ -705,15 +709,7 @@ export async function initializeDemo() {
     // Handle export
     controlBar.addEventListener('export', async (event: Event) => {
       const customEvent = event as CustomEvent;
-      const {
-        type,
-        imageWidth,
-        imageHeight,
-        legendWidthPercent,
-        legendFontSizePx,
-        includeLegendSettings,
-        includeExportOptions,
-      } = customEvent.detail;
+      const { type, includeLegendSettings, includeExportOptions } = customEvent.detail;
 
       try {
         // Handle parquet export separately
@@ -744,38 +740,41 @@ export async function initializeDemo() {
           return;
         }
 
-        const exporter = createExporter(plotElement);
-
-        // Calculate scatterplot dimensions (excluding legend)
-        const legendPercent = (legendWidthPercent ?? EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT) / 100;
-        const targetWidth = Math.round(
-          (imageWidth ?? EXPORT_DEFAULTS.IMAGE_WIDTH) * (1 - legendPercent),
-        );
-        const targetHeight = imageHeight ?? EXPORT_DEFAULTS.IMAGE_HEIGHT;
-
-        // Export options
-        const options = {
-          targetWidth,
-          targetHeight,
-          legendWidthPercent: legendWidthPercent ?? EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT,
-          legendScaleFactor:
-            (legendFontSizePx ?? EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX) /
-            EXPORT_DEFAULTS.BASE_FONT_SIZE,
-          includeSelection: selectedProteins.length > 0,
-          backgroundColor: 'white',
-        };
-
-        // Execute export
-        switch (type) {
-          case 'ids':
-            exporter.exportProteinIds(options);
-            break;
-          case 'png':
-            await exporter.exportPNG(options);
-            break;
-          case 'pdf':
-            await exporter.exportPDF(options);
-            break;
+        if (type === 'png' || type === 'pdf') {
+          const pub = customEvent.detail as {
+            mode?: string;
+            presetId?: FigurePresetId;
+            legendPlacement?: LegendPlacement;
+          };
+          if (pub.mode !== 'publication' || !pub.presetId || !pub.legendPlacement) {
+            throw new Error(
+              'PNG/PDF export requires publication layout settings from the control bar.',
+            );
+          }
+          try {
+            await document.fonts.load('600 10px "Roboto Condensed"');
+            await document.fonts.load('500 10px "Roboto Condensed"');
+          } catch {
+            // Canvas falls back to Arial stack
+          }
+          const selectionIds = plotElement.selectedProteinIds ?? selectedProteins;
+          const legendModel = buildPublicationLegendModelFromDom(
+            plotElement,
+            legendElement,
+            selectionIds,
+          );
+          const fileNameBase = generateProtspaceExportBasename(plotElement);
+          await exportPublicationFigure({
+            presetId: pub.presetId,
+            legendPlacement: pub.legendPlacement,
+            format: type,
+            backgroundColor: '#ffffff',
+            scatterCapture: createScatterCaptureFromElement(plotElement),
+            legendModel,
+            fileNameBase,
+          });
+        } else if (type === 'ids') {
+          exportUtils.exportProteinIds(plotElement);
         }
       } catch (error) {
         console.error('Export failed:', error);
