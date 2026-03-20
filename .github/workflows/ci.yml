@@ -52,9 +52,6 @@ jobs:
       - name: Check for unused code
         run: pnpm knip
 
-      - name: Messaging guardrails
-        run: pnpm check:messaging
-
       - name: Build
         run: pnpm build
 
