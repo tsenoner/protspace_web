@@ -140,6 +140,7 @@ pnpm clean        # Clean build artifacts
 
 ```bash
 pnpm precommit    # Run all checks (recommended before pushing)
+pnpm check:messaging
 
 # Or individually:
 pnpm format       # Auto-format with Prettier
@@ -166,6 +167,18 @@ pnpm type-check   # Validate TypeScript compilation
 - Write JSDoc comments for public APIs and exported functions
 - Keep functions focused and maintainable
 - Follow existing patterns in the codebase
+
+### Messaging Consistency
+
+- Do not add browser-native `alert()` in `app/src` or `packages`.
+- Route app-level transient notifications through `app/src/lib/notify.ts`.
+- Shared packages must emit semantic events instead of rendering global notifications.
+- Preserve layered ownership: transient notifications, blocking/progress UI, inline component states, workflow dialogs, and accessibility-only announcements each serve different purposes.
+- When changing user-facing copy or host-consumed message events, update tests and docs in the same PR.
+- Route app-level transient notifications through `app/src/lib/notify.ts`
+- Do not introduce new browser `alert()` calls in runtime code
+- Keep component-owned inline states, dialogs, and `aria-live` announcements separate from global toasts
+- Update docs and tests in the same PR when user-facing message copy or event contracts change
 
 **Configuration files:**
 
@@ -214,11 +227,13 @@ pnpm docs:images   # Generate all documentation images (screenshots, animations,
 - Update README.md for significant features
 - Use clear, concise language
 - Ensure accessibility for new users
+- Keep the messaging model in `docs/developers/messaging.md` aligned with runtime behavior
 
 ## Pull Request Process
 
 1. **Ensure all checks pass:**
    - Run `pnpm precommit` locally
+   - Run `pnpm check:messaging` when your PR touches alerts, toasts, notification helpers, or message/event payloads
    - Verify CI checks are green
    - Resolve any failing tests
 

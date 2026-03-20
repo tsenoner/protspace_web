@@ -5,7 +5,11 @@ import type { StructureData } from '@protspace/utils';
 import { structureViewerStyles } from './structure-viewer.styles';
 import { createMolstarViewer, type MolstarViewer } from './molstar-loader';
 import { buildAlphaFoldUrl, buildUniProtUrl, buildInterProUrl } from './header-links';
-import type { StructureLoadEvent } from './types';
+import {
+  createStructureErrorEventDetail,
+  createStructureLoadDetail,
+} from './structure-viewer.events';
+import type { StructureErrorEvent, StructureLoadEvent } from './types';
 
 @customElement('protspace-structure-viewer')
 export class ProtspaceStructureViewer extends LitElement {
@@ -152,7 +156,7 @@ export class ProtspaceStructureViewer extends LitElement {
     this._structureData = null;
 
     // Dispatch loading event
-    this._dispatchStructureEvent('loading');
+    this._dispatchStructureLoadEvent('loading');
 
     try {
       // Clean up any existing viewer
@@ -172,8 +176,9 @@ export class ProtspaceStructureViewer extends LitElement {
       await this._displayStructure(this._structureData);
 
       this._isLoading = false;
-      this._dispatchStructureEvent('loaded');
+      this._dispatchStructureLoadEvent('loaded');
     } catch (error) {
+      const originalError = error instanceof Error ? error : undefined;
       const formattedId = this.proteinId?.split('.')[0] ?? this.proteinId ?? '';
       const genericMessage = `No 3D structure was found for ${formattedId}.`;
       const fallbackMessage = 'Failed to load structure. Please try again.';
@@ -197,7 +202,7 @@ export class ProtspaceStructureViewer extends LitElement {
         this._error = fallbackMessage;
       }
       this._isLoading = false;
-      this._dispatchStructureEvent('error', this._error);
+      this._dispatchStructureErrorEvent(this._error, originalError);
     }
   }
 
@@ -250,17 +255,22 @@ export class ProtspaceStructureViewer extends LitElement {
     this._structureData = null;
   }
 
-  private _dispatchStructureEvent(status: 'loading' | 'loaded' | 'error', error?: string) {
+  private _dispatchStructureLoadEvent(status: 'loading' | 'loaded') {
     this.dispatchEvent(
       new CustomEvent('structure-load', {
-        detail: {
-          proteinId: this.proteinId!,
-          status,
-          error,
-          data: this._structureData,
-        },
+        detail: createStructureLoadDetail(this.proteinId!, status, this._structureData),
         bubbles: true,
       }) as StructureLoadEvent,
+    );
+  }
+
+  private _dispatchStructureErrorEvent(message: string, originalError?: Error) {
+    this.dispatchEvent(
+      new CustomEvent<StructureErrorEvent['detail']>('structure-error', {
+        detail: createStructureErrorEventDetail(this.proteinId!, message, originalError),
+        bubbles: true,
+        composed: true,
+      }) as StructureErrorEvent,
     );
   }
 

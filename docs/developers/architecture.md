@@ -1,5 +1,26 @@
 # Architecture
 
+## Messaging Model
+
+ProtSpace uses a layered messaging model instead of a single catch-all UI primitive.
+
+- Host-owned transient notifications: The host application decides how to surface recoverable warnings and errors. In the demo app, `app/src/lib/notify.ts` is the only transient notification transport and it is backed by Sonner.
+- Blocking and progress UI: Long-running operations use dedicated progress UI instead of toasts. The `/explore` app uses a full-screen loading overlay for dataset imports.
+- Component-owned workflow UI: Components keep their own dialogs and focused workflow controls. The legend settings and "Other" extraction dialogs stay inside the legend component.
+- Component-owned inline states: Components keep inline empty/loading/error states when the message belongs to the component surface itself. The structure viewer keeps its own empty, loading, and error UI.
+- Accessibility-only announcements: Components may expose `aria-live` status updates for assistive technologies without mirroring them as global toasts.
+- Host-consumed semantic events: Components emit normalized warning and error events such as `selection-disabled-notification`, `data-error`, `legend-error`, and `structure-error`. Hosts decide whether to surface those as toasts, inline UI, or silent recovery.
+
+The shared event contract uses these minimum fields:
+
+- `message`
+- `severity`
+- `source`
+- optional `context`
+- optional `originalError`
+
+See [Messaging Conventions](./messaging.md) for the full ownership model and host integration guidance.
+
 ## Legend Component
 
 The legend component uses a controller-based architecture for separation of concerns.

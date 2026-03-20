@@ -1,12 +1,12 @@
-import type { StructureData } from '@protspace/utils';
+export type {
+  StructureErrorContext,
+  StructureErrorEventDetail,
+  StructureLoadDetail,
+  StructureLoadEvent,
+} from './structure-viewer.events';
 
-export interface StructureLoadDetail {
-  proteinId: string;
-  status: 'loading' | 'loaded' | 'error';
-  error?: string;
-  data?: StructureData | null;
-}
+import type { StructureErrorEventDetail } from './structure-viewer.events';
 
-export interface StructureLoadEvent extends CustomEvent {
-  detail: StructureLoadDetail;
+export interface StructureErrorEvent extends CustomEvent {
+  detail: StructureErrorEventDetail;
 }

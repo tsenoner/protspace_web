@@ -1,3 +1,5 @@
+import type { LegendErrorEventDetail, LegendErrorSource } from './legend.events';
+
 /**
  * A legend item representing a category.
  * N/A items use LEGEND_VALUES.NA_VALUE ('__NA__') as their value.
@@ -44,16 +46,11 @@ export interface LegendAnnotationData {
 /** Item action types for legend events */
 export type ItemAction = 'toggle' | 'isolate' | 'extract';
 
-/** Detail for legend-error event */
-export interface LegendErrorEventDetail {
-  message: string;
-  source: 'data-processing' | 'persistence' | 'scatterplot-sync' | 'rendering';
-  originalError?: Error;
-}
-
 export interface LegendDataInput {
   annotations?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
 }
+
+export type { LegendErrorEventDetail, LegendErrorSource };
 
 // Internal re-exports from @protspace/utils for legend component implementation
 // External consumers should import directly from @protspace/utils

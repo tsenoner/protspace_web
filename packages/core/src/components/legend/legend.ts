@@ -51,6 +51,7 @@ import {
 } from './legend-settings-dialog';
 import { renderOtherDialog } from './legend-other-dialog';
 import { createFocusTrap } from './focus-trap';
+import { createLegendErrorEventDetail } from './legend.events';
 
 // Types
 import type {
@@ -63,6 +64,7 @@ import type {
   LegendPersistedSettings,
   PersistedCategoryData,
   LegendErrorEventDetail,
+  LegendErrorSource,
 } from './types';
 
 /**
@@ -1003,12 +1005,11 @@ export class ProtspaceLegend extends LitElement {
     }, 1000);
   }
 
-  private _dispatchError(
-    message: string,
-    source: LegendErrorEventDetail['source'],
-    originalError?: Error,
-  ): void {
-    const detail: LegendErrorEventDetail = { message, source, originalError };
+  private _dispatchError(message: string, source: LegendErrorSource, originalError?: Error): void {
+    const detail: LegendErrorEventDetail = createLegendErrorEventDetail(message, source, {
+      annotation: this.selectedAnnotation || undefined,
+      originalError,
+    });
     this.dispatchEvent(
       new CustomEvent(LEGEND_EVENTS.ERROR, {
         detail,
