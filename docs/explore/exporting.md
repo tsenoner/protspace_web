@@ -1,6 +1,6 @@
 # Exporting Results
 
-ProtSpace allows you to export images and data for further use.
+ProtSpace allows you to export print-oriented figures, protein identifiers, and full datasets.
 
 ## Export Button
 
@@ -12,44 +12,44 @@ Click **Export** in the control bar to see available options:
 
 | Format          | Description                                               |
 | --------------- | --------------------------------------------------------- |
-| **PNG**         | Raster image of the current view with legend              |
-| **PDF**         | PDF document of the current view with legend              |
+| **PNG**         | Raster figure at 300 DPI with fixed journal-style layout  |
+| **PDF**         | Single-page PDF matching the figure size in millimeters   |
 | **Protein IDs** | Text file with newline-separated identifiers              |
 | **Parquet**     | `.parquetbundle` file with all data and optional settings |
 
-## Image Export (PNG / PDF)
+## Figure export (PNG / PDF)
 
-When exporting as PNG or PDF, you can customize the output:
+Publication export uses **fixed sizes in millimeters** and **300 DPI** raster output for the scatter panel (via native WebGL capture). You choose:
 
-| Setting               | Range       | Default | Description                             |
-| --------------------- | ----------- | ------- | --------------------------------------- |
-| **Width**             | 800–8192 px | 2048    | Image width in pixels                   |
-| **Height**            | 600–8192 px | 1024    | Image height in pixels                  |
-| **Lock aspect ratio** | on/off      | on      | Maintain proportions when changing size |
-| **Legend width**      | 15–50%      | 25%     | Percentage of image width for legend    |
-| **Legend font size**  | 8–120 px    | 24      | Font size for legend labels             |
+| Setting             | Options                                                               |
+| ------------------- | --------------------------------------------------------------------- |
+| **Figure size**     | One column (88×70 mm), two column (178×95 mm), full page (180×140 mm) |
+| **Legend position** | Right or below (layout reserves a fixed band for the legend)          |
 
-The exported image includes the scatterplot and legend side by side.
+Legend text uses a condensed font stack when available; category labels wrap to **two lines** with ellipsis. **Only a bounded number of legend rows** are drawn per layout; if there are more categories, a **“+ N more categories”** line is shown. For the complete category list, use **Parquet** or **Protein IDs** exports.
 
-## Parquet Export
+PNG/PDF export **requires** native `captureAtResolution` on the scatterplot (no html2canvas fallback).
+
+## Parquet export
 
 Export a `.parquetbundle` file that can be loaded back into ProtSpace or shared with others.
 
-- **Include legend settings**: When checked, your current legend customizations (colors, shapes, ordering, visibility, palette) are saved inside the file. Anyone who loads it will see the same visual configuration.
-- **Include export options**: When checked, your current image export settings (width, height, aspect ratio lock, legend width, legend font size) are saved inside the file. This lets you preserve consistent export dimensions across sessions or when sharing files.
+- **Include legend settings**: When checked, your current legend customizations (colors, shapes, ordering, visibility, palette) are saved inside the file.
+- **Include export options**: When checked, your current figure export preferences (preset size and legend placement) are saved inside the file.
 
-## Protein IDs Export
+## Protein IDs export
 
 Exports a plain text file with one protein ID per line. Useful for downstream analysis in other tools.
 
 ## What Gets Exported
 
-| State             | Exported Data          |
-| ----------------- | ---------------------- |
-| Proteins isolated | Only isolated proteins |
-| No isolation      | All proteins           |
+| State             | Exported data / figure behavior                                                                          |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| Proteins isolated | Only isolated proteins (IDs); scatter shows isolated subset                                              |
+| Selection active  | Legend **counts** in PNG/PDF reflect the selected subset; ordering and visibility follow the live legend |
+| No isolation      | Full dataset                                                                                             |
 
-Use isolation to export specific subsets.
+Use isolation or selection to export specific subsets.
 
 ## Next Steps
 
