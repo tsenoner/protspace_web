@@ -16,6 +16,7 @@ import {
   generateBundleFilename,
   generateDatasetHash,
 } from '@protspace/utils';
+import { toast } from '../components/ui/sonner';
 import { maybeRunWebglPerfSuite } from './webgl-perf-suite';
 import {
   StoredDatasetCorruptError,
@@ -26,6 +27,35 @@ import {
 import { startProductTour } from '../tour/product-tour';
 
 const DEFAULT_DEMO_DATASET_NAME = 'Demo dataset';
+
+function getDatasetPersistenceFailureToast(error: unknown): { title: string; description: string } {
+  const title = 'Dataset loaded, but automatic reload is unavailable.';
+
+  if (error instanceof DOMException && error.name === 'SecurityError') {
+    return {
+      title,
+      description:
+        'ProtSpace could not access browser storage. This usually happens in private/incognito mode or when browser storage is restricted. Reopen ProtSpace in a normal browser window to restore automatic dataset reloads.',
+    };
+  }
+
+  if (
+    error instanceof Error &&
+    error.message === 'Origin Private File System is not supported in this browser.'
+  ) {
+    return {
+      title,
+      description:
+        'This browser does not support the Origin Private File System (OPFS) used to restore your last imported dataset after a page reload.',
+    };
+  }
+
+  return {
+    title,
+    description:
+      'ProtSpace could not save this dataset in browser storage, so you may need to import it again after reloading the page.',
+  };
+}
 
 // Export initialization function that can be called when the component mounts
 export async function initializeDemo() {
@@ -663,9 +693,11 @@ export async function initializeDemo() {
           await saveLastImportedFile(file);
         } catch (error) {
           console.error('Failed to persist imported dataset in OPFS:', error);
-          alert(
-            'This dataset was loaded, but ProtSpace could not save it in browser storage for automatic reloads.',
-          );
+          const { title, description } = getDatasetPersistenceFailureToast(error);
+          toast.warning(title, {
+            description,
+            duration: 12_000,
+          });
         }
       } else {
         pendingAutoLoadKind = null;

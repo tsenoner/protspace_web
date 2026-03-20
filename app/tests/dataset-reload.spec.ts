@@ -341,18 +341,18 @@ test.describe('Persisted custom datasets in OPFS (#176)', () => {
 });
 
 test.describe('Persisted dataset failure handling', () => {
-  test('OPFS save failures alert without blocking the current session load', async ({ page }) => {
+  test('OPFS access restrictions show a toast without blocking the current session load', async ({
+    page,
+  }) => {
     await page.addInitScript(() => {
       localStorage.setItem('driver.overviewTour', 'true');
       Object.defineProperty(navigator.storage, 'getDirectory', {
         configurable: true,
         value: async () => {
-          throw new Error('OPFS disabled for this test');
+          throw new DOMException('Security error when calling GetDirectory', 'SecurityError');
         },
       });
     });
-
-    const dialogPromise = page.waitForEvent('dialog');
 
     await page.goto('/explore');
     await waitForDataLoad(page);
@@ -372,9 +372,48 @@ test.describe('Persisted dataset failure handling', () => {
       { polling: 500, timeout: 30_000 },
     );
 
-    const dialog = await dialogPromise;
-    expect(dialog.message()).toContain('could not save it in browser storage');
-    await dialog.accept();
+    await expect(
+      page.getByText('Dataset loaded, but automatic reload is unavailable.'),
+    ).toBeVisible();
+    await expect(page.getByText(/private\/incognito mode/i)).toBeVisible();
+    await expect(page.getByText(/browser storage is restricted/i)).toBeVisible();
+
+    expect(await getProteinCount(page)).not.toBe(defaultCount);
+  });
+
+  test('unsupported browsers show an OPFS support toast without blocking the current session load', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('driver.overviewTour', 'true');
+      Object.defineProperty(navigator.storage, 'getDirectory', {
+        configurable: true,
+        value: undefined,
+      });
+    });
+
+    await page.goto('/explore');
+    await waitForDataLoad(page);
+    await dismissTourIfPresent(page);
+
+    const defaultCount = await getProteinCount(page);
+
+    await loadCustomDataset(page, '/data/5K.parquetbundle', '5K.parquetbundle');
+    await page.waitForFunction(
+      (originalCount) => {
+        const plot = document.querySelector('#myPlot') as any;
+        return (
+          plot?.data?.protein_ids?.length > 0 && plot.data.protein_ids.length !== originalCount
+        );
+      },
+      defaultCount,
+      { polling: 500, timeout: 30_000 },
+    );
+
+    await expect(
+      page.getByText('Dataset loaded, but automatic reload is unavailable.'),
+    ).toBeVisible();
+    await expect(page.getByText(/does not support the Origin Private File System/i)).toBeVisible();
 
     expect(await getProteinCount(page)).not.toBe(defaultCount);
   });
