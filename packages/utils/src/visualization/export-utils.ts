@@ -78,6 +78,7 @@ export class ProtSpaceExporter {
   private static readonly PDF_MARGIN = 2; // mm
   private static readonly PDF_GAP = 4; // mm
   private static readonly PDF_MAX_WIDTH = 210; // A4 width in mm
+  private static readonly DEFAULT_INCLUDE_LEGEND = true;
 
   private element: ExportableElement;
   private selectedProteins: string[];
@@ -111,7 +112,7 @@ export class ProtSpaceExporter {
       exportName: options.exportName,
       includeSelection: options.includeSelection,
       includeShapes: options.includeShapes,
-      includeLegend: options.includeLegend ?? true,
+      includeLegend: options.includeLegend ?? ProtSpaceExporter.DEFAULT_INCLUDE_LEGEND,
     };
   }
 
@@ -819,27 +820,14 @@ export class ProtSpaceExporter {
       pdfWidth = maxWidth + 2 * margin;
       pdfHeight = contentHeight + 2 * margin;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdf: any = new (jsPDF as any)({
-        orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
-        unit: 'mm',
-        format: [pdfWidth, pdfHeight],
-      });
-
-      pdf.setProperties({
-        title: 'ProtSpace Visualization',
-        subject: 'ProtSpace export',
-        author: 'ProtSpace',
-        creator: 'ProtSpace',
-      });
+      const pdf = this.createPdfDocument(jsPDF, pdfWidth, pdfHeight);
 
       const xScatter = margin;
       const xLegend = xScatter + scatterTargetW + gap;
       pdf.addImage(scatterImg, 'PNG', xScatter, margin, scatterTargetW, scatterTargetH);
       pdf.addImage(legendImg, 'PNG', xLegend, margin, legendTargetW, legendTargetH);
 
-      const fileName = opts.exportName || this.generateExportFileName('pdf');
-      pdf.save(fileName);
+      this.savePdf(pdf, opts.exportName);
     } else {
       // Export scatterplot only (no legend)
       const scatterTargetW = maxWidth;
@@ -848,25 +836,35 @@ export class ProtSpaceExporter {
       pdfWidth = maxWidth + 2 * margin;
       pdfHeight = scatterTargetH + 2 * margin;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdf: any = new (jsPDF as any)({
-        orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
-        unit: 'mm',
-        format: [pdfWidth, pdfHeight],
-      });
-
-      pdf.setProperties({
-        title: 'ProtSpace Visualization',
-        subject: 'ProtSpace export',
-        author: 'ProtSpace',
-        creator: 'ProtSpace',
-      });
+      const pdf = this.createPdfDocument(jsPDF, pdfWidth, pdfHeight);
 
       pdf.addImage(scatterImg, 'PNG', margin, margin, scatterTargetW, scatterTargetH);
 
-      const fileName = opts.exportName || this.generateExportFileName('pdf');
-      pdf.save(fileName);
+      this.savePdf(pdf, opts.exportName);
     }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private createPdfDocument(jsPDF: any, width: number, height: number): any {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdf: any = new (jsPDF as any)({
+      orientation: width > height ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: [width, height],
+    });
+    pdf.setProperties({
+      title: 'ProtSpace Visualization',
+      subject: 'ProtSpace export',
+      author: 'ProtSpace',
+      creator: 'ProtSpace',
+    });
+    return pdf;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private savePdf(pdf: any, exportName?: string): void {
+    const fileName = exportName || this.generateExportFileName('pdf');
+    pdf.save(fileName);
   }
 
   /**

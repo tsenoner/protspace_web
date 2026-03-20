@@ -1333,10 +1333,7 @@ export class ProtspaceScatterplot extends LitElement {
     return getters.getStrokeWidth(point);
   }
 
-  /**
-   * Build style getters using columnar lookups (when columnar data is available)
-   * or legacy per-point lookups (fallback for isolation mode).
-   */
+  /** Build style getters for the current data and visual state. */
   private _buildStyleGetters(): ReturnType<typeof createStyleGetters> {
     return createStyleGetters(this.data, {
       selectedProteinIds: this.selectedProteinIds,
