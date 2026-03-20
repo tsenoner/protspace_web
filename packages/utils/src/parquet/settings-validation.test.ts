@@ -37,6 +37,8 @@ const createValidExportOptions = (): PersistedExportOptions => ({
   legendFontSizePx: 24,
   includeLegendSettings: true,
   includeExportOptions: true,
+  publicationPresetId: 'two_column',
+  legendPlacement: 'right',
 });
 
 const createNormalizedBundleSettings = (): BundleSettings => ({
@@ -118,6 +120,23 @@ describe('settings-validation', () => {
         }),
       ).toBe(false);
       expect(isValidPersistedExportOptions(null)).toBe(false);
+    });
+
+    it('accepts legacy export options without publication fields', () => {
+      const {
+        publicationPresetId: _p,
+        legendPlacement: _l,
+        ...legacy
+      } = createValidExportOptions();
+      expect(isValidPersistedExportOptions(legacy)).toBe(true);
+    });
+
+    it('rejects invalid publication preset id', () => {
+      const bad: Record<string, unknown> = {
+        ...createValidExportOptions(),
+        publicationPresetId: 'wide',
+      };
+      expect(isValidPersistedExportOptions(bad)).toBe(false);
     });
   });
 

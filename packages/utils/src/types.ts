@@ -87,8 +87,12 @@ export interface LegendPersistedSettings {
   selectedPaletteId: string;
 }
 
+export type PublicationFigurePresetId = 'one_column' | 'two_column' | 'full_page';
+export type PublicationLegendPlacementId = 'right' | 'below';
+
 /**
  * Export settings persisted per dataset + annotation.
+ * Legacy pixel/slider fields are retained for bundle import compatibility; the UI uses publication fields for PNG/PDF.
  */
 export interface PersistedExportOptions {
   imageWidth: number;
@@ -98,6 +102,8 @@ export interface PersistedExportOptions {
   legendFontSizePx: number;
   includeLegendSettings: boolean;
   includeExportOptions: boolean;
+  publicationPresetId?: PublicationFigurePresetId;
+  legendPlacement?: PublicationLegendPlacementId;
 }
 
 export type LegendSettingsMap = Record<string, LegendPersistedSettings>;

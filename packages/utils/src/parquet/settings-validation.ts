@@ -7,6 +7,8 @@ import type {
   PersistedCategoryData,
   PersistedExportOptions,
   LegendSortMode,
+  PublicationFigurePresetId,
+  PublicationLegendPlacementId,
 } from '../types';
 
 /**
@@ -78,6 +80,29 @@ export function isValidLegendSettings(obj: unknown): obj is LegendPersistedSetti
   return true;
 }
 
+const PUBLICATION_PRESET_IDS: PublicationFigurePresetId[] = [
+  'one_column',
+  'two_column',
+  'full_page',
+];
+
+const PUBLICATION_LEGEND_PLACEMENTS: PublicationLegendPlacementId[] = ['right', 'below'];
+
+function isOptionalPublicationPresetId(value: unknown): boolean {
+  if (value === undefined) return true;
+  return (
+    typeof value === 'string' && PUBLICATION_PRESET_IDS.includes(value as PublicationFigurePresetId)
+  );
+}
+
+function isOptionalPublicationLegendPlacement(value: unknown): boolean {
+  if (value === undefined) return true;
+  return (
+    typeof value === 'string' &&
+    PUBLICATION_LEGEND_PLACEMENTS.includes(value as PublicationLegendPlacementId)
+  );
+}
+
 /**
  * Validates that a value is a valid PersistedExportOptions object.
  */
@@ -92,7 +117,9 @@ export function isValidPersistedExportOptions(obj: unknown): obj is PersistedExp
     typeof settings.legendWidthPercent === 'number' &&
     typeof settings.legendFontSizePx === 'number' &&
     typeof settings.includeLegendSettings === 'boolean' &&
-    typeof settings.includeExportOptions === 'boolean'
+    typeof settings.includeExportOptions === 'boolean' &&
+    isOptionalPublicationPresetId(settings.publicationPresetId) &&
+    isOptionalPublicationLegendPlacement(settings.legendPlacement)
   );
 }
 
