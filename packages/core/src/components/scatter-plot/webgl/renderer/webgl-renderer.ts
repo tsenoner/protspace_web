@@ -10,7 +10,7 @@
 
 import * as d3 from 'd3';
 import type { PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
-import { getShapeIndex } from '@protspace/utils';
+import { getShapeIndex, MAX_CANVAS_AREA, MAX_CANVAS_DIMENSION } from '@protspace/utils';
 import {
   type WebGLStyleGetters,
   type ScalePair,
@@ -740,17 +740,14 @@ export class WebGLRenderer {
     const physicalWidth = Math.floor(width * dpr);
     const physicalHeight = Math.floor(height * dpr);
 
-    const MAX_DIMENSION = 8192;
-    const MAX_AREA = 268435456; // ~268M pixels
-
-    if (physicalWidth > MAX_DIMENSION || physicalHeight > MAX_DIMENSION) {
+    if (physicalWidth > MAX_CANVAS_DIMENSION || physicalHeight > MAX_CANVAS_DIMENSION) {
       throw new Error(
-        `Export dimensions ${physicalWidth}×${physicalHeight} exceed browser limit of ${MAX_DIMENSION}px`,
+        `Export dimensions ${physicalWidth}×${physicalHeight} exceed browser limit of ${MAX_CANVAS_DIMENSION}px`,
       );
     }
-    if (physicalWidth * physicalHeight > MAX_AREA) {
+    if (physicalWidth * physicalHeight > MAX_CANVAS_AREA) {
       throw new Error(
-        `Export area ${(physicalWidth * physicalHeight).toLocaleString()} exceeds limit of ${MAX_AREA.toLocaleString()} pixels`,
+        `Export area ${(physicalWidth * physicalHeight).toLocaleString()} exceeds limit of ${MAX_CANVAS_AREA.toLocaleString()} pixels`,
       );
     }
 

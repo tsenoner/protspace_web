@@ -33,6 +33,8 @@ const createSettings = (
   legendFontSizePx: 24,
   includeLegendSettings: true,
   includeExportOptions: true,
+  publicationPresetId: 'two_column',
+  legendPlacement: 'right',
   ...overrides,
 });
 

@@ -525,7 +525,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   /**
-   * Get legend data for export (PNG/PDF)
+   * Snapshot of legend state for publication / data export
    */
   public getLegendExportData(): {
     annotation: string;

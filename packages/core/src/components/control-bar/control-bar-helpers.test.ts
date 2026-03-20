@@ -26,115 +26,35 @@ describe('control-bar-helpers', () => {
   describe('EXPORT_DEFAULTS', () => {
     it('has correct default values', () => {
       expect(EXPORT_DEFAULTS.FORMAT).toBe('png');
-      expect(EXPORT_DEFAULTS.IMAGE_WIDTH).toBe(2048);
-      expect(EXPORT_DEFAULTS.IMAGE_HEIGHT).toBe(1024);
-      expect(EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT).toBe(25);
-      expect(EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX).toBe(24);
-      expect(EXPORT_DEFAULTS.BASE_FONT_SIZE).toBe(24);
-      expect(EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX).toBe(8);
-      expect(EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX).toBe(120);
-      expect(EXPORT_DEFAULTS.LOCK_ASPECT_RATIO).toBe(true);
+      expect(EXPORT_DEFAULTS.PUBLICATION_PRESET).toBe('two_column');
+      expect(EXPORT_DEFAULTS.LEGEND_PLACEMENT).toBe('right');
+      expect(EXPORT_DEFAULTS.LEGACY_IMAGE_WIDTH).toBe(2048);
+      expect(EXPORT_DEFAULTS.LEGACY_IMAGE_HEIGHT).toBe(1024);
     });
 
-    it('is defined and not undefined', () => {
-      expect(EXPORT_DEFAULTS).toBeDefined();
-      expect(typeof EXPORT_DEFAULTS).toBe('object');
-    });
-
-    it('has all required keys', () => {
-      const requiredKeys = [
-        'FORMAT',
-        'IMAGE_WIDTH',
-        'IMAGE_HEIGHT',
-        'LEGEND_WIDTH_PERCENT',
-        'LEGEND_FONT_SIZE_PX',
-        'BASE_FONT_SIZE',
-        'MIN_LEGEND_FONT_SIZE_PX',
-        'MAX_LEGEND_FONT_SIZE_PX',
-        'LOCK_ASPECT_RATIO',
-      ];
-
-      requiredKeys.forEach((key) => {
-        expect(EXPORT_DEFAULTS).toHaveProperty(key);
-      });
-    });
-
-    it('creates default export options including parquet toggles', () => {
+    it('creates default export options including parquet toggles and publication fields', () => {
       expect(createDefaultExportOptions()).toEqual({
-        imageWidth: EXPORT_DEFAULTS.IMAGE_WIDTH,
-        imageHeight: EXPORT_DEFAULTS.IMAGE_HEIGHT,
-        lockAspectRatio: EXPORT_DEFAULTS.LOCK_ASPECT_RATIO,
-        legendWidthPercent: EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT,
-        legendFontSizePx: EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX,
+        imageWidth: EXPORT_DEFAULTS.LEGACY_IMAGE_WIDTH,
+        imageHeight: EXPORT_DEFAULTS.LEGACY_IMAGE_HEIGHT,
+        lockAspectRatio: true,
+        legendWidthPercent: EXPORT_DEFAULTS.LEGACY_LEGEND_WIDTH_PERCENT,
+        legendFontSizePx: EXPORT_DEFAULTS.LEGACY_LEGEND_FONT_SIZE_PX,
         includeLegendSettings: true,
         includeExportOptions: true,
+        publicationPresetId: EXPORT_DEFAULTS.PUBLICATION_PRESET,
+        legendPlacement: EXPORT_DEFAULTS.LEGEND_PLACEMENT,
       });
     });
 
-    it('has valid numeric ranges', () => {
-      expect(EXPORT_DEFAULTS.IMAGE_WIDTH).toBeGreaterThan(0);
-      expect(EXPORT_DEFAULTS.IMAGE_HEIGHT).toBeGreaterThan(0);
-      expect(EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT).toBeGreaterThan(0);
-      expect(EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT).toBeLessThanOrEqual(100);
-      expect(EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX).toBeLessThan(
-        EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
-      );
-    });
-
-    describe('export dimension calculations', () => {
-      it('calculates correct legend percentage', () => {
-        const legendPercent = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT / 100;
-        expect(legendPercent).toBe(0.25);
-      });
-
-      it('calculates correct target width for scatterplot', () => {
-        const legendPercent = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT / 100;
-        const targetWidth = Math.round(EXPORT_DEFAULTS.IMAGE_WIDTH * (1 - legendPercent));
-        expect(targetWidth).toBe(1536); // 2048 * 0.75 = 1536
-      });
-
-      it('calculates correct legend scale factor', () => {
-        const scaleFactor = EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX / EXPORT_DEFAULTS.BASE_FONT_SIZE;
-        expect(scaleFactor).toBe(1.0); // 24 / 24 = 1.0
-      });
-
-      it('calculates scale factor for minimum font size', () => {
-        const scaleFactor =
-          EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX / EXPORT_DEFAULTS.BASE_FONT_SIZE;
-        expect(scaleFactor).toBeCloseTo(0.333, 2); // 8 / 24 ≈ 0.333
-      });
-
-      it('calculates scale factor for maximum font size', () => {
-        const scaleFactor =
-          EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX / EXPORT_DEFAULTS.BASE_FONT_SIZE;
-        expect(scaleFactor).toBe(5.0); // 120 / 24 = 5.0
-      });
-    });
-
-    describe('aspect ratio calculations with defaults', () => {
-      it('calculates default aspect ratio', () => {
-        const aspectRatio = EXPORT_DEFAULTS.IMAGE_WIDTH / EXPORT_DEFAULTS.IMAGE_HEIGHT;
-        expect(aspectRatio).toBe(2); // 2048 / 1024 = 2
-      });
-
+    describe('aspect ratio helpers', () => {
       it('maintains aspect ratio when doubling width', () => {
-        const newWidth = EXPORT_DEFAULTS.IMAGE_WIDTH * 2;
-        const newHeight = calculateHeightFromWidth(
-          newWidth,
-          EXPORT_DEFAULTS.IMAGE_WIDTH,
-          EXPORT_DEFAULTS.IMAGE_HEIGHT,
-        );
-        expect(newHeight).toBe(2048); // 1024 * 2
+        const newHeight = calculateHeightFromWidth(4096, 2048, 1024);
+        expect(newHeight).toBe(2048);
       });
 
       it('maintains aspect ratio when doubling height', () => {
-        const newHeight = EXPORT_DEFAULTS.IMAGE_HEIGHT * 2;
-        const newWidth = calculateWidthFromHeight(
-          newHeight,
-          EXPORT_DEFAULTS.IMAGE_HEIGHT,
-          EXPORT_DEFAULTS.IMAGE_WIDTH,
-        );
-        expect(newWidth).toBe(4096); // 2048 * 2
+        const newWidth = calculateWidthFromHeight(2048, 1024, 2048);
+        expect(newWidth).toBe(4096);
       });
     });
   });

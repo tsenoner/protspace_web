@@ -1,41 +1,34 @@
-/**
- * Helper functions for control bar component
- * These functions contain the core logic extracted from the component for better testability
- */
-
-import type { PersistedExportOptions } from '@protspace/utils';
+import type {
+  PersistedExportOptions,
+  PublicationFigurePresetId,
+  PublicationLegendPlacementId,
+} from '@protspace/utils';
 import type { ProtspaceData } from './types';
 
-/**
- * Export default settings
- */
 export const EXPORT_DEFAULTS = {
   FORMAT: 'png' as const,
-  IMAGE_WIDTH: 2048,
-  IMAGE_HEIGHT: 1024,
-  LEGEND_WIDTH_PERCENT: 25,
-  LEGEND_FONT_SIZE_PX: 24,
-  BASE_FONT_SIZE: 24,
-  MIN_LEGEND_FONT_SIZE_PX: 8,
-  MAX_LEGEND_FONT_SIZE_PX: 120,
-  LOCK_ASPECT_RATIO: true,
+  PUBLICATION_PRESET: 'two_column' as PublicationFigurePresetId,
+  LEGEND_PLACEMENT: 'right' as PublicationLegendPlacementId,
+  LEGACY_IMAGE_WIDTH: 2048,
+  LEGACY_IMAGE_HEIGHT: 1024,
+  LEGACY_LEGEND_WIDTH_PERCENT: 25,
+  LEGACY_LEGEND_FONT_SIZE_PX: 24,
 };
 
 export function createDefaultExportOptions(): PersistedExportOptions {
   return {
-    imageWidth: EXPORT_DEFAULTS.IMAGE_WIDTH,
-    imageHeight: EXPORT_DEFAULTS.IMAGE_HEIGHT,
-    lockAspectRatio: EXPORT_DEFAULTS.LOCK_ASPECT_RATIO,
-    legendWidthPercent: EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT,
-    legendFontSizePx: EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX,
+    imageWidth: EXPORT_DEFAULTS.LEGACY_IMAGE_WIDTH,
+    imageHeight: EXPORT_DEFAULTS.LEGACY_IMAGE_HEIGHT,
+    lockAspectRatio: true,
+    legendWidthPercent: EXPORT_DEFAULTS.LEGACY_LEGEND_WIDTH_PERCENT,
+    legendFontSizePx: EXPORT_DEFAULTS.LEGACY_LEGEND_FONT_SIZE_PX,
     includeLegendSettings: true,
     includeExportOptions: true,
+    publicationPresetId: EXPORT_DEFAULTS.PUBLICATION_PRESET,
+    legendPlacement: EXPORT_DEFAULTS.LEGEND_PLACEMENT,
   };
 }
 
-/**
- * Calculate new height when width changes with locked aspect ratio
- */
 export function calculateHeightFromWidth(
   newWidth: number,
   oldWidth: number,
@@ -46,9 +39,6 @@ export function calculateHeightFromWidth(
   return Math.round(currentHeight * ratio);
 }
 
-/**
- * Calculate new width when height changes with locked aspect ratio
- */
 export function calculateWidthFromHeight(
   newHeight: number,
   oldHeight: number,
@@ -59,9 +49,6 @@ export function calculateWidthFromHeight(
   return Math.round(currentWidth * ratio);
 }
 
-/**
- * Check if projection is 3D based on metadata
- */
 export function isProjection3D(
   projectionName: string,
   projectionsMeta: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>,
@@ -70,9 +57,6 @@ export function isProjection3D(
   return meta?.metadata?.dimension === 3;
 }
 
-/**
- * Get appropriate plane for projection
- */
 export function getProjectionPlane(
   is3D: boolean,
   currentPlane: 'xy' | 'xz' | 'yz',
@@ -80,25 +64,16 @@ export function getProjectionPlane(
   return is3D ? currentPlane : 'xy';
 }
 
-/**
- * Filter configuration type
- */
 export interface FilterConfig {
   enabled: boolean;
   values: (string | null)[];
 }
 
-/**
- * Active filter type
- */
 export interface ActiveFilter {
   annotation: string;
   values: (string | null)[];
 }
 
-/**
- * Extract active filters from filter configuration
- */
 export function getActiveFilters(filterConfig: Record<string, FilterConfig>): ActiveFilter[] {
   return Object.entries(filterConfig)
     .filter(([, cfg]) => cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0)
@@ -108,9 +83,6 @@ export function getActiveFilters(filterConfig: Record<string, FilterConfig>): Ac
     }));
 }
 
-/**
- * Check if a protein matches all active filters
- */
 export function doesProteinMatchFilters(
   proteinIndex: number,
   activeFilters: ActiveFilter[],
@@ -124,7 +96,6 @@ export function doesProteinMatchFilters(
       return false;
     }
 
-    // Handle both number[] and number[][] formats
     const annotationValue = Array.isArray(annotationIdxData[proteinIndex])
       ? (annotationIdxData[proteinIndex] as number[])[0]
       : (annotationIdxData as number[])[proteinIndex];
@@ -142,10 +113,6 @@ export function doesProteinMatchFilters(
   return true;
 }
 
-/**
- * Apply filters to data and return membership array
- * Returns array where 0 = Filtered Proteins, 1 = Other Proteins
- */
 export function applyFiltersToData(data: ProtspaceData, activeFilters: ActiveFilter[]): number[] {
   const numProteins = Array.isArray(data.protein_ids) ? data.protein_ids.length : 0;
   const indices: number[] = new Array(numProteins);
@@ -158,9 +125,6 @@ export function applyFiltersToData(data: ProtspaceData, activeFilters: ActiveFil
   return indices;
 }
 
-/**
- * Create custom annotation from filter results
- */
 export function createCustomAnnotation(): {
   values: string[];
   colors: string[];
@@ -173,16 +137,10 @@ export function createCustomAnnotation(): {
   };
 }
 
-/**
- * Validate selection mode based on data size
- */
 export function shouldDisableSelection(dataSize: number): boolean {
   return dataSize <= 1;
 }
 
-/**
- * Create selection disabled message
- */
 export function getSelectionDisabledMessage(reason: string, dataSize: number): string {
   if (reason === 'insufficient-data') {
     return `Selection mode disabled: Only ${dataSize} point${dataSize !== 1 ? 's' : ''} remaining`;
@@ -190,9 +148,6 @@ export function getSelectionDisabledMessage(reason: string, dataSize: number): s
   return 'Selection mode disabled';
 }
 
-/**
- * Check if two filter configurations are equal
- */
 export function areFilterConfigsEqual(
   config1: Record<string, FilterConfig>,
   config2: Record<string, FilterConfig>,
@@ -214,9 +169,6 @@ export function areFilterConfigsEqual(
   return true;
 }
 
-/**
- * Initialize filter config for annotations
- */
 export function initializeFilterConfig(
   annotations: string[],
   existingConfig: Record<string, FilterConfig>,
@@ -230,9 +182,6 @@ export function initializeFilterConfig(
   return nextConfig;
 }
 
-/**
- * Toggle protein selection (add or remove)
- */
 export function toggleProteinSelection(proteinId: string, currentSelection: string[]): string[] {
   const currentSet = new Set(currentSelection);
   if (currentSet.has(proteinId)) {
@@ -243,9 +192,6 @@ export function toggleProteinSelection(proteinId: string, currentSelection: stri
   return Array.from(currentSet);
 }
 
-/**
- * Merge multiple protein selections (for brush selection)
- */
 export function mergeProteinSelections(
   currentSelection: string[],
   newSelections: string[],
@@ -255,9 +201,6 @@ export function mergeProteinSelections(
   return Array.from(merged);
 }
 
-/**
- * Validate annotation values
- */
 export function validateAnnotationValues(
   values: (string | null)[],
   availableValues: (string | null)[],
