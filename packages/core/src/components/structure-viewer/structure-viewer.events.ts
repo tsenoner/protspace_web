@@ -33,7 +33,7 @@ export function createStructureLoadDetail(
 export function createStructureErrorEventDetail(
   proteinId: string,
   message: string,
-  originalError?: unknown,
+  originalError?: Error,
 ): StructureErrorEventDetail {
   return {
     message,
