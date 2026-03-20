@@ -224,6 +224,110 @@ describe('style-getters', () => {
     });
   });
 
+  describe('depth stability across visibility toggles', () => {
+    const createMockData = (annotationValues: string[]): VisualizationData => ({
+      protein_ids: annotationValues.map((_, i) => `protein_${i}`),
+      projections: [{ name: 'test', data: annotationValues.map(() => [0, 0, 0]) }],
+      annotations: {
+        test_annotation: {
+          values: annotationValues,
+          colors: annotationValues.map(() => '#ff0000'),
+          shapes: annotationValues.map(() => 'circle'),
+        },
+      },
+      annotation_data: {
+        test_annotation: annotationValues.map((v) => [annotationValues.indexOf(v)]),
+      },
+    });
+
+    const createMockPoint = (id: string, annotationValue: string): PlotDataPoint => ({
+      id,
+      x: 0,
+      y: 0,
+      z: 0,
+      originalIndex: 0,
+      annotationValues: {
+        test_annotation: [annotationValue],
+      },
+    });
+
+    const createDefaultStyleConfig = (overrides: Partial<StyleConfig> = {}): StyleConfig => ({
+      selectedProteinIds: [],
+      highlightedProteinIds: [],
+      selectedAnnotation: 'test_annotation',
+      hiddenAnnotationValues: [],
+      otherAnnotationValues: [],
+      useShapes: false,
+      zOrderMapping: null,
+      colorMapping: null,
+      shapeMapping: null,
+      sizes: { base: 10 },
+      opacities: { base: 1, selected: 1, faded: 0.3 },
+      ...overrides,
+    });
+
+    it('should return the same depth for a point regardless of hidden state', () => {
+      const data = createMockData(['categoryA', 'categoryB', 'categoryC']);
+      const point = createMockPoint('p0', 'categoryA');
+
+      // Depth with nothing hidden
+      const gettersVisible = createStyleGetters(
+        data,
+        createDefaultStyleConfig({ hiddenAnnotationValues: [] }),
+      );
+      const depthVisible = gettersVisible.getDepth(point);
+
+      // Depth with categoryA hidden (the point's own category)
+      const gettersHidden = createStyleGetters(
+        data,
+        createDefaultStyleConfig({ hiddenAnnotationValues: ['categoryA'] }),
+      );
+      const depthHidden = gettersHidden.getDepth(point);
+
+      // Depth should be identical — hiding doesn't affect sort order
+      expect(depthHidden).toBe(depthVisible);
+    });
+
+    it('should return the same depth with z-order mapping regardless of hidden state', () => {
+      const data = createMockData(['categoryA', 'categoryB', 'categoryC']);
+      const pointA = createMockPoint('p0', 'categoryA');
+      const pointB = createMockPoint('p1', 'categoryB');
+
+      const zOrderMapping = { categoryA: 0, categoryB: 1, categoryC: 2 };
+
+      const gettersVisible = createStyleGetters(
+        data,
+        createDefaultStyleConfig({ zOrderMapping, hiddenAnnotationValues: [] }),
+      );
+      const gettersHidden = createStyleGetters(
+        data,
+        createDefaultStyleConfig({ zOrderMapping, hiddenAnnotationValues: ['categoryA'] }),
+      );
+
+      // Depths stable across visibility toggle
+      expect(gettersHidden.getDepth(pointA)).toBe(gettersVisible.getDepth(pointA));
+      expect(gettersHidden.getDepth(pointB)).toBe(gettersVisible.getDepth(pointB));
+
+      // Relative ordering preserved
+      expect(gettersHidden.getDepth(pointA)).toBeLessThan(gettersHidden.getDepth(pointB));
+    });
+
+    it('should still return opacity=0 for hidden points', () => {
+      const data = createMockData(['categoryA', 'categoryB']);
+      const point = createMockPoint('p0', 'categoryA');
+
+      const getters = createStyleGetters(
+        data,
+        createDefaultStyleConfig({ hiddenAnnotationValues: ['categoryA'] }),
+      );
+
+      // Opacity reflects hidden state
+      expect(getters.getOpacity(point)).toBe(0);
+      // But depth is based on base opacity (not 0)
+      expect(getters.getDepth(point)).toBeLessThan(1);
+    });
+  });
+
   describe('z-order change consistency', () => {
     const createMockData = (annotationValues: string[]): VisualizationData => ({
       protein_ids: annotationValues.map((_, i) => `protein_${i}`),

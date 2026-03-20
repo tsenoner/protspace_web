@@ -180,7 +180,10 @@ export class LegendDataProcessor {
 
       // Take all visible items first, then fill remaining slots from non-visible
       // This handles the case where maxVisibleValues increases beyond the current visible count
-      const remainingSlots = Math.max(0, maxVisibleValues - sortedVisible.length);
+      // In isolation mode, don't promote non-visible items — they should stay in "Other"
+      const remainingSlots = isolationMode
+        ? 0
+        : Math.max(0, maxVisibleValues - sortedVisible.length);
       topItems = [
         ...sortedVisible.slice(0, maxVisibleValues),
         ...sortedNonVisible.slice(0, remainingSlots),
@@ -192,10 +195,7 @@ export class LegendDataProcessor {
         filtered = filtered.filter(([v]) => !isNAValue(v));
       }
       const sorted = filtered.sort(sortFn);
-      topItems = (isolationMode ? sorted.filter(([v]) => frequencyMap.has(v)) : sorted).slice(
-        0,
-        maxVisibleValues,
-      );
+      topItems = sorted.slice(0, maxVisibleValues);
     }
 
     // Items beyond the cap go to "Other" (excluding N/A which is handled separately)
@@ -217,7 +217,6 @@ export class LegendDataProcessor {
     ctx: LegendProcessorContext,
     topItems: Array<[string, number]>,
     otherCount: number,
-    isolationMode: boolean,
     existingLegendItems: LegendItem[],
     shapesEnabled: boolean,
     sortMode: LegendSortMode = 'size-desc',
@@ -365,7 +364,7 @@ export class LegendDataProcessor {
     });
 
     // Add "Other" if there are items beyond the cap
-    if (otherCount > 0 && !isolationMode) {
+    if (otherCount > 0) {
       const encoding = getVisualEncoding(-1, shapesEnabled, LEGEND_VALUES.OTHER);
       const otherZOrder =
         sortMode === 'manual' ? (existingOtherZOrder ?? items.length) : items.length;
@@ -441,7 +440,6 @@ export class LegendDataProcessor {
       ctx,
       topItems,
       otherCount,
-      isolationMode,
       existingLegendItems,
       shapesEnabled,
       sortMode,
@@ -450,25 +448,19 @@ export class LegendDataProcessor {
     );
 
     // Filter "Other" items to exclude any that are already shown
-    if (!isolationMode) {
-      const shownValues = new Set(
-        items.map((i) => i.value).filter((v) => v !== LEGEND_VALUES.OTHER),
-      );
-      const filteredOther = otherItems.filter((oi) => !shownValues.has(oi.value));
-      const newOtherCount = filteredOther.reduce((sum, oi) => sum + oi.count, 0);
+    const shownValues = new Set(items.map((i) => i.value).filter((v) => v !== LEGEND_VALUES.OTHER));
+    const filteredOther = otherItems.filter((oi) => !shownValues.has(oi.value));
+    const newOtherCount = filteredOther.reduce((sum, oi) => sum + oi.count, 0);
 
-      const otherIdx = items.findIndex((i) => i.value === LEGEND_VALUES.OTHER);
-      if (otherIdx !== -1) {
-        if (newOtherCount > 0) {
-          items[otherIdx] = { ...items[otherIdx], count: newOtherCount };
-        } else {
-          items.splice(otherIdx, 1);
-        }
+    const otherIdx = items.findIndex((i) => i.value === LEGEND_VALUES.OTHER);
+    if (otherIdx !== -1) {
+      if (newOtherCount > 0) {
+        items[otherIdx] = { ...items[otherIdx], count: newOtherCount };
+      } else {
+        items.splice(otherIdx, 1);
       }
-
-      return { legendItems: items, otherItems: filteredOther };
     }
 
-    return { legendItems: items, otherItems: [] };
+    return { legendItems: items, otherItems: filteredOther };
   }
 }

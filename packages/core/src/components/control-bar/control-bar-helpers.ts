@@ -13,12 +13,13 @@ export const EXPORT_DEFAULTS = {
   FORMAT: 'png' as const,
   IMAGE_WIDTH: 2048,
   IMAGE_HEIGHT: 1024,
-  LEGEND_WIDTH_PERCENT: 25,
-  LEGEND_FONT_SIZE_PX: 24,
+  LEGEND_WIDTH_PERCENT: 20,
+  LEGEND_FONT_SIZE_PX: 15,
   BASE_FONT_SIZE: 24,
   MIN_LEGEND_FONT_SIZE_PX: 8,
   MAX_LEGEND_FONT_SIZE_PX: 120,
   LOCK_ASPECT_RATIO: true,
+  INCLUDE_LEGEND: true,
 };
 
 export function createDefaultExportOptions(): PersistedExportOptions {

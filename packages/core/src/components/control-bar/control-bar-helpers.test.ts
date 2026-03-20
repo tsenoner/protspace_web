@@ -28,8 +28,8 @@ describe('control-bar-helpers', () => {
       expect(EXPORT_DEFAULTS.FORMAT).toBe('png');
       expect(EXPORT_DEFAULTS.IMAGE_WIDTH).toBe(2048);
       expect(EXPORT_DEFAULTS.IMAGE_HEIGHT).toBe(1024);
-      expect(EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT).toBe(25);
-      expect(EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX).toBe(24);
+      expect(EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT).toBe(20);
+      expect(EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX).toBe(15);
       expect(EXPORT_DEFAULTS.BASE_FONT_SIZE).toBe(24);
       expect(EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX).toBe(8);
       expect(EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX).toBe(120);
@@ -52,6 +52,7 @@ describe('control-bar-helpers', () => {
         'MIN_LEGEND_FONT_SIZE_PX',
         'MAX_LEGEND_FONT_SIZE_PX',
         'LOCK_ASPECT_RATIO',
+        'INCLUDE_LEGEND',
       ];
 
       requiredKeys.forEach((key) => {
@@ -71,6 +72,10 @@ describe('control-bar-helpers', () => {
       });
     });
 
+    it('defaults INCLUDE_LEGEND to true', () => {
+      expect(EXPORT_DEFAULTS.INCLUDE_LEGEND).toBe(true);
+    });
+
     it('has valid numeric ranges', () => {
       expect(EXPORT_DEFAULTS.IMAGE_WIDTH).toBeGreaterThan(0);
       expect(EXPORT_DEFAULTS.IMAGE_HEIGHT).toBeGreaterThan(0);
@@ -84,18 +89,18 @@ describe('control-bar-helpers', () => {
     describe('export dimension calculations', () => {
       it('calculates correct legend percentage', () => {
         const legendPercent = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT / 100;
-        expect(legendPercent).toBe(0.25);
+        expect(legendPercent).toBe(0.2);
       });
 
       it('calculates correct target width for scatterplot', () => {
         const legendPercent = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT / 100;
         const targetWidth = Math.round(EXPORT_DEFAULTS.IMAGE_WIDTH * (1 - legendPercent));
-        expect(targetWidth).toBe(1536); // 2048 * 0.75 = 1536
+        expect(targetWidth).toBe(1638); // 2048 * 0.80 = 1638
       });
 
       it('calculates correct legend scale factor', () => {
         const scaleFactor = EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX / EXPORT_DEFAULTS.BASE_FONT_SIZE;
-        expect(scaleFactor).toBe(1.0); // 24 / 24 = 1.0
+        expect(scaleFactor).toBe(0.625); // 15 / 24 = 0.625
       });
 
       it('calculates scale factor for minimum font size', () => {

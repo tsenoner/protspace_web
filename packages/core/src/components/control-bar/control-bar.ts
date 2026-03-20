@@ -85,6 +85,7 @@ export class ProtspaceControlBar extends LitElement {
   @state() private exportLegendWidthPercent: number = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
   @state() private exportLegendFontSizePx: number = EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX;
   @state() private exportLockAspectRatio: boolean = EXPORT_DEFAULTS.LOCK_ASPECT_RATIO;
+  @state() private exportIncludeLegend: boolean = EXPORT_DEFAULTS.INCLUDE_LEGEND;
   @state() private exportIncludeLegendSettings: boolean = true;
   @state() private exportIncludeExportOptions: boolean = true;
   private _scatterplotElement: ScatterplotElementLike | null = null;
@@ -409,6 +410,7 @@ export class ProtspaceControlBar extends LitElement {
         imageHeight: this.exportImageHeight,
         legendWidthPercent: this.exportLegendWidthPercent,
         legendFontSizePx: this.exportLegendFontSizePx,
+        includeLegend: this.exportIncludeLegend,
         includeLegendSettings: this.exportIncludeLegendSettings,
         includeExportOptions: this.exportIncludeExportOptions,
       },
@@ -485,6 +487,7 @@ export class ProtspaceControlBar extends LitElement {
     this._applyUserExportSettingsChange(() => {
       this._applyPersistedExportSettings(createDefaultExportOptions());
     });
+    this.exportIncludeLegend = EXPORT_DEFAULTS.INCLUDE_LEGEND;
   }
 
   private handleWidthChange(newWidth: number) {
@@ -1222,123 +1225,141 @@ export class ProtspaceControlBar extends LitElement {
                                 </label>
                               </div>
 
-                              <div class="export-option-group">
-                                <label class="export-option-label" for="export-legend-width">
-                                  Legend Width
-                                  <div class="export-option-value-wrapper">
-                                    <input
-                                      type="number"
-                                      class="export-option-value-input"
-                                      min="15"
-                                      max="50"
-                                      step="1"
-                                      .value=${String(this.exportLegendWidthPercent)}
-                                      @change=${(e: Event) => {
-                                        const value = parseInt(
-                                          (e.target as HTMLInputElement).value,
-                                        );
-                                        if (!isNaN(value)) {
-                                          this._applyUserExportSettingsChange(() => {
-                                            this.exportLegendWidthPercent = this.clamp(
-                                              value,
-                                              15,
-                                              50,
-                                            );
-                                          });
-                                        }
-                                      }}
-                                      @blur=${(e: Event) =>
-                                        this.handleNumberInputBlur(e, 15, 50, (v) =>
-                                          this._applyUserExportSettingsChange(() => {
-                                            this.exportLegendWidthPercent = v;
-                                          }),
-                                        )}
-                                    />
-                                    <span class="export-option-value-unit">%</span>
-                                  </div>
-                                </label>
+                              <label class="export-checkbox-label export-include-legend-label">
                                 <input
-                                  type="range"
-                                  id="export-legend-width"
-                                  class="export-slider"
-                                  min="15"
-                                  max="50"
-                                  step="1"
-                                  .value=${String(this.exportLegendWidthPercent)}
-                                  @input=${(e: Event) => {
-                                    this._applyUserExportSettingsChange(() => {
-                                      this.exportLegendWidthPercent = parseInt(
-                                        (e.target as HTMLInputElement).value,
-                                      );
-                                    });
+                                  type="checkbox"
+                                  class="export-checkbox"
+                                  .checked=${this.exportIncludeLegend}
+                                  @change=${(e: Event) => {
+                                    this.exportIncludeLegend = (
+                                      e.target as HTMLInputElement
+                                    ).checked;
                                   }}
                                 />
-                                <div class="export-slider-labels">
-                                  <span>15%</span>
-                                  <span>50%</span>
-                                </div>
-                              </div>
+                                <span>Include legend</span>
+                              </label>
 
-                              <div class="export-option-group">
-                                <label class="export-option-label" for="export-legend-font">
-                                  Legend Font
-                                  <div class="export-option-value-wrapper">
-                                    <input
-                                      type="number"
-                                      class="export-option-value-input"
-                                      min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
-                                      max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
-                                      step="1"
-                                      .value=${String(this.exportLegendFontSizePx)}
-                                      @change=${(e: Event) => {
-                                        const value = parseInt(
-                                          (e.target as HTMLInputElement).value,
-                                        );
-                                        if (!isNaN(value)) {
+                              ${this.exportIncludeLegend
+                                ? html`
+                                    <div class="export-option-group">
+                                      <label class="export-option-label" for="export-legend-width">
+                                        Legend Width
+                                        <div class="export-option-value-wrapper">
+                                          <input
+                                            type="number"
+                                            class="export-option-value-input"
+                                            min="15"
+                                            max="50"
+                                            step="1"
+                                            .value=${String(this.exportLegendWidthPercent)}
+                                            @change=${(e: Event) => {
+                                              const value = parseInt(
+                                                (e.target as HTMLInputElement).value,
+                                              );
+                                              if (!isNaN(value)) {
+                                                this._applyUserExportSettingsChange(() => {
+                                                  this.exportLegendWidthPercent = this.clamp(
+                                                    value,
+                                                    15,
+                                                    50,
+                                                  );
+                                                });
+                                              }
+                                            }}
+                                            @blur=${(e: Event) =>
+                                              this.handleNumberInputBlur(e, 15, 50, (v) =>
+                                                this._applyUserExportSettingsChange(() => {
+                                                  this.exportLegendWidthPercent = v;
+                                                }),
+                                              )}
+                                          />
+                                          <span class="export-option-value-unit">%</span>
+                                        </div>
+                                      </label>
+                                      <input
+                                        type="range"
+                                        id="export-legend-width"
+                                        class="export-slider"
+                                        min="15"
+                                        max="50"
+                                        step="1"
+                                        .value=${String(this.exportLegendWidthPercent)}
+                                        @input=${(e: Event) => {
                                           this._applyUserExportSettingsChange(() => {
-                                            this.exportLegendFontSizePx = this.clamp(
-                                              value,
-                                              EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
-                                              EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
+                                            this.exportLegendWidthPercent = parseInt(
+                                              (e.target as HTMLInputElement).value,
                                             );
                                           });
-                                        }
-                                      }}
-                                      @blur=${(e: Event) =>
-                                        this.handleNumberInputBlur(
-                                          e,
-                                          EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
-                                          EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
-                                          (v) =>
-                                            this._applyUserExportSettingsChange(() => {
-                                              this.exportLegendFontSizePx = v;
-                                            }),
-                                        )}
-                                    />
-                                    <span class="export-option-value-unit">px</span>
-                                  </div>
-                                </label>
-                                <input
-                                  type="range"
-                                  id="export-legend-font"
-                                  class="export-slider"
-                                  min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
-                                  max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
-                                  step="1"
-                                  .value=${String(this.exportLegendFontSizePx)}
-                                  @input=${(e: Event) => {
-                                    this._applyUserExportSettingsChange(() => {
-                                      this.exportLegendFontSizePx = parseInt(
-                                        (e.target as HTMLInputElement).value,
-                                      );
-                                    });
-                                  }}
-                                />
-                                <div class="export-slider-labels">
-                                  <span>${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}px</span>
-                                  <span>${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}px</span>
-                                </div>
-                              </div>
+                                        }}
+                                      />
+                                      <div class="export-slider-labels">
+                                        <span>15%</span>
+                                        <span>50%</span>
+                                      </div>
+                                    </div>
+
+                                    <div class="export-option-group">
+                                      <label class="export-option-label" for="export-legend-font">
+                                        Legend Font
+                                        <div class="export-option-value-wrapper">
+                                          <input
+                                            type="number"
+                                            class="export-option-value-input"
+                                            min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
+                                            max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
+                                            step="1"
+                                            .value=${String(this.exportLegendFontSizePx)}
+                                            @change=${(e: Event) => {
+                                              const value = parseInt(
+                                                (e.target as HTMLInputElement).value,
+                                              );
+                                              if (!isNaN(value)) {
+                                                this._applyUserExportSettingsChange(() => {
+                                                  this.exportLegendFontSizePx = this.clamp(
+                                                    value,
+                                                    EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
+                                                    EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
+                                                  );
+                                                });
+                                              }
+                                            }}
+                                            @blur=${(e: Event) =>
+                                              this.handleNumberInputBlur(
+                                                e,
+                                                EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
+                                                EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
+                                                (v) =>
+                                                  this._applyUserExportSettingsChange(() => {
+                                                    this.exportLegendFontSizePx = v;
+                                                  }),
+                                              )}
+                                          />
+                                          <span class="export-option-value-unit">px</span>
+                                        </div>
+                                      </label>
+                                      <input
+                                        type="range"
+                                        id="export-legend-font"
+                                        class="export-slider"
+                                        min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
+                                        max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
+                                        step="1"
+                                        .value=${String(this.exportLegendFontSizePx)}
+                                        @input=${(e: Event) => {
+                                          this._applyUserExportSettingsChange(() => {
+                                            this.exportLegendFontSizePx = parseInt(
+                                              (e.target as HTMLInputElement).value,
+                                            );
+                                          });
+                                        }}
+                                      />
+                                      <div class="export-slider-labels">
+                                        <span>${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}px</span>
+                                        <span>${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}px</span>
+                                      </div>
+                                    </div>
+                                  `
+                                : ''}
 
                               <div class="export-actions">
                                 <button class="btn-danger" @click=${this.resetExportSettings}>

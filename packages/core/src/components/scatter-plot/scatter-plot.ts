@@ -131,6 +131,9 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _webglRenderPerf = new WebglRenderPerfRunner(this);
 
+  // Track data reference to detect projection-only changes (same data object, different projection index).
+  private _lastDataRef: VisualizationData | null = null;
+
   // Computed properties with caching
   private get _scales(): ScalePair | null {
     const config = this._mergedConfig;
@@ -373,11 +376,19 @@ export class ProtspaceScatterplot extends LitElement {
     ) {
       this._scheduleQuadtreeRebuild();
       this._webglRenderer?.invalidateStyleCache();
-      // Visibility might change (points hidden/shown), so we must rebuild position buffer
-      // to keep colors and positions in sync in the dense arrays
-      this._webglRenderer?.invalidatePositionCache();
       this._updateStyleSignature();
       this._webglRenderer?.setStyleSignature(this._styleSig);
+
+      // Position/sort rebuild only when annotation or "Other" category changes
+      // (affects colors, shapes, z-order). Visibility toggles only change alpha
+      // values — hidden points stay in GPU arrays with alpha=0, preserving sort
+      // order and enabling the fast color-only update path.
+      if (
+        changedProperties.has('selectedAnnotation') ||
+        changedProperties.has('otherAnnotationValues')
+      ) {
+        this._webglRenderer?.invalidatePositionCache();
+      }
     }
     if (changedProperties.has('selectionMode')) {
       this._updateSelectionMode();
@@ -393,25 +404,7 @@ export class ProtspaceScatterplot extends LitElement {
       changedProperties.has('config') ||
       changedProperties.has('useShapes')
     ) {
-      this._styleGettersCache = createStyleGetters(this.data, {
-        selectedProteinIds: this.selectedProteinIds,
-        highlightedProteinIds: this.highlightedProteinIds,
-        selectedAnnotation: this.selectedAnnotation,
-        hiddenAnnotationValues: this.hiddenAnnotationValues,
-        otherAnnotationValues: this.otherAnnotationValues,
-        useShapes: this.useShapes,
-        zOrderMapping: this._zOrderMapping,
-        colorMapping: this._colorMapping,
-        shapeMapping: this._shapeMapping,
-        sizes: {
-          base: this._mergedConfig.pointSize,
-        },
-        opacities: {
-          base: this._mergedConfig.baseOpacity,
-          selected: this._mergedConfig.selectedOpacity,
-          faded: this._mergedConfig.fadedOpacity,
-        },
-      });
+      this._styleGettersCache = this._buildStyleGetters();
     }
     if (
       changedProperties.has('selectedProteinIds') ||
@@ -462,19 +455,78 @@ export class ProtspaceScatterplot extends LitElement {
   private _processData() {
     const dataToUse = this.data;
     if (!dataToUse) return;
-    this._plotData = DataProcessor.processVisualizationData(
-      dataToUse,
-      this.selectedProjectionIndex,
-      this._isolationMode,
-      this._isolationHistory,
-      this.projectionPlane,
-    );
+
+    // Detect whether only the projection changed (same data reference, not in isolation mode).
+    // In this case we take the fast path: update coordinates in-place
+    // instead of rebuilding all PlotDataPoint objects with annotation data (~700MB for 500k proteins).
+    const onlyProjectionChanged =
+      this._plotData.length > 0 && this._lastDataRef === dataToUse && !this._isolationMode;
+
+    if (onlyProjectionChanged) {
+      // Fast path: update coordinates in-place from the new projection data.
+      // No new object allocation — just overwrite x/y/z on existing PlotDataPoints.
+      this._updatePlotDataCoordinates(dataToUse);
+    } else {
+      // Release old data references before allocating the new dataset.
+      // Without this, old and new arrays coexist in memory during processing
+      // (e.g. 100K + 570K points), which can cause OOM on constrained devices.
+      this._plotData = [];
+      this._visiblePlotData = [];
+      this._quadtreeIndex.clear();
+      this._webglRenderer?.releaseDataReferences();
+
+      this._plotData = DataProcessor.processVisualizationData(
+        dataToUse,
+        this.selectedProjectionIndex,
+        this._isolationMode,
+        this._isolationHistory,
+        this.projectionPlane,
+      );
+    }
+
+    this._lastDataRef = dataToUse;
 
     // z-order is resolved in WebGL depth (see style getters), so we avoid sorting 500k+ points on CPU.
 
     // Invalidate scales cache when plot data changes
     this._invalidateScalesCache();
     this._invalidateVirtualizationCache();
+  }
+
+  /**
+   * Update PlotDataPoint coordinates in-place from a new projection.
+   * Reads directly from VisualizationData.projections — no intermediate allocation.
+   * This avoids the ~700MB memory spike from rebuilding the full PlotDataPoint array.
+   */
+  private _updatePlotDataCoordinates(data: VisualizationData) {
+    const projection = data.projections[this.selectedProjectionIndex];
+    if (!projection) return;
+
+    for (let i = 0; i < this._plotData.length; i++) {
+      const point = this._plotData[i];
+      const coords = (projection.data[point.originalIndex] ?? [0, 0]) as
+        | [number, number]
+        | [number, number, number];
+
+      let xVal = coords[0];
+      let yVal = coords[1];
+
+      if (coords.length === 3) {
+        point.z = coords[2];
+        if (this.projectionPlane === 'xz') {
+          yVal = coords[2];
+        } else if (this.projectionPlane === 'yz') {
+          xVal = coords[1];
+          yVal = coords[2];
+        }
+      }
+
+      point.x = xVal;
+      point.y = yVal;
+    }
+
+    // New array reference so Lit detects the change
+    this._plotData = [...this._plotData];
   }
 
   private _buildQuadtree() {
@@ -1281,27 +1333,32 @@ export class ProtspaceScatterplot extends LitElement {
     return getters.getStrokeWidth(point);
   }
 
+  /** Build style getters for the current data and visual state. */
+  private _buildStyleGetters(): ReturnType<typeof createStyleGetters> {
+    return createStyleGetters(this.data, {
+      selectedProteinIds: this.selectedProteinIds,
+      highlightedProteinIds: this.highlightedProteinIds,
+      selectedAnnotation: this.selectedAnnotation,
+      hiddenAnnotationValues: this.hiddenAnnotationValues,
+      otherAnnotationValues: this.otherAnnotationValues,
+      useShapes: this.useShapes,
+      zOrderMapping: this._zOrderMapping,
+      colorMapping: this._colorMapping,
+      shapeMapping: this._shapeMapping,
+      sizes: {
+        base: this._mergedConfig.pointSize,
+      },
+      opacities: {
+        base: this._mergedConfig.baseOpacity,
+        selected: this._mergedConfig.selectedOpacity,
+        faded: this._mergedConfig.fadedOpacity,
+      },
+    });
+  }
+
   private _getStyleGetters() {
     if (!this._styleGettersCache) {
-      this._styleGettersCache = createStyleGetters(this.data, {
-        selectedProteinIds: this.selectedProteinIds,
-        highlightedProteinIds: this.highlightedProteinIds,
-        selectedAnnotation: this.selectedAnnotation,
-        hiddenAnnotationValues: this.hiddenAnnotationValues,
-        otherAnnotationValues: this.otherAnnotationValues,
-        useShapes: this.useShapes,
-        zOrderMapping: this._zOrderMapping,
-        colorMapping: this._colorMapping,
-        shapeMapping: this._shapeMapping,
-        sizes: {
-          base: this._mergedConfig.pointSize,
-        },
-        opacities: {
-          base: this._mergedConfig.baseOpacity,
-          selected: this._mergedConfig.selectedOpacity,
-          faded: this._mergedConfig.fadedOpacity,
-        },
-      });
+      this._styleGettersCache = this._buildStyleGetters();
     }
     return this._styleGettersCache;
   }
@@ -1712,6 +1769,10 @@ export class ProtspaceScatterplot extends LitElement {
     this._isolationHistory = [];
     this._isolationMode = false;
     this.selectedProteinIds = [];
+
+    // Invalidate data ref so _processData takes the full rebuild path
+    // instead of the fast coordinate-only path (which would keep the filtered subset)
+    this._lastDataRef = null;
 
     // Process data and update rendering
     this._processData();

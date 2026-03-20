@@ -56,6 +56,10 @@ export class QuadtreeIndex {
     return !!this.qt;
   }
 
+  clear() {
+    this.qt = null;
+  }
+
   queryByPixels(minX: number, minY: number, maxX: number, maxY: number): PlotDataPoint[] {
     if (!this.qt) {
       return [];

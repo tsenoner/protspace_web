@@ -711,6 +711,7 @@ export async function initializeDemo() {
         imageHeight,
         legendWidthPercent,
         legendFontSizePx,
+        includeLegend,
         includeLegendSettings,
         includeExportOptions,
       } = customEvent.detail;
@@ -746,11 +747,13 @@ export async function initializeDemo() {
 
         const exporter = createExporter(plotElement);
 
-        // Calculate scatterplot dimensions (excluding legend)
+        // Calculate scatterplot dimensions
+        const shouldIncludeLegend = includeLegend ?? true;
+        const totalWidth = imageWidth ?? EXPORT_DEFAULTS.IMAGE_WIDTH;
         const legendPercent = (legendWidthPercent ?? EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT) / 100;
-        const targetWidth = Math.round(
-          (imageWidth ?? EXPORT_DEFAULTS.IMAGE_WIDTH) * (1 - legendPercent),
-        );
+        const targetWidth = shouldIncludeLegend
+          ? Math.round(totalWidth * (1 - legendPercent))
+          : totalWidth;
         const targetHeight = imageHeight ?? EXPORT_DEFAULTS.IMAGE_HEIGHT;
 
         // Export options
@@ -761,6 +764,7 @@ export async function initializeDemo() {
           legendScaleFactor:
             (legendFontSizePx ?? EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX) /
             EXPORT_DEFAULTS.BASE_FONT_SIZE,
+          includeLegend: shouldIncludeLegend,
           includeSelection: selectedProteins.length > 0,
           backgroundColor: 'white',
         };
