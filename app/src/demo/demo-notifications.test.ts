@@ -10,6 +10,7 @@ import {
   getDataLoadFailureNotification,
   getDatasetPersistenceFailureNotification,
   getExportFailureNotification,
+  getExportSuccessNotification,
   getLegendErrorNotification,
   getSelectionDisabledNotification,
   getStructureErrorNotification,
@@ -90,6 +91,13 @@ describe('demo notifications', () => {
     expect(getStructureErrorNotification(structureDetail).title).toBe(
       'Structure could not be loaded.',
     );
+  });
+
+  it('maps successful exports to a success notification with the filename', () => {
+    expect(getExportSuccessNotification('dataset.parquetbundle')).toMatchObject({
+      title: 'Export ready.',
+      description: 'dataset.parquetbundle',
+    });
   });
 
   it('builds clear recovery copy for corrupted persisted datasets and export failures', () => {

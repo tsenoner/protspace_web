@@ -123,31 +123,12 @@ async function writeCorruptedPersistedDataset(page: Page): Promise<void> {
     };
 
     if (typeof storageWithDirectory.getDirectory !== 'function') {
-      return;
+      throw new Error('OPFS is unavailable in this browser context.');
     }
 
     const root = await storageWithDirectory.getDirectory();
     const store = await root.getDirectoryHandle('protspace-last-import', { create: true });
     const metadataHandle = await store.getFileHandle('metadata.json', { create: true });
-    const writable = await metadataHandle.createWritable();
-    await writable.write('{not-json');
-    await writable.close();
-  });
-}
-
-async function seedCorruptPersistedDataset(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const storageWithDirectory = navigator.storage as StorageManager & {
-      getDirectory?: () => Promise<FileSystemDirectoryHandle>;
-    };
-
-    if (typeof storageWithDirectory.getDirectory !== 'function') {
-      throw new Error('OPFS is unavailable for this test.');
-    }
-
-    const root = await storageWithDirectory.getDirectory();
-    const dir = await root.getDirectoryHandle('protspace-last-import', { create: true });
-    const metadataHandle = await dir.getFileHandle('metadata.json', { create: true });
     const writable = await metadataHandle.createWritable();
     await writable.write('{not-json');
     await writable.close();
@@ -255,25 +236,6 @@ async function dispatchCustomEvent(
     },
     { targetSelector: selector, eventType: eventName, eventDetail: detail },
   );
-}
-
-async function writeCorruptPersistedDataset(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const storageWithDirectory = navigator.storage as StorageManager & {
-      getDirectory?: () => Promise<FileSystemDirectoryHandle>;
-    };
-
-    if (typeof storageWithDirectory.getDirectory !== 'function') {
-      throw new Error('OPFS is unavailable in this browser context.');
-    }
-
-    const root = await storageWithDirectory.getDirectory();
-    const store = await root.getDirectoryHandle('protspace-last-import', { create: true });
-    const metadata = await store.getFileHandle('metadata.json', { create: true });
-    const writable = await metadata.createWritable();
-    await writable.write('{not-json');
-    await writable.close();
-  });
 }
 
 async function hasLegacyNotificationHelperArtifacts(page: Page): Promise<boolean> {
@@ -485,7 +447,7 @@ test.describe('Persisted dataset failure handling', () => {
     await page.goto('/explore');
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
     await clearPersistedDataset(page);
-    await seedCorruptPersistedDataset(page);
+    await writeCorruptedPersistedDataset(page);
 
     await page.goto('/explore');
     await waitForDataLoad(page);
@@ -694,7 +656,7 @@ test.describe('Unified app notifications', () => {
     });
 
     const defaultCount = await getProteinCount(page);
-    await writeCorruptPersistedDataset(page);
+    await writeCorruptedPersistedDataset(page);
 
     await page.reload();
     await waitForDataLoad(page);
@@ -781,59 +743,5 @@ test.describe('Unified app notifications', () => {
     await expect(page.getByText('Export failed.')).toBeVisible();
     await expect(page.getByText('No data available for export')).toBeVisible();
     expect(await hasLegacyNotificationHelperArtifacts(page)).toBe(false);
-  });
-});
-
-test.describe('Unified app notifications', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/explore');
-    await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
-    await clearPersistedDataset(page);
-    await page.goto('/explore');
-    await waitForDataLoad(page);
-    await dismissTourIfPresent(page);
-  });
-
-  test('selection-disabled events surface through the shared toast adapter', async ({ page }) => {
-    await page.evaluate(() => {
-      const controlBar = document.getElementById('myControlBar');
-      controlBar?.dispatchEvent(
-        new CustomEvent('selection-disabled-notification', {
-          detail: {
-            message: 'Selection mode disabled: Only 1 point remaining',
-            severity: 'warning',
-            source: 'control-bar',
-            context: {
-              reason: 'insufficient-data',
-              dataSize: 1,
-            },
-          },
-        }),
-      );
-    });
-
-    await expect(page.getByText('Selection mode disabled.')).toBeVisible();
-    await expect(page.getByText('Selection mode disabled: Only 1 point remaining')).toBeVisible();
-  });
-
-  test('data-loader errors surface through the shared toast adapter', async ({ page }) => {
-    await page.evaluate(() => {
-      const dataLoader = document.getElementById('myDataLoader');
-      dataLoader?.dispatchEvent(
-        new CustomEvent('data-error', {
-          detail: {
-            message: 'Invalid parquet bundle',
-            severity: 'error',
-            source: 'data-loader',
-            context: {
-              operation: 'load',
-            },
-          },
-        }),
-      );
-    });
-
-    await expect(page.getByText('Dataset import failed.')).toBeVisible();
-    await expect(page.getByText('Invalid parquet bundle')).toBeVisible();
   });
 });
