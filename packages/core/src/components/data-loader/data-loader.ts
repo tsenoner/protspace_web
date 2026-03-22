@@ -4,6 +4,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { parquetReadObjects } from 'hyparquet';
 import { isParquetBundle, type VisualizationData, type BundleSettings } from '@protspace/utils';
 import { dataLoaderStyles } from './data-loader.styles';
+import { createDataErrorEventDetail, type DataErrorEventDetail } from './data-loader.events';
 import { readFileOptimized } from './utils/file-io';
 import { extractRowsFromParquetBundle } from './utils/bundle';
 import { convertParquetToVisualizationDataOptimized } from './utils/conversion';
@@ -133,8 +134,9 @@ export class DataLoader extends LitElement {
       this.completeStep();
       this.dispatchDataLoaded(visualizationData, null, source);
     } catch (error) {
-      this.error = error instanceof Error ? error.message : 'Unknown error occurred';
-      this.dispatchError(this.error);
+      const originalError = error instanceof Error ? error : new Error(String(error));
+      this.error = originalError.message;
+      this.dispatchError(this.error, originalError);
     } finally {
       this.setLoading(false);
     }
@@ -193,8 +195,9 @@ export class DataLoader extends LitElement {
         this.dispatchDataLoaded(visualizationData, null, source, file);
       }
     } catch (error) {
-      this.error = error instanceof Error ? error.message : 'Unknown error occurred';
-      this.dispatchError(this.error);
+      const originalError = error instanceof Error ? error : new Error(String(error));
+      this.error = originalError.message;
+      this.dispatchError(this.error, originalError);
     } finally {
       this.setLoading(false);
     }
@@ -261,10 +264,12 @@ export class DataLoader extends LitElement {
     );
   }
 
-  private dispatchError(error: string) {
+  private dispatchError(error: string, originalError?: Error) {
+    const detail: DataErrorEventDetail = createDataErrorEventDetail(error, originalError);
+
     this.dispatchEvent(
-      new CustomEvent('data-error', {
-        detail: { error },
+      new CustomEvent<DataErrorEventDetail>('data-error', {
+        detail,
         bubbles: true,
         composed: true,
       }),

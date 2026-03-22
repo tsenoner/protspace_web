@@ -1,4 +1,4 @@
-import type { DataLoader, ProtspaceScatterplot } from '@protspace/core';
+import type { DataErrorEventDetail, DataLoader, ProtspaceScatterplot } from '@protspace/core';
 
 type Args = {
   plotElement: ProtspaceScatterplot;
@@ -168,8 +168,8 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
     args.dataLoader.addEventListener(
       'data-error',
       (event: Event) => {
-        const detail = (event as CustomEvent<{ error?: unknown }>).detail;
-        reject(new Error(String(detail?.error ?? 'unknown error')));
+        const detail = (event as CustomEvent<DataErrorEventDetail>).detail;
+        reject(new Error(String(detail?.message ?? 'unknown error')));
       },
       { once: true },
     );

@@ -23,6 +23,10 @@ import {
   mergeProteinSelections,
 } from './control-bar-helpers';
 import { ExportPersistenceController } from './export-persistence-controller';
+import {
+  createSelectionDisabledNotificationDetail,
+  type SelectionDisabledNotificationDetail,
+} from './control-bar.events';
 import './search';
 import './annotation-select';
 
@@ -1746,19 +1750,14 @@ export class ProtspaceControlBar extends LitElement {
 
     // Dispatch a separate notification event for the UI layer to handle
     // This separates business logic from presentation concerns
-    const message =
-      reason === 'insufficient-data'
-        ? `Selection mode disabled: Only ${dataSize} point${dataSize !== 1 ? 's' : ''} remaining`
-        : 'Selection mode disabled';
+    const detail: SelectionDisabledNotificationDetail = createSelectionDisabledNotificationDetail(
+      reason,
+      dataSize,
+    );
 
     this.dispatchEvent(
-      new CustomEvent('selection-disabled-notification', {
-        detail: {
-          reason,
-          dataSize,
-          message,
-          type: 'warning',
-        },
+      new CustomEvent<SelectionDisabledNotificationDetail>('selection-disabled-notification', {
+        detail,
         bubbles: true,
         composed: true,
       }),

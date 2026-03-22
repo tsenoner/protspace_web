@@ -7,15 +7,20 @@ import type {
   ProtspaceControlBar,
   DataLoader,
   DataLoadedEventDetail,
+  DataErrorEventDetail,
+  LegendErrorEventDetail,
+  SelectionDisabledNotificationDetail,
+  StructureErrorEventDetail,
+  StructureLoadEvent,
 } from '@protspace/core';
 import { EXPORT_DEFAULTS } from '@protspace/core';
 import {
   createExporter,
-  showNotification,
   exportParquetBundle,
   generateBundleFilename,
   generateDatasetHash,
 } from '@protspace/utils';
+import { notify } from '../lib/notify';
 import { maybeRunWebglPerfSuite } from './webgl-perf-suite';
 import {
   StoredDatasetCorruptError,
@@ -23,6 +28,16 @@ import {
   loadLastImportedFile,
   saveLastImportedFile,
 } from './opfs-dataset-store';
+import {
+  getCorruptedPersistedDatasetNotification,
+  getDataLoadFailureNotification,
+  getDatasetPersistenceFailureNotification,
+  getExportFailureNotification,
+  getExportSuccessNotification,
+  getLegendErrorNotification,
+  getSelectionDisabledNotification,
+  getStructureErrorNotification,
+} from './demo-notifications';
 import { startProductTour } from '../tour/product-tour';
 
 const DEFAULT_DEMO_DATASET_NAME = 'Demo dataset';
@@ -91,6 +106,10 @@ export async function initializeDemo() {
       if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'progressive-loading';
+        overlay.setAttribute('role', 'status');
+        overlay.setAttribute('aria-live', 'polite');
+        overlay.setAttribute('aria-atomic', 'true');
+        overlay.setAttribute('aria-busy', 'true');
         overlay.style.cssText = `
           position: fixed; top: 0; left: 0; width: 100%; height: 100%;
           background: linear-gradient(135deg, rgba(0,0,0,0.9), rgba(20,20,40,0.9));
@@ -118,6 +137,8 @@ export async function initializeDemo() {
         overlay.style.opacity = '1';
         overlay.style.transition = 'none';
       }
+
+      overlay.setAttribute('aria-label', [subMessage, message].filter(Boolean).join('. '));
 
       const progressBar = document.getElementById('progress-bar');
       const progressText = document.getElementById('progress-text');
@@ -357,16 +378,14 @@ export async function initializeDemo() {
       }
     };
 
-    /** Clear corrupted persisted dataset, alert the user, and fall back to the demo. */
+    /** Clear corrupted persisted dataset, notify the user, and fall back to the demo. */
     const handleCorruptedPersistedDataset = async (context: string) => {
       try {
         await clearLastImportedFile();
       } catch (clearError) {
         console.warn('Failed to clear invalid persisted dataset:', clearError);
       }
-      alert(
-        `The previously saved dataset ${context} and was cleared. Loading the default demo dataset instead.`,
-      );
+      notify.warning(getCorruptedPersistedDatasetNotification(context));
       await loadDefaultDemoFile();
     };
 
@@ -542,15 +561,27 @@ export async function initializeDemo() {
       }
     });
 
+    legendElement.addEventListener('legend-error', (event: Event) => {
+      const customEvent = event as CustomEvent<LegendErrorEventDetail>;
+      console.error('Legend error:', customEvent.detail);
+      notify.error(getLegendErrorNotification(customEvent.detail));
+    });
+
     // Handle structure viewer events
     structureViewer.addEventListener('structure-load', (event: Event) => {
-      const customEvent = event as CustomEvent;
+      const customEvent = event as StructureLoadEvent;
       const { proteinId, status } = customEvent.detail;
 
       // Only log loaded events (loading/error states are less interesting for demo)
       if (status === 'loaded') {
         console.log(`✅ Structure loaded: ${proteinId}`);
       }
+    });
+
+    structureViewer.addEventListener('structure-error', (event: Event) => {
+      const customEvent = event as CustomEvent<StructureErrorEventDetail>;
+      console.warn('Structure viewer error:', customEvent.detail);
+      notify.error(getStructureErrorNotification(customEvent.detail));
     });
 
     structureViewer.addEventListener('structure-close', (event: Event) => {
@@ -583,15 +614,8 @@ export async function initializeDemo() {
     // Handle notification events from control bar
     // This separates business logic from presentation concerns
     controlBar.addEventListener('selection-disabled-notification', (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { message, type } = customEvent.detail;
-
-      // Use the notification utility to show the message
-      // Applications can replace this with their own notification system
-      showNotification(message, {
-        type: type || 'warning',
-        duration: 3000,
-      });
+      const customEvent = event as CustomEvent<SelectionDisabledNotificationDetail>;
+      notify.warning(getSelectionDisabledNotification(customEvent.detail));
     });
 
     // Data Loader Event Handlers
@@ -663,9 +687,7 @@ export async function initializeDemo() {
           await saveLastImportedFile(file);
         } catch (error) {
           console.error('Failed to persist imported dataset in OPFS:', error);
-          alert(
-            'This dataset was loaded, but ProtSpace could not save it in browser storage for automatic reloads.',
-          );
+          notify.warning(getDatasetPersistenceFailureNotification(error));
         }
       } else {
         pendingAutoLoadKind = null;
@@ -674,9 +696,8 @@ export async function initializeDemo() {
 
     // Handle data loading errors
     dataLoader.addEventListener('data-error', async (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { error } = customEvent.detail;
-      console.error('❌ Data loading error:', error);
+      const customEvent = event as CustomEvent<DataErrorEventDetail>;
+      console.error('❌ Data loading error:', customEvent.detail.message);
 
       if (pendingAutoLoadKind === 'opfs') {
         pendingAutoLoadKind = null;
@@ -684,8 +705,7 @@ export async function initializeDemo() {
         return;
       }
 
-      // You could show a toast notification or error message here
-      alert(`Failed to load data: ${error}`);
+      notify.error(getDataLoadFailureNotification(customEvent.detail));
     });
 
     // Try to load data from file, but don't fail if it doesn't work
@@ -741,7 +761,7 @@ export async function initializeDemo() {
             settings,
           });
 
-          showNotification(`Exported ${filename}`, { type: 'success' });
+          notify.success(getExportSuccessNotification(filename));
           return;
         }
 
@@ -783,7 +803,7 @@ export async function initializeDemo() {
         }
       } catch (error) {
         console.error('Export failed:', error);
-        alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        notify.error(getExportFailureNotification(error));
       }
     });
 

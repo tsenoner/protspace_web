@@ -78,10 +78,60 @@ Components with `auto-sync` attribute automatically communicate with the scatter
 <protspace-structure-viewer auto-sync scatterplot-selector="#plot"></protspace-structure-viewer>
 ```
 
+## Host Messaging Pattern
+
+ProtSpace components emit semantic warning and error events, but the host application owns transient notifications.
+
+```javascript
+function notify({ level, title, description }) {
+  // Replace this with your app's toast system.
+  console[level === 'error' ? 'error' : 'log'](title, description ?? '');
+}
+
+const controlBar = document.querySelector('protspace-control-bar');
+const dataLoader = document.querySelector('protspace-data-loader');
+const legend = document.querySelector('protspace-legend');
+const viewer = document.querySelector('protspace-structure-viewer');
+
+controlBar.addEventListener('selection-disabled-notification', (event) => {
+  notify({
+    level: 'warning',
+    title: 'Selection mode disabled.',
+    description: event.detail.message,
+  });
+});
+
+dataLoader.addEventListener('data-error', (event) => {
+  notify({
+    level: 'error',
+    title: 'Dataset import failed.',
+    description: event.detail.message,
+  });
+});
+
+legend.addEventListener('legend-error', (event) => {
+  notify({
+    level: 'error',
+    title: 'Legend update failed.',
+    description: event.detail.message,
+  });
+});
+
+viewer.addEventListener('structure-error', (event) => {
+  notify({
+    level: 'error',
+    title: 'Structure could not be loaded.',
+    description: event.detail.message,
+  });
+});
+```
+
+Keep structure viewer empty/loading/error messaging inline in the component itself instead of duplicating it with a global toast.
+
 ## React Integration
 
 ```jsx
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import '@protspace/core';
 import {
   readFileOptimized,
@@ -91,15 +141,15 @@ import {
 
 export default function ProtSpaceViewer() {
   const plotRef = useRef(null);
-  const [status, setStatus] = useState('Load a file to begin');
+  const notify = (level, title, description) => {
+    console[level === 'error' ? 'error' : 'log'](title, description ?? '');
+  };
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     try {
-      setStatus('Loading...');
-
       const arrayBuffer = await readFileOptimized(file);
       const rows = await extractRowsFromParquetBundle(arrayBuffer);
       const data = await convertParquetToVisualizationDataOptimized(rows);
@@ -108,16 +158,19 @@ export default function ProtSpaceViewer() {
       plotRef.current.selectedProjectionIndex = 0;
       plotRef.current.selectedAnnotation = Object.keys(data.annotations)[0];
 
-      setStatus(`Loaded ${data.proteins.length} proteins`);
+      notify('log', 'Dataset loaded.', `Loaded ${data.protein_ids.length} proteins.`);
     } catch (error) {
-      setStatus(`Error: ${error.message}`);
+      notify(
+        'error',
+        'Dataset import failed.',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   };
 
   return (
     <div>
       <input type="file" accept=".parquetbundle" onChange={handleFileChange} />
-      <div>{status}</div>
 
       <protspace-control-bar auto-sync scatterplot-selector="#plot" />
       <protspace-scatterplot
@@ -141,7 +194,6 @@ export default function ProtSpaceViewer() {
 <template>
   <div>
     <input type="file" accept=".parquetbundle" @change="handleFileChange" />
-    <div>{{ status }}</div>
 
     <protspace-control-bar auto-sync scatterplot-selector="#plot" />
     <protspace-scatterplot ref="plot" id="plot" show-grid enable-zoom enable-pan enable-selection />
@@ -160,15 +212,15 @@ import {
 } from '@protspace/core';
 
 const plot = ref(null);
-const status = ref('Load a file to begin');
+const notify = (level, title, description) => {
+  console[level === 'error' ? 'error' : 'log'](title, description ?? '');
+};
 
 const handleFileChange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
   try {
-    status.value = 'Loading...';
-
     const arrayBuffer = await readFileOptimized(file);
     const rows = await extractRowsFromParquetBundle(arrayBuffer);
     const data = await convertParquetToVisualizationDataOptimized(rows);
@@ -177,9 +229,13 @@ const handleFileChange = async (e) => {
     plot.value.selectedProjectionIndex = 0;
     plot.value.selectedAnnotation = Object.keys(data.annotations)[0];
 
-    status.value = `Loaded ${data.proteins.length} proteins`;
+    notify('log', 'Dataset loaded.', `Loaded ${data.protein_ids.length} proteins.`);
   } catch (error) {
-    status.value = `Error: ${error.message}`;
+    notify(
+      'error',
+      'Dataset import failed.',
+      error instanceof Error ? error.message : 'Unknown error',
+    );
   }
 };
 </script>
@@ -187,10 +243,13 @@ const handleFileChange = async (e) => {
 
 ## Event Handling
 
-All components dispatch custom events:
+All components dispatch custom events, and host apps can choose how to surface semantic warning/error events:
 
 ```javascript
 const plot = document.getElementById('plot');
+const dataLoader = document.querySelector('protspace-data-loader');
+const legend = document.querySelector('protspace-legend');
+const viewer = document.querySelector('protspace-structure-viewer');
 
 // Selection changes
 plot.addEventListener('selection-change', (e) => {
@@ -211,11 +270,25 @@ plot.addEventListener('point-click', (e) => {
   console.log('Clicked:', e.detail.protein.id);
 });
 
-// Legend category toggle
-document.querySelector('protspace-legend').addEventListener('category-toggle', (e) => {
-  console.log(`${e.detail.category}: ${e.detail.visible ? 'shown' : 'hidden'}`);
+// Legend item interactions
+legend.addEventListener('legend-item-click', (e) => {
+  console.log(`${e.detail.value}: ${e.detail.action}`);
+});
+
+dataLoader.addEventListener('data-error', (e) => {
+  console.error('Dataset import failed:', e.detail.message);
+});
+
+legend.addEventListener('legend-error', (e) => {
+  console.error('Legend update failed:', e.detail.message);
+});
+
+viewer.addEventListener('structure-error', (e) => {
+  console.error('Structure could not be loaded:', e.detail.message);
 });
 ```
+
+For the ownership model behind these events, see [Messaging Conventions](/developers/messaging).
 
 ## Programmatic Control
 

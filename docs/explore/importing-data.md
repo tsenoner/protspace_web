@@ -45,10 +45,18 @@ Small datasets (< 10K proteins) load instantly. Larger datasets may take a few s
 
 All persistence is local to your browser — **your data is never sent to a server**.
 
-- **Your dataset is remembered**: The last imported file is saved in your browser's local storage and automatically restored when you revisit ProtSpace. Switching to the demo dataset clears the stored file.
-- **Settings persist per dataset**: Legend customizations (colors, shapes, hidden categories, sort order) and export options are saved per dataset. When you reload or revisit the same dataset, your settings are restored.
+- **Your dataset is remembered**: The last imported file is saved in your browser's Origin Private File System (OPFS) and automatically restored when you revisit ProtSpace. Switching to the demo dataset clears the stored file.
+- **Settings persist per dataset**: Legend customizations (colors, shapes, hidden categories, sort order) and export options are saved in browser storage for each dataset. When you reload or revisit the same dataset, your settings are restored.
 - **File-embedded settings take priority**: If a `.parquetbundle` includes saved settings (via the export dialog's "Include legend/export settings" options), those are applied on import, replacing any previously stored settings for that dataset.
 - **Starting fresh**: To reset all settings for a dataset, re-import a `.parquetbundle` that has embedded settings, or clear site data in your browser settings.
+
+::: warning Automatic dataset restore requires OPFS
+ProtSpace uses the Origin Private File System (OPFS) to restore your last imported dataset after a page reload.
+
+OPFS may be unavailable in private/incognito browsing mode, when browser storage is restricted, or in older browsers that do not support it.
+
+ProtSpace still works normally without OPFS. Your dataset loads for the current session, but you will need to import it again after reloading the page.
+:::
 
 ## Need a Data File?
 

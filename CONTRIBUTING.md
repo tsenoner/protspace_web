@@ -167,6 +167,12 @@ pnpm type-check   # Validate TypeScript compilation
 - Keep functions focused and maintainable
 - Follow existing patterns in the codebase
 
+### Messaging Consistency
+
+- Prefer `app/src/lib/notify.ts` for app-level transient notifications.
+- Avoid new browser `alert()` calls in runtime code.
+- Update docs and tests in the same PR when user-facing messaging or event contracts change.
+
 **Configuration files:**
 
 - `.prettierrc` - Formatting rules
@@ -214,6 +220,7 @@ pnpm docs:images   # Generate all documentation images (screenshots, animations,
 - Update README.md for significant features
 - Use clear, concise language
 - Ensure accessibility for new users
+- Keep the messaging model in `docs/developers/messaging.md` aligned with runtime behavior
 
 ## Pull Request Process
 
