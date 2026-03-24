@@ -746,8 +746,8 @@ export class ProtspaceScatterplot extends LitElement {
         // Keep the UX simple: no resize handles, just drag a rectangle.
         .handleSize(0)
         .extent([
-          [config.margin.left, config.margin.top],
-          [config.width - config.margin.right, config.height - config.margin.bottom],
+          [0, 0],
+          [config.width, config.height],
         ])
         .on('end', (event) => this._handleBrushEnd(event));
 
