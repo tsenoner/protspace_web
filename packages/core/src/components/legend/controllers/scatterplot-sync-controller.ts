@@ -1,5 +1,6 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { ScatterplotData, OtherItem } from '../types';
+import type { NumericAnnotationDisplaySettingsMap } from '@protspace/utils';
 import {
   isScatterplotElement,
   supportsHiddenValues,
@@ -30,6 +31,7 @@ export interface ScatterplotSyncCallbacks {
   getLegendItems: () => LegendItem[];
   getEffectiveIncludeShapes: () => boolean;
   getOtherConcreteValues: () => string[];
+  getNumericAnnotationSettings?: () => NumericAnnotationDisplaySettingsMap;
 }
 
 /**
@@ -135,6 +137,12 @@ export class ScatterplotSyncController implements ReactiveController {
     this._scatterplotElement.useShapes = this.callbacks.getEffectiveIncludeShapes();
   }
 
+  syncNumericAnnotationSettings(): void {
+    if (!this._scatterplotElement) return;
+    this._scatterplotElement.numericAnnotationSettings =
+      this.callbacks.getNumericAnnotationSettings?.() ?? {};
+  }
+
   /**
    * Update scatterplot config
    */
@@ -227,8 +235,14 @@ export class ScatterplotSyncController implements ReactiveController {
 
     this._scatterplotElement = element;
     element.addEventListener(LEGEND_EVENTS.DATA_CHANGE, this._boundHandleDataChange);
+    const escapedSelector =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(this.scatterplotSelector)
+        : this.scatterplotSelector.replace(/["\\]/g, '\\$&');
 
-    this._controlBarElement = document.querySelector('protspace-control-bar');
+    this._controlBarElement =
+      document.querySelector(`protspace-control-bar[scatterplot-selector="${escapedSelector}"]`) ??
+      document.querySelector('protspace-control-bar');
     if (this._controlBarElement) {
       this._controlBarElement.addEventListener(
         LEGEND_EVENTS.ANNOTATION_CHANGE,
@@ -297,11 +311,10 @@ export class ScatterplotSyncController implements ReactiveController {
     const { data } = customEvent.detail;
 
     if (data && this._scatterplotElement) {
-      const currentData = this._scatterplotElement.getCurrentData();
       const selectedAnnotation = this._scatterplotElement.selectedAnnotation;
 
-      if (currentData && selectedAnnotation) {
-        this.callbacks.onDataChange(currentData, selectedAnnotation);
+      if (selectedAnnotation) {
+        this.callbacks.onDataChange(data, selectedAnnotation);
       }
     }
   }
@@ -320,6 +333,7 @@ export class ScatterplotSyncController implements ReactiveController {
 
     if (!currentData || !selectedAnnotation) return;
 
+    this.syncNumericAnnotationSettings();
     this.callbacks.onDataChange(currentData, selectedAnnotation);
   }
 

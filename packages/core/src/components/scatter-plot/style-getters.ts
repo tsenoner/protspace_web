@@ -50,6 +50,8 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     data && styleConfig.selectedAnnotation
       ? data.annotations[styleConfig.selectedAnnotation]
       : undefined;
+  const isNumericAnnotation =
+    annotation?.sourceKind === 'numeric' || annotation?.kind === 'numeric';
   const valueToColor = new Map<string, string>();
   const valueToShape = new Map<string, string>();
 
@@ -108,6 +110,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
 
   const getPointShape = (point: PlotDataPoint): string => {
     if (!data || !styleConfig.selectedAnnotation) return 'circle';
+    if (isNumericAnnotation) return 'circle';
 
     const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
 

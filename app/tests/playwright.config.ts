@@ -1,4 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
+
+const TEST_DIR = fileURLToPath(new URL('.', import.meta.url));
 
 /**
  * Playwright configuration for ProtSpace app e2e tests (product tour, etc.).
@@ -7,7 +10,7 @@ import { defineConfig, devices } from '@playwright/test';
  * Start it with: pnpm dev:app
  */
 export default defineConfig({
-  testDir: '.',
+  testDir: TEST_DIR,
 
   fullyParallel: false,
 
@@ -43,6 +46,14 @@ export default defineConfig({
         viewport: { width: 1280, height: 720 },
       },
       testMatch: /dataset-reload\.spec\.ts/,
+    },
+    {
+      name: 'numeric-binning',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /numeric-binning\.spec\.ts/,
     },
   ],
 

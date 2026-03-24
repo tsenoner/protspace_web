@@ -15,6 +15,9 @@ export interface ExportableData {
       values: (string | null)[];
       colors: string[];
       shapes: string[];
+      numericMetadata?: {
+        bins?: Array<{ id: string; label: string }>;
+      };
     }
   >;
   annotation_data: Record<string, number[][]>;
@@ -33,6 +36,7 @@ export interface ExportableElement extends Element {
 type LegendExportItem = {
   /** Category value using internal representation. N/A items use '__NA__', "Other" uses 'Other' */
   value: string;
+  displayValue?: string;
   color: string;
   shape: string;
   count: number;
@@ -381,6 +385,7 @@ export class ProtSpaceExporter {
    */
   private buildLegendItems(options: ExportOptions): Array<{
     value: string;
+    displayValue?: string;
     color: string;
     shape: string;
     count: number;
@@ -398,7 +403,8 @@ export class ProtSpaceExporter {
       return legendExportState.items
         .filter((it) => it.isVisible)
         .map((it) => ({
-          value: toDisplayValue(it.value, otherItemsCount),
+          value: it.value,
+          displayValue: it.displayValue ?? toDisplayValue(it.value, otherItemsCount),
           color: it.color,
           shape: it.shape,
           count: it.count,
@@ -535,6 +541,7 @@ export class ProtSpaceExporter {
     selectedProteinIds?: string[],
   ): Array<{
     value: string;
+    displayValue?: string;
     color: string;
     shape: string;
     count: number;
@@ -576,17 +583,28 @@ export class ProtSpaceExporter {
 
     const items: Array<{
       value: string;
+      displayValue?: string;
       color: string;
       shape: string;
       count: number;
       annotation: string;
     }> = [];
+    const numericLabelMap = new Map(
+      (annotationInfo.numericMetadata?.bins ?? []).map((bin) => [bin.id, bin.label]),
+    );
     for (let i = 0; i < annotationInfo.values.length; i += 1) {
       const value = annotationInfo.values[i] ?? LEGEND_VALUES.NA_VALUE;
       const color = annotationInfo.colors?.[i] ?? '#888';
       const shape = annotationInfo.shapes?.[i] ?? 'circle';
       const count = counts[i] ?? 0;
-      items.push({ value: String(value), color, shape, count, annotation });
+      items.push({
+        value: String(value),
+        displayValue: numericLabelMap.get(String(value)),
+        color,
+        shape,
+        count,
+        annotation,
+      });
     }
     return items;
   }
@@ -597,6 +615,7 @@ export class ProtSpaceExporter {
   private renderLegendToCanvas(
     items: Array<{
       value: string;
+      displayValue?: string;
       color: string;
       shape: string;
       count: number;
@@ -676,7 +695,11 @@ export class ProtSpaceExporter {
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'left';
       const textOffset = 8 * scaleFactor;
-      ctx.fillText(toDisplayValue(it.value), padding + symbolSize + textOffset, cy);
+      ctx.fillText(
+        it.displayValue ?? toDisplayValue(it.value),
+        padding + symbolSize + textOffset,
+        cy,
+      );
 
       // Draw count (right-aligned)
       const countStr = String(it.count);

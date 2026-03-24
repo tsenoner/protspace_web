@@ -94,6 +94,75 @@ export const TABLEAU10_COLORS = [
   '#BAB0AB',
 ] as const;
 
+export const VIRIDIS_COLORS = [
+  '#440154',
+  '#482878',
+  '#3E4989',
+  '#31688E',
+  '#26828E',
+  '#1F9E89',
+  '#35B779',
+  '#6CCE59',
+  '#B4DE2C',
+  '#FDE725',
+] as const;
+
+export const INFERNO_COLORS = [
+  '#000004',
+  '#1B0C41',
+  '#4A0C6B',
+  '#781C6D',
+  '#A52C60',
+  '#CF4446',
+  '#ED6925',
+  '#FB9B06',
+  '#F7D13D',
+  '#FCFFA4',
+] as const;
+
+export const PLASMA_COLORS = [
+  '#0D0887',
+  '#46039F',
+  '#7201A8',
+  '#9C179E',
+  '#BD3786',
+  '#D8576B',
+  '#ED7953',
+  '#FB9F3A',
+  '#FDCA26',
+  '#F0F921',
+] as const;
+
+export const CIVIDIS_COLORS = [
+  '#00224E',
+  '#123570',
+  '#3B496C',
+  '#575D6D',
+  '#707173',
+  '#8A8678',
+  '#A59C74',
+  '#C3B369',
+  '#E1CC55',
+  '#FEE838',
+] as const;
+
+/**
+ * Batlow from Fabio Crameri's Scientific Colour Maps.
+ * Included as a publication-oriented sequential option for ordered numeric data.
+ */
+export const BATLOW_COLORS = [
+  '#011959',
+  '#103F60',
+  '#1B5962',
+  '#3C6D56',
+  '#687B3E',
+  '#9D892B',
+  '#D29343',
+  '#F8A27E',
+  '#FDB7BC',
+  '#FACCFA',
+] as const;
+
 export const COLOR_SCHEMES = {
   kellys: KELLYS_COLORS,
   okabeIto: OKABE_ITO_COLORS,
@@ -101,4 +170,78 @@ export const COLOR_SCHEMES = {
   set2: SET2_COLORS,
   dark2: DARK2_COLORS,
   tableau10: TABLEAU10_COLORS,
+  viridis: VIRIDIS_COLORS,
+  cividis: CIVIDIS_COLORS,
+  inferno: INFERNO_COLORS,
+  batlow: BATLOW_COLORS,
+  plasma: PLASMA_COLORS,
 } as const;
+
+export type ColorSchemeId = keyof typeof COLOR_SCHEMES;
+
+export function getColorSchemeStops(paletteId: string): readonly string[] {
+  return COLOR_SCHEMES[paletteId as ColorSchemeId] || COLOR_SCHEMES.kellys;
+}
+
+export function createColorSchemeLinearGradient(
+  paletteId: string,
+  direction: string = '90deg',
+): string {
+  return `linear-gradient(${direction}, ${getColorSchemeStops(paletteId).join(', ')})`;
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const normalized = hex.replace('#', '');
+  const expanded =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((char) => `${char}${char}`)
+          .join('')
+      : normalized;
+  const value = parseInt(expanded, 16);
+  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
+}
+
+function rgbToHex([r, g, b]: [number, number, number]): string {
+  return `#${[r, g, b]
+    .map((channel) =>
+      Math.max(0, Math.min(255, Math.round(channel)))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')
+    .toUpperCase()}`;
+}
+
+function interpolateHexColorSrgb(start: string, end: string, t: number): string {
+  const [r1, g1, b1] = hexToRgb(start);
+  const [r2, g2, b2] = hexToRgb(end);
+  const clampedT = clamp01(t);
+  return rgbToHex([
+    r1 + (r2 - r1) * clampedT,
+    g1 + (g2 - g1) * clampedT,
+    b1 + (b2 - b1) * clampedT,
+  ]);
+}
+
+export function sampleColorSchemeColor(paletteId: string, t: number): string {
+  const palette = getColorSchemeStops(paletteId);
+  if (palette.length === 0) return '#000000';
+  if (palette.length === 1) return palette[0];
+
+  const clampedT = clamp01(t);
+  if (clampedT === 0) return palette[0];
+  if (clampedT === 1) return palette[palette.length - 1];
+
+  const scaled = clampedT * (palette.length - 1);
+  const lowerIndex = Math.floor(scaled);
+  const upperIndex = Math.ceil(scaled);
+  if (lowerIndex === upperIndex) return palette[lowerIndex];
+
+  return interpolateHexColorSrgb(palette[lowerIndex], palette[upperIndex], scaled - lowerIndex);
+}

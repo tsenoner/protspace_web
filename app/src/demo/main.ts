@@ -19,6 +19,7 @@ import {
   exportParquetBundle,
   generateBundleFilename,
   generateDatasetHash,
+  materializeVisualizationData,
 } from '@protspace/utils';
 import { notify } from '../lib/notify';
 import { maybeRunWebglPerfSuite } from './webgl-perf-suite';
@@ -152,6 +153,7 @@ export async function initializeDemo() {
     // Function to load new data and reset all state with progressive loading and performance optimization
     const loadNewData = async (newData: VisualizationData) => {
       console.log('🔄 Loading new data:', newData);
+      const firstAnnotationKey = Object.keys(newData.annotations)[0] || '';
       const startTime = performance.now();
       const dataSize = newData.protein_ids.length;
 
@@ -207,11 +209,12 @@ export async function initializeDemo() {
         plotElement.requestUpdate('data', oldData);
 
         plotElement.selectedProjectionIndex = 0;
-        const firstAnnotationKey = Object.keys(newData.annotations)[0] || '';
         plotElement.selectedAnnotation = firstAnnotationKey;
         plotElement.selectedProteinIds = [];
         plotElement.selectionMode = false;
         plotElement.hiddenAnnotationValues = [];
+        plotElement.filteredProteinIds = [];
+        plotElement.filtersActive = false;
 
         console.log(
           `📊 Scatterplot updated: ${newData.protein_ids.length} proteins, ${newData.projections.length} projections`,
@@ -259,6 +262,10 @@ export async function initializeDemo() {
         // Yield to browser
         await new Promise((resolve) => requestAnimationFrame(resolve));
 
+        const displayData =
+          plotElement.getCurrentData() ??
+          materializeVisualizationData(newData, {}, 10, firstAnnotationKey);
+
         // Update legend with enhanced progressive annotation processing
         await new Promise((resolve) => {
           setTimeout(
@@ -266,33 +273,37 @@ export async function initializeDemo() {
               legendElement.autoSync = true;
               legendElement.autoHide = true;
 
-              legendElement.data = { annotations: newData.annotations };
-              legendElement.selectedAnnotation = Object.keys(newData.annotations)[0] || '';
+              legendElement.data = {
+                annotations: displayData.annotations,
+                protein_ids: displayData.protein_ids,
+                numeric_annotation_data: displayData.numeric_annotation_data,
+              };
+              legendElement.selectedAnnotation = Object.keys(displayData.annotations)[0] || '';
 
               // Process legend annotation values
-              const firstAnnotation = Object.keys(newData.annotations)[0];
+              const firstAnnotation = Object.keys(displayData.annotations)[0];
               if (firstAnnotation) {
                 if (isLargeDataset) {
                   // Large datasets: Chunked processing to keep UI responsive
                   const chunkSize = 1000;
                   const annotationValues: (string | null)[] = [];
 
-                  for (let i = 0; i < newData.protein_ids.length; i += chunkSize) {
-                    const endIndex = Math.min(i + chunkSize, newData.protein_ids.length);
+                  for (let i = 0; i < displayData.protein_ids.length; i += chunkSize) {
+                    const endIndex = Math.min(i + chunkSize, displayData.protein_ids.length);
 
                     for (let j = i; j < endIndex; j++) {
-                      const annotationIdxArray = newData.annotation_data[firstAnnotation][j];
+                      const annotationIdxArray =
+                        displayData.annotation_data[firstAnnotation]?.[j] ?? [];
 
                       for (let k = 0; k < annotationIdxArray.length; k++) {
                         annotationValues.push(
-                          newData.annotations[firstAnnotation].values[annotationIdxArray[k]],
+                          displayData.annotations[firstAnnotation].values[annotationIdxArray[k]],
                         );
                       }
                     }
 
-                    // Yield to browser and update progress
-                    if (i + chunkSize < newData.protein_ids.length) {
-                      const progress = 60 + (i / newData.protein_ids.length) * 30;
+                    if (i + chunkSize < displayData.protein_ids.length) {
+                      const progress = 60 + (i / displayData.protein_ids.length) * 30;
                       updateLoadingOverlay(
                         true,
                         progress,
@@ -306,16 +317,17 @@ export async function initializeDemo() {
                   legendElement.annotationValues = annotationValues;
                 } else {
                   // Small datasets: Process directly
-                  const annotationValues = newData.protein_ids.flatMap((_, index) => {
-                    const annotationIdx = newData.annotation_data[firstAnnotation][index];
+                  const annotationValues = displayData.protein_ids.flatMap((_, index) => {
+                    const annotationIdx =
+                      displayData.annotation_data[firstAnnotation]?.[index] ?? [];
                     return annotationIdx.map(
-                      (idx) => newData.annotations[firstAnnotation].values[idx],
+                      (idx) => displayData.annotations[firstAnnotation].values[idx],
                     );
                   });
                   legendElement.annotationValues = annotationValues;
                 }
 
-                legendElement.proteinIds = newData.protein_ids;
+                legendElement.proteinIds = displayData.protein_ids;
               }
 
               legendElement.requestUpdate();
@@ -643,7 +655,7 @@ export async function initializeDemo() {
       const { data, settings, source, file } = customEvent.detail;
 
       // Compute dataset hash upfront for clearing and settings
-      const datasetHash = generateDatasetHash(data.protein_ids);
+      const datasetHash = generateDatasetHash(data);
       const shouldClearPersistedState =
         pendingAutoLoadKind === 'default' || (!!settings && pendingAutoLoadKind !== 'opfs');
 

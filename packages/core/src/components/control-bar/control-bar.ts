@@ -1,7 +1,13 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { controlBarStyles } from './control-bar.styles';
-import type { ExportOptionsMap, PersistedExportOptions } from '@protspace/utils';
+import type {
+  ExportOptionsMap,
+  PersistedExportOptions,
+  NumericAnnotationDisplaySettings,
+  LegendPersistedSettings,
+  VisualizationData,
+} from '@protspace/utils';
 import type {
   DataChangeDetail,
   ProtspaceData,
@@ -9,7 +15,16 @@ import type {
   DataLoaderElement,
   StructureViewerElement,
 } from './types';
-import { LEGEND_VALUES } from '@protspace/utils';
+import {
+  LEGEND_VALUES,
+  buildStorageKey,
+  generateDatasetHash,
+  getNumericBinLabelMap,
+  getOrderedNumericBinIds,
+  getStorageItem,
+  materializeVisualizationData,
+  resolveNumericAnnotationDisplaySettings,
+} from '@protspace/utils';
 import { toInternalValue } from '../legend/config';
 import { handleDropdownEscape, isAnyDropdownOpen } from '../../utils/dropdown-helpers';
 import {
@@ -75,6 +90,9 @@ export class ProtspaceControlBar extends LitElement {
   @state() private showFilterMenu: boolean = false;
   @state() private showProjectionMenu: boolean = false;
   @state() private annotationValuesMap: Record<string, string[]> = {};
+  @state() private annotationValueLabelsMap: Record<string, Record<string, string>> = {};
+  @state()
+  private annotationKinds: Record<string, 'categorical' | 'numeric' | undefined> = {};
   @state() private filterConfig: Record<string, { enabled: boolean; values: string[] }> = {};
   @state() private lastAppliedFilterConfig: Record<string, { enabled: boolean; values: string[] }> =
     {};
@@ -106,6 +124,17 @@ export class ProtspaceControlBar extends LitElement {
   private _onDocumentClick = (event: Event) => this.handleDocumentClick(event);
   private _onDocumentKeydown = (event: KeyboardEvent) => this.handleDocumentKeydown(event);
   private _onDataChange = (event: Event) => this._handleDataChange(event);
+  private _onLegendStateChange = (event: Event) => {
+    const detail = (event as CustomEvent<{ scatterplotSelector?: string }>).detail;
+    if (
+      detail?.scatterplotSelector &&
+      this.scatterplotSelector &&
+      detail.scatterplotSelector !== this.scatterplotSelector
+    ) {
+      return;
+    }
+    this._syncWithScatterplot();
+  };
   private _onProteinClick = (event: Event) => this._handleProteinSelection(event);
   private _onDataIsolation = (event: Event) => this._handleDataIsolation(event);
   private _onDataIsolationReset = (event: Event) => this._handleDataIsolationReset(event);
@@ -571,6 +600,7 @@ export class ProtspaceControlBar extends LitElement {
     this._exportPersistence.clearForNewDataset(datasetHash, clearPersistedState);
     this._applyPersistedExportSettings(createDefaultExportOptions());
     this.exportFormat = EXPORT_DEFAULTS.FORMAT;
+    this._resetFilterState();
   }
 
   private _getCurrentExportSettings(): PersistedExportOptions {
@@ -601,8 +631,15 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private _syncExportPersistenceFromData(data: ProtspaceData): void {
-    const proteinIds = Array.isArray(data.protein_ids) ? data.protein_ids : [];
-    const hashChanged = this._exportPersistence.updateDatasetHash(proteinIds);
+    if (this.isolationMode) {
+      return;
+    }
+
+    const hashChanged = this._exportPersistence.updateDatasetHash({
+      protein_ids: Array.isArray(data.protein_ids) ? data.protein_ids : [],
+      annotations: data.annotations,
+      numeric_annotation_data: data.numeric_annotation_data,
+    });
 
     const annotationChanged = this._exportPersistence.updateSelectedAnnotation(
       this.selectedAnnotation,
@@ -718,6 +755,7 @@ export class ProtspaceControlBar extends LitElement {
             <protspace-annotation-select
               id="annotation-select"
               .annotations=${this.annotations}
+              .annotationKinds=${this.annotationKinds}
               .selectedAnnotation=${this.selectedAnnotation}
               @annotation-select=${this.handleAnnotationSelected}
             ></protspace-annotation-select>
@@ -955,7 +993,11 @@ export class ProtspaceControlBar extends LitElement {
                                                   (e.target as HTMLInputElement).checked,
                                                 )}
                                             />
-                                            <span class="filter-value-text">${String(v)}</span>
+                                            <span class="filter-value-text"
+                                              >${this.annotationValueLabelsMap[annotation]?.[
+                                                String(v)
+                                              ] ?? String(v)}</span
+                                            >
                                           </label>
                                         `,
                                       )}
@@ -1466,6 +1508,7 @@ export class ProtspaceControlBar extends LitElement {
     super.connectedCallback();
     document.addEventListener('click', this._onDocumentClick);
     document.addEventListener('keydown', this._onDocumentKeydown);
+    window.addEventListener('protspace-legend-state-change', this._onLegendStateChange);
 
     // Listen for annotation opening
     this.addEventListener('annotation-opened', () => {
@@ -1500,6 +1543,7 @@ export class ProtspaceControlBar extends LitElement {
     super.disconnectedCallback();
     document.removeEventListener('click', this._onDocumentClick);
     document.removeEventListener('keydown', this._onDocumentKeydown);
+    window.removeEventListener('protspace-legend-state-change', this._onLegendStateChange);
 
     if (this._scatterplotElement) {
       this._scatterplotElement.removeEventListener('data-change', this._onDataChange);
@@ -1646,6 +1690,8 @@ export class ProtspaceControlBar extends LitElement {
     if (!data) return;
 
     this._updateOptionsFromData(data);
+    const unfilteredData =
+      this._scatterplotElement?.getCurrentData?.({ includeFilteredProteinIds: false }) ?? data;
 
     // Update protein ids for search
     try {
@@ -1661,13 +1707,32 @@ export class ProtspaceControlBar extends LitElement {
       console.error(e);
     }
     // Update annotation value options for filter UI
+    let didPruneActiveFilters = false;
     try {
-      this._initializeFilterConfig(data);
+      didPruneActiveFilters = this._initializeFilterConfig(unfilteredData);
     } catch (e) {
       console.error(e);
     }
+    this._syncExportPersistenceFromData(unfilteredData);
 
-    this._syncExportPersistenceFromData(data);
+    if (didPruneActiveFilters && this._scatterplotElement) {
+      const hasRemainingActiveFilters = Object.values(this.filterConfig).some(
+        (config) => config.enabled && config.values.length > 0,
+      );
+
+      if ('filteredProteinIds' in this._scatterplotElement) {
+        this._scatterplotElement.filteredProteinIds = hasRemainingActiveFilters
+          ? [...(this._scatterplotElement.filteredProteinIds ?? [])]
+          : [];
+      }
+      if ('filtersActive' in this._scatterplotElement) {
+        this._scatterplotElement.filtersActive = hasRemainingActiveFilters;
+      }
+
+      if (hasRemainingActiveFilters) {
+        this.applyFilters();
+      }
+    }
     this.requestUpdate();
   }
 
@@ -1771,6 +1836,12 @@ export class ProtspaceControlBar extends LitElement {
     this.annotations = Object.keys(data.annotations || {}).filter(
       (a) => !TOOLTIP_ONLY_ANNOTATIONS.has(a),
     );
+    this.annotationKinds = Object.fromEntries(
+      Object.entries(data.annotations || {}).map(([annotation, config]) => [
+        annotation,
+        config.sourceKind || config.kind,
+      ]),
+    );
 
     // Default selections if invalid
     if (!this.selectedProjection || !this.projections.includes(this.selectedProjection)) {
@@ -1781,25 +1852,194 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
+  private _getNumericFilterSettings(
+    data: ProtspaceData,
+    annotation: string,
+  ): NumericAnnotationDisplaySettings {
+    const persisted = this._getPersistedLegendSettings(data, annotation);
+    const scatterplot = this._scatterplotElement as ScatterplotElementLike | null;
+    const existing = scatterplot?.numericAnnotationSettings?.[annotation];
+    return resolveNumericAnnotationDisplaySettings({
+      persistedSettings: persisted,
+      liveSettings: existing,
+      defaultBinCount: 10,
+    }).settings;
+  }
+
+  private _getPersistedLegendSettings(
+    data: ProtspaceData,
+    annotation: string,
+  ): Partial<LegendPersistedSettings> {
+    const datasetHash = generateDatasetHash({
+      protein_ids: data.protein_ids ?? [],
+      annotations: data.annotations,
+      numeric_annotation_data: data.numeric_annotation_data,
+    });
+    const storageKey = buildStorageKey('legend', datasetHash, annotation);
+    return getStorageItem<Partial<LegendPersistedSettings>>(storageKey, {});
+  }
+
+  private _materializeNumericFilterData(
+    data: ProtspaceData,
+    annotationsToMaterialize?: Iterable<string>,
+  ): ProtspaceData {
+    if (!data.protein_ids || !data.projections || !data.annotations || !data.annotation_data) {
+      return data;
+    }
+
+    const requestedAnnotations = annotationsToMaterialize
+      ? new Set(annotationsToMaterialize)
+      : null;
+    const numericSettings = Object.fromEntries(
+      Object.keys(data.annotations ?? {})
+        .filter((annotationName) => {
+          const annotation = data.annotations?.[annotationName];
+          const isNumericAnnotation =
+            annotation?.kind === 'numeric' || annotation?.sourceKind === 'numeric';
+          return (
+            isNumericAnnotation &&
+            (!requestedAnnotations || requestedAnnotations.has(annotationName))
+          );
+        })
+        .map((annotationName) => [
+          annotationName,
+          this._getNumericFilterSettings(data, annotationName),
+        ]),
+    );
+
+    return materializeVisualizationData(
+      data as VisualizationData,
+      numericSettings,
+      10,
+      null,
+      requestedAnnotations,
+    ) as ProtspaceData;
+  }
+
+  private _collectFilterValues(data: ProtspaceData, annotation: string): string[] {
+    const values = data.annotations?.[annotation]?.values as (string | null)[] | undefined;
+    if (!Array.isArray(values)) {
+      return [];
+    }
+
+    const annotationInfo = data.annotations?.[annotation];
+    const isNumericAnnotation =
+      annotationInfo?.sourceKind === 'numeric' || annotationInfo?.kind === 'numeric';
+    if (isNumericAnnotation) {
+      const persisted = this._getPersistedLegendSettings(data, annotation);
+      const sortMode =
+        persisted.sortMode === 'alpha-desc' ||
+        persisted.sortMode === 'manual' ||
+        persisted.sortMode === 'manual-reverse'
+          ? persisted.sortMode
+          : 'alpha-asc';
+      return getOrderedNumericBinIds(
+        annotationInfo,
+        sortMode,
+        persisted.numericSettings?.manualOrderIds ?? [],
+      );
+    }
+
+    const rows = data.annotation_data?.[annotation];
+    if (!Array.isArray(rows)) {
+      return values.map(toInternalValue);
+    }
+
+    const usedIndices = new Set<number>();
+    for (const row of rows) {
+      const indices = Array.isArray(row) ? row : row == null ? [] : [row];
+      for (const index of indices) {
+        if (
+          typeof index === 'number' &&
+          Number.isFinite(index) &&
+          index >= 0 &&
+          index < values.length
+        ) {
+          usedIndices.add(index);
+        }
+      }
+    }
+
+    return [...usedIndices]
+      .sort((left, right) => left - right)
+      .map((index) => toInternalValue(values[index]));
+  }
+
   /**
    * Build annotation values map and initialize filter config from data
    */
-  private _initializeFilterConfig(data: ProtspaceData) {
-    const annotations = data.annotations || {};
+  private _initializeFilterConfig(data: ProtspaceData): boolean {
+    const filterData = this._materializeNumericFilterData(data);
+    const annotations = filterData.annotations || {};
     const map: Record<string, string[]> = {};
+    const labelMap: Record<string, Record<string, string>> = {};
     Object.keys(annotations).forEach((k) => {
-      const vals = annotations[k]?.values as (string | null)[] | undefined;
-      if (Array.isArray(vals)) {
-        map[k] = vals.map(toInternalValue);
-      }
+      map[k] = this._collectFilterValues(filterData, k);
+      labelMap[k] = Object.fromEntries(getNumericBinLabelMap(filterData.annotations?.[k] as never));
     });
     this.annotationValuesMap = map;
+    this.annotationValueLabelsMap = labelMap;
 
     const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
+    const nextAppliedConfig: typeof this.lastAppliedFilterConfig = {
+      ...this.lastAppliedFilterConfig,
+    };
+    let didPruneActiveFilters = false;
+
     Object.keys(map).forEach((k) => {
-      if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
+      const allowedValues = new Set(map[k]);
+      const current = nextConfig[k] ?? { enabled: false, values: [] };
+      const appliedCurrent = nextAppliedConfig[k] ?? { enabled: false, values: [] };
+      const nextValues = current.values.filter((value) => allowedValues.has(value));
+      const nextAppliedValues = appliedCurrent.values.filter((value) => allowedValues.has(value));
+      const nextEnabled = current.enabled && nextValues.length > 0;
+      const nextAppliedEnabled = appliedCurrent.enabled && nextAppliedValues.length > 0;
+
+      if (
+        current.enabled &&
+        (nextValues.length !== current.values.length || nextEnabled !== current.enabled)
+      ) {
+        didPruneActiveFilters = true;
+      }
+
+      nextConfig[k] = { enabled: nextEnabled, values: nextValues };
+      nextAppliedConfig[k] = {
+        enabled: nextAppliedEnabled,
+        values: nextAppliedValues,
+      };
     });
     this.filterConfig = nextConfig;
+    this.lastAppliedFilterConfig = nextAppliedConfig;
+
+    if (
+      didPruneActiveFilters &&
+      this._scatterplotElement &&
+      'filteredProteinIds' in this._scatterplotElement
+    ) {
+      this._scatterplotElement.filteredProteinIds = [];
+      if ('filtersActive' in this._scatterplotElement) {
+        this._scatterplotElement.filtersActive = false;
+      }
+    }
+
+    return didPruneActiveFilters;
+  }
+
+  private _resetFilterState(): void {
+    this.annotationValuesMap = {};
+    this.annotationValueLabelsMap = {};
+    this.filterConfig = {};
+    this.lastAppliedFilterConfig = {};
+    this.showFilterMenu = false;
+
+    if (this._scatterplotElement) {
+      if ('filteredProteinIds' in this._scatterplotElement) {
+        this._scatterplotElement.filteredProteinIds = [];
+      }
+      if ('filtersActive' in this._scatterplotElement) {
+        this._scatterplotElement.filtersActive = false;
+      }
+    }
   }
 
   private _syncWithScatterplot() {
@@ -1809,12 +2049,16 @@ export class ProtspaceControlBar extends LitElement {
       data = scatterplot.getCurrentData?.();
 
       if (data) {
+        const unfilteredData =
+          scatterplot.getCurrentData?.({ includeFilteredProteinIds: false }) ?? data;
+
         // Extract projections and annotations
         this._updateOptionsFromData(data);
 
         // Build annotation values map for filter UI
+        let didPruneActiveFilters = false;
         try {
-          this._initializeFilterConfig(data);
+          didPruneActiveFilters = this._initializeFilterConfig(unfilteredData);
         } catch (e) {
           console.error(e);
         }
@@ -1863,7 +2107,24 @@ export class ProtspaceControlBar extends LitElement {
           this.selectedAnnotation = this.annotations[0];
         }
 
-        this._syncExportPersistenceFromData(data);
+        this._syncExportPersistenceFromData(unfilteredData);
+
+        if (didPruneActiveFilters) {
+          if ('filteredProteinIds' in scatterplot) {
+            scatterplot.filteredProteinIds = [];
+          }
+
+          const hasRemainingActiveFilters = Object.values(this.filterConfig).some(
+            (config) => config.enabled && config.values.length > 0,
+          );
+          if ('filtersActive' in scatterplot) {
+            scatterplot.filtersActive = hasRemainingActiveFilters;
+          }
+
+          if (hasRemainingActiveFilters) {
+            this.applyFilters();
+          }
+        }
         this.requestUpdate();
       }
     }
@@ -2140,7 +2401,8 @@ export class ProtspaceControlBar extends LitElement {
       return;
     }
     const sp = this._scatterplotElement as ScatterplotElementLike;
-    const data = sp.getCurrentData?.();
+    const data =
+      sp.getCurrentData?.({ includeFilteredProteinIds: false }) ?? sp.getMaterializedData?.();
     if (!data) return;
 
     // Collect active filters
@@ -2150,21 +2412,34 @@ export class ProtspaceControlBar extends LitElement {
         annotation,
         values: cfg.values,
       }));
+    const filterData = this._materializeNumericFilterData(
+      data,
+      activeFilters.map((filter) => filter.annotation),
+    );
 
     if (activeFilters.length === 0) {
+      if ('filteredProteinIds' in sp) {
+        sp.filteredProteinIds = [];
+      }
+      if ('filtersActive' in sp) {
+        sp.filtersActive = false;
+      }
       this.showFilterMenu = false;
       return;
     }
 
-    // Compute membership for each protein
-    const numProteins: number = Array.isArray(data.protein_ids) ? data.protein_ids.length : 0;
-    const indices: number[][] = new Array(numProteins);
+    // Compute the subset of proteins that satisfy all enabled filters.
+    const numProteins: number = Array.isArray(filterData.protein_ids)
+      ? filterData.protein_ids.length
+      : 0;
+    const matchedProteinIds: string[] = [];
 
     for (let i = 0; i < numProteins; i++) {
       let isMatch = true;
       for (const { annotation, values } of activeFilters) {
-        const annotationIdxData = data.annotation_data?.[annotation];
-        const valuesArr: (string | null)[] | undefined = data.annotations?.[annotation]?.values;
+        const annotationIdxData = filterData.annotation_data?.[annotation];
+        const valuesArr: (string | null)[] | undefined =
+          filterData.annotations?.[annotation]?.values;
         if (!annotationIdxData || !valuesArr) {
           isMatch = false;
           break;
@@ -2184,54 +2459,23 @@ export class ProtspaceControlBar extends LitElement {
           break;
         }
       }
-      // [0] => Filtered Proteins, [1] => Other Proteins
-      indices[i] = isMatch ? [0] : [1];
+      if (isMatch) {
+        matchedProteinIds.push(filterData.protein_ids?.[i] ?? '');
+      }
     }
-
-    // Add or replace synthetic Custom annotation
-    const customName = 'Custom';
-    const newAnnotations: Record<
-      string,
-      { values: (string | null)[]; colors?: string[]; shapes?: string[] }
-    > = {
-      ...data.annotations,
-    };
-    newAnnotations[customName] = {
-      values: ['Filtered Proteins', 'Other Proteins'],
-      colors: ['#00A35A', '#9AA0A6'],
-      shapes: ['circle', 'circle'],
-    };
-    const newAnnotationData = { ...data.annotation_data, [customName]: indices };
-
-    const newData = {
-      ...data,
-      annotations: newAnnotations,
-      annotation_data: newAnnotationData,
-    };
 
     this.lastAppliedFilterConfig = JSON.parse(JSON.stringify(this.filterConfig));
 
-    // Apply to scatterplot and select the Custom annotation
-    sp.data = newData;
-    if ('selectedAnnotation' in sp) sp.selectedAnnotation = customName;
-    this.annotations = Object.keys(newData.annotations || {}).filter(
-      (a) => !TOOLTIP_ONLY_ANNOTATIONS.has(a),
-    );
-    this.selectedAnnotation = customName;
-    this.annotationValuesMap = {
-      ...this.annotationValuesMap,
-      [customName]: newAnnotations[customName].values.map(toInternalValue),
-    };
-    // Annotation select component will automatically update via selectedAnnotation property binding
+    if ('filteredProteinIds' in sp) {
+      sp.filteredProteinIds = matchedProteinIds.filter(Boolean);
+    }
+    if ('filtersActive' in sp) {
+      sp.filtersActive = true;
+    }
 
-    // Let listeners know the annotation changed to Custom
-    this.dispatchEvent(
-      new CustomEvent('annotation-change', {
-        detail: { annotation: customName },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    if ('selectedAnnotation' in sp) {
+      sp.selectedAnnotation = this.selectedAnnotation;
+    }
 
     this.showFilterMenu = false;
   }

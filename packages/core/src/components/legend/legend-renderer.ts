@@ -23,7 +23,7 @@ export class LegendRenderer {
     isSelected: boolean = false,
   ): TemplateResult {
     // Add padding to accommodate shapes that extend beyond circles
-    const padding = 4;
+    const padding = 6;
     const canvasSize = size + padding * 2;
     const centerOffset = canvasSize / 2;
 
@@ -53,7 +53,14 @@ export class LegendRenderer {
     const validColor = color || '#888888';
 
     return html`
-      <svg width="${canvasSize}" height="${canvasSize}" class="legend-symbol">
+      <svg
+        width="${canvasSize}"
+        height="${canvasSize}"
+        viewBox="0 0 ${canvasSize} ${canvasSize}"
+        class="legend-symbol"
+        aria-hidden="true"
+        focusable="false"
+      >
         <g transform="translate(${centerOffset}, ${centerOffset})">
           <path
             d="${path}"
@@ -72,7 +79,8 @@ export class LegendRenderer {
   static renderHeader(
     title: string,
     actions: {
-      onReverse?: () => void;
+      onReverse: () => void;
+      reverseLabel: string;
       onCustomize: () => void;
     },
   ): TemplateResult {
@@ -80,25 +88,21 @@ export class LegendRenderer {
       <div class="legend-header" part="header">
         <h3 class="legend-title">${title}</h3>
         <div class="legend-header-actions">
-          ${actions.onReverse
-            ? html`
-                <button
-                  class="btn-icon customize-button reverse-button"
-                  title="Reverse z-order (keep Other last)"
-                  aria-label="Reverse z-order (keep Other last)"
-                  @click=${actions.onReverse}
-                >
-                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M7 16V4m0 0L3 8m4-4l4 4m6-2v12m0 0l4-4m-4 4l-4-4"
-                    />
-                  </svg>
-                </button>
-              `
-            : null}
+          <button
+            class="btn-icon customize-button reverse-button"
+            title=${actions.reverseLabel}
+            aria-label=${actions.reverseLabel}
+            @click=${actions.onReverse}
+          >
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 16V4m0 0L3 8m4-4l4 4m6-2v12m0 0l4-4m-4 4l-4-4"
+              />
+            </svg>
+          </button>
           <button
             class="btn-icon customize-button"
             title="Legend settings"
@@ -137,7 +141,7 @@ export class LegendRenderer {
     }
 
     return html`
-      <div class="legend-items" part="items" role="listbox" aria-label="Legend items">
+      <div class="legend-items" part="items" role="list" aria-label="Legend items">
         ${sortedLegendItems.map((item, index) => renderItemCallback(item, index))}
       </div>
     `;
@@ -146,17 +150,24 @@ export class LegendRenderer {
   /**
    * Render the drag handle icon
    */
-  static renderDragHandle(): TemplateResult {
+  static renderDragHandle(
+    enabled: boolean,
+    onKeyDown?: (e: KeyboardEvent) => void,
+  ): TemplateResult {
     return html`
-      <div class="drag-handle">
-        <svg
-          width="16"
-          height="16"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          @mousedown=${(e: Event) => e.stopPropagation()}
-        >
+      <button
+        type="button"
+        class="drag-handle ${enabled ? '' : 'drag-handle-disabled'}"
+        ?disabled=${!enabled}
+        aria-label=${enabled ? 'Reorder item' : 'Reordering available in manual mode'}
+        @click=${(e: Event) => e.stopPropagation()}
+        @mousedown=${(e: Event) => e.stopPropagation()}
+        @keydown=${(e: KeyboardEvent) => {
+          e.stopPropagation();
+          onKeyDown?.(e);
+        }}
+      >
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -164,7 +175,7 @@ export class LegendRenderer {
             d="M4 8h16M4 16h16"
           />
         </svg>
-      </div>
+      </button>
     `;
   }
 
@@ -184,15 +195,21 @@ export class LegendRenderer {
         ? this.renderSymbol('circle', '#888', size)
         : this.renderSymbol(item.shape, item.color, size, isItemSelected);
 
-    return html`
-      <div
-        class="mr-2 ${onSymbolClick ? 'legend-symbol-clickable' : ''}"
-        part="symbol"
-        @click=${onSymbolClick ? onSymbolClick : undefined}
-      >
-        ${symbolContent}
-      </div>
-    `;
+    if (onSymbolClick) {
+      return html`
+        <button
+          type="button"
+          class="mr-2 legend-symbol-button legend-symbol-clickable"
+          part="symbol"
+          aria-label=${`Customize ${toDisplayValue(item.value)}`}
+          @click=${onSymbolClick}
+        >
+          ${symbolContent}
+        </button>
+      `;
+    }
+
+    return html` <div class="mr-2" part="symbol">${symbolContent}</div> `;
   }
 
   /**
@@ -200,7 +217,7 @@ export class LegendRenderer {
    * N/A items have '__NA__' as value and display as 'N/A'.
    */
   static renderItemText(item: LegendItem, otherItemsCount?: number): TemplateResult {
-    const displayText = toDisplayValue(item.value, otherItemsCount);
+    const displayText = item.displayValue ?? toDisplayValue(item.value, otherItemsCount);
     return html`<span class="legend-text" part="text">${displayText}</span>`;
   }
 
@@ -214,9 +231,10 @@ export class LegendRenderer {
           <button
             class="btn-link view-button"
             @click=${onViewOther}
-            title="Extract items from Other"
+            title="View items grouped under Other"
+            aria-label="View items grouped under Other"
           >
-            (view)
+            View
           </button>
         </span>
       `;
@@ -238,32 +256,41 @@ export class LegendRenderer {
       onDoubleClick: () => void;
       onViewOther: (e: Event) => void;
       onKeyDown?: (e: KeyboardEvent) => void;
+      onDragHandleKeyDown?: (e: KeyboardEvent) => void;
       onSymbolClick?: (e: MouseEvent) => void;
     },
     symbolSize: number = LEGEND_DEFAULTS.symbolSize,
     otherItemsCount?: number,
     itemIndex?: number,
+    dragEnabled: boolean = true,
   ): TemplateResult {
-    const displayLabel = toDisplayValue(item.value);
+    const displayLabel = item.displayValue ?? toDisplayValue(item.value);
 
     return html`
       <div
         class="${itemClasses}"
         part="item"
-        role="option"
+        role="listitem"
         data-value="${item.value}"
         data-driver-id=${item.value === LEGEND_VALUES.OTHER ? 'other-row' : nothing}
-        aria-selected="${item.isVisible}"
-        aria-label="${displayLabel}: ${item.count} items${!item.isVisible ? ' (hidden)' : ''}"
-        tabindex="${itemIndex === 0 ? '0' : '-1'}"
-        @click=${eventHandlers.onClick}
-        @dblclick=${eventHandlers.onDoubleClick}
-        @keydown=${eventHandlers.onKeyDown}
       >
         <div class="legend-item-content">
-          ${this.renderDragHandle()}
+          ${this.renderDragHandle(dragEnabled, eventHandlers.onDragHandleKeyDown)}
           ${this.renderItemSymbol(item, isItemSelected, symbolSize, eventHandlers.onSymbolClick)}
-          ${this.renderItemText(item, otherItemsCount)}
+          <button
+            type="button"
+            class="legend-item-main"
+            aria-label="${displayLabel}: ${item.count} items, ${item.isVisible
+              ? 'shown'
+              : 'hidden'}"
+            aria-pressed="${item.isVisible ? 'true' : 'false'}"
+            tabindex="${itemIndex === 0 ? '0' : '-1'}"
+            @click=${eventHandlers.onClick}
+            @dblclick=${eventHandlers.onDoubleClick}
+            @keydown=${eventHandlers.onKeyDown}
+          >
+            ${this.renderItemText(item, otherItemsCount)}
+          </button>
           ${this.renderItemActions(item, eventHandlers.onViewOther)}
         </div>
         <span class="legend-count" part="count">${item.count}</span>

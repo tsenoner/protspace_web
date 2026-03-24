@@ -17,8 +17,7 @@ const ANNOTATION_CATEGORIES = {
     'go_cc',
     'go_mf',
     'keyword',
-    'length_fixed',
-    'length_quantile',
+    'length',
     'protein_existence',
     'protein_families',
     'reviewed',
@@ -53,7 +52,7 @@ const TAXONOMY_ORDER = [
   'species',
 ] as const;
 
-type CategoryName = 'UniProt' | 'InterPro' | 'Taxonomy' | 'Other';
+type CategoryName = 'UniProt' | 'InterPro' | 'Taxonomy' | 'Numeric' | 'Other';
 
 interface GroupedAnnotation {
   category: CategoryName;
@@ -68,6 +67,8 @@ class ProtspaceAnnotationSelect extends LitElement {
   static styles = annotationSelectStyles;
 
   @property({ type: Array }) annotations: string[] = [];
+  @property({ attribute: false })
+  annotationKinds: Record<string, 'categorical' | 'numeric' | undefined> = {};
   @property({ type: String, attribute: 'selected-annotation' }) selectedAnnotation: string = '';
   @property({ type: String }) placeholder: string = 'Select annotation';
 
@@ -189,6 +190,7 @@ class ProtspaceAnnotationSelect extends LitElement {
       UniProt: [],
       InterPro: [],
       Taxonomy: [],
+      Numeric: [],
       Other: [],
     };
 
@@ -202,13 +204,19 @@ class ProtspaceAnnotationSelect extends LitElement {
         }
       }
       if (!found) {
-        categorized.Other.push(annotation);
+        const annotationKind = this.annotationKinds[annotation];
+        if (annotationKind === 'numeric') {
+          categorized.Numeric.push(annotation);
+        } else {
+          categorized.Other.push(annotation);
+        }
       }
     }
 
     // Sort annotations within each category
     categorized.UniProt.sort((a, b) => a.localeCompare(b));
     categorized.InterPro.sort((a, b) => a.localeCompare(b));
+    categorized.Numeric.sort((a, b) => a.localeCompare(b));
     categorized.Other.sort((a, b) => a.localeCompare(b));
     // Taxonomy uses predefined order
     categorized.Taxonomy.sort((a, b) => {
@@ -222,7 +230,7 @@ class ProtspaceAnnotationSelect extends LitElement {
 
     // Build grouped array, sorting categories alphabetically (Other last)
     const groups: GroupedAnnotation[] = [];
-    const categoryOrder: CategoryName[] = ['InterPro', 'Taxonomy', 'UniProt', 'Other'];
+    const categoryOrder: CategoryName[] = ['InterPro', 'Taxonomy', 'UniProt', 'Numeric', 'Other'];
     for (const category of categoryOrder) {
       if (categorized[category].length > 0) {
         groups.push({ category, annotations: categorized[category] });

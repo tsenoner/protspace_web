@@ -38,6 +38,16 @@ function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
 
   // Add annotation columns
   for (const [annotationName, annotation] of Object.entries(data.annotations)) {
+    if (annotation.kind === 'numeric' || annotation.sourceKind === 'numeric') {
+      const values = data.numeric_annotation_data?.[annotationName] ?? [];
+      columnData.push({
+        name: annotationName,
+        data: values,
+        type: 'DOUBLE',
+      });
+      continue;
+    }
+
     const annotationIndices = data.annotation_data[annotationName];
     if (!annotationIndices) continue;
 

@@ -1,4 +1,5 @@
 import type { ScatterplotData } from './types';
+import type { NumericAnnotationDisplaySettingsMap } from '@protspace/utils';
 
 /**
  * Interface defining the scatterplot element's API that the legend interacts with.
@@ -6,13 +7,16 @@ import type { ScatterplotData } from './types';
  */
 export interface IScatterplotElement extends Element {
   // Data access
-  getCurrentData(): ScatterplotData | null;
+  data?: ScatterplotData;
+  getCurrentData(options?: { includeFilteredProteinIds?: boolean }): ScatterplotData | null;
+  getMaterializedData?(): ScatterplotData | null;
   selectedAnnotation: string;
 
   // Annotation values (using scatterplot's property names)
   hiddenAnnotationValues: string[];
   otherAnnotationValues: string[];
   useShapes: boolean;
+  numericAnnotationSettings?: NumericAnnotationDisplaySettingsMap;
 
   // Configuration
   config: Record<string, unknown>;

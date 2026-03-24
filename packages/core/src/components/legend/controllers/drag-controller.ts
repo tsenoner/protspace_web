@@ -26,6 +26,7 @@ export class DragController implements ReactiveController {
   private callbacks: DragCallbacks;
   private sortableInstance: Sortable | null = null;
   private containerEl: HTMLElement | null = null;
+  private enabled = true;
 
   private preDragChildNodes: Node[] = [];
   private highlightedOtherEl: HTMLElement | null = null;
@@ -44,9 +45,12 @@ export class DragController implements ReactiveController {
    * Initialize Sortable on the legend items container.
    * Should be called once when the container element is available.
    */
-  initialize(container: HTMLElement): void {
+  initialize(container: HTMLElement, enabled: boolean = true): void {
+    this.enabled = enabled;
+
     // Don't reinitialize on the same container
     if (this.sortableInstance && this.containerEl === container) {
+      this.sortableInstance.option('disabled', !enabled);
       return;
     }
 
@@ -66,6 +70,7 @@ export class DragController implements ReactiveController {
       handle: '.drag-handle',
       swapThreshold: 0.65,
       direction: 'vertical',
+      disabled: !enabled,
 
       // Prevent dragging the "Other" item (always stays at bottom)
       filter: '.legend-item-other',
@@ -209,7 +214,7 @@ export class DragController implements ReactiveController {
     // Re-enable Sortable after render
     requestAnimationFrame(() => {
       if (this.sortableInstance) {
-        this.sortableInstance.option('disabled', false);
+        this.sortableInstance.option('disabled', !this.enabled);
       }
     });
   }

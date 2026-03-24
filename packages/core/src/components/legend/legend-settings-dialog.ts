@@ -1,8 +1,13 @@
 import { html, nothing, type TemplateResult } from 'lit';
-import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_ANNOTATIONS } from './config';
+import { LEGEND_DEFAULTS } from './config';
 import type { LegendSortMode } from './types';
 import { renderCloseIcon } from './legend-other-dialog';
-import { COLOR_SCHEMES } from '@protspace/utils';
+import {
+  GRADIENT_COLOR_SCHEME_IDS,
+  COLOR_SCHEMES,
+  createColorSchemeLinearGradient,
+  type NumericBinningStrategy,
+} from '@protspace/utils';
 
 /**
  * Settings dialog state interface
@@ -15,8 +20,12 @@ export interface SettingsDialogState {
   selectedAnnotation: string;
   annotationSortModes: Record<string, LegendSortMode>;
   isMultilabelAnnotation: boolean;
+  isNumericAnnotation: boolean;
+  selectedNumericStrategy: NumericBinningStrategy;
+  logBinningAvailable: boolean;
   hasPersistedSettings: boolean;
   selectedPaletteId: string;
+  reverseGradient: boolean;
 }
 
 /**
@@ -29,6 +38,8 @@ export interface SettingsDialogCallbacks {
   onEnableDuplicateStackUIChange: (checked: boolean) => void;
   onSortModeChange: (annotation: string, mode: LegendSortMode) => void;
   onPaletteChange: (paletteId: string) => void;
+  onNumericStrategyChange: (strategy: NumericBinningStrategy) => void;
+  onReverseGradientChange: (checked: boolean) => void;
   onSave: () => void;
   onClose: () => void;
   onReset: () => void;
@@ -45,6 +56,38 @@ function parsePositiveInt(value: string): number | null {
   return !Number.isNaN(parsed) && parsed > 0 ? parsed : null;
 }
 
+function renderSection(
+  title: string,
+  content: TemplateResult | TemplateResult[],
+  description?: string,
+  titleId?: string,
+): TemplateResult {
+  return html`
+    <section class="settings-section">
+      <div class="settings-section-header">
+        <h4 class="settings-section-title" id=${titleId ?? nothing}>${title}</h4>
+        ${description ? html`<p class="settings-section-description">${description}</p>` : nothing}
+      </div>
+      <div class="settings-section-content">${content}</div>
+    </section>
+  `;
+}
+
+function renderFieldCard(
+  title: string,
+  body: TemplateResult,
+  hint?: string,
+  extraClass = '',
+  inputId?: string,
+): TemplateResult {
+  return html`
+    <div class=${`other-items-list-item ${extraClass}`.trim()}>
+      <label class="other-items-list-item-label" for=${inputId ?? nothing}>${title}</label>
+      ${body} ${hint ? html`<div class="settings-note">${hint}</div>` : nothing}
+    </div>
+  `;
+}
+
 /**
  * Renders the max visible values input
  */
@@ -57,9 +100,9 @@ function renderMaxVisibleInput(
     if (value !== null) callbacks.onMaxVisibleValuesChange(value);
   };
 
-  return html`
-    <div class="other-items-list-item">
-      <label for="max-visible-input" class="other-items-list-item-label">Max legend items</label>
+  return renderFieldCard(
+    'Max legend items',
+    html`
       <input
         id="max-visible-input"
         type="number"
@@ -67,10 +110,13 @@ function renderMaxVisibleInput(
         .value=${String(state.maxVisibleValues)}
         placeholder=${String(LEGEND_DEFAULTS.maxVisibleValues)}
         @input=${onInput}
-        class="other-items-list-item-input"
+        class="legend-form-control"
       />
-    </div>
-  `;
+    `,
+    state.isNumericAnnotation ? 'Used as a target. Sparse ranges may show fewer bins.' : undefined,
+    '',
+    'max-visible-input',
+  );
 }
 
 /**
@@ -85,11 +131,11 @@ function renderShapeSizeInput(
     if (value !== null) callbacks.onShapeSizeChange(value);
   };
 
-  return html`
-    <div class="other-items-list-item">
-      <label for="shape-size-input" class="other-items-list-item-label">Shape size</label>
+  return renderFieldCard(
+    state.isNumericAnnotation ? 'Point size' : 'Shape size',
+    html`
       <input
-        class="other-items-list-item-input"
+        class="legend-form-control"
         id="shape-size-input"
         type="number"
         min="6"
@@ -98,8 +144,11 @@ function renderShapeSizeInput(
         placeholder=${String(LEGEND_DEFAULTS.symbolSize)}
         @input=${onInput}
       />
-    </div>
-  `;
+    `,
+    state.isNumericAnnotation ? 'Controls the point diameter in the plot and legend.' : undefined,
+    '',
+    'shape-size-input',
+  );
 }
 
 /**
@@ -109,25 +158,30 @@ function renderCheckboxOptions(
   state: SettingsDialogState,
   callbacks: SettingsDialogCallbacks,
 ): TemplateResult {
+  const shapesDisabled = state.isMultilabelAnnotation || state.isNumericAnnotation;
+  const shapesDisabledNote = state.isNumericAnnotation
+    ? 'Shapes are fixed for numeric annotations.'
+    : 'Shapes are unavailable for multilabel annotations.';
+
   return html`
     <label
-      class="other-items-list-label"
-      style="${state.isMultilabelAnnotation ? 'color: #888;' : ''}"
+      class=${`other-items-list-label ${shapesDisabled ? 'other-items-list-label--disabled' : ''}`.trim()}
     >
       <input
         class="other-items-list-label-input"
         type="checkbox"
         .checked=${state.includeShapes}
-        .disabled=${state.isMultilabelAnnotation}
+        .disabled=${shapesDisabled}
+        aria-describedby=${shapesDisabled ? 'include-shapes-note' : nothing}
         @change=${(e: Event) =>
           callbacks.onIncludeShapesChange((e.target as HTMLInputElement).checked)}
       />
       Include shapes
     </label>
 
-    ${state.isMultilabelAnnotation
-      ? html`<div style="color: #888; font-size: 0.85em; margin-left: 24px; margin-top: -4px;">
-          Disabled for multilabel annotations
+    ${shapesDisabled
+      ? html`<div class="settings-note settings-note--inline" id="include-shapes-note">
+          ${shapesDisabledNote}
         </div>`
       : nothing}
 
@@ -139,8 +193,58 @@ function renderCheckboxOptions(
         @change=${(e: Event) =>
           callbacks.onEnableDuplicateStackUIChange((e.target as HTMLInputElement).checked)}
       />
-      Show duplicate counts (badges + spiderfy)
+      Show duplicate counts and spread overlaps
     </label>
+  `;
+}
+
+function renderNumericPalettePreview(
+  state: SettingsDialogState,
+  callbacks: SettingsDialogCallbacks,
+  selectedPaletteInfo: { label: string; description: string },
+): TemplateResult {
+  return html`
+    <div class="color-palette-preview color-palette-preview--continuous">
+      <div
+        class="color-palette-swatch color-palette-swatch--gradient color-palette-gradient-bar"
+        role="img"
+        aria-label=${`${selectedPaletteInfo.label} continuous gradient preview`}
+        style=${`background-image: ${createColorSchemeLinearGradient(
+          state.selectedPaletteId,
+          state.reverseGradient ? '270deg' : '90deg',
+        )};`}
+      ></div>
+      <div class="color-palette-gradient-scale" aria-hidden="true">
+        <span>Low</span>
+        <span>High</span>
+      </div>
+      <div class="color-palette-preview-caption">
+        The selected distribution controls how bins are spaced across this gradient.
+      </div>
+      <label class="compact-checkbox-row color-palette-direction-toggle">
+        <input
+          class="other-items-list-label-input"
+          id="reverse-gradient-toggle"
+          type="checkbox"
+          .checked=${state.reverseGradient}
+          @change=${(e: Event) =>
+            callbacks.onReverseGradientChange((e.target as HTMLInputElement).checked)}
+        />
+        Reverse gradient direction
+      </label>
+    </div>
+  `;
+}
+
+function renderCategoricalPalettePreview(selectedPalette: readonly string[]): TemplateResult {
+  return html`
+    <div class="color-palette-preview">
+      ${selectedPalette.map(
+        (color) => html`
+          <div class="color-palette-swatch" style="background-color: ${color}" title=${color}></div>
+        `,
+      )}
+    </div>
   `;
 }
 
@@ -169,7 +273,8 @@ function renderSortingSection(
   if (!state.selectedAnnotation) return html``;
 
   const aname = state.selectedAnnotation;
-  const currentMode = state.annotationSortModes[aname] || 'size-desc';
+  const currentMode =
+    state.annotationSortModes[aname] || (state.isNumericAnnotation ? 'alpha-asc' : 'size-desc');
 
   const isSize = currentMode.startsWith('size');
   const isAlphabetic = currentMode.startsWith('alpha');
@@ -179,45 +284,55 @@ function renderSortingSection(
     callbacks.onSortModeChange(aname, getSortModeForCategory(category));
   };
 
-  return html`
-    <div class="other-items-list-item-sorting">
-      <div class="other-items-list-item-sorting-title">Sorting</div>
-      <div class="other-items-list-item-sorting-container">
-        <div class="other-items-list-item-sorting-container-item">
-          <span class="other-items-list-item-sorting-container-item-container">
-            <label class="other-items-list-item-sorting-container-item-container-label">
-              <input
-                class="other-items-list-item-sorting-container-item-container-input"
-                type="radio"
-                name=${`sort-type-${aname}`}
-                .checked=${isSize}
-                @change=${() => handleTypeChange('size')}
-              />
-              by category size
-            </label>
-            <label>
-              <input
-                type="radio"
-                name=${`sort-type-${aname}`}
-                .checked=${isAlphabetic}
-                @change=${() => handleTypeChange('alpha')}
-              />
-              alphanumerically
-            </label>
-            <label>
-              <input
-                type="radio"
-                name=${`sort-type-${aname}`}
-                .checked=${isManual}
-                @change=${() => handleTypeChange('manual')}
-              />
-              manual (drag to reorder)
-            </label>
-          </span>
+  const sortOptions = state.isNumericAnnotation
+    ? [
+        { checked: isAlphabetic, label: 'By numeric value', category: 'alpha' as const },
+        { checked: isManual, label: 'Manual order', category: 'manual' as const },
+      ]
+    : [
+        { checked: isSize, label: 'By category size', category: 'size' as const },
+        { checked: isAlphabetic, label: 'Alphabetical', category: 'alpha' as const },
+        { checked: isManual, label: 'Manual order', category: 'manual' as const },
+      ];
+
+  return renderSection(
+    'Sorting',
+    html`
+      <div
+        class="other-items-list-item other-items-list-item--grouped other-items-list-item-sorting"
+      >
+        <div
+          class="other-items-list-item-sorting-container"
+          role="radiogroup"
+          aria-labelledby="legend-sorting-section-title"
+        >
+          <div class="other-items-list-item-sorting-container-item-container">
+            ${sortOptions.map(
+              (option) => html`
+                <label class="other-items-list-item-sorting-container-item-container-label">
+                  <input
+                    class="other-items-list-item-sorting-container-item-container-input"
+                    type="radio"
+                    name=${`sort-type-${aname}`}
+                    .checked=${option.checked}
+                    @change=${() => handleTypeChange(option.category)}
+                  />
+                  ${option.label}
+                </label>
+              `,
+            )}
+          </div>
+        </div>
+        <div class="settings-note settings-note--compact">
+          ${state.isNumericAnnotation
+            ? 'Use the legend header arrows to flip low-to-high or reverse manual order.'
+            : 'Use the legend header arrows to reverse the current category order.'}
         </div>
       </div>
-    </div>
-  `;
+    `,
+    undefined,
+    'legend-sorting-section-title',
+  );
 }
 
 /**
@@ -230,6 +345,11 @@ const PALETTE_INFO: Record<string, { label: string; description: string }> = {
   set2: { label: 'Set2', description: 'Categorical' },
   dark2: { label: 'Dark2', description: 'Categorical' },
   tableau10: { label: 'Tableau 10', description: 'Categorical' },
+  viridis: { label: 'Viridis', description: 'Perceptually uniform sequential gradient' },
+  cividis: { label: 'Cividis', description: 'Colorblind-friendly sequential gradient' },
+  inferno: { label: 'Inferno', description: 'High-contrast sequential gradient' },
+  batlow: { label: 'Batlow', description: 'Scientific sequential gradient' },
+  plasma: { label: 'Plasma', description: 'Vivid sequential gradient' },
 };
 
 /**
@@ -244,41 +364,91 @@ function renderPaletteSection(
     callbacks.onPaletteChange(select.value);
   };
 
-  // Get the selected palette colors
+  const paletteEntries = Object.entries(PALETTE_INFO)
+    .filter(([id]) =>
+      state.isNumericAnnotation
+        ? GRADIENT_COLOR_SCHEME_IDS.has(id)
+        : !GRADIENT_COLOR_SCHEME_IDS.has(id),
+    )
+    .sort(([, left], [, right]) => left.label.localeCompare(right.label));
   const selectedPalette =
     COLOR_SCHEMES[state.selectedPaletteId as keyof typeof COLOR_SCHEMES] || COLOR_SCHEMES.kellys;
+  const showNumericDistribution =
+    state.isNumericAnnotation && GRADIENT_COLOR_SCHEME_IDS.has(state.selectedPaletteId);
+  const selectedPaletteInfo = PALETTE_INFO[state.selectedPaletteId] ?? {
+    label: state.selectedPaletteId,
+    description: 'Color palette',
+  };
 
-  return html`
-    <div class="color-palette-section">
-      <div class="color-palette-title">Color Palette</div>
-      <div class="color-palette-row">
-        <select
-          class="color-palette-select"
-          .value=${state.selectedPaletteId}
-          @change=${handlePaletteChange}
-        >
-          ${Object.entries(PALETTE_INFO).map(
-            ([id, info]) => html`
-              <option value=${id} .selected=${state.selectedPaletteId === id}>
-                ${info.label} - ${info.description}
-              </option>
-            `,
-          )}
-        </select>
+  return renderSection(
+    'Color palette',
+    html`
+      <div class="other-items-list-item other-items-list-item--grouped">
+        <div class="color-palette-row">
+          <select
+            id="palette-select"
+            class="color-palette-select legend-form-control"
+            aria-labelledby="legend-palette-section-title"
+            .value=${state.selectedPaletteId}
+            @change=${handlePaletteChange}
+          >
+            ${paletteEntries.map(
+              ([id, info]) => html`
+                <option value=${id} .selected=${state.selectedPaletteId === id}>
+                  ${info.label} - ${info.description}
+                </option>
+              `,
+            )}
+          </select>
+        </div>
+        ${state.isNumericAnnotation
+          ? renderNumericPalettePreview(state, callbacks, selectedPaletteInfo)
+          : renderCategoricalPalettePreview(selectedPalette)}
+        ${showNumericDistribution
+          ? html`
+              <div class="settings-subfield">
+                <label for="numeric-distribution-select" class="other-items-list-item-label">
+                  Bin distribution
+                </label>
+                <select
+                  id="numeric-distribution-select"
+                  class="color-palette-select legend-form-control"
+                  aria-describedby=${!state.logBinningAvailable
+                    ? 'numeric-log-disabled-note'
+                    : nothing}
+                  .value=${state.selectedNumericStrategy}
+                  @change=${(e: Event) =>
+                    callbacks.onNumericStrategyChange(
+                      (e.target as HTMLSelectElement).value as NumericBinningStrategy,
+                    )}
+                >
+                  <option value="linear">Linear</option>
+                  <option value="quantile">Quantile</option>
+                  <option value="logarithmic" ?disabled=${!state.logBinningAvailable}>
+                    Logarithmic
+                  </option>
+                </select>
+                ${state.logBinningAvailable
+                  ? html`<div class="settings-note settings-note--compact">
+                      Controls how bin boundaries are distributed across the value range.
+                    </div>`
+                  : html`
+                      <div
+                        class="settings-note settings-note--compact"
+                        id="numeric-log-disabled-note"
+                        data-driver-id="numeric-log-disabled-note"
+                      >
+                        Logarithmic distribution is only available for positive values.
+                      </div>
+                    `}
+              </div>
+            `
+          : nothing}
       </div>
-      <div class="color-palette-preview">
-        ${selectedPalette.map(
-          (color) => html`
-            <div
-              class="color-palette-swatch"
-              style="background-color: ${color}"
-              title=${color}
-            ></div>
-          `,
-        )}
-      </div>
-    </div>
-  `;
+    `,
+    undefined,
+    'legend-palette-section-title',
+  );
 }
 
 /**
@@ -287,8 +457,15 @@ function renderPaletteSection(
 function renderDialogHeader(title: string, onClose: () => void): TemplateResult {
   return html`
     <div class="modal-header">
-      <h3 class="modal-title">${title}</h3>
-      <button class="btn-close close-button" @click=${onClose}>${renderCloseIcon()}</button>
+      <h3 class="modal-title" id="legend-settings-title">${title}</h3>
+      <button
+        class="btn-close close-button"
+        title="Close settings"
+        aria-label="Close settings"
+        @click=${onClose}
+      >
+        ${renderCloseIcon()}
+      </button>
     </div>
   `;
 }
@@ -330,9 +507,7 @@ export function initializeAnnotationSortMode(
   }
 
   const existingMode = currentAnnotationSortModes[selectedAnnotation];
-  const mode: LegendSortMode =
-    existingMode ||
-    (FIRST_NUMBER_SORT_ANNOTATIONS.has(selectedAnnotation) ? 'alpha-asc' : 'size-desc');
+  const mode: LegendSortMode = existingMode || 'size-desc';
 
   return {
     ...annotationSortModes,
@@ -363,13 +538,25 @@ export function renderSettingsDialog(
         @mousedown=${(e: Event) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="legend-settings-title"
+        aria-describedby="legend-settings-description"
       >
         ${renderDialogHeader('Legend settings', callbacks.onClose)}
+        <p class="modal-description" id="legend-settings-description">
+          ${state.isNumericAnnotation
+            ? `Editing "${state.selectedAnnotation}" as a numeric annotation. Configure bins, the gradient palette, and legend order.`
+            : `Editing "${state.selectedAnnotation}" as a categorical annotation. Configure colors, shapes, and legend order.`}
+        </p>
 
         <div class="other-items-list">
-          ${renderMaxVisibleInput(state, callbacks)} ${renderShapeSizeInput(state, callbacks)}
-          ${renderCheckboxOptions(state, callbacks)} ${renderPaletteSection(state, callbacks)}
-          ${renderSortingSection(state, callbacks)}
+          ${renderSection(
+            'Display',
+            html`
+              ${renderMaxVisibleInput(state, callbacks)} ${renderShapeSizeInput(state, callbacks)}
+              ${renderCheckboxOptions(state, callbacks)}
+            `,
+          )}
+          ${renderPaletteSection(state, callbacks)} ${renderSortingSection(state, callbacks)}
         </div>
 
         ${renderDialogFooter(callbacks, state.hasPersistedSettings)}
