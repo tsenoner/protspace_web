@@ -37,7 +37,6 @@ export interface NumericSettingsResolutionInput {
 }
 
 interface NumericSummary {
-  count: number;
   nonNullCount: number;
   min: number;
   max: number;
@@ -148,7 +147,6 @@ function createSummary(
   }
 
   const summary: NumericSummary = {
-    count: values.length,
     nonNullCount,
     min: nonNullCount > 0 ? min : 0,
     max: nonNullCount > 0 ? max : 0,

@@ -172,10 +172,10 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(result.protein_ids).toHaveLength(10001);
   });
 
-  it('detects length as numeric in the public phosphatase bundle', async () => {
+  it('detects length as numeric in the raw phosphatase fixture', async () => {
     const filePath = resolve(
       __dirname,
-      '../../../../../../app/public/data/phosphatase.parquetbundle',
+      '../../../../../../app/tests/fixtures/phosphatase_no_binning.parquetbundle',
     );
     const fileBuffer = readFileSync(filePath);
     const arrayBuffer = fileBuffer.buffer.slice(

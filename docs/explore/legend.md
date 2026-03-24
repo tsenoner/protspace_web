@@ -19,19 +19,19 @@ Drag labels up or down to change draw order in the scatterplot. Items near the t
 
 ![Reorder labels](./images/legend-reorder.gif)
 
-The drag handle stays visible in each legend row so manual ordering is easy to discover. It only becomes interactive when the annotation is in `Manual order`.
+The drag handle stays visible in each legend row so manual ordering is easy to discover. Dragging from any sort mode switches that annotation to `Manual order`.
 
-## The "Others" Group
+## The "Other" Group
 
-Categorical annotations can group less frequent values into `Others` once the visible list exceeds the current legend cap.
+Categorical annotations can group less frequent values into `Other` once the visible list exceeds the current legend cap.
 
-- Click `Others` to inspect the grouped values.
-- Extract values from `Others` to show them separately.
-- Drag values into `Others` to regroup them.
+- Click `Other` to inspect the grouped values.
+- Extract values from `Other` to show them separately.
+- Drag values into `Other` to regroup them.
 
-![Others group](./images/legend-others.gif)
+![Other group](./images/legend-others.gif)
 
-Numeric annotations do **not** use `Others`. They are binned directly from the raw numeric values.
+Numeric annotations do **not** use `Other`. They are binned directly from the raw numeric values.
 
 ## Settings
 
@@ -39,13 +39,13 @@ Click the cog icon in the top-right corner of the legend for advanced options.
 
 ### Shared Settings
 
-| Setting                     | What it does                                                                                                                                 |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Max legend items**        | Categorical annotations: maximum number of visible values before grouping into `Others`. Numeric annotations: target maximum number of bins. |
-| **Shape size / Point size** | Adjusts marker size in the scatterplot. Numeric annotations use the label `Point size` because numeric legends always render circles.        |
-| **Include shapes**          | Enables per-category shapes for categorical annotations. Disabled for multi-label and numeric annotations.                                   |
-| **Show duplicate counts**   | Shows duplicate count badges and spreads overlapping points when you expand them.                                                            |
-| **Color palette**           | Picks the active palette for the selected annotation.                                                                                        |
+| Setting                     | What it does                                                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Max legend items**        | Categorical annotations: maximum number of visible values before grouping into `Other`. Numeric annotations: target maximum number of bins. |
+| **Shape size / Point size** | Adjusts marker size in the scatterplot. Numeric annotations use the label `Point size` because numeric legends always render circles.       |
+| **Include shapes**          | Enables per-category shapes for categorical annotations. Disabled for multi-label and numeric annotations.                                  |
+| **Show duplicate counts**   | Shows duplicate count badges and spreads overlapping points when you expand them.                                                           |
+| **Color palette**           | Picks the active palette for the selected annotation.                                                                                       |
 
 ### Sorting
 
@@ -147,10 +147,10 @@ If an imported bundle or saved browser state references an unsupported numeric g
 
 ### Special Categories
 
-| Category   | Color     | Shape  |
-| ---------- | --------- | ------ |
-| **Others** | `#999999` | Circle |
-| **N/A**    | `#DDDDDD` | Circle |
+| Category  | Color     | Shape  |
+| --------- | --------- | ------ |
+| **Other** | `#999999` | Circle |
+| **N/A**   | `#DDDDDD` | Circle |
 
 ### Shapes
 

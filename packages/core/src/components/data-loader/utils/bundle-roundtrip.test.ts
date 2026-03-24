@@ -103,7 +103,7 @@ describe('round-trip with real data files', () => {
   it('should preserve raw numeric annotations through export/import', async () => {
     const filePath = resolve(
       __dirname,
-      '../../../../../../app/public/data/phosphatase.parquetbundle',
+      '../../../../../../app/tests/fixtures/phosphatase_no_binning.parquetbundle',
     );
     const buffer = readFileSync(filePath);
     const arrayBuffer = buffer.buffer.slice(

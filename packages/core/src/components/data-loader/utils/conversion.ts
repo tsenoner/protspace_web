@@ -40,8 +40,8 @@ const METADATA_EXCLUDED_KEYS = new Set(['projection_name', 'name', 'info_json'])
 
 /** Match GO/ECO evidence codes: 2–5 uppercase letters OR ECO:NNNNNNN */
 const EVIDENCE_CODE_RE = /^(?:[A-Z]{2,5}|ECO:\d+)$/;
-const DENSE_INTEGER_STRING_NUMERIC_THRESHOLD = 0.1;
-const DENSE_INTEGER_STRING_MIN_DISTINCT_VALUES = 8;
+const STRING_NUMERIC_DENSITY_THRESHOLD = 0.1;
+const STRING_NUMERIC_MIN_DISTINCT_VALUES = 8;
 const MAX_STRING_NUMERIC_DENSITY_DECIMALS = 6;
 
 function parseNumericAnnotationValue(rawValue: unknown): number | null {
@@ -134,7 +134,7 @@ function isScalarNumericAnnotationColumn(values: unknown[]): boolean {
     return true;
   }
 
-  if (distinctNumericStringValues.size < DENSE_INTEGER_STRING_MIN_DISTINCT_VALUES) {
+  if (distinctNumericStringValues.size < STRING_NUMERIC_MIN_DISTINCT_VALUES) {
     return false;
   }
 
@@ -149,7 +149,7 @@ function isScalarNumericAnnotationColumn(values: unknown[]): boolean {
 
   // Keep sparse numeric-looking string columns categorical by default so
   // code-style identifiers do not flip to numeric only because cardinality grows.
-  return density >= DENSE_INTEGER_STRING_NUMERIC_THRESHOLD;
+  return density >= STRING_NUMERIC_DENSITY_THRESHOLD;
 }
 
 function createNumericAnnotation(): Annotation {

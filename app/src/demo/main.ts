@@ -19,7 +19,6 @@ import {
   exportParquetBundle,
   generateBundleFilename,
   generateDatasetHash,
-  materializeVisualizationData,
 } from '@protspace/utils';
 import { notify } from '../lib/notify';
 import { maybeRunWebglPerfSuite } from './webgl-perf-suite';
@@ -42,8 +41,6 @@ import {
 import { startProductTour } from '../tour/product-tour';
 
 const DEFAULT_DEMO_DATASET_NAME = 'Demo dataset';
-const DEFAULT_DEMO_DATASET_PATH = './data/phosphatase.parquetbundle';
-const DEFAULT_DEMO_DATASET_FILE_NAME = 'phosphatase.parquetbundle';
 
 // Export initialization function that can be called when the component mounts
 export async function initializeDemo() {
@@ -155,7 +152,6 @@ export async function initializeDemo() {
     // Function to load new data and reset all state with progressive loading and performance optimization
     const loadNewData = async (newData: VisualizationData) => {
       console.log('🔄 Loading new data:', newData);
-      const firstAnnotationKey = Object.keys(newData.annotations)[0] || '';
       const startTime = performance.now();
       const dataSize = newData.protein_ids.length;
 
@@ -211,12 +207,11 @@ export async function initializeDemo() {
         plotElement.requestUpdate('data', oldData);
 
         plotElement.selectedProjectionIndex = 0;
+        const firstAnnotationKey = Object.keys(newData.annotations)[0] || '';
         plotElement.selectedAnnotation = firstAnnotationKey;
         plotElement.selectedProteinIds = [];
         plotElement.selectionMode = false;
         plotElement.hiddenAnnotationValues = [];
-        plotElement.filteredProteinIds = [];
-        plotElement.filtersActive = false;
 
         console.log(
           `📊 Scatterplot updated: ${newData.protein_ids.length} proteins, ${newData.projections.length} projections`,
@@ -264,10 +259,6 @@ export async function initializeDemo() {
         // Yield to browser
         await new Promise((resolve) => requestAnimationFrame(resolve));
 
-        const displayData =
-          plotElement.getCurrentData() ??
-          materializeVisualizationData(newData, {}, 10, firstAnnotationKey);
-
         // Update legend with enhanced progressive annotation processing
         await new Promise((resolve) => {
           setTimeout(
@@ -275,37 +266,33 @@ export async function initializeDemo() {
               legendElement.autoSync = true;
               legendElement.autoHide = true;
 
-              legendElement.data = {
-                annotations: displayData.annotations,
-                protein_ids: displayData.protein_ids,
-                numeric_annotation_data: displayData.numeric_annotation_data,
-              };
-              legendElement.selectedAnnotation = Object.keys(displayData.annotations)[0] || '';
+              legendElement.data = { annotations: newData.annotations };
+              legendElement.selectedAnnotation = Object.keys(newData.annotations)[0] || '';
 
               // Process legend annotation values
-              const firstAnnotation = Object.keys(displayData.annotations)[0];
+              const firstAnnotation = Object.keys(newData.annotations)[0];
               if (firstAnnotation) {
                 if (isLargeDataset) {
                   // Large datasets: Chunked processing to keep UI responsive
                   const chunkSize = 1000;
                   const annotationValues: (string | null)[] = [];
 
-                  for (let i = 0; i < displayData.protein_ids.length; i += chunkSize) {
-                    const endIndex = Math.min(i + chunkSize, displayData.protein_ids.length);
+                  for (let i = 0; i < newData.protein_ids.length; i += chunkSize) {
+                    const endIndex = Math.min(i + chunkSize, newData.protein_ids.length);
 
                     for (let j = i; j < endIndex; j++) {
-                      const annotationIdxArray =
-                        displayData.annotation_data[firstAnnotation]?.[j] ?? [];
+                      const annotationIdxArray = newData.annotation_data[firstAnnotation][j];
 
                       for (let k = 0; k < annotationIdxArray.length; k++) {
                         annotationValues.push(
-                          displayData.annotations[firstAnnotation].values[annotationIdxArray[k]],
+                          newData.annotations[firstAnnotation].values[annotationIdxArray[k]],
                         );
                       }
                     }
 
-                    if (i + chunkSize < displayData.protein_ids.length) {
-                      const progress = 60 + (i / displayData.protein_ids.length) * 30;
+                    // Yield to browser and update progress
+                    if (i + chunkSize < newData.protein_ids.length) {
+                      const progress = 60 + (i / newData.protein_ids.length) * 30;
                       updateLoadingOverlay(
                         true,
                         progress,
@@ -319,17 +306,16 @@ export async function initializeDemo() {
                   legendElement.annotationValues = annotationValues;
                 } else {
                   // Small datasets: Process directly
-                  const annotationValues = displayData.protein_ids.flatMap((_, index) => {
-                    const annotationIdx =
-                      displayData.annotation_data[firstAnnotation]?.[index] ?? [];
+                  const annotationValues = newData.protein_ids.flatMap((_, index) => {
+                    const annotationIdx = newData.annotation_data[firstAnnotation][index];
                     return annotationIdx.map(
-                      (idx) => displayData.annotations[firstAnnotation].values[idx],
+                      (idx) => newData.annotations[firstAnnotation].values[idx],
                     );
                   });
                   legendElement.annotationValues = annotationValues;
                 }
 
-                legendElement.proteinIds = displayData.protein_ids;
+                legendElement.proteinIds = newData.protein_ids;
               }
 
               legendElement.requestUpdate();
@@ -407,17 +393,17 @@ export async function initializeDemo() {
       try {
         setCurrentDatasetName(DEFAULT_DEMO_DATASET_NAME);
         setCurrentDatasetIsDemo(true);
-        console.log(`🔄 Loading data from ${DEFAULT_DEMO_DATASET_PATH}...`);
+        console.log('🔄 Loading data from data.parquetbundle...');
 
         // First, try to fetch the file directly to check if it exists
-        const response = await fetch(DEFAULT_DEMO_DATASET_PATH);
+        const response = await fetch('./data.parquetbundle');
         if (!response.ok) {
           throw new Error(`File not found: ${response.status} ${response.statusText}`);
         }
 
         // Get the file as ArrayBuffer and create a File object for the data loader
         const arrayBuffer = await response.arrayBuffer();
-        const file = new File([arrayBuffer], DEFAULT_DEMO_DATASET_FILE_NAME, {
+        const file = new File([arrayBuffer], 'data.parquetbundle', {
           type: 'application/octet-stream',
         });
 
@@ -429,16 +415,16 @@ export async function initializeDemo() {
       } catch (error) {
         pendingAutoLoadKind = null;
         console.error('❌ Failed to load data from file:', error);
-        console.log(`💡 Make sure ${DEFAULT_DEMO_DATASET_PATH} exists in the public directory`);
+        console.log('💡 Make sure data.parquetbundle exists in the public directory');
         console.log(
-          `🎯 Alternative: You can drag and drop the ${DEFAULT_DEMO_DATASET_FILE_NAME} file onto the data loader component`,
+          '🎯 Alternative: You can drag and drop the data.parquetbundle file onto the data loader component',
         );
 
         // Show user-friendly error message with instructions
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.warn(`Auto-load failed: ${errorMessage}`);
         console.log(
-          `📋 The data loader is ready for drag-and-drop. Simply drag the ${DEFAULT_DEMO_DATASET_FILE_NAME} file onto the component.`,
+          '📋 The data loader is ready for drag-and-drop. Simply drag the data.parquetbundle file onto the component.',
         );
       }
     };
@@ -657,7 +643,7 @@ export async function initializeDemo() {
       const { data, settings, source, file } = customEvent.detail;
 
       // Compute dataset hash upfront for clearing and settings
-      const datasetHash = generateDatasetHash(data);
+      const datasetHash = generateDatasetHash(data.protein_ids);
       const shouldClearPersistedState =
         pendingAutoLoadKind === 'default' || (!!settings && pendingAutoLoadKind !== 'opfs');
 
@@ -835,9 +821,7 @@ export async function initializeDemo() {
     );
 
     console.log('ProtSpace components loaded and connected!');
-    console.log(
-      `Data will be loaded from OPFS when available, otherwise from ${DEFAULT_DEMO_DATASET_PATH}`,
-    );
+    console.log('Data will be loaded from OPFS when available, otherwise from data.parquetbundle');
     console.log('Use the control bar to change annotations and toggle selection modes!');
   } else {
     console.error('Could not find one or more required elements.');

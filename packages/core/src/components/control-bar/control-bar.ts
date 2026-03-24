@@ -875,7 +875,7 @@ export class ProtspaceControlBar extends LitElement {
                 aria-expanded=${this.showFilterMenu}
                 aria-controls="filter-menu-panel"
               >
-                <svg class="icon" viewBox="0 0 24 24">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -883,7 +883,7 @@ export class ProtspaceControlBar extends LitElement {
                   />
                 </svg>
                 Filter
-                <svg class="chevron-down" viewBox="0 0 24 24">
+                <svg class="chevron-down" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -946,7 +946,7 @@ export class ProtspaceControlBar extends LitElement {
                               ${cfg.values && cfg.values.length > 0
                                 ? 'Edit values'
                                 : 'Select values'}
-                              <svg class="chevron-down" viewBox="0 0 24 24">
+                              <svg class="chevron-down" viewBox="0 0 24 24" aria-hidden="true">
                                 <path
                                   stroke-linecap="round"
                                   stroke-linejoin="round"

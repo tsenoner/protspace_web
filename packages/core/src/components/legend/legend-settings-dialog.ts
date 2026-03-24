@@ -402,7 +402,6 @@ function renderPaletteSection(
           <select
             id="palette-select"
             class="color-palette-select legend-form-control"
-            aria-labelledby="legend-palette-section-title palette-select-label"
             .value=${state.selectedPaletteId}
             @change=${handlePaletteChange}
           >

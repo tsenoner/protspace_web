@@ -10,10 +10,8 @@ const RAW_NUMERIC_BUNDLE_FIXTURE_PATH = path.join(
 );
 const RAW_NUMERIC_BUNDLE_PATH = path.join(
   SPEC_DIR,
-  '..',
-  'public',
-  'data',
-  'phosphatase.parquetbundle',
+  'fixtures',
+  'phosphatase_no_binning.parquetbundle',
 );
 const REPLACEMENT_BUNDLE_PATH = path.join(SPEC_DIR, '..', 'public', 'data', '5K.parquetbundle');
 
@@ -104,7 +102,7 @@ async function loadBundleFromBytes(
 }
 
 async function loadDataset(page: Page): Promise<void> {
-  await page.route('**/data/phosphatase.parquetbundle', async (route) => {
+  await page.route('**/data.parquetbundle', async (route) => {
     await route.abort();
   });
   await page.goto('/explore');
@@ -719,20 +717,6 @@ async function hoverFirstVisiblePoint(page: Page): Promise<void> {
   throw new Error('Could not trigger tooltip via a rendered point hover');
 }
 
-async function readTooltipLabels(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
-    const plot = document.querySelector('protspace-scatterplot') as HTMLElement & {
-      shadowRoot: ShadowRoot;
-    };
-    const tooltip = plot?.shadowRoot?.querySelector('protspace-protein-tooltip') as
-      | (HTMLElement & { shadowRoot?: ShadowRoot })
-      | null;
-    return Array.from(tooltip?.shadowRoot?.querySelectorAll('.tooltip-annotation-label') ?? []).map(
-      (node) => node.textContent?.trim() ?? '',
-    );
-  });
-}
-
 async function readTooltipSummary(page: Page): Promise<{
   labels: string[];
   rawValue: string | null;
@@ -814,7 +798,7 @@ test('raw numeric annotations are materialized into frontend bins', async ({ pag
 });
 
 test('numeric settings are staged, saved, and restored on re-import', async ({ page }) => {
-  await page.route('**/data/phosphatase.parquetbundle', async (route) => {
+  await page.route('**/data.parquetbundle', async (route) => {
     await route.abort();
   });
   await page.goto('/explore');
@@ -826,7 +810,7 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
     return typeof plot?.getCurrentData === 'function';
   });
   const bundleBytes = Array.from(fs.readFileSync(RAW_NUMERIC_BUNDLE_PATH));
-  await loadBundleFromBytes(page, bundleBytes, 'phosphatase.parquetbundle');
+  await loadBundleFromBytes(page, bundleBytes, 'phosphatase_no_binning.parquetbundle');
   await waitForAnnotationAvailable(page, 'length');
   await selectAnnotation(page, 'length');
   await waitForLegendAnnotation(page, 'length');
@@ -933,7 +917,7 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
   expect(state.colors[0]).toBe('#0D0887');
   expect(state.colors.at(-1)).toBe('#F0F921');
 
-  await loadBundleFromBytes(page, bundleBytes, 'phosphatase.parquetbundle');
+  await loadBundleFromBytes(page, bundleBytes, 'phosphatase_no_binning.parquetbundle');
   await waitForAnnotationAvailable(page, 'length');
   await selectAnnotation(page, 'length');
 
@@ -962,7 +946,7 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
 test('reset restores numeric settings defaults and clears saved state on re-import', async ({
   page,
 }) => {
-  await page.route('**/data/phosphatase.parquetbundle', async (route) => {
+  await page.route('**/data.parquetbundle', async (route) => {
     await route.abort();
   });
   await page.goto('/explore');
@@ -975,7 +959,7 @@ test('reset restores numeric settings defaults and clears saved state on re-impo
   });
 
   const bundleBytes = Array.from(fs.readFileSync(RAW_NUMERIC_BUNDLE_PATH));
-  await loadBundleFromBytes(page, bundleBytes, 'phosphatase.parquetbundle');
+  await loadBundleFromBytes(page, bundleBytes, 'phosphatase_no_binning.parquetbundle');
   await waitForAnnotationAvailable(page, 'length');
   await selectAnnotation(page, 'length');
   await waitForLegendAnnotation(page, 'length');
@@ -1015,7 +999,7 @@ test('reset restores numeric settings defaults and clears saved state on re-impo
   await clickDialogButton(page, 'Cancel');
   await waitForDialogClosed(page);
 
-  await loadBundleFromBytes(page, bundleBytes, 'phosphatase.parquetbundle');
+  await loadBundleFromBytes(page, bundleBytes, 'phosphatase_no_binning.parquetbundle');
   await waitForAnnotationAvailable(page, 'length');
   await selectAnnotation(page, 'length');
   await waitForLegendAnnotation(page, 'length');
@@ -1393,7 +1377,7 @@ test('categorical keyboard reorder promotes to manual order and keeps Other fixe
 test('real phosphatase bundle rebins length to five bins without leaving the UI stuck', async ({
   page,
 }) => {
-  await page.route('**/data/phosphatase.parquetbundle', async (route) => {
+  await page.route('**/data.parquetbundle', async (route) => {
     await route.abort();
   });
   await page.goto('/explore');
@@ -1406,7 +1390,7 @@ test('real phosphatase bundle rebins length to five bins without leaving the UI 
   });
 
   const bundleBytes = fs.readFileSync(RAW_NUMERIC_BUNDLE_PATH);
-  await loadBundleFromBytes(page, Array.from(bundleBytes), 'phosphatase.parquetbundle');
+  await loadBundleFromBytes(page, Array.from(bundleBytes), 'phosphatase_no_binning.parquetbundle');
   await waitForAnnotationAvailable(page, 'length');
   await selectAnnotation(page, 'length');
   await waitForLegendAnnotation(page, 'length');
@@ -2062,7 +2046,7 @@ test('categorical drag-promoted manual order persists after re-import', async ({
 });
 
 test('long categorical legend labels wrap instead of clipping', async ({ page }) => {
-  await page.route('**/data/phosphatase.parquetbundle', async (route) => {
+  await page.route('**/data.parquetbundle', async (route) => {
     await route.abort();
   });
   await page.goto('/explore');
@@ -2077,7 +2061,7 @@ test('long categorical legend labels wrap instead of clipping', async ({ page })
   await loadBundleFromBytes(
     page,
     Array.from(fs.readFileSync(RAW_NUMERIC_BUNDLE_PATH)),
-    'phosphatase.parquetbundle',
+    'phosphatase_no_binning.parquetbundle',
   );
   await waitForAnnotationAvailable(page, 'ec');
   await selectAnnotation(page, 'ec');
