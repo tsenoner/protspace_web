@@ -178,6 +178,16 @@ export class DragController implements ReactiveController {
       ...itemsWithoutDragged.slice(newIndex),
     ];
 
+    const currentOrderValues = sortedItems.map((currentItem) => currentItem.value);
+    const nextOrderValues = newOrder.map((nextItem) => nextItem.value);
+    const orderChanged =
+      currentOrderValues.length === nextOrderValues.length &&
+      currentOrderValues.some((value, index) => value !== nextOrderValues[index]);
+    if (!orderChanged) {
+      this.restoreDom(evt.from);
+      return;
+    }
+
     // Assign new z-orders based on position
     const reorderedItems = newOrder.map((reorderedItem, idx) => ({
       ...reorderedItem,
@@ -188,8 +198,8 @@ export class DragController implements ReactiveController {
     this.restoreDom(evt.from);
 
     // Update state - Lit will re-render with correct order
-    this.callbacks.setLegendItems(reorderedItems);
     this.callbacks.onSortModeChange?.('manual');
+    this.callbacks.setLegendItems(reorderedItems);
     this.callbacks.onReorder();
     this.callbacks.onDropComplete?.(draggedValue);
   }

@@ -145,6 +145,14 @@ export class ProtspaceLegend extends LitElement {
   @state() private _numericSettingsByAnnotation: NumericAnnotationDisplaySettingsMap = {};
   @state() private _numericManualOrderIdsByAnnotation: Record<string, string[]> = {};
   @state() private _keyboardDragValue: string | null = null;
+  private _announceManualPromotionOnNextReorder = false;
+  private _keyboardReorderSnapshot: {
+    annotation: string;
+    sortMode: LegendSortMode;
+    legendItems: LegendItem[];
+    otherItems: OtherItem[];
+    numericManualOrderIds?: string[];
+  } | null = null;
 
   // Pending extract/merge values for next update cycle.
   // undefined = no pending operation, string = value to extract/merge (including '__NA__' for N/A)
@@ -244,10 +252,7 @@ export class ProtspaceLegend extends LitElement {
           .filter((item) => item.value !== LEGEND_VALUES.OTHER)
           .sort((left, right) => left.zOrder - right.zOrder)
           .map((item) => item.value);
-        this._setNumericManualOrderIds(
-          this.selectedAnnotation,
-          this._currentSortMode === 'manual-reverse' ? [...orderedIds].reverse() : orderedIds,
-        );
+        this._setNumericManualOrderIds(this.selectedAnnotation, orderedIds);
       }
     },
     onReorder: () => {
@@ -257,16 +262,62 @@ export class ProtspaceLegend extends LitElement {
     },
     onMergeToOther: (value) => this._handleMergeToOther(value),
     onSortModeChange: (mode) => {
+      this._announceManualPromotionOnNextReorder =
+        mode === 'manual' && !this._currentSortMode.startsWith('manual');
       this._annotationSortModes = {
         ...this._annotationSortModes,
         [this.selectedAnnotation]: mode,
       };
+      this._keyboardDragValue = null;
     },
     onDropComplete: (value) => this._highlightDroppedItem(value),
   });
 
-  private _canDragLegendItems(): boolean {
-    return this._currentSortMode.startsWith('manual');
+  private _canDragLegendItem(item: LegendItem): boolean {
+    return item.value !== LEGEND_VALUES.OTHER;
+  }
+
+  private _clearKeyboardReorderState(): void {
+    this._keyboardDragValue = null;
+    this._announceManualPromotionOnNextReorder = false;
+    this._keyboardReorderSnapshot = null;
+  }
+
+  private _beginKeyboardReorder(itemValue: string): void {
+    this._keyboardDragValue = itemValue;
+    this._keyboardReorderSnapshot = {
+      annotation: this.selectedAnnotation,
+      sortMode: this._currentSortMode,
+      legendItems: this._legendItems.map((item) => ({ ...item })),
+      otherItems: this._otherItems.map((item) => ({ ...item })),
+      numericManualOrderIds: this._isNumericAnnotation()
+        ? [...(this._numericManualOrderIdsByAnnotation[this.selectedAnnotation] ?? [])]
+        : undefined,
+    };
+  }
+
+  private _restoreKeyboardReorderSnapshot(): void {
+    const snapshot = this._keyboardReorderSnapshot;
+    if (!snapshot || snapshot.annotation !== this.selectedAnnotation) {
+      this._clearKeyboardReorderState();
+      return;
+    }
+
+    this._annotationSortModes = {
+      ...this._annotationSortModes,
+      [this.selectedAnnotation]: snapshot.sortMode,
+    };
+    if (this._isNumericAnnotation()) {
+      this._setNumericManualOrderIds(this.selectedAnnotation, snapshot.numericManualOrderIds);
+    }
+    this._legendItems = snapshot.legendItems.map((item) => ({ ...item }));
+    this._otherItems = snapshot.otherItems.map((item) => ({ ...item }));
+    this._clearKeyboardReorderState();
+    this._scatterplotController.dispatchZOrderChange();
+    this._scatterplotController.syncOtherValues();
+    this._persistenceController.saveSettings();
+    this._dispatchLegendStateChange();
+    this.requestUpdate();
   }
 
   private _syncNumericSettingsFromPersistence(): void {
@@ -444,17 +495,25 @@ export class ProtspaceLegend extends LitElement {
     );
   }
 
-  private _commitManualOrderFromVisibleValues(orderedValues: string[]): void {
+  private _commitManualOrderFromVisibleValues(
+    orderedValues: string[],
+    options: { preserveKeyboardDragValue?: boolean } = {},
+  ): void {
+    const visibleOrder = [...orderedValues];
+    const didPromote = !this._currentSortMode.startsWith('manual');
+    this._annotationSortModes = {
+      ...this._annotationSortModes,
+      [this.selectedAnnotation]: 'manual',
+    };
+
     const itemMap = new Map(this._legendItems.map((item) => [item.value, item]));
     const otherItem = itemMap.get(LEGEND_VALUES.OTHER);
 
     if (this._isNumericAnnotation()) {
-      const baseOrder =
-        this._currentSortMode === 'manual-reverse' ? [...orderedValues].reverse() : orderedValues;
-      this._setNumericManualOrderIds(this.selectedAnnotation, baseOrder);
+      this._setNumericManualOrderIds(this.selectedAnnotation, visibleOrder);
       this._updateLegendItems();
     } else {
-      const reorderedItems = orderedValues
+      const reorderedItems = visibleOrder
         .map((value, index) => {
           const item = itemMap.get(value);
           return item ? { ...item, zOrder: index } : null;
@@ -468,6 +527,10 @@ export class ProtspaceLegend extends LitElement {
       this._legendItems = reorderedItems;
     }
 
+    this._announceManualPromotionOnNextReorder = didPromote;
+    if (!options.preserveKeyboardDragValue) {
+      this._keyboardDragValue = null;
+    }
     this._scatterplotController.dispatchZOrderChange();
     this._persistenceController.saveSettings();
     this._dispatchLegendStateChange();
@@ -475,10 +538,6 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _moveFocusedManualItem(value: string, direction: -1 | 1): void {
-    if (!this._canDragLegendItems()) {
-      return;
-    }
-
     const orderedItems = [...this._sortedLegendItems].filter(
       (item) => item.value !== LEGEND_VALUES.OTHER,
     );
@@ -495,13 +554,24 @@ export class ProtspaceLegend extends LitElement {
     const reordered = [...orderedItems];
     const [moved] = reordered.splice(currentIndex, 1);
     reordered.splice(nextIndex, 0, moved);
-    this._commitManualOrderFromVisibleValues(reordered.map((item) => item.value));
+    this._commitManualOrderFromVisibleValues(
+      reordered.map((item) => item.value),
+      {
+        preserveKeyboardDragValue: true,
+      },
+    );
 
+    this._announceStatus(
+      this._announceManualPromotionOnNextReorder
+        ? `Moved ${moved.displayValue ?? toDisplayValue(moved.value)}. Switched ${this.selectedAnnotation} to Manual order.`
+        : `Moved ${moved.displayValue ?? toDisplayValue(moved.value)}.`,
+    );
+    this._announceManualPromotionOnNextReorder = false;
     requestAnimationFrame(() => this._focusDragHandleForValue(value));
   }
 
   private _handleDragHandleKeyDown(e: KeyboardEvent, item: LegendItem): void {
-    if (!this._canDragLegendItems()) {
+    if (!this._canDragLegendItem(item)) {
       return;
     }
 
@@ -509,9 +579,14 @@ export class ProtspaceLegend extends LitElement {
       case 'Enter':
       case ' ': {
         e.preventDefault();
-        this._keyboardDragValue = this._keyboardDragValue === item.value ? null : item.value;
+        const isDropping = this._keyboardDragValue === item.value;
+        if (isDropping) {
+          this._clearKeyboardReorderState();
+        } else {
+          this._beginKeyboardReorder(item.value);
+        }
         this._announceStatus(
-          this._keyboardDragValue === item.value
+          !isDropping
             ? `Picked up ${item.displayValue ?? toDisplayValue(item.value)} for reordering`
             : `Dropped ${item.displayValue ?? toDisplayValue(item.value)}`,
         );
@@ -520,8 +595,9 @@ export class ProtspaceLegend extends LitElement {
       case 'Escape': {
         if (this._keyboardDragValue === item.value) {
           e.preventDefault();
-          this._keyboardDragValue = null;
-          this._announceStatus('Canceled keyboard reordering');
+          this._restoreKeyboardReorderSnapshot();
+          this._announceStatus('Reordering canceled.');
+          requestAnimationFrame(() => this._focusDragHandleForValue(item.value));
         }
         break;
       }
@@ -763,7 +839,7 @@ export class ProtspaceLegend extends LitElement {
     // Initialize Sortable when container becomes available
     // The controller handles preventing duplicate initialization
     if (this._legendItemsEl && this._sortedLegendItems.length > 0) {
-      this._dragController.initialize(this._legendItemsEl, this._canDragLegendItems());
+      this._dragController.initialize(this._legendItemsEl, true);
     }
   }
 
@@ -906,6 +982,7 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private _handleScatterplotDataChange(data: ScatterplotData, selectedAnnotation: string): void {
+    this._clearKeyboardReorderState();
     this.data = {
       annotations: data.annotations,
       protein_ids: data.protein_ids,
@@ -937,6 +1014,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handleAnnotationChange(annotation: string): void {
+    this._clearKeyboardReorderState();
     this.selectedAnnotation = annotation;
     this._hiddenValues = [];
     this._scatterplotController.forceSync();
@@ -1446,9 +1524,15 @@ export class ProtspaceLegend extends LitElement {
       if (htmlEl.getAttribute('data-value') === value) {
         htmlEl.classList.add('legend-item-just-dropped');
         const focusTarget = htmlEl.querySelector(
-          '.drag-handle:not(.drag-handle-disabled), .legend-item-main',
+          '.drag-handle, .legend-item-main',
         ) as HTMLElement | null;
         focusTarget?.focus();
+        this._announceStatus(
+          this._announceManualPromotionOnNextReorder
+            ? `Moved ${htmlEl.dataset.displayValue ?? toDisplayValue(value)}. Switched ${this.selectedAnnotation} to Manual order.`
+            : `Moved ${htmlEl.dataset.displayValue ?? toDisplayValue(value)}.`,
+        );
+        this._announceManualPromotionOnNextReorder = false;
         htmlEl.addEventListener(
           'animationend',
           () => {
@@ -1516,6 +1600,7 @@ export class ProtspaceLegend extends LitElement {
 
   private _toggleLegendOrderDirection(): void {
     if (this._legendItems.length <= 1) return;
+    this._clearKeyboardReorderState();
 
     if (this._isNumericAnnotation() && !this._currentSortMode.startsWith('manual')) {
       const nextMode: LegendSortMode =
@@ -1566,6 +1651,7 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private async _handleCustomize(): Promise<void> {
+    this._clearKeyboardReorderState();
     const scatterplot = this._scatterplotController.scatterplot;
     const numericSettings = this._numericSettingsByAnnotation[this.selectedAnnotation];
     const isNumericAnnotation = this._isNumericAnnotation();
@@ -1937,7 +2023,7 @@ export class ProtspaceLegend extends LitElement {
       LEGEND_STYLES.legendDisplaySize,
       otherCount,
       sortedIndex,
-      this._canDragLegendItems(),
+      this._canDragLegendItem(item),
     );
   }
 
@@ -2001,6 +2087,7 @@ export class ProtspaceLegend extends LitElement {
         this._dialogSettings = { ...this._dialogSettings, enableDuplicateStackUI: v };
       },
       onSortModeChange: (annotation, mode) => {
+        this._clearKeyboardReorderState();
         this._dialogSettings = {
           ...this._dialogSettings,
           annotationSortModes: { ...this._dialogSettings.annotationSortModes, [annotation]: mode },

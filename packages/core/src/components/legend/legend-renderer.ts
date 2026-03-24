@@ -159,7 +159,7 @@ export class LegendRenderer {
         type="button"
         class="drag-handle ${enabled ? '' : 'drag-handle-disabled'}"
         ?disabled=${!enabled}
-        aria-label=${enabled ? 'Reorder item' : 'Reordering available in manual mode'}
+        aria-label=${enabled ? 'Reorder item' : 'Item cannot be reordered'}
         @click=${(e: Event) => e.stopPropagation()}
         @mousedown=${(e: Event) => e.stopPropagation()}
         @keydown=${(e: KeyboardEvent) => {
@@ -272,6 +272,7 @@ export class LegendRenderer {
         part="item"
         role="listitem"
         data-value="${item.value}"
+        data-display-value="${displayLabel}"
         data-driver-id=${item.value === LEGEND_VALUES.OTHER ? 'other-row' : nothing}
       >
         <div class="legend-item-content">

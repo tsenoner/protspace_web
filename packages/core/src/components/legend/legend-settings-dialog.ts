@@ -83,9 +83,13 @@ function renderFieldCard(
   return html`
     <div class=${`other-items-list-item ${extraClass}`.trim()}>
       <label class="other-items-list-item-label" for=${inputId ?? nothing}>${title}</label>
-      ${body} ${hint ? html`<div class="settings-note">${hint}</div>` : nothing}
+      ${body} ${renderFieldHint(hint)}
     </div>
   `;
+}
+
+function renderFieldHint(hint?: string): TemplateResult {
+  return hint ? html`<div class="settings-note">${hint}</div>` : html`${nothing}`;
 }
 
 /**
@@ -113,7 +117,9 @@ function renderMaxVisibleInput(
         class="legend-form-control"
       />
     `,
-    state.isNumericAnnotation ? 'Used as a target. Sparse ranges may show fewer bins.' : undefined,
+    state.isNumericAnnotation
+      ? 'Sets the upper limit for visible bins. Sparse ranges may show fewer bins.'
+      : 'Sets how many legend items stay visible before the rest are grouped into Other.',
     '',
     'max-visible-input',
   );
@@ -145,7 +151,7 @@ function renderShapeSizeInput(
         @input=${onInput}
       />
     `,
-    state.isNumericAnnotation ? 'Controls the point diameter in the plot and legend.' : undefined,
+    undefined,
     '',
     'shape-size-input',
   );
@@ -163,38 +169,59 @@ function renderCheckboxOptions(
     ? 'Shapes are fixed for numeric annotations.'
     : 'Shapes are unavailable for multilabel annotations.';
 
-  return html`
+  const renderCheckboxCard = (
+    label: string,
+    checked: boolean,
+    onChange: (checked: boolean) => void,
+    options?: {
+      disabled?: boolean;
+      describedBy?: string;
+      note?: string;
+      noteId?: string;
+    },
+  ): TemplateResult => html`
     <label
-      class=${`other-items-list-label ${shapesDisabled ? 'other-items-list-label--disabled' : ''}`.trim()}
+      class=${`other-items-list-label ${options?.disabled ? 'other-items-list-label--disabled' : ''}`.trim()}
     >
       <input
         class="other-items-list-label-input"
         type="checkbox"
-        .checked=${state.includeShapes}
-        .disabled=${shapesDisabled}
-        aria-describedby=${shapesDisabled ? 'include-shapes-note' : nothing}
-        @change=${(e: Event) =>
-          callbacks.onIncludeShapesChange((e.target as HTMLInputElement).checked)}
+        .checked=${checked}
+        .disabled=${options?.disabled ?? false}
+        aria-describedby=${options?.describedBy ?? nothing}
+        @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked)}
       />
-      Include shapes
+      ${label}
     </label>
-
-    ${shapesDisabled
-      ? html`<div class="settings-note settings-note--inline" id="include-shapes-note">
-          ${shapesDisabledNote}
+    ${options?.note
+      ? html`<div
+          class=${`settings-note ${options?.disabled ? 'settings-note--inline' : ''}`.trim()}
+          id=${options?.noteId ?? nothing}
+        >
+          ${options.note}
         </div>`
       : nothing}
+  `;
 
-    <label class="other-items-list-label">
-      <input
-        class="other-items-list-label-input"
-        type="checkbox"
-        .checked=${state.enableDuplicateStackUI}
-        @change=${(e: Event) =>
-          callbacks.onEnableDuplicateStackUIChange((e.target as HTMLInputElement).checked)}
-      />
-      Show duplicate counts and spread overlaps
-    </label>
+  return html`
+    ${renderCheckboxCard(
+      'Include shapes',
+      state.includeShapes,
+      (checked) => callbacks.onIncludeShapesChange(checked),
+      shapesDisabled
+        ? {
+            disabled: true,
+            describedBy: 'include-shapes-note',
+            note: shapesDisabledNote,
+            noteId: 'include-shapes-note',
+          }
+        : undefined,
+    )}
+    ${renderCheckboxCard(
+      'Show duplicate counts and spread overlaps',
+      state.enableDuplicateStackUI,
+      (checked) => callbacks.onEnableDuplicateStackUIChange(checked),
+    )}
   `;
 }
 
@@ -217,9 +244,6 @@ function renderNumericPalettePreview(
       <div class="color-palette-gradient-scale" aria-hidden="true">
         <span>Low</span>
         <span>High</span>
-      </div>
-      <div class="color-palette-preview-caption">
-        The selected distribution controls how bins are spaced across this gradient.
       </div>
       <label class="compact-checkbox-row color-palette-direction-toggle">
         <input
@@ -324,9 +348,10 @@ function renderSortingSection(
           </div>
         </div>
         <div class="settings-note settings-note--compact">
+          Dragging any item switches this annotation to Manual order.
           ${state.isNumericAnnotation
-            ? 'Use the legend header arrows to flip low-to-high or reverse manual order.'
-            : 'Use the legend header arrows to reverse the current category order.'}
+            ? ' Use the legend header arrows to flip low-to-high or reverse manual order.'
+            : ' Use the legend header arrows to reverse the current category order.'}
         </div>
       </div>
     `,
@@ -430,7 +455,7 @@ function renderPaletteSection(
                 </select>
                 ${state.logBinningAvailable
                   ? html`<div class="settings-note settings-note--compact">
-                      Controls how bin boundaries are distributed across the value range.
+                      Controls how bin boundaries are spaced across the value range.
                     </div>`
                   : html`
                       <div
@@ -539,14 +564,8 @@ export function renderSettingsDialog(
         role="dialog"
         aria-modal="true"
         aria-labelledby="legend-settings-title"
-        aria-describedby="legend-settings-description"
       >
-        ${renderDialogHeader('Legend settings', callbacks.onClose)}
-        <p class="modal-description" id="legend-settings-description">
-          ${state.isNumericAnnotation
-            ? `Editing "${state.selectedAnnotation}" as a numeric annotation. Configure bins, the gradient palette, and legend order.`
-            : `Editing "${state.selectedAnnotation}" as a categorical annotation. Configure colors, shapes, and legend order.`}
-        </p>
+        ${renderDialogHeader(`Legend settings: ${state.selectedAnnotation}`, callbacks.onClose)}
 
         <div class="other-items-list">
           ${renderSection(

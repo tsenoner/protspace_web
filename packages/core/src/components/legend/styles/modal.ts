@@ -26,7 +26,7 @@ export const modalStyles = css`
     /* Override and extend base modal-content from overlayMixins */
     padding: 1.5rem 1.75rem 1.25rem;
     display: flex;
-    width: min(92vw, 42rem);
+    width: min(90vw, 32rem);
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
@@ -254,16 +254,22 @@ export const modalStyles = css`
   .modal-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
   }
 
   .modal-title {
     font-size: 1.2rem;
     font-weight: 650;
     letter-spacing: -0.02em;
+    line-height: 1.15;
     color: var(--legend-text-color);
     margin: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
   }
 
   .modal-description {
@@ -333,17 +339,12 @@ export const modalStyles = css`
 
   .color-palette-preview {
     --color-palette-chip-gap: 8px;
-    --color-palette-chip-columns: 11;
-    --color-palette-chip-size: calc(
-      (100cqw - ((var(--color-palette-chip-columns) - 1) * var(--color-palette-chip-gap))) /
-        var(--color-palette-chip-columns)
-    );
+    --color-palette-chip-min-size: 32px;
     --color-palette-chip-radius: 6px;
     --color-palette-chip-border: 1px solid var(--legend-border);
     --color-palette-chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    container-type: inline-size;
     display: grid;
-    grid-template-columns: repeat(var(--color-palette-chip-columns), minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--color-palette-chip-min-size), 1fr));
     gap: var(--color-palette-chip-gap);
     padding: 14px;
     background: var(--legend-hover-bg);
@@ -357,12 +358,6 @@ export const modalStyles = css`
     flex-direction: column;
     gap: 10px;
     overflow: visible;
-  }
-
-  @media (max-width: 52rem) {
-    .color-palette-preview:not(.color-palette-preview--continuous) {
-      grid-template-columns: repeat(auto-fit, minmax(var(--color-palette-chip-size), max-content));
-    }
   }
 
   .color-palette-gradient-scale {
@@ -396,7 +391,7 @@ export const modalStyles = css`
 
   .color-palette-swatch--gradient {
     width: 100%;
-    height: var(--color-palette-chip-size);
+    height: 36px;
     flex: none;
     transform-origin: center;
     display: block;
