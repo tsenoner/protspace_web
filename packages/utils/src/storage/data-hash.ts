@@ -45,14 +45,6 @@ export function djb2Hash(str: string): number {
   return hash >>> 0; // Convert to unsigned 32-bit integer
 }
 
-function appendHash(hash: number, value: string): number {
-  let nextHash = hash;
-  for (let i = 0; i < value.length; i++) {
-    nextHash = ((nextHash << 5) + nextHash) ^ value.charCodeAt(i);
-  }
-  return nextHash >>> 0;
-}
-
 function fnv1a64Hash(str: string): string {
   let hash = 0xcbf29ce484222325n;
   const fnvPrime = 0x100000001b3n;
@@ -66,20 +58,33 @@ function fnv1a64Hash(str: string): string {
   return hash.toString(16).padStart(16, '0');
 }
 
+function appendFNV1a64(hash: bigint, value: string): bigint {
+  const fnvPrime = 0x100000001b3n;
+  const mask = 0xffffffffffffffffn;
+  let nextHash = hash;
+
+  for (let i = 0; i < value.length; i++) {
+    nextHash ^= BigInt(value.charCodeAt(i));
+    nextHash = (nextHash * fnvPrime) & mask;
+  }
+
+  return nextHash;
+}
+
 function buildNumericFingerprint(values: Array<number | null>): string {
   if (values.length === 0) {
     return '';
   }
 
-  let hash = 5381;
+  let hash = 0xcbf29ce484222325n;
   let nonNullCount = 0;
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
 
   for (const value of values) {
     const serialized = value == null ? 'null' : String(value);
-    hash = appendHash(hash, serialized);
-    hash = appendHash(hash, '\x1f');
+    hash = appendFNV1a64(hash, serialized);
+    hash = appendFNV1a64(hash, '\x1f');
 
     if (value == null || !Number.isFinite(value)) {
       continue;
@@ -95,7 +100,7 @@ function buildNumericFingerprint(values: Array<number | null>): string {
     nonNullCount,
     nonNullCount > 0 ? min : 'none',
     nonNullCount > 0 ? max : 'none',
-    hash.toString(16).padStart(8, '0'),
+    hash.toString(16).padStart(16, '0'),
   ].join('|');
 }
 
@@ -138,7 +143,21 @@ function buildDatasetFingerprint(data: DatasetHashInput): string {
       const numericValues = data.numeric_annotation_data?.[annotationName] ?? [];
       const numericFingerprint =
         numericValues.length > 0
-          ? buildNumericFingerprint(numericValues)
+          ? buildNumericFingerprint(
+              proteinIds.length === numericValues.length
+                ? proteinIds
+                    .map((proteinId, index) => ({
+                      proteinId,
+                      index,
+                      value: numericValues[index] ?? null,
+                    }))
+                    .sort(
+                      (left, right) =>
+                        left.proteinId.localeCompare(right.proteinId) || left.index - right.index,
+                    )
+                    .map((entry) => entry.value)
+                : numericValues,
+            )
           : buildNumericMetadataFingerprint(annotation.numericMetadata);
 
       return [

@@ -13,6 +13,7 @@ import {
   materializeVisualizationData,
   toInternalValue,
 } from '@protspace/utils';
+import type { LegendSortMode } from '../legend/types';
 import { scatterplotStyles } from './scatter-plot.styles';
 import './projection-metadata';
 import './protspace-tips';
@@ -65,6 +66,8 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Array }) otherAnnotationValues: string[] = [];
   @property({ type: Boolean }) useShapes: boolean = false;
   @property({ type: Object }) numericAnnotationSettings: NumericAnnotationDisplaySettingsMap = {};
+  @property({ type: Object }) annotationSortModes: Record<string, LegendSortMode> = {};
+  @property({ type: Object }) numericManualOrderIdsByAnnotation: Record<string, string[]> = {};
   @property({ type: Array }) filteredProteinIds: string[] = [];
   @property({ type: Boolean, attribute: 'filters-active' }) filtersActive = false;
   @property({ type: Object }) config: Partial<ScatterplotConfig> = {};

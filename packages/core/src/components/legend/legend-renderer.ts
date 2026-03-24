@@ -152,14 +152,16 @@ export class LegendRenderer {
    */
   static renderDragHandle(
     enabled: boolean,
+    itemLabel: string,
     onKeyDown?: (e: KeyboardEvent) => void,
   ): TemplateResult {
+    const ariaLabel = enabled ? `Reorder ${itemLabel}` : `${itemLabel} cannot be reordered`;
     return html`
       <button
         type="button"
         class="drag-handle ${enabled ? '' : 'drag-handle-disabled'}"
         ?disabled=${!enabled}
-        aria-label=${enabled ? 'Reorder item' : 'Item cannot be reordered'}
+        aria-label=${ariaLabel}
         @click=${(e: Event) => e.stopPropagation()}
         @mousedown=${(e: Event) => e.stopPropagation()}
         @keydown=${(e: KeyboardEvent) => {
@@ -276,7 +278,7 @@ export class LegendRenderer {
         data-driver-id=${item.value === LEGEND_VALUES.OTHER ? 'other-row' : nothing}
       >
         <div class="legend-item-content">
-          ${this.renderDragHandle(dragEnabled, eventHandlers.onDragHandleKeyDown)}
+          ${this.renderDragHandle(dragEnabled, displayLabel, eventHandlers.onDragHandleKeyDown)}
           ${this.renderItemSymbol(item, isItemSelected, symbolSize, eventHandlers.onSymbolClick)}
           <button
             type="button"

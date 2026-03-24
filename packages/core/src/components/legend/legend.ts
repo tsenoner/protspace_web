@@ -213,6 +213,8 @@ export class ProtspaceLegend extends LitElement {
     getEffectiveIncludeShapes: () => this._effectiveIncludeShapes,
     getOtherConcreteValues: () => computeOtherConcreteValues(this._otherItems),
     getNumericAnnotationSettings: () => this._numericSettingsByAnnotation,
+    getAnnotationSortModes: () => this._annotationSortModes,
+    getNumericManualOrderIds: () => this._numericManualOrderIdsByAnnotation,
   });
 
   private _persistenceController = new PersistenceController(this, {
@@ -269,6 +271,7 @@ export class ProtspaceLegend extends LitElement {
         [this.selectedAnnotation]: mode,
       };
       this._keyboardDragValue = null;
+      this._scatterplotController.syncNumericAnnotationSettings();
     },
     onDropComplete: (value) => this._highlightDroppedItem(value),
   });
@@ -313,6 +316,12 @@ export class ProtspaceLegend extends LitElement {
     this._legendItems = snapshot.legendItems.map((item) => ({ ...item }));
     this._otherItems = snapshot.otherItems.map((item) => ({ ...item }));
     this._clearKeyboardReorderState();
+
+    if (!snapshot.sortMode.startsWith('manual')) {
+      this._updateLegendItems();
+    }
+
+    this._scatterplotController.syncNumericAnnotationSettings();
     this._scatterplotController.dispatchZOrderChange();
     this._scatterplotController.syncOtherValues();
     this._persistenceController.saveSettings();
@@ -531,6 +540,7 @@ export class ProtspaceLegend extends LitElement {
     if (!options.preserveKeyboardDragValue) {
       this._keyboardDragValue = null;
     }
+    this._scatterplotController.syncNumericAnnotationSettings();
     this._scatterplotController.dispatchZOrderChange();
     this._persistenceController.saveSettings();
     this._dispatchLegendStateChange();
@@ -946,7 +956,7 @@ export class ProtspaceLegend extends LitElement {
     this._selectedPaletteId = 'kellys';
     this._numericSettingsByAnnotation = {};
     this._numericManualOrderIdsByAnnotation = {};
-    this._keyboardDragValue = null;
+    this._clearKeyboardReorderState();
 
     // Reset isolation state
     this.isolationMode = false;
@@ -1592,6 +1602,7 @@ export class ProtspaceLegend extends LitElement {
       this._updateLegendItems();
     }
 
+    this._scatterplotController.syncNumericAnnotationSettings();
     this._scatterplotController.dispatchZOrderChange();
     this._persistenceController.saveSettings();
     this._dispatchLegendStateChange();
@@ -1610,6 +1621,7 @@ export class ProtspaceLegend extends LitElement {
         [this.selectedAnnotation]: nextMode,
       };
       this._updateLegendItems();
+      this._scatterplotController.syncNumericAnnotationSettings();
       this._persistenceController.saveSettings();
       this._dispatchLegendStateChange();
       this.requestUpdate();

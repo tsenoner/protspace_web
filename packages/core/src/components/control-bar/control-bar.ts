@@ -1,4 +1,4 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { controlBarStyles } from './control-bar.styles';
 import type {
@@ -91,6 +91,7 @@ export class ProtspaceControlBar extends LitElement {
   @state() private showProjectionMenu: boolean = false;
   @state() private annotationValuesMap: Record<string, string[]> = {};
   @state() private annotationValueLabelsMap: Record<string, Record<string, string>> = {};
+  @state() private annotationValueDisabledMap: Record<string, Record<string, boolean>> = {};
   @state()
   private annotationKinds: Record<string, 'categorical' | 'numeric' | undefined> = {};
   @state() private filterConfig: Record<string, { enabled: boolean; values: string[] }> = {};
@@ -866,10 +867,13 @@ export class ProtspaceControlBar extends LitElement {
           <div class="data-actions-group" data-driver-id="data-actions">
             <div class="filter-container right-controls-filter">
               <button
+                id="filter-menu-trigger"
                 class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''}"
                 @click=${this.toggleFilterMenu}
                 @keydown=${this.handleFilterKeydown}
                 title="Filter Options"
+                aria-expanded=${this.showFilterMenu}
+                aria-controls="filter-menu-panel"
               >
                 <svg class="icon" viewBox="0 0 24 24">
                   <path
@@ -886,7 +890,13 @@ export class ProtspaceControlBar extends LitElement {
 
               ${this.showFilterMenu
                 ? html`
-                    <div class="filter-menu" @keydown=${this.handleFilterKeydown}>
+                    <div
+                      id="filter-menu-panel"
+                      class="filter-menu"
+                      role="group"
+                      aria-labelledby="filter-menu-trigger"
+                      @keydown=${this.handleFilterKeydown}
+                    >
                       <ul class="filter-menu-list">
                         ${this.annotations.map((annotation, index) => {
                           const cfg = this.filterConfig[annotation] || {
@@ -894,6 +904,11 @@ export class ProtspaceControlBar extends LitElement {
                             values: [],
                           };
                           const values = this.annotationValuesMap[annotation] || [];
+                          const annotationMenuId = `filter-values-${annotation.replace(/[^a-z0-9_-]/gi, '-')}`;
+                          const annotationNoteId = `${annotationMenuId}-note`;
+                          const disabledValueCount = Object.values(
+                            this.annotationValueDisabledMap[annotation] ?? {},
+                          ).filter(Boolean).length;
                           return html` <li
                             class="filter-menu-list-item ${cfg.enabled
                               ? 'filter-enabled'
@@ -924,6 +939,8 @@ export class ProtspaceControlBar extends LitElement {
                             <button
                               class="btn-secondary filter-item-values-button"
                               ?disabled=${!cfg.enabled}
+                              aria-expanded=${this.openValueMenus[annotation] && cfg.enabled}
+                              aria-controls=${annotationMenuId}
                               @click=${() => this.toggleValueMenu(annotation)}
                             >
                               ${cfg.values && cfg.values.length > 0
@@ -939,7 +956,15 @@ export class ProtspaceControlBar extends LitElement {
                             </button>
                             ${this.openValueMenus[annotation] && cfg.enabled
                               ? html`
-                                  <div class="filter-menu-list-item-options">
+                                  <div
+                                    id=${annotationMenuId}
+                                    class="filter-menu-list-item-options"
+                                    role="group"
+                                    aria-label=${`${annotation} filter values`}
+                                    aria-describedby=${disabledValueCount > 0
+                                      ? annotationNoteId
+                                      : nothing}
+                                  >
                                     <div class="filter-menu-list-item-options-selection">
                                       <button
                                         class="btn-danger"
@@ -961,6 +986,9 @@ export class ProtspaceControlBar extends LitElement {
                                               <input
                                                 type="checkbox"
                                                 class="filter-value-checkbox"
+                                                ?disabled=${this.annotationValueDisabledMap[
+                                                  annotation
+                                                ]?.[LEGEND_VALUES.NA_VALUE] ?? false}
                                                 .checked=${(cfg.values || []).includes(
                                                   LEGEND_VALUES.NA_VALUE,
                                                 )}
@@ -985,6 +1013,9 @@ export class ProtspaceControlBar extends LitElement {
                                             <input
                                               type="checkbox"
                                               class="filter-value-checkbox"
+                                              ?disabled=${this.annotationValueDisabledMap[
+                                                annotation
+                                              ]?.[String(v)] ?? false}
                                               .checked=${(cfg.values || []).includes(String(v))}
                                               @change=${(e: Event) =>
                                                 this.handleValueToggle(
@@ -1002,6 +1033,17 @@ export class ProtspaceControlBar extends LitElement {
                                         `,
                                       )}
                                     </div>
+                                    ${disabledValueCount > 0
+                                      ? html`
+                                          <div
+                                            class="filter-menu-list-item-options-note"
+                                            id=${annotationNoteId}
+                                          >
+                                            Some values are unavailable with the other active
+                                            filters.
+                                          </div>
+                                        `
+                                      : nothing}
                                     <div class="filter-menu-list-item-options-done">
                                       <button
                                         class="btn-primary"
@@ -1866,6 +1908,41 @@ export class ProtspaceControlBar extends LitElement {
     }).settings;
   }
 
+  private _getLegendOrderingState(
+    data: ProtspaceData,
+    annotation: string,
+  ): {
+    sortMode: 'alpha-asc' | 'alpha-desc' | 'manual' | 'manual-reverse';
+    manualOrderIds: string[];
+  } {
+    const scatterplot = this._scatterplotElement as ScatterplotElementLike | null;
+    const liveSortMode = scatterplot?.annotationSortModes?.[annotation];
+    const liveManualOrderIds = scatterplot?.numericManualOrderIdsByAnnotation?.[annotation] ?? [];
+
+    if (
+      liveSortMode === 'alpha-asc' ||
+      liveSortMode === 'alpha-desc' ||
+      liveSortMode === 'manual' ||
+      liveSortMode === 'manual-reverse'
+    ) {
+      return {
+        sortMode: liveSortMode,
+        manualOrderIds: [...liveManualOrderIds],
+      };
+    }
+
+    const persisted = this._getPersistedLegendSettings(data, annotation);
+    return {
+      sortMode:
+        persisted.sortMode === 'alpha-desc' ||
+        persisted.sortMode === 'manual' ||
+        persisted.sortMode === 'manual-reverse'
+          ? persisted.sortMode
+          : 'alpha-asc',
+      manualOrderIds: [...(persisted.numericSettings?.manualOrderIds ?? [])],
+    };
+  }
+
   private _getPersistedLegendSettings(
     data: ProtspaceData,
     annotation: string,
@@ -1926,18 +2003,8 @@ export class ProtspaceControlBar extends LitElement {
     const isNumericAnnotation =
       annotationInfo?.sourceKind === 'numeric' || annotationInfo?.kind === 'numeric';
     if (isNumericAnnotation) {
-      const persisted = this._getPersistedLegendSettings(data, annotation);
-      const sortMode =
-        persisted.sortMode === 'alpha-desc' ||
-        persisted.sortMode === 'manual' ||
-        persisted.sortMode === 'manual-reverse'
-          ? persisted.sortMode
-          : 'alpha-asc';
-      return getOrderedNumericBinIds(
-        annotationInfo,
-        sortMode,
-        persisted.numericSettings?.manualOrderIds ?? [],
-      );
+      const { sortMode, manualOrderIds } = this._getLegendOrderingState(data, annotation);
+      return getOrderedNumericBinIds(annotationInfo, sortMode, manualOrderIds);
     }
 
     const rows = data.annotation_data?.[annotation];
@@ -1963,6 +2030,82 @@ export class ProtspaceControlBar extends LitElement {
     return [...usedIndices]
       .sort((left, right) => left - right)
       .map((index) => toInternalValue(values[index]));
+  }
+
+  private _getInternalAnnotationValuesAtIndex(
+    data: ProtspaceData,
+    annotation: string,
+    proteinIndex: number,
+  ): string[] {
+    const annotationRows = data.annotation_data?.[annotation];
+    const annotationValues = data.annotations?.[annotation]?.values;
+    if (!annotationRows || !annotationValues) {
+      return [];
+    }
+
+    const row = annotationRows[proteinIndex];
+    const indices = Array.isArray(row) ? row : row == null ? [] : [row];
+    return indices
+      .filter(
+        (index): index is number =>
+          typeof index === 'number' &&
+          Number.isFinite(index) &&
+          index >= 0 &&
+          index < annotationValues.length,
+      )
+      .map((index) => toInternalValue(annotationValues[index]));
+  }
+
+  private _buildAnnotationValueDisabledMap(
+    data: ProtspaceData,
+    valuesMap: Record<string, string[]>,
+  ): Record<string, Record<string, boolean>> {
+    const activeFilters = Object.entries(this.filterConfig)
+      .filter(([, cfg]) => cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0)
+      .map(([annotation, cfg]) => ({
+        annotation,
+        values: new Set(cfg.values),
+      }));
+
+    const proteinCount = data.protein_ids?.length ?? 0;
+    const disabledMap: Record<string, Record<string, boolean>> = {};
+
+    for (const [annotation, values] of Object.entries(valuesMap)) {
+      const otherFilters = activeFilters.filter((filter) => filter.annotation !== annotation);
+      if (otherFilters.length === 0) {
+        disabledMap[annotation] = Object.fromEntries(values.map((value) => [value, false]));
+        continue;
+      }
+
+      const availableValues = new Set<string>();
+      for (let proteinIndex = 0; proteinIndex < proteinCount; proteinIndex += 1) {
+        const matchesOtherFilters = otherFilters.every((filter) => {
+          const rowValues = this._getInternalAnnotationValuesAtIndex(
+            data,
+            filter.annotation,
+            proteinIndex,
+          );
+          return rowValues.some((value) => filter.values.has(value));
+        });
+        if (!matchesOtherFilters) {
+          continue;
+        }
+
+        for (const value of this._getInternalAnnotationValuesAtIndex(
+          data,
+          annotation,
+          proteinIndex,
+        )) {
+          availableValues.add(value);
+        }
+      }
+
+      disabledMap[annotation] = Object.fromEntries(
+        values.map((value) => [value, !availableValues.has(value)]),
+      );
+    }
+
+    return disabledMap;
   }
 
   /**
@@ -2010,6 +2153,7 @@ export class ProtspaceControlBar extends LitElement {
     });
     this.filterConfig = nextConfig;
     this.lastAppliedFilterConfig = nextAppliedConfig;
+    this.annotationValueDisabledMap = this._buildAnnotationValueDisabledMap(filterData, map);
 
     if (
       didPruneActiveFilters &&
@@ -2028,6 +2172,7 @@ export class ProtspaceControlBar extends LitElement {
   private _resetFilterState(): void {
     this.annotationValuesMap = {};
     this.annotationValueLabelsMap = {};
+    this.annotationValueDisabledMap = {};
     this.filterConfig = {};
     this.lastAppliedFilterConfig = {};
     this.showFilterMenu = false;
@@ -2375,13 +2520,16 @@ export class ProtspaceControlBar extends LitElement {
 
   private selectAllValues(annotation: string) {
     const all = this.annotationValuesMap[annotation] || [];
+    const enabledValues = all.filter(
+      (value) => !(this.annotationValueDisabledMap[annotation]?.[value] ?? false),
+    );
     const current = this.filterConfig[annotation] || {
       enabled: false,
       values: [],
     };
     this.filterConfig = {
       ...this.filterConfig,
-      [annotation]: { ...current, values: Array.from(new Set(all)) },
+      [annotation]: { ...current, values: Array.from(new Set(enabledValues)) },
     };
   }
 

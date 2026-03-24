@@ -42,6 +42,8 @@ import {
 import { startProductTour } from '../tour/product-tour';
 
 const DEFAULT_DEMO_DATASET_NAME = 'Demo dataset';
+const DEFAULT_DEMO_DATASET_PATH = './data/phosphatase.parquetbundle';
+const DEFAULT_DEMO_DATASET_FILE_NAME = 'phosphatase.parquetbundle';
 
 // Export initialization function that can be called when the component mounts
 export async function initializeDemo() {
@@ -405,17 +407,17 @@ export async function initializeDemo() {
       try {
         setCurrentDatasetName(DEFAULT_DEMO_DATASET_NAME);
         setCurrentDatasetIsDemo(true);
-        console.log('🔄 Loading data from data.parquetbundle...');
+        console.log(`🔄 Loading data from ${DEFAULT_DEMO_DATASET_PATH}...`);
 
         // First, try to fetch the file directly to check if it exists
-        const response = await fetch('./data.parquetbundle');
+        const response = await fetch(DEFAULT_DEMO_DATASET_PATH);
         if (!response.ok) {
           throw new Error(`File not found: ${response.status} ${response.statusText}`);
         }
 
         // Get the file as ArrayBuffer and create a File object for the data loader
         const arrayBuffer = await response.arrayBuffer();
-        const file = new File([arrayBuffer], 'data.parquetbundle', {
+        const file = new File([arrayBuffer], DEFAULT_DEMO_DATASET_FILE_NAME, {
           type: 'application/octet-stream',
         });
 
@@ -427,16 +429,16 @@ export async function initializeDemo() {
       } catch (error) {
         pendingAutoLoadKind = null;
         console.error('❌ Failed to load data from file:', error);
-        console.log('💡 Make sure data.parquetbundle exists in the public directory');
+        console.log(`💡 Make sure ${DEFAULT_DEMO_DATASET_PATH} exists in the public directory`);
         console.log(
-          '🎯 Alternative: You can drag and drop the data.parquetbundle file onto the data loader component',
+          `🎯 Alternative: You can drag and drop the ${DEFAULT_DEMO_DATASET_FILE_NAME} file onto the data loader component`,
         );
 
         // Show user-friendly error message with instructions
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.warn(`Auto-load failed: ${errorMessage}`);
         console.log(
-          '📋 The data loader is ready for drag-and-drop. Simply drag the data.parquetbundle file onto the component.',
+          `📋 The data loader is ready for drag-and-drop. Simply drag the ${DEFAULT_DEMO_DATASET_FILE_NAME} file onto the component.`,
         );
       }
     };
@@ -833,7 +835,9 @@ export async function initializeDemo() {
     );
 
     console.log('ProtSpace components loaded and connected!');
-    console.log('Data will be loaded from OPFS when available, otherwise from data.parquetbundle');
+    console.log(
+      `Data will be loaded from OPFS when available, otherwise from ${DEFAULT_DEMO_DATASET_PATH}`,
+    );
     console.log('Use the control bar to change annotations and toggle selection modes!');
   } else {
     console.error('Could not find one or more required elements.');

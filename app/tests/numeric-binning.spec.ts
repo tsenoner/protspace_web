@@ -10,8 +10,10 @@ const RAW_NUMERIC_BUNDLE_FIXTURE_PATH = path.join(
 );
 const RAW_NUMERIC_BUNDLE_PATH = path.join(
   SPEC_DIR,
-  'fixtures',
-  'phosphatase_no_binning.parquetbundle',
+  '..',
+  'public',
+  'data',
+  'phosphatase.parquetbundle',
 );
 const REPLACEMENT_BUNDLE_PATH = path.join(SPEC_DIR, '..', 'public', 'data', '5K.parquetbundle');
 
@@ -88,13 +90,21 @@ async function loadBundleFromBytes(
         throw error;
       }
       await page.waitForLoadState('domcontentloaded');
-      await page.waitForTimeout(250);
+      await page.waitForFunction(() => {
+        const loader = document.querySelector('protspace-data-loader') as
+          | (Element & {
+              loadFromFile?: (file: File, options?: { source?: 'user' | 'auto' }) => Promise<void>;
+            })
+          | null;
+        const plot = document.querySelector('protspace-scatterplot');
+        return typeof loader?.loadFromFile === 'function' && Boolean(plot);
+      });
     }
   }
 }
 
 async function loadDataset(page: Page): Promise<void> {
-  await page.route('**/data.parquetbundle', async (route) => {
+  await page.route('**/data/phosphatase.parquetbundle', async (route) => {
     await route.abort();
   });
   await page.goto('/explore');
@@ -362,8 +372,8 @@ async function readLegendSettingsDialog(page: Page) {
       '#numeric-distribution-select',
     ) as HTMLSelectElement | null;
     const gradientBar = root?.querySelector('.color-palette-gradient-bar') as HTMLElement | null;
-    const sortingSection = Array.from(root?.querySelectorAll('.settings-section-title') ?? []).find(
-      (node) => node.textContent?.trim() === 'Sorting',
+    const sortingSection = root?.querySelector(
+      '#legend-sorting-section-title',
     ) as HTMLElement | null;
     const reverseButton = root?.querySelector('button.reverse-button') as HTMLButtonElement | null;
     const maxVisibleLabel = (root?.querySelector('#max-visible-input') as HTMLInputElement | null)
@@ -402,6 +412,7 @@ async function readLegendSettingsDialog(page: Page) {
       hasDistributionSelect: Boolean(distribution),
       hasGradientPreview: Boolean(gradientBar),
       hasSortingSection: Boolean(sortingSection),
+      sortingSectionTitle: sortingSection?.textContent?.trim() ?? '',
       hasReverseButton: Boolean(reverseButton),
       reverseButtonLabel: reverseButton?.getAttribute('aria-label') ?? '',
       maxVisibleLabel: maxVisibleLabel?.textContent?.trim() ?? '',
@@ -528,6 +539,23 @@ async function readOpenFilterLabels(page: Page, annotation: string): Promise<str
     .filter({ hasText: annotation })
     .first();
   return targetItem.locator('.filter-value-text').allTextContents();
+}
+
+async function readOpenFilterOptionState(
+  page: Page,
+  annotation: string,
+  label: string,
+): Promise<{ checked: boolean; disabled: boolean }> {
+  const targetItem = page
+    .locator('protspace-control-bar .filter-menu .filter-menu-list-item')
+    .filter({ hasText: annotation })
+    .first();
+  const checkbox = targetItem.getByRole('checkbox', { name: label, exact: true }).first();
+  await checkbox.scrollIntoViewIfNeeded();
+  return {
+    checked: await checkbox.isChecked(),
+    disabled: !(await checkbox.isEnabled()),
+  };
 }
 
 async function readLegendDragHandles(page: Page): Promise<{ total: number; enabled: number }> {
@@ -786,7 +814,7 @@ test('raw numeric annotations are materialized into frontend bins', async ({ pag
 });
 
 test('numeric settings are staged, saved, and restored on re-import', async ({ page }) => {
-  await page.route('**/data.parquetbundle', async (route) => {
+  await page.route('**/data/phosphatase.parquetbundle', async (route) => {
     await route.abort();
   });
   await page.goto('/explore');
@@ -798,10 +826,19 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
     return typeof plot?.getCurrentData === 'function';
   });
   const bundleBytes = Array.from(fs.readFileSync(RAW_NUMERIC_BUNDLE_PATH));
-  await loadBundleFromBytes(page, bundleBytes, 'phosphatase_no_binning.parquetbundle');
+  await loadBundleFromBytes(page, bundleBytes, 'phosphatase.parquetbundle');
   await waitForAnnotationAvailable(page, 'length');
   await selectAnnotation(page, 'length');
   await waitForLegendAnnotation(page, 'length');
+  await expect
+    .poll(async () => {
+      const state = await getNumericState(page);
+      return {
+        rawKind: state.rawKind ?? null,
+        hasBins: (state.binCount ?? 0) > 0,
+      };
+    })
+    .toEqual({ rawKind: 'numeric', hasBins: true });
 
   await openLegendSettings(page);
   const initialDialog = await readLegendSettingsDialog(page);
@@ -896,7 +933,7 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
   expect(state.colors[0]).toBe('#0D0887');
   expect(state.colors.at(-1)).toBe('#F0F921');
 
-  await loadBundleFromBytes(page, bundleBytes, 'phosphatase_no_binning.parquetbundle');
+  await loadBundleFromBytes(page, bundleBytes, 'phosphatase.parquetbundle');
   await waitForAnnotationAvailable(page, 'length');
   await selectAnnotation(page, 'length');
 
@@ -925,7 +962,7 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
 test('reset restores numeric settings defaults and clears saved state on re-import', async ({
   page,
 }) => {
-  await page.route('**/data.parquetbundle', async (route) => {
+  await page.route('**/data/phosphatase.parquetbundle', async (route) => {
     await route.abort();
   });
   await page.goto('/explore');
@@ -938,7 +975,7 @@ test('reset restores numeric settings defaults and clears saved state on re-impo
   });
 
   const bundleBytes = Array.from(fs.readFileSync(RAW_NUMERIC_BUNDLE_PATH));
-  await loadBundleFromBytes(page, bundleBytes, 'phosphatase_no_binning.parquetbundle');
+  await loadBundleFromBytes(page, bundleBytes, 'phosphatase.parquetbundle');
   await waitForAnnotationAvailable(page, 'length');
   await selectAnnotation(page, 'length');
   await waitForLegendAnnotation(page, 'length');
@@ -978,7 +1015,7 @@ test('reset restores numeric settings defaults and clears saved state on re-impo
   await clickDialogButton(page, 'Cancel');
   await waitForDialogClosed(page);
 
-  await loadBundleFromBytes(page, bundleBytes, 'phosphatase_no_binning.parquetbundle');
+  await loadBundleFromBytes(page, bundleBytes, 'phosphatase.parquetbundle');
   await waitForAnnotationAvailable(page, 'length');
   await selectAnnotation(page, 'length');
   await waitForLegendAnnotation(page, 'length');
@@ -1297,10 +1334,66 @@ test('dropping a pointer drag outside the legend keeps categorical sorting uncha
   await waitForDialogClosed(page);
 });
 
+test('categorical keyboard escape restores order and keeps non-manual sorting', async ({
+  page,
+}) => {
+  await loadDemoDataset(page);
+
+  const initialLegend = await readLegendDisplay(page);
+  const firstHandle = page.locator('protspace-legend .drag-handle').first();
+  await firstHandle.focus();
+  await page.keyboard.press(' ');
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction((previousFirstValue) => {
+    const legend = document.querySelector('protspace-legend') as HTMLElement & {
+      shadowRoot: ShadowRoot;
+    };
+    const firstItem = legend?.shadowRoot?.querySelector('.legend-item') as HTMLElement | null;
+    return firstItem?.dataset.value !== previousFirstValue;
+  }, initialLegend.items[0]?.value ?? '');
+
+  await page.keyboard.press('Escape');
+
+  await expect
+    .poll(async () => (await readLegendDisplay(page)).items.map((item) => item.value))
+    .toEqual(initialLegend.items.map((item) => item.value));
+
+  await openLegendSettings(page);
+  const dialog = await readLegendSettingsDialog(page);
+  expect(dialog.selectedSortingLabel).toBe('By category size');
+  await clickDialogButton(page, 'Cancel');
+  await waitForDialogClosed(page);
+});
+
+test('categorical keyboard reorder promotes to manual order and keeps Other fixed', async ({
+  page,
+}) => {
+  await loadDemoDataset(page);
+
+  const initialLegend = await readLegendDisplay(page);
+  const firstHandle = page.locator('protspace-legend .drag-handle').first();
+  await firstHandle.focus();
+  await page.keyboard.press(' ');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press(' ');
+
+  const reorderedLegend = await readLegendDisplay(page);
+  expect(reorderedLegend.items.map((item) => item.value)).not.toEqual(
+    initialLegend.items.map((item) => item.value),
+  );
+  expect(reorderedLegend.items.at(-1)?.value).toBe(initialLegend.items.at(-1)?.value);
+
+  await openLegendSettings(page);
+  const dialog = await readLegendSettingsDialog(page);
+  expect(dialog.selectedSortingLabel).toBe('Manual order');
+  await clickDialogButton(page, 'Cancel');
+  await waitForDialogClosed(page);
+});
+
 test('real phosphatase bundle rebins length to five bins without leaving the UI stuck', async ({
   page,
 }) => {
-  await page.route('**/data.parquetbundle', async (route) => {
+  await page.route('**/data/phosphatase.parquetbundle', async (route) => {
     await route.abort();
   });
   await page.goto('/explore');
@@ -1313,29 +1406,19 @@ test('real phosphatase bundle rebins length to five bins without leaving the UI 
   });
 
   const bundleBytes = fs.readFileSync(RAW_NUMERIC_BUNDLE_PATH);
-  await loadBundleFromBytes(page, Array.from(bundleBytes), 'phosphatase_no_binning.parquetbundle');
+  await loadBundleFromBytes(page, Array.from(bundleBytes), 'phosphatase.parquetbundle');
   await waitForAnnotationAvailable(page, 'length');
   await selectAnnotation(page, 'length');
-
-  await page.waitForFunction(() => {
-    const plot = document.querySelector('protspace-scatterplot') as
-      | (Element & {
-          selectedAnnotation?: string;
-          getCurrentData?: () => {
-            annotations?: Record<
-              string,
-              { sourceKind?: string; numericMetadata?: { binCount?: number } }
-            >;
-          };
-        })
-      | null;
-
-    return (
-      plot?.selectedAnnotation === 'length' &&
-      plot?.getCurrentData?.()?.annotations?.length?.sourceKind === 'numeric' &&
-      (plot?.getCurrentData?.()?.annotations?.length?.numericMetadata?.binCount ?? 0) > 0
-    );
-  });
+  await waitForLegendAnnotation(page, 'length');
+  await expect
+    .poll(async () => {
+      const state = await getNumericState(page);
+      return {
+        rawKind: state.rawKind ?? null,
+        hasBins: (state.binCount ?? 0) > 0,
+      };
+    })
+    .toEqual({ rawKind: 'numeric', hasBins: true });
 
   const initialNumericState = await getNumericState(page);
   expect(initialNumericState.colors[0]).toBe('#440154');
@@ -1979,7 +2062,7 @@ test('categorical drag-promoted manual order persists after re-import', async ({
 });
 
 test('long categorical legend labels wrap instead of clipping', async ({ page }) => {
-  await page.route('**/data.parquetbundle', async (route) => {
+  await page.route('**/data/phosphatase.parquetbundle', async (route) => {
     await route.abort();
   });
   await page.goto('/explore');
@@ -1994,7 +2077,7 @@ test('long categorical legend labels wrap instead of clipping', async ({ page })
   await loadBundleFromBytes(
     page,
     Array.from(fs.readFileSync(RAW_NUMERIC_BUNDLE_PATH)),
-    'phosphatase_no_binning.parquetbundle',
+    'phosphatase.parquetbundle',
   );
   await waitForAnnotationAvailable(page, 'ec');
   await selectAnnotation(page, 'ec');
@@ -2155,32 +2238,32 @@ test('zero-match filters keep the numeric view empty instead of falling back to 
   await setFilterValues(page, 'length', [zeroMatchLengthBin]);
   await applyFiltersFromMenu(page);
 
-  const result = await page.evaluate(() => {
-    const plot = document.querySelector('protspace-scatterplot') as
-      | (Element & {
-          filtersActive?: boolean;
-          filteredProteinIds?: string[];
-          getCurrentData?: (options?: { includeFilteredProteinIds?: boolean }) => {
-            protein_ids?: string[];
-          };
-        })
-      | null;
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const plot = document.querySelector('protspace-scatterplot') as
+          | (Element & {
+              getCurrentData?: () => {
+                protein_ids?: string[];
+              };
+            })
+          | null;
+        return plot?.getCurrentData?.()?.protein_ids?.length ?? -1;
+      }),
+    )
+    .toBe(0);
 
-    const fullData = plot?.getCurrentData?.({ includeFilteredProteinIds: false });
-    return {
-      filtersActive: plot?.filtersActive ?? false,
-      filteredProteinIdsLength: plot?.filteredProteinIds?.length ?? 0,
-      visibleProteinIdsLength: plot?.getCurrentData?.()?.protein_ids?.length ?? -1,
-      fullProteinIdsLength: fullData?.protein_ids?.length ?? -1,
-    };
+  await openFilterValueMenu(page, 'length');
+  expect(await readOpenFilterOptionState(page, 'length', zeroMatchLengthBin)).toEqual({
+    checked: true,
+    disabled: true,
   });
-
-  expect(result).toEqual({
-    filtersActive: true,
-    filteredProteinIdsLength: 0,
-    visibleProteinIdsLength: 0,
-    fullProteinIdsLength: 12,
-  });
+  await page
+    .locator('protspace-control-bar .filter-menu .filter-menu-list-item')
+    .filter({ hasText: 'length' })
+    .first()
+    .getByRole('button', { name: 'Done' })
+    .click();
 
   const legend = await readLegendDisplay(page);
   expect(legend.items.length).toBeGreaterThan(0);
@@ -2236,45 +2319,17 @@ test('stale numeric filter labels are pruned when bins change', async ({ page })
   await clickDialogButton(page, 'Save');
   await waitForDialogClosed(page);
 
-  const prunedStateHandle = await page.waitForFunction(() => {
-    const plot = document.querySelector('protspace-scatterplot') as
-      | (Element & {
-          filteredProteinIds?: string[];
-          getCurrentData?: () => {
-            annotations?: Record<string, { numericMetadata?: { binCount?: number } }>;
-          };
-        })
-      | null;
-    const controlBar = document.querySelector('protspace-control-bar') as
-      | (Element & {
-          filterConfig?: Record<string, { enabled: boolean; values: string[] }>;
-        })
-      | null;
+  await openFilterValueMenu(page, 'length');
+  const labels = await readOpenFilterLabels(page, 'length');
+  expect(labels).not.toContain(staleValue);
 
-    const lengthFilter = controlBar?.filterConfig?.length;
-    const isPruned =
-      Boolean(lengthFilter) && !lengthFilter.enabled && lengthFilter.values.length === 0;
-
-    if (
-      plot?.getCurrentData?.()?.annotations?.length?.numericMetadata?.binCount === 5 &&
-      isPruned &&
-      (plot.filteredProteinIds?.length ?? 0) === 0
-    ) {
-      return {
-        filterConfig: lengthFilter,
-        filteredCount: plot.filteredProteinIds?.length ?? 0,
-      };
-    }
-
-    return null;
-  });
-
-  const prunedState = await prunedStateHandle.jsonValue();
-
-  expect(prunedState).toEqual({
-    filterConfig: { enabled: false, values: [] },
-    filteredCount: 0,
-  });
+  const targetItem = page
+    .locator('protspace-control-bar .filter-menu .filter-menu-list-item')
+    .filter({ hasText: 'length' })
+    .first();
+  await expect(targetItem.locator('.filter-item-badge')).toHaveCount(0);
+  await expect(targetItem.getByRole('button', { name: 'Select values' })).toBeVisible();
+  await targetItem.getByRole('button', { name: 'Done' }).click();
 });
 
 test('loading a new dataset clears active filters before rendering the replacement data', async ({

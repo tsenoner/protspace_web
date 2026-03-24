@@ -4,6 +4,14 @@
 
 import type { NumericAnnotationDisplaySettingsMap } from '@protspace/utils';
 
+export type LegendSortModeLike =
+  | 'size-asc'
+  | 'size-desc'
+  | 'alpha-asc'
+  | 'alpha-desc'
+  | 'manual'
+  | 'manual-reverse';
+
 export interface ProtspaceData {
   projections?: Array<{ name: string; metadata?: { dimension?: 2 | 3 } }>;
   annotations?: Record<
@@ -50,6 +58,8 @@ export interface ScatterplotElementLike extends Element {
   filteredProteinIds?: string[];
   filtersActive?: boolean;
   numericAnnotationSettings?: NumericAnnotationDisplaySettingsMap;
+  annotationSortModes?: Record<string, LegendSortModeLike>;
+  numericManualOrderIdsByAnnotation?: Record<string, string[]>;
 
   runWebGLRenderPerfMeasurements?: (
     iterations?: number,

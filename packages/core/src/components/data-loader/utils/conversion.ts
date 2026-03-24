@@ -40,29 +40,116 @@ const METADATA_EXCLUDED_KEYS = new Set(['projection_name', 'name', 'info_json'])
 
 /** Match GO/ECO evidence codes: 2–5 uppercase letters OR ECO:NNNNNNN */
 const EVIDENCE_CODE_RE = /^(?:[A-Z]{2,5}|ECO:\d+)$/;
+const DENSE_INTEGER_STRING_NUMERIC_THRESHOLD = 0.1;
+const DENSE_INTEGER_STRING_MIN_DISTINCT_VALUES = 8;
+const MAX_STRING_NUMERIC_DENSITY_DECIMALS = 6;
+
+function parseNumericAnnotationValue(rawValue: unknown): number | null {
+  if (typeof rawValue === 'number') {
+    return Number.isFinite(rawValue) ? rawValue : null;
+  }
+
+  if (typeof rawValue === 'bigint') {
+    const parsed = Number(rawValue);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+
+  if (typeof rawValue === 'string') {
+    const trimmed = rawValue.trim();
+    if (!trimmed || trimmed.includes(';') || trimmed.includes('|')) {
+      return null;
+    }
+
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function countNumericStringDecimalPlaces(rawValue: string): number {
+  const trimmed = rawValue.trim().toLowerCase();
+  if (!trimmed) {
+    return 0;
+  }
+
+  const scientificMatch = trimmed.match(/^[-+]?\d+(?:\.(\d+))?[e]([-+]?\d+)$/);
+  if (scientificMatch) {
+    const fractionalDigits = scientificMatch[1]?.length ?? 0;
+    const exponent = Number(scientificMatch[2]);
+    return Number.isFinite(exponent) ? Math.max(0, fractionalDigits - exponent) : 0;
+  }
+
+  const decimalIndex = trimmed.indexOf('.');
+  return decimalIndex === -1 ? 0 : trimmed.length - decimalIndex - 1;
+}
 
 function isScalarNumericAnnotationColumn(values: unknown[]): boolean {
   let sawNumericValue = false;
+  let sawTypedNumericValue = false;
+  let sawStringValue = false;
+  const distinctNumericStringValues = new Set<number>();
+  let maxStringDecimalPlaces = 0;
 
   for (const rawValue of values) {
-    if (rawValue == null || String(rawValue).trim() === '') {
+    if (rawValue == null) {
       continue;
     }
 
-    const stringValue = String(rawValue).trim();
-    if (stringValue.includes(';') || stringValue.includes('|')) {
+    if (typeof rawValue === 'string') {
+      const trimmed = rawValue.trim();
+      if (trimmed === '') {
+        continue;
+      }
+      sawStringValue = true;
+    }
+
+    const parsed = parseNumericAnnotationValue(rawValue);
+    if (parsed == null) {
       return false;
     }
 
-    const parsed = Number(stringValue);
-    if (!Number.isFinite(parsed)) {
-      return false;
+    if (typeof rawValue === 'string') {
+      distinctNumericStringValues.add(parsed);
+      maxStringDecimalPlaces = Math.max(
+        maxStringDecimalPlaces,
+        countNumericStringDecimalPlaces(rawValue),
+      );
+    } else {
+      sawTypedNumericValue = true;
     }
 
     sawNumericValue = true;
   }
 
-  return sawNumericValue;
+  if (!sawNumericValue) {
+    return false;
+  }
+
+  if (!sawStringValue) {
+    return true;
+  }
+
+  if (sawTypedNumericValue) {
+    return true;
+  }
+
+  if (distinctNumericStringValues.size < DENSE_INTEGER_STRING_MIN_DISTINCT_VALUES) {
+    return false;
+  }
+
+  const scale = 10 ** Math.min(maxStringDecimalPlaces, MAX_STRING_NUMERIC_DENSITY_DECIMALS);
+  const sortedValues = [...distinctNumericStringValues]
+    .map((value) => Math.round(value * scale))
+    .sort((left, right) => left - right);
+  const minValue = sortedValues[0];
+  const maxValue = sortedValues[sortedValues.length - 1];
+  const rangeWidth = maxValue - minValue + 1;
+  const density = rangeWidth > 0 ? sortedValues.length / rangeWidth : 1;
+
+  // Keep sparse numeric-looking string columns categorical by default so
+  // code-style identifiers do not flip to numeric only because cardinality grows.
+  return density >= DENSE_INTEGER_STRING_NUMERIC_THRESHOLD;
 }
 
 function createNumericAnnotation(): Annotation {
@@ -329,11 +416,8 @@ function convertBundleFormatData(
       numeric_annotation_data[annotationCol] = uniqueProteinIds.map((proteinId) => {
         const row = baseRowsByProteinId.get(proteinId);
         const rawValue = row?.[annotationCol];
-        if (rawValue == null || String(rawValue).trim() === '') {
-          return null;
-        }
-        const parsed = Number(String(rawValue).trim());
-        return Number.isFinite(parsed) ? parsed : null;
+        if (rawValue == null) return null;
+        return parseNumericAnnotationValue(rawValue);
       });
       annotations[annotationCol] = createNumericAnnotation();
       continue;
@@ -559,9 +643,8 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
     if (isScalarNumericAnnotationColumn(rows.map((row) => row[annotationCol]))) {
       const numericValues = rows.map((row) => {
         const rawValue = row[annotationCol];
-        if (rawValue == null || String(rawValue).trim() === '') return null;
-        const parsed = Number(String(rawValue).trim());
-        return Number.isFinite(parsed) ? parsed : null;
+        if (rawValue == null) return null;
+        return parseNumericAnnotationValue(rawValue);
       });
 
       annotations[annotationCol] = createNumericAnnotation();
@@ -830,13 +913,12 @@ async function extractAnnotationsOptimized(
           if (idx === undefined) continue;
 
           const rawValue = row[annotationCol];
-          if (rawValue == null || String(rawValue).trim() === '') {
+          if (rawValue == null) {
             numericValues[idx] = null;
             continue;
           }
 
-          const parsed = Number(String(rawValue).trim());
-          numericValues[idx] = Number.isFinite(parsed) ? parsed : null;
+          numericValues[idx] = parseNumericAnnotationValue(rawValue);
         }
         await fastYield();
       }

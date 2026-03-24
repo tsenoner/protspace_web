@@ -6,6 +6,8 @@ import {
   GRADIENT_COLOR_SCHEME_IDS,
   COLOR_SCHEMES,
   createColorSchemeLinearGradient,
+  COLOR_SCHEME_INFO,
+  getColorSchemeInfo,
   type NumericBinningStrategy,
 } from '@protspace/utils';
 
@@ -297,6 +299,7 @@ function renderSortingSection(
   if (!state.selectedAnnotation) return html``;
 
   const aname = state.selectedAnnotation;
+  const sectionTitle = state.isNumericAnnotation ? 'Bin order' : 'Category order';
   const currentMode =
     state.annotationSortModes[aname] || (state.isNumericAnnotation ? 'alpha-asc' : 'size-desc');
 
@@ -320,7 +323,7 @@ function renderSortingSection(
       ];
 
   return renderSection(
-    'Sorting',
+    sectionTitle,
     html`
       <div
         class="other-items-list-item other-items-list-item--grouped other-items-list-item-sorting"
@@ -361,23 +364,6 @@ function renderSortingSection(
 }
 
 /**
- * Color palette metadata
- */
-const PALETTE_INFO: Record<string, { label: string; description: string }> = {
-  kellys: { label: "Kelly's Colors", description: 'Maximum contrast (default)' },
-  okabeIto: { label: 'Okabe-Ito', description: 'Colorblind-safe' },
-  tolBright: { label: 'Tol Bright', description: 'Colorblind-safe' },
-  set2: { label: 'Set2', description: 'Categorical' },
-  dark2: { label: 'Dark2', description: 'Categorical' },
-  tableau10: { label: 'Tableau 10', description: 'Categorical' },
-  viridis: { label: 'Viridis', description: 'Perceptually uniform sequential gradient' },
-  cividis: { label: 'Cividis', description: 'Colorblind-friendly sequential gradient' },
-  inferno: { label: 'Inferno', description: 'High-contrast sequential gradient' },
-  batlow: { label: 'Batlow', description: 'Scientific sequential gradient' },
-  plasma: { label: 'Plasma', description: 'Vivid sequential gradient' },
-};
-
-/**
  * Renders the color palette section
  */
 function renderPaletteSection(
@@ -389,7 +375,7 @@ function renderPaletteSection(
     callbacks.onPaletteChange(select.value);
   };
 
-  const paletteEntries = Object.entries(PALETTE_INFO)
+  const paletteEntries = Object.entries(COLOR_SCHEME_INFO)
     .filter(([id]) =>
       state.isNumericAnnotation
         ? GRADIENT_COLOR_SCHEME_IDS.has(id)
@@ -400,7 +386,7 @@ function renderPaletteSection(
     COLOR_SCHEMES[state.selectedPaletteId as keyof typeof COLOR_SCHEMES] || COLOR_SCHEMES.kellys;
   const showNumericDistribution =
     state.isNumericAnnotation && GRADIENT_COLOR_SCHEME_IDS.has(state.selectedPaletteId);
-  const selectedPaletteInfo = PALETTE_INFO[state.selectedPaletteId] ?? {
+  const selectedPaletteInfo = getColorSchemeInfo(state.selectedPaletteId) ?? {
     label: state.selectedPaletteId,
     description: 'Color palette',
   };
@@ -410,10 +396,13 @@ function renderPaletteSection(
     html`
       <div class="other-items-list-item other-items-list-item--grouped">
         <div class="color-palette-row">
+          <label id="palette-select-label" for="palette-select" class="other-items-list-item-label">
+            Palette
+          </label>
           <select
             id="palette-select"
             class="color-palette-select legend-form-control"
-            aria-labelledby="legend-palette-section-title"
+            aria-labelledby="legend-palette-section-title palette-select-label"
             .value=${state.selectedPaletteId}
             @change=${handlePaletteChange}
           >

@@ -179,8 +179,28 @@ export const COLOR_SCHEMES = {
 
 export type ColorSchemeId = keyof typeof COLOR_SCHEMES;
 
+export const COLOR_SCHEME_INFO: Record<ColorSchemeId, { label: string; description: string }> = {
+  kellys: { label: "Kelly's Colors", description: 'Maximum contrast (default)' },
+  okabeIto: { label: 'Okabe-Ito', description: 'Colorblind-safe' },
+  tolBright: { label: 'Tol Bright', description: 'Colorblind-safe' },
+  set2: { label: 'Set2', description: 'Categorical' },
+  dark2: { label: 'Dark2', description: 'Categorical' },
+  tableau10: { label: 'Tableau 10', description: 'Categorical' },
+  viridis: { label: 'Viridis', description: 'Perceptually uniform sequential gradient' },
+  cividis: { label: 'Cividis', description: 'Colorblind-friendly sequential gradient' },
+  inferno: { label: 'Inferno', description: 'High-contrast sequential gradient' },
+  batlow: { label: 'Batlow', description: 'Scientific sequential gradient' },
+  plasma: { label: 'Plasma', description: 'Vivid sequential gradient' },
+};
+
 export function getColorSchemeStops(paletteId: string): readonly string[] {
   return COLOR_SCHEMES[paletteId as ColorSchemeId] || COLOR_SCHEMES.kellys;
+}
+
+export function getColorSchemeInfo(
+  paletteId: string,
+): { label: string; description: string } | null {
+  return COLOR_SCHEME_INFO[paletteId as ColorSchemeId] ?? null;
 }
 
 export function createColorSchemeLinearGradient(

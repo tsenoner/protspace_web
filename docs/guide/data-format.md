@@ -62,10 +62,14 @@ ProtSpace distinguishes three practical annotation shapes:
 
 ### Numeric Annotations
 
-A column is treated as numeric when every non-empty value is a single finite scalar number.
+A column is treated as numeric when every non-empty value is a single finite scalar number. This
+includes true numeric source values and dense or continuous numeric-looking strings. Sparse or
+small integer-like string columns stay categorical by default so identifier-style code fields are
+not silently reclassified.
 
 Numeric detection does **not** apply to:
 
+- sparse integer-like string labels such as cluster or code identifiers
 - semicolon-separated multi-value fields
 - pipe-coded score/evidence fields such as `PF00001|1.5e-10`
 - mixed-format columns

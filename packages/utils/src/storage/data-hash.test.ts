@@ -250,6 +250,57 @@ describe('generateDatasetHash', () => {
     );
   });
 
+  it('ignores numeric metadata label and count changes when topology is unchanged', () => {
+    const baseDataset = {
+      protein_ids: ['P1', 'P2', 'P3'],
+      annotations: {
+        length: {
+          kind: 'categorical' as const,
+          sourceKind: 'numeric' as const,
+          values: ['1 - 2', '2 - 3'],
+          numericMetadata: {
+            strategy: 'linear',
+            binCount: 2,
+            bins: [
+              { id: 'num:linear:1:2', label: '1 - 2', lowerBound: 1, upperBound: 2, count: 2 },
+              { id: 'num:linear:2:3', label: '2 - 3', lowerBound: 2, upperBound: 3, count: 1 },
+            ],
+          },
+        },
+      },
+    };
+
+    const changedLabelsAndCounts = {
+      ...baseDataset,
+      annotations: {
+        length: {
+          ...baseDataset.annotations.length,
+          numericMetadata: {
+            ...baseDataset.annotations.length.numericMetadata,
+            bins: [
+              {
+                id: 'num:linear:1:2',
+                label: 'low range',
+                lowerBound: 1,
+                upperBound: 2,
+                count: 999,
+              },
+              {
+                id: 'num:linear:2:3',
+                label: 'high range',
+                lowerBound: 2,
+                upperBound: 3,
+                count: 0,
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    expect(generateDatasetHash(baseDataset)).toBe(generateDatasetHash(changedLabelsAndCounts));
+  });
+
   it('detects numeric changes beyond the first chunk of values', () => {
     const numericValues = Array.from({ length: 80 }, (_, index) => index + 1);
     const baseDataset = {
@@ -273,5 +324,30 @@ describe('generateDatasetHash', () => {
     };
 
     expect(generateDatasetHash(baseDataset)).not.toBe(generateDatasetHash(changedNumericDataset));
+  });
+
+  it('treats raw numeric datasets with the same protein-to-value mapping as identical regardless of row order', () => {
+    const orderedDataset = {
+      protein_ids: ['P1', 'P2', 'P3'],
+      annotations: {
+        length: {
+          kind: 'numeric' as const,
+          values: [],
+        },
+      },
+      numeric_annotation_data: {
+        length: [10, 20, 30],
+      },
+    };
+
+    const reorderedDataset = {
+      protein_ids: ['P3', 'P1', 'P2'],
+      annotations: orderedDataset.annotations,
+      numeric_annotation_data: {
+        length: [30, 10, 20],
+      },
+    };
+
+    expect(generateDatasetHash(orderedDataset)).toBe(generateDatasetHash(reorderedDataset));
   });
 });
