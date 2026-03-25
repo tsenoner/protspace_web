@@ -1,6 +1,5 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { repeat } from 'lit/directives/repeat.js';
 import type { ProtspaceData } from './types';
 import type { FilterQuery, FilterCondition, FilterGroup, LogicalOp } from './query-types';
 import { createCondition, createGroup, isFilterGroup } from './query-types';
@@ -213,9 +212,7 @@ export class ProtspaceQueryBuilder extends LitElement {
           </button>
         </div>
         <div class="group-conditions">
-          ${repeat(
-            group.conditions,
-            (item) => item.id,
+          ${group.conditions.map(
             (item, index) => html`
               <protspace-query-condition-row
                 .condition=${item as FilterCondition}
@@ -253,27 +250,23 @@ export class ProtspaceQueryBuilder extends LitElement {
         </div>
 
         <div class="query-conditions">
-          ${repeat(
-            this.query,
-            (item) => item.id,
-            (item, index) => {
-              if (isFilterGroup(item)) {
-                return this._renderGroup(item as FilterGroup, index);
-              }
-              return html`
-                <protspace-query-condition-row
-                  .condition=${item as FilterCondition}
-                  .annotations=${this.annotations}
-                  .data=${this.data}
-                  .showLogicalOp=${index > 0}
-                  @condition-changed=${(e: CustomEvent) =>
-                    this._handleConditionChanged(e, null)}
-                  @condition-removed=${(e: CustomEvent) =>
-                    this._handleConditionRemoved(e, null)}
-                ></protspace-query-condition-row>
-              `;
-            },
-          )}
+          ${this.query.map((item, index) => {
+            if (isFilterGroup(item)) {
+              return this._renderGroup(item as FilterGroup, index);
+            }
+            return html`
+              <protspace-query-condition-row
+                .condition=${item as FilterCondition}
+                .annotations=${this.annotations}
+                .data=${this.data}
+                .showLogicalOp=${index > 0}
+                @condition-changed=${(e: CustomEvent) =>
+                  this._handleConditionChanged(e, null)}
+                @condition-removed=${(e: CustomEvent) =>
+                  this._handleConditionRemoved(e, null)}
+              ></protspace-query-condition-row>
+            `;
+          })}
         </div>
 
         <div class="query-actions">
