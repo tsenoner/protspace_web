@@ -3,6 +3,8 @@
  * Used to scope persisted settings to specific datasets.
  */
 
+import { isNumericAnnotation } from '../visualization/numeric-binning.js';
+
 interface DatasetHashInput {
   protein_ids: string[];
   annotations?: Record<
@@ -132,12 +134,11 @@ function buildDatasetFingerprint(data: DatasetHashInput): string {
   const annotationFingerprint = Object.entries(data.annotations ?? {})
     .sort(([leftName], [rightName]) => leftName.localeCompare(rightName))
     .map(([annotationName, annotation]) => {
-      const isNumericAnnotation =
-        annotation.kind === 'numeric' || annotation.sourceKind === 'numeric';
-      const normalizedKind = isNumericAnnotation ? 'numeric' : (annotation.kind ?? 'categorical');
-      const normalizedSourceKind = isNumericAnnotation ? 'numeric' : '';
+      const isNumeric = isNumericAnnotation(annotation);
+      const normalizedKind = isNumeric ? 'numeric' : (annotation.kind ?? 'categorical');
+      const normalizedSourceKind = isNumeric ? 'numeric' : '';
       const categoricalValues =
-        !isNumericAnnotation && Array.isArray(annotation.values)
+        !isNumeric && Array.isArray(annotation.values)
           ? annotation.values.map((value) => value ?? '__NULL__').join('|')
           : '';
       const numericValues = data.numeric_annotation_data?.[annotationName] ?? [];

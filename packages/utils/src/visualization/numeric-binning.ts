@@ -48,7 +48,7 @@ interface NumericSummary {
 
 const numericSummaryCache = new WeakMap<Array<number | null | undefined>, NumericSummary>();
 
-function clamp01(value: number): number {
+export function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
@@ -384,7 +384,9 @@ export function isGradientPalette(paletteId: string): boolean {
   return GRADIENT_COLOR_SCHEME_IDS.has(paletteId);
 }
 
-export function isNumericAnnotation(annotation?: Annotation | null): boolean {
+export function isNumericAnnotation(
+  annotation?: { kind?: string; sourceKind?: string } | null,
+): boolean {
   return annotation?.kind === 'numeric' || annotation?.sourceKind === 'numeric';
 }
 

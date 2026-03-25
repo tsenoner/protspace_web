@@ -8,6 +8,7 @@ import {
   getNumericBinLowerBoundMap,
   getOrderedNumericBinIds,
   isGradientPalette,
+  isNumericAnnotation,
   materializeNumericAnnotation,
   normalizeNumericPaletteId,
   resolveNumericAnnotationDisplaySettings,
@@ -340,9 +341,7 @@ export class ProtspaceLegend extends LitElement {
     let didChange = false;
 
     for (const [annotationName, annotation] of annotationEntries) {
-      const isNumericAnnotation =
-        annotation.kind === 'numeric' || annotation.sourceKind === 'numeric';
-      if (!isNumericAnnotation) {
+      if (!isNumericAnnotation(annotation)) {
         continue;
       }
 
@@ -1074,7 +1073,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _isNumericAnnotation(): boolean {
-    return this.annotationData.sourceKind === 'numeric' || this.annotationData.kind === 'numeric';
+    return isNumericAnnotation(this.annotationData);
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -1417,7 +1416,7 @@ export class ProtspaceLegend extends LitElement {
     const annotation =
       this.data?.annotations?.[annotationName] ??
       (annotationName === this.selectedAnnotation ? this.annotationData : undefined);
-    const isNumeric = annotation?.sourceKind === 'numeric' || annotation?.kind === 'numeric';
+    const isNumeric = isNumericAnnotation(annotation);
 
     if (isNumeric) {
       if (

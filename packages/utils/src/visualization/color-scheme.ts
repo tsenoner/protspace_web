@@ -1,3 +1,5 @@
+import { clamp01 } from './numeric-binning.js';
+
 /**
  * Kelly's 21 Colors of Maximum Contrast
  *
@@ -208,10 +210,6 @@ export function createColorSchemeLinearGradient(
   direction: string = '90deg',
 ): string {
   return `linear-gradient(${direction}, ${getColorSchemeStops(paletteId).join(', ')})`;
-}
-
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
 }
 
 function hexToRgb(hex: string): [number, number, number] {

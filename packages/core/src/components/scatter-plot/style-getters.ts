@@ -1,6 +1,6 @@
 import { NEUTRAL_VALUE_COLOR } from './config';
 import type { PlotDataPoint, VisualizationData } from '@protspace/utils';
-import { normalizeShapeName, toInternalValue } from '@protspace/utils';
+import { isNumericAnnotation, normalizeShapeName, toInternalValue } from '@protspace/utils';
 
 export interface StyleConfig {
   selectedProteinIds: string[];
@@ -50,8 +50,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     data && styleConfig.selectedAnnotation
       ? data.annotations[styleConfig.selectedAnnotation]
       : undefined;
-  const isNumericAnnotation =
-    annotation?.sourceKind === 'numeric' || annotation?.kind === 'numeric';
+  const isNumeric = isNumericAnnotation(annotation);
   const valueToColor = new Map<string, string>();
   const valueToShape = new Map<string, string>();
 
@@ -110,7 +109,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
 
   const getPointShape = (point: PlotDataPoint): string => {
     if (!data || !styleConfig.selectedAnnotation) return 'circle';
-    if (isNumericAnnotation) return 'circle';
+    if (isNumeric) return 'circle';
 
     const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
 

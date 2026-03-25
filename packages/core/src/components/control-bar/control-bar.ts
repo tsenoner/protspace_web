@@ -22,6 +22,7 @@ import {
   getNumericBinLabelMap,
   getOrderedNumericBinIds,
   getStorageItem,
+  isNumericAnnotation,
   materializeVisualizationData,
   resolveNumericAnnotationDisplaySettings,
 } from '@protspace/utils';
@@ -1971,10 +1972,8 @@ export class ProtspaceControlBar extends LitElement {
       Object.keys(data.annotations ?? {})
         .filter((annotationName) => {
           const annotation = data.annotations?.[annotationName];
-          const isNumericAnnotation =
-            annotation?.kind === 'numeric' || annotation?.sourceKind === 'numeric';
           return (
-            isNumericAnnotation &&
+            isNumericAnnotation(annotation) &&
             (!requestedAnnotations || requestedAnnotations.has(annotationName))
           );
         })
@@ -2000,9 +1999,7 @@ export class ProtspaceControlBar extends LitElement {
     }
 
     const annotationInfo = data.annotations?.[annotation];
-    const isNumericAnnotation =
-      annotationInfo?.sourceKind === 'numeric' || annotationInfo?.kind === 'numeric';
-    if (isNumericAnnotation) {
+    if (isNumericAnnotation(annotationInfo)) {
       const { sortMode, manualOrderIds } = this._getLegendOrderingState(data, annotation);
       return getOrderedNumericBinIds(annotationInfo, sortMode, manualOrderIds);
     }
