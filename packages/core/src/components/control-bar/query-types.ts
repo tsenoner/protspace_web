@@ -20,7 +20,7 @@ export type FilterQuery = FilterQueryItem[];
 
 let nextId = 0;
 
-export function generateId(): string {
+function generateId(): string {
   return `q-${Date.now()}-${nextId++}`;
 }
 

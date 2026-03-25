@@ -1,4 +1,4 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { ProtspaceData } from './types';
 import type { FilterQuery, FilterCondition, FilterGroup, LogicalOp } from './query-types';
@@ -16,8 +16,16 @@ import './query-condition-row';
  * - `query-reset`   — dispatched when "Reset All" is clicked
  */
 @customElement('protspace-query-builder')
-export class ProtspaceQueryBuilder extends LitElement {
-  static styles = queryBuilderStyles;
+class ProtspaceQueryBuilder extends LitElement {
+  static styles = [
+    queryBuilderStyles,
+    css`
+      :host {
+        width: 100%;
+        height: 100%;
+      }
+    `,
+  ];
 
   @property({ type: Array }) annotations: string[] = [];
   @property({ type: Object }) data: ProtspaceData | undefined = undefined;
@@ -132,10 +140,7 @@ export class ProtspaceQueryBuilder extends LitElement {
     }
   }
 
-  private _handleConditionRemoved(
-    e: CustomEvent<{ id: string }>,
-    groupId: string | null,
-  ) {
+  private _handleConditionRemoved(e: CustomEvent<{ id: string }>, groupId: string | null) {
     e.stopPropagation();
     const removedId = e.detail.id;
     if (groupId === null) {
@@ -207,9 +212,7 @@ export class ProtspaceQueryBuilder extends LitElement {
               </select>`
             : html`<div class="logical-op-placeholder"></div>`}
           <span>Group</span>
-          <button class="condition-remove" @click=${() => this._removeGroup(group.id)}>
-            ×
-          </button>
+          <button class="condition-remove" @click=${() => this._removeGroup(group.id)}>×</button>
         </div>
         <div class="group-conditions">
           ${group.conditions.map(
@@ -219,18 +222,13 @@ export class ProtspaceQueryBuilder extends LitElement {
                 .annotations=${this.annotations}
                 .data=${this.data}
                 .showLogicalOp=${index > 0}
-                @condition-changed=${(e: CustomEvent) =>
-                  this._handleConditionChanged(e, group.id)}
-                @condition-removed=${(e: CustomEvent) =>
-                  this._handleConditionRemoved(e, group.id)}
+                @condition-changed=${(e: CustomEvent) => this._handleConditionChanged(e, group.id)}
+                @condition-removed=${(e: CustomEvent) => this._handleConditionRemoved(e, group.id)}
               ></protspace-query-condition-row>
             `,
           )}
         </div>
-        <button
-          class="group-add-condition"
-          @click=${() => this._addConditionToGroup(group.id)}
-        >
+        <button class="group-add-condition" @click=${() => this._addConditionToGroup(group.id)}>
           + Add condition
         </button>
       </div>
@@ -260,10 +258,8 @@ export class ProtspaceQueryBuilder extends LitElement {
                 .annotations=${this.annotations}
                 .data=${this.data}
                 .showLogicalOp=${index > 0}
-                @condition-changed=${(e: CustomEvent) =>
-                  this._handleConditionChanged(e, null)}
-                @condition-removed=${(e: CustomEvent) =>
-                  this._handleConditionRemoved(e, null)}
+                @condition-changed=${(e: CustomEvent) => this._handleConditionChanged(e, null)}
+                @condition-removed=${(e: CustomEvent) => this._handleConditionRemoved(e, null)}
               ></protspace-query-condition-row>
             `;
           })}
