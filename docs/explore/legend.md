@@ -133,8 +133,8 @@ Colors stay attached to categories when you reorder them.
 
 Gradients are only shown for numeric annotations. ProtSpace currently ships five curated sequential gradients:
 
-- `Viridis`: balanced default for ordered numeric data
-- `Cividis`: strong grayscale / accessibility option
+- `Cividis`: colorblind-friendly default for ordered numeric data
+- `Viridis`: balanced perceptually uniform sequential gradient
 - `Inferno`: high-contrast dark-to-bright ramp
 - `Batlow`: scientific-publication oriented sequential ramp from Fabio Crameri's Scientific Colour Maps
 - `Plasma`: vivid exploratory sequential ramp
@@ -143,7 +143,7 @@ These were chosen because they are either perceptually uniform, publication-frie
 
 Numeric bin colors are derived from the gradient and the selected distribution. They are not manually edited per bin.
 
-If an imported bundle or saved browser state references an unsupported numeric gradient ID, ProtSpace falls back to `viridis`.
+If an imported bundle or saved browser state references an unsupported numeric gradient ID, ProtSpace falls back to `cividis`.
 
 ### Special Categories
 

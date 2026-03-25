@@ -9,7 +9,7 @@ import type {
 } from '../types';
 import { djb2Hash } from '../storage/data-hash';
 
-export const DEFAULT_NUMERIC_PALETTE_ID = 'viridis';
+export const DEFAULT_NUMERIC_PALETTE_ID = 'cividis';
 export const DEFAULT_NUMERIC_STRATEGY: NumericBinningStrategy = 'linear';
 export const GRADIENT_COLOR_SCHEME_IDS = new Set([
   'viridis',

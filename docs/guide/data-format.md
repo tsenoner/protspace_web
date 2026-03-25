@@ -81,7 +81,7 @@ For numeric annotations:
 - the selected distribution can be `linear`, `quantile`, or `logarithmic`
 - numeric palettes are sequential gradients, not categorical swatches
 - the gradient direction can also be reversed and is persisted as part of the numeric settings
-- unsupported numeric palette IDs are normalized to `viridis` on import/load
+- unsupported numeric palette IDs are normalized to `cividis` on import/load
 
 ### Numeric Edge Cases
 

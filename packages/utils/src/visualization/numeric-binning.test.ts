@@ -181,15 +181,15 @@ describe('numeric-binning', () => {
     expect(result.annotation.colors).toHaveLength(1);
   });
 
-  it('normalizes non-gradient numeric palettes to viridis', () => {
+  it('normalizes non-gradient numeric palettes to cividis', () => {
     const result = materializeNumericAnnotation([1, 2, 3, 4], {
       binCount: 2,
       strategy: 'linear',
       paletteId: 'kellys',
     });
 
-    expect(result.annotation.colors[0]).toBe('#440154');
-    expect(result.annotation.colors[1]).toBe('#FDE725');
+    expect(result.annotation.colors[0]).toBe('#00224E');
+    expect(result.annotation.colors[1]).toBe('#FEE838');
   });
 
   it('reverses numeric gradient colors without changing bin topology', () => {

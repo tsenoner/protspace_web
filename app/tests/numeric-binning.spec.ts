@@ -830,7 +830,7 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
     page.locator('protspace-legend').getByRole('dialog', { name: 'Legend settings: length' }),
   ).toBeVisible();
   expect(initialDialog.includeShapesDisabled).toBe(true);
-  expect(initialDialog.palette).toBe('viridis');
+  expect(initialDialog.palette).toBe('cividis');
   expect(initialDialog.distribution).toBe('linear');
   expect(initialDialog.hasDistributionSelect).toBe(true);
   expect(initialDialog.hasSortingSection).toBe(true);
@@ -988,12 +988,12 @@ test('reset restores numeric settings defaults and clears saved state on re-impo
 
   state = await getNumericState(page);
   expect(state.strategy).toBe('linear');
-  expect(state.colors[0]).toBe('#440154');
-  expect(state.colors.at(-1)).toBe('#FDE725');
+  expect(state.colors[0]).toBe('#00224E');
+  expect(state.colors.at(-1)).toBe('#FEE838');
 
   await openLegendSettings(page);
   let dialog = await readLegendSettingsDialog(page);
-  expect(dialog.palette).toBe('viridis');
+  expect(dialog.palette).toBe('cividis');
   expect(dialog.distribution).toBe('linear');
   expect(dialog.reverseGradientChecked).toBe(false);
   await clickDialogButton(page, 'Cancel');
@@ -1006,12 +1006,12 @@ test('reset restores numeric settings defaults and clears saved state on re-impo
 
   state = await getNumericState(page);
   expect(state.strategy).toBe('linear');
-  expect(state.colors[0]).toBe('#440154');
-  expect(state.colors.at(-1)).toBe('#FDE725');
+  expect(state.colors[0]).toBe('#00224E');
+  expect(state.colors.at(-1)).toBe('#FEE838');
 
   await openLegendSettings(page);
   dialog = await readLegendSettingsDialog(page);
-  expect(dialog.palette).toBe('viridis');
+  expect(dialog.palette).toBe('cividis');
   expect(dialog.distribution).toBe('linear');
   expect(dialog.reverseGradientChecked).toBe(false);
 });
@@ -1069,8 +1069,8 @@ test('pressing escape closes the settings dialog and discards staged numeric cha
 
   const state = await getNumericState(page);
   expect(state.strategy).toBe('linear');
-  expect(state.colors[0]).toBe('#440154');
-  expect(state.colors.at(-1)).toBe('#FDE725');
+  expect(state.colors[0]).toBe('#00224E');
+  expect(state.colors.at(-1)).toBe('#FEE838');
 });
 
 test('changing only max legend items recalculates numeric colors for the same gradient palette', async ({
@@ -1083,13 +1083,13 @@ test('changing only max legend items recalculates numeric colors for the same gr
   expect(initialState.strategy).toBe('linear');
   expect(initialState.binCount).toBeGreaterThan(0);
   expect(initialState.binCount).toBeLessThanOrEqual(10);
-  expect(initialState.colors[0]).toBe('#440154');
-  expect(initialState.colors.at(-1)).toBe('#FDE725');
+  expect(initialState.colors[0]).toBe('#00224E');
+  expect(initialState.colors.at(-1)).toBe('#FEE838');
 
   await openLegendSettings(page);
   await updateLegendSettings(page, {
     maxVisibleValues: 5,
-    paletteId: 'viridis',
+    paletteId: 'cividis',
     strategy: 'linear',
   });
 
@@ -1099,8 +1099,8 @@ test('changing only max legend items recalculates numeric colors for the same gr
   const savedState = await getNumericState(page);
   expect(savedState.binCount).toBe(5);
   expect(savedState.colors).not.toEqual(initialState.colors);
-  expect(savedState.colors[0]).toBe('#440154');
-  expect(savedState.colors.at(-1)).toBe('#FDE725');
+  expect(savedState.colors[0]).toBe('#00224E');
+  expect(savedState.colors.at(-1)).toBe('#FEE838');
 });
 
 test('reversing the numeric gradient swaps the low and high bin colors', async ({ page }) => {
@@ -1109,8 +1109,8 @@ test('reversing the numeric gradient swaps the low and high bin colors', async (
 
   const initialState = await getNumericState(page);
   expect(initialState.colors.length).toBeGreaterThan(1);
-  expect(initialState.colors[0]).toBe('#440154');
-  expect(initialState.colors.at(-1)).toBe('#FDE725');
+  expect(initialState.colors[0]).toBe('#00224E');
+  expect(initialState.colors.at(-1)).toBe('#FEE838');
 
   await openLegendSettings(page);
   const initialDialog = await readLegendSettingsDialog(page);
@@ -1118,7 +1118,7 @@ test('reversing the numeric gradient swaps the low and high bin colors', async (
 
   await updateLegendSettings(page, {
     maxVisibleValues: 10,
-    paletteId: 'viridis',
+    paletteId: 'cividis',
     strategy: 'linear',
     reverseGradient: true,
   });
@@ -1126,8 +1126,8 @@ test('reversing the numeric gradient swaps the low and high bin colors', async (
   await waitForDialogClosed(page);
 
   const reversedState = await getNumericState(page);
-  expect(reversedState.colors[0]).toBe('#FDE725');
-  expect(reversedState.colors.at(-1)).toBe('#440154');
+  expect(reversedState.colors[0]).toBe('#FEE838');
+  expect(reversedState.colors.at(-1)).toBe('#00224E');
 
   await openLegendSettings(page);
   const reversedDialog = await readLegendSettingsDialog(page);
@@ -1405,8 +1405,8 @@ test('real phosphatase bundle rebins length to five bins without leaving the UI 
     .toEqual({ rawKind: 'numeric', hasBins: true });
 
   const initialNumericState = await getNumericState(page);
-  expect(initialNumericState.colors[0]).toBe('#440154');
-  expect(initialNumericState.colors.at(-1)).toBe('#FDE725');
+  expect(initialNumericState.colors[0]).toBe('#00224E');
+  expect(initialNumericState.colors.at(-1)).toBe('#FEE838');
   expect(initialNumericState.binCount).toBeGreaterThan(0);
   expect(initialNumericState.binCount).toBeLessThanOrEqual(10);
 
