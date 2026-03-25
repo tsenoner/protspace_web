@@ -10,11 +10,19 @@ export const queryBuilderStyles = css`
      QUERY BUILDER CONTAINER
      ========================================== */
 
+  :host {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
   .query-builder {
-    min-width: 480px;
-    max-width: 620px;
-    padding: var(--spacing-md);
+    width: 100%;
+    height: 100%;
+    padding: var(--spacing-lg);
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
   }
 
   .query-header {
@@ -28,8 +36,9 @@ export const queryBuilderStyles = css`
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
-    max-height: 50vh;
+    flex: 1;
     overflow-y: auto;
+    overflow-x: visible;
     scrollbar-width: thin;
     margin-bottom: var(--spacing-sm);
   }
@@ -566,15 +575,46 @@ export const queryBuilderStyles = css`
   }
 
   /* ==========================================
+     MODAL OVERLAY
+     ========================================== */
+
+  .query-builder-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+
+  .query-builder-modal {
+    width: 70%;
+    min-width: 600px;
+    max-width: 900px;
+    height: 70vh;
+    max-height: 80vh;
+    background: var(--surface, #fff);
+    border: var(--border-width, 1px) solid var(--border, #e0e0e0);
+    border-radius: var(--radius, 8px);
+    box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.2));
+    overflow: visible;
+  }
+
+  /* ==========================================
      RESPONSIVE
      ========================================== */
 
-  @media (max-width: 550px) {
-    .query-builder {
+  @media (max-width: 768px) {
+    .query-builder-modal {
+      width: 95%;
       min-width: unset;
-      max-width: 100%;
+      height: 85vh;
     }
+  }
 
+  @media (max-width: 550px) {
     .condition-row {
       flex-wrap: wrap;
     }

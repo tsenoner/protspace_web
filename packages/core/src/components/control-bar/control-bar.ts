@@ -844,19 +844,6 @@ export class ProtspaceControlBar extends LitElement {
                     </svg>`}
               </button>
 
-              ${this.showFilterMenu
-                ? html`
-                    <protspace-query-builder
-                      class="filter-menu"
-                      .annotations=${this.annotations}
-                      .data=${this._currentData}
-                      .query=${this.filterQuery}
-                      @query-changed=${this._handleQueryChanged}
-                      @query-apply=${this._handleQueryApply}
-                      @query-reset=${this._handleQueryReset}
-                    ></protspace-query-builder>
-                  `
-                : ''}
             </div>
 
             <!-- Export dropdown -->
@@ -1328,7 +1315,28 @@ export class ProtspaceControlBar extends LitElement {
           </div>
         </div>
       </div>
+
+      ${this.showFilterMenu
+        ? html`
+            <div class="query-builder-overlay" @click=${this._handleOverlayClick}>
+              <div class="query-builder-modal" @click=${(e: Event) => e.stopPropagation()}>
+                <protspace-query-builder
+                  .annotations=${this.annotations}
+                  .data=${this._currentData}
+                  .query=${this.filterQuery}
+                  @query-changed=${this._handleQueryChanged}
+                  @query-apply=${this._handleQueryApply}
+                  @query-reset=${this._handleQueryReset}
+                ></protspace-query-builder>
+              </div>
+            </div>
+          `
+        : ''}
     `;
+  }
+
+  private _handleOverlayClick() {
+    this.showFilterMenu = false;
   }
 
   connectedCallback() {
