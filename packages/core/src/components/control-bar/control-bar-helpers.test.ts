@@ -332,5 +332,4 @@ describe('control-bar-helpers', () => {
       expect(result).toEqual([]);
     });
   });
-
 });

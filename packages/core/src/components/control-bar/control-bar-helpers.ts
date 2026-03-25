@@ -121,4 +121,3 @@ export function mergeProteinSelections(
   newSelections.forEach((id) => merged.add(id));
   return Array.from(merged);
 }
-

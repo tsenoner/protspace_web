@@ -83,9 +83,7 @@ describe('evaluateQuery', () => {
     });
 
     it('skips condition with empty values', () => {
-      const query: FilterQuery = [
-        { id: '1', annotation: 'organism', operator: 'is', values: [] },
-      ];
+      const query: FilterQuery = [{ id: '1', annotation: 'organism', operator: 'is', values: [] }];
       const result = evaluateQuery(query, createTestData());
       expect(result).toEqual(new Set([0, 1, 2, 3, 4]));
     });

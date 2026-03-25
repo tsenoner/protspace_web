@@ -825,7 +825,9 @@ export class ProtspaceControlBar extends LitElement {
           <div class="data-actions-group" data-driver-id="data-actions">
             <div class="filter-container right-controls-filter">
               <button
-                class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''} ${this.filterActive ? 'filter-active' : ''}"
+                class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''} ${this.filterActive
+                  ? 'filter-active'
+                  : ''}"
                 @click=${this.toggleFilterMenu}
                 title="Filter Options"
               >
@@ -843,7 +845,6 @@ export class ProtspaceControlBar extends LitElement {
                       <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>`}
               </button>
-
             </div>
 
             <!-- Export dropdown -->
@@ -1864,7 +1865,9 @@ export class ProtspaceControlBar extends LitElement {
 
     // Set selection and isolate (dispatch event for downstream listeners)
     sp.selectedProteinIds = matchedIds;
-    this.dispatchEvent(new CustomEvent('isolate-data', { detail: {}, bubbles: true, composed: true }));
+    this.dispatchEvent(
+      new CustomEvent('isolate-data', { detail: {}, bubbles: true, composed: true }),
+    );
     sp.isolateSelection?.();
 
     this.filterActive = true;
