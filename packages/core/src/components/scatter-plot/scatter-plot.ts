@@ -2048,6 +2048,12 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
+  /** Clear isolation state without reprocessing. Use before loading new data. */
+  clearIsolationState(): void {
+    this._isolationHistory = [];
+    this._isolationMode = false;
+  }
+
   resetIsolation() {
     this._isolationHistory = [];
     this._isolationMode = false;

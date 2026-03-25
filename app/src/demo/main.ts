@@ -202,6 +202,7 @@ export async function initializeDemo() {
 
         // Update scatterplot with new data
         console.log('📊 Updating scatterplot with new data...');
+        plotElement.clearIsolationState();
         const oldData = plotElement.data;
         plotElement.data = newData;
         plotElement.requestUpdate('data', oldData);
