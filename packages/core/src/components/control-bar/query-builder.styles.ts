@@ -341,18 +341,16 @@ export const queryBuilderStyles = css`
      ========================================== */
 
   .value-picker {
-    position: absolute;
+    position: fixed;
     background: var(--surface);
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
-    z-index: var(--z-dropdown);
+    z-index: 10001;
     max-width: 280px;
     min-width: 200px;
     padding: var(--spacing-sm);
     box-sizing: border-box;
-    top: calc(100% + var(--dropdown-offset));
-    left: 0;
   }
 
   .value-picker-input {
@@ -430,18 +428,16 @@ export const queryBuilderStyles = css`
      ========================================== */
 
   .annotation-picker {
-    position: absolute;
+    position: fixed;
     background: var(--surface);
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
-    z-index: var(--z-dropdown);
+    z-index: 10001;
     min-width: 200px;
     max-width: 280px;
     padding: var(--spacing-sm);
     box-sizing: border-box;
-    top: calc(100% + var(--dropdown-offset));
-    left: 0;
   }
 
   .annotation-picker-input {

@@ -26,13 +26,15 @@ class ProtspaceQueryConditionRow extends LitElement {
   @state() private _showAnnotationPicker: boolean = false;
   @state() private _showValuePicker: boolean = false;
   @state() private _annotationSearch: string = '';
+  @state() private _pickerPos = { top: 0, left: 0 };
+  @state() private _valuePickerPos = { top: 0, left: 0 };
 
   @litQuery('.annotation-picker-input') private _annotationInputEl?: HTMLInputElement;
 
   // ─── Click-outside detection ──────────────────────────────────────────────
 
   private _handleDocumentClick = (e: MouseEvent) => {
-    if (this._showAnnotationPicker && !this.contains(e.target as Node)) {
+    if (this._showAnnotationPicker && !e.composedPath().includes(this)) {
       this._showAnnotationPicker = false;
       this._annotationSearch = '';
     }
@@ -127,9 +129,13 @@ class ProtspaceQueryConditionRow extends LitElement {
 
   // ─── Event handlers ───────────────────────────────────────────────────────
 
-  private _toggleAnnotationPicker() {
+  private _toggleAnnotationPicker(e: Event) {
     this._showAnnotationPicker = !this._showAnnotationPicker;
-    if (!this._showAnnotationPicker) {
+    if (this._showAnnotationPicker) {
+      const btn = e.currentTarget as HTMLElement;
+      const rect = btn.getBoundingClientRect();
+      this._pickerPos = { top: rect.bottom + 4, left: rect.left };
+    } else {
       this._annotationSearch = '';
     }
   }
@@ -201,12 +207,19 @@ class ProtspaceQueryConditionRow extends LitElement {
 
     const filteredGroups = queryLower
       ? groups
-          .map((g) => ({ ...g, items: g.items.filter((a) => a.toLowerCase().includes(queryLower)) }))
+          .map((g) => ({
+            ...g,
+            items: g.items.filter((a) => a.toLowerCase().includes(queryLower)),
+          }))
           .filter((g) => g.items.length > 0)
       : groups;
 
     return html`
-      <div class="annotation-picker" @click=${(e: Event) => e.stopPropagation()}>
+      <div
+        class="annotation-picker"
+        style="top:${this._pickerPos.top}px;left:${this._pickerPos.left}px"
+        @click=${(e: Event) => e.stopPropagation()}
+      >
         <input
           class="annotation-picker-input"
           placeholder="Search annotations..."
@@ -222,10 +235,7 @@ class ProtspaceQueryConditionRow extends LitElement {
               <div class="annotation-picker-category">${group.category}</div>
               ${group.items.map(
                 (ann) => html`
-                  <div
-                    class="annotation-picker-item"
-                    @click=${() => this._selectAnnotation(ann)}
-                  >
+                  <div class="annotation-picker-item" @click=${() => this._selectAnnotation(ann)}>
                     ${ann}
                   </div>
                 `,
@@ -270,8 +280,13 @@ class ProtspaceQueryConditionRow extends LitElement {
         )}
         <button
           class="value-chip-add"
-          @click=${() => {
+          @click=${(e: Event) => {
             this._showValuePicker = !this._showValuePicker;
+            if (this._showValuePicker) {
+              const btn = e.currentTarget as HTMLElement;
+              const rect = btn.getBoundingClientRect();
+              this._valuePickerPos = { top: rect.bottom + 4, left: rect.left };
+            }
           }}
           title="Add value"
         >
@@ -283,6 +298,8 @@ class ProtspaceQueryConditionRow extends LitElement {
         .data=${this.data}
         .selectedValues=${this.condition.values}
         .open=${this._showValuePicker}
+        .triggerTop=${this._valuePickerPos.top}
+        .triggerLeft=${this._valuePickerPos.left}
         @value-selected=${this._handleValueSelected}
         @picker-close=${this._handleValuePickerClose}
       ></protspace-query-value-picker>
@@ -312,10 +329,7 @@ class ProtspaceQueryConditionRow extends LitElement {
             `
           : html`<div class="logical-op-placeholder"></div>`}
 
-        <button
-          class="annotation-select-trigger"
-          @click=${this._toggleAnnotationPicker}
-        >
+        <button class="annotation-select-trigger" @click=${this._toggleAnnotationPicker}>
           ${this.condition.annotation || 'Select annotation...'}
         </button>
 
@@ -334,11 +348,7 @@ class ProtspaceQueryConditionRow extends LitElement {
 
         ${this._renderValues()}
 
-        <button
-          class="condition-remove"
-          @click=${this._handleRemove}
-          title="Remove condition"
-        >
+        <button class="condition-remove" @click=${this._handleRemove} title="Remove condition">
           ×
         </button>
       </div>

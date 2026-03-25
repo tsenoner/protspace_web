@@ -20,6 +20,8 @@ class ProtspaceQueryValuePicker extends LitElement {
   @property({ type: Object }) data: ProtspaceData | undefined = undefined;
   @property({ type: Array }) selectedValues: string[] = [];
   @property({ type: Boolean }) open: boolean = false;
+  @property({ type: Number }) triggerTop: number = 0;
+  @property({ type: Number }) triggerLeft: number = 0;
 
   @state() private _searchQuery: string = '';
 
@@ -28,7 +30,7 @@ class ProtspaceQueryValuePicker extends LitElement {
   // ─── Click-outside detection ──────────────────────────────────────────────
 
   private _handleDocumentClick = (e: MouseEvent) => {
-    if (this.open && !this.contains(e.target as Node)) {
+    if (this.open && !e.composedPath().includes(this)) {
       this.dispatchEvent(new CustomEvent('picker-close', { bubbles: true, composed: true }));
     }
   };
@@ -179,7 +181,7 @@ class ProtspaceQueryValuePicker extends LitElement {
     const { allValues, filteredValues } = this._computeValues();
 
     return html`
-      <div class="value-picker">
+      <div class="value-picker" style="top:${this.triggerTop}px;left:${this.triggerLeft}px">
         <input
           class="value-picker-input"
           placeholder="Search values..."
