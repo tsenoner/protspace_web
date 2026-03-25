@@ -203,6 +203,26 @@ describe('evaluateQuery', () => {
     });
   });
 
+  describe('null value handling', () => {
+    it('is operator matches null via __NA__ normalized value', () => {
+      const query: FilterQuery = [
+        { id: '1', annotation: 'pfam', operator: 'is', values: ['__NA__'] },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      // P3 has pfam=null → normalized to __NA__
+      expect(result).toEqual(new Set([2]));
+    });
+
+    it('is_not operator excludes null via __NA__ normalized value', () => {
+      const query: FilterQuery = [
+        { id: '1', annotation: 'pfam', operator: 'is_not', values: ['__NA__'] },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      // All except P3 (which has null pfam)
+      expect(result).toEqual(new Set([0, 1, 3, 4]));
+    });
+  });
+
   describe('missing annotation', () => {
     it('treats missing annotation as non-matching', () => {
       const query: FilterQuery = [
