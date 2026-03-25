@@ -2,63 +2,12 @@ import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { annotationSelectStyles } from './annotation-select.styles';
 import { handleDropdownEscape } from '../../utils/dropdown-helpers';
-
-/**
- * Annotation categories as defined in the plan
- */
-const ANNOTATION_CATEGORIES = {
-  UniProt: [
-    'annotation_score',
-    'cc_subcellular_location',
-    'ec',
-    'fragment',
-    'gene_name',
-    'go_bp',
-    'go_cc',
-    'go_mf',
-    'keyword',
-    'length_fixed',
-    'length_quantile',
-    'protein_existence',
-    'protein_families',
-    'reviewed',
-    'xref_pdb',
-  ],
-  InterPro: [
-    'cath',
-    'cdd',
-    'panther',
-    'pfam',
-    'prints',
-    'prosite',
-    'signal_peptide',
-    'smart',
-    'superfamily',
-  ],
-  Taxonomy: ['root', 'domain', 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species'],
-} as const;
-
-/**
- * Taxonomy order for sorting (as specified in plan)
- */
-const TAXONOMY_ORDER = [
-  'root',
-  'domain',
-  'kingdom',
-  'phylum',
-  'class',
-  'order',
-  'family',
-  'genus',
-  'species',
-] as const;
-
-type CategoryName = 'UniProt' | 'InterPro' | 'Taxonomy' | 'Other';
-
-interface GroupedAnnotation {
-  category: CategoryName;
-  annotations: string[];
-}
+import {
+  ANNOTATION_CATEGORIES,
+  TAXONOMY_ORDER,
+  type CategoryName,
+  type GroupedAnnotation,
+} from './annotation-categories';
 
 /**
  * Custom dropdown component for annotation selection with section headers and search
