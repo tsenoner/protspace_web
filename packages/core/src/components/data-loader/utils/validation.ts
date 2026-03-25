@@ -25,6 +25,14 @@ export function assertValidParquetMagic(buffer: ArrayBuffer): void {
   }
 }
 
+const ACCEPTED_EXTENSION = '.parquetbundle';
+
+export function assertValidFileExtension(fileName: string): void {
+  if (!fileName.endsWith(ACCEPTED_EXTENSION)) {
+    throw new Error(`Unsupported file format. Please upload a ${ACCEPTED_EXTENSION} file.`);
+  }
+}
+
 export function assertWithinFileSizeLimit(
   sizeBytes: number,
   maxSizeBytes = MAX_FILE_SIZE_BYTES_DEFAULT,
