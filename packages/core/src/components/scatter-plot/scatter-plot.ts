@@ -2055,8 +2055,7 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   resetIsolation() {
-    this._isolationHistory = [];
-    this._isolationMode = false;
+    this.clearIsolationState();
     this.selectedProteinIds = [];
 
     // Invalidate data ref so _processData takes the full rebuild path
