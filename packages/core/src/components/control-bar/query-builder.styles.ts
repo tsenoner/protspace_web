@@ -67,10 +67,6 @@ export const queryBuilderStyles = css`
     text-align: right;
   }
 
-  .match-count.loading {
-    opacity: 0.5;
-  }
-
   /* ==========================================
      CONDITION ROW
      ========================================== */

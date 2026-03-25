@@ -33,7 +33,6 @@ class ProtspaceQueryBuilder extends LitElement {
 
   @state() private _matchCount: number = 0;
   @state() private _totalCount: number = 0;
-  @state() private _evaluating: boolean = false;
 
   private _debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -59,11 +58,9 @@ class ProtspaceQueryBuilder extends LitElement {
     if (this._debounceTimer) clearTimeout(this._debounceTimer);
     this._debounceTimer = setTimeout(() => {
       if (!this.data) return;
-      this._evaluating = true;
       const result = evaluateQuery(query, this.data);
       this._matchCount = result.size;
       this._totalCount = this.data.protein_ids?.length ?? 0;
-      this._evaluating = false;
     }, 300);
   }
 
@@ -218,7 +215,7 @@ class ProtspaceQueryBuilder extends LitElement {
           ${group.conditions.map(
             (item, index) => html`
               <protspace-query-condition-row
-                .condition=${item as FilterCondition}
+                .condition=${item}
                 .annotations=${this.annotations}
                 .data=${this.data}
                 .showLogicalOp=${index > 0}
@@ -242,7 +239,7 @@ class ProtspaceQueryBuilder extends LitElement {
       <div class="query-builder">
         <div class="query-header">
           <span>Filter Query</span>
-          <span class="match-count ${this._evaluating ? 'loading' : ''}">
+          <span class="match-count">
             ${this._matchCount} of ${this._totalCount} proteins matched
           </span>
         </div>
@@ -250,11 +247,11 @@ class ProtspaceQueryBuilder extends LitElement {
         <div class="query-conditions">
           ${this.query.map((item, index) => {
             if (isFilterGroup(item)) {
-              return this._renderGroup(item as FilterGroup, index);
+              return this._renderGroup(item, index);
             }
             return html`
               <protspace-query-condition-row
-                .condition=${item as FilterCondition}
+                .condition=${item}
                 .annotations=${this.annotations}
                 .data=${this.data}
                 .showLogicalOp=${index > 0}

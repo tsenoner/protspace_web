@@ -1,5 +1,5 @@
 import type { ProtspaceData } from './types';
-import type { FilterQuery, FilterQueryItem, FilterCondition, FilterGroup } from './query-types';
+import type { FilterQuery, FilterQueryItem, FilterCondition } from './query-types';
 import { isFilterGroup } from './query-types';
 import { toInternalValue } from '../legend/config';
 
@@ -45,10 +45,7 @@ function evaluateCondition(
     return allIndices(numProteins);
   }
 
-  if (
-    !data.annotation_data?.[condition.annotation] ||
-    !data.annotations?.[condition.annotation]
-  ) {
+  if (!data.annotation_data?.[condition.annotation] || !data.annotations?.[condition.annotation]) {
     return new Set();
   }
 
@@ -118,9 +115,9 @@ function evaluateItems(
     let itemResult: Set<number>;
 
     if (isFilterGroup(item)) {
-      itemResult = evaluateItems((item as FilterGroup).conditions, data, numProteins);
+      itemResult = evaluateItems(item.conditions, data, numProteins);
     } else {
-      itemResult = evaluateCondition(item as FilterCondition, data, numProteins);
+      itemResult = evaluateCondition(item, data, numProteins);
     }
 
     const op = item.logicalOp;

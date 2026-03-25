@@ -2,7 +2,7 @@ import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state, query as litQuery } from 'lit/decorators.js';
 import type { FilterCondition, LogicalOp, ConditionOperator } from './query-types';
 import type { ProtspaceData } from './types';
-import { ANNOTATION_CATEGORIES, TAXONOMY_ORDER, type CategoryName } from './annotation-categories';
+import { groupAnnotations } from './annotation-categories';
 import { LEGEND_VALUES } from '@protspace/utils';
 import { queryBuilderStyles } from './query-builder.styles';
 import './query-value-picker';
@@ -82,49 +82,11 @@ class ProtspaceQueryConditionRow extends LitElement {
 
   // ─── Annotation picker grouping ───────────────────────────────────────────
 
-  private _groupAnnotations(): Array<{ category: CategoryName; items: string[] }> {
-    const categorized: Record<CategoryName, string[]> = {
-      UniProt: [],
-      InterPro: [],
-      Taxonomy: [],
-      Other: [],
-    };
-
-    for (const ann of this.annotations) {
-      let found = false;
-      for (const [category, catAnns] of Object.entries(ANNOTATION_CATEGORIES)) {
-        if ((catAnns as readonly string[]).includes(ann)) {
-          categorized[category as CategoryName].push(ann);
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        categorized.Other.push(ann);
-      }
-    }
-
-    // Sort within categories
-    categorized.UniProt.sort((a, b) => a.localeCompare(b));
-    categorized.InterPro.sort((a, b) => a.localeCompare(b));
-    categorized.Other.sort((a, b) => a.localeCompare(b));
-    categorized.Taxonomy.sort((a, b) => {
-      const ai = TAXONOMY_ORDER.indexOf(a as (typeof TAXONOMY_ORDER)[number]);
-      const bi = TAXONOMY_ORDER.indexOf(b as (typeof TAXONOMY_ORDER)[number]);
-      if (ai === -1 && bi === -1) return a.localeCompare(b);
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    });
-
-    const result: Array<{ category: CategoryName; items: string[] }> = [];
-    const order: CategoryName[] = ['InterPro', 'Taxonomy', 'UniProt', 'Other'];
-    for (const cat of order) {
-      if (categorized[cat].length > 0) {
-        result.push({ category: cat, items: categorized[cat] });
-      }
-    }
-    return result;
+  private _groupAnnotations() {
+    return groupAnnotations(this.annotations).map((g) => ({
+      category: g.category,
+      items: g.annotations,
+    }));
   }
 
   // ─── Event handlers ───────────────────────────────────────────────────────
