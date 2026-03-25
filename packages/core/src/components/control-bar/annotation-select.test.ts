@@ -1,44 +1,10 @@
 import { describe, it, expect } from 'vitest';
-
-/**
- * Annotation categories as defined in the component
- */
-const ANNOTATION_CATEGORIES = {
-  UniProt: [
-    'annotation_score',
-    'cc_subcellular_location',
-    'fragment',
-    'gene_name',
-    'protein_existence',
-    'protein_families',
-    'reviewed',
-    'xref_pdb',
-  ],
-  InterPro: ['cath', 'pfam', 'signal_peptide', 'superfamily'],
-  Taxonomy: ['root', 'domain', 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species'],
-} as const;
-
-/**
- * Taxonomy order for sorting
- */
-const TAXONOMY_ORDER = [
-  'root',
-  'domain',
-  'kingdom',
-  'phylum',
-  'class',
-  'order',
-  'family',
-  'genus',
-  'species',
-] as const;
-
-type CategoryName = 'UniProt' | 'InterPro' | 'Taxonomy' | 'Other';
-
-interface GroupedAnnotation {
-  category: CategoryName;
-  annotations: string[];
-}
+import {
+  ANNOTATION_CATEGORIES,
+  TAXONOMY_ORDER,
+  type CategoryName,
+  type GroupedAnnotation,
+} from './annotation-categories';
 
 /**
  * Categorize annotations according to the plan
