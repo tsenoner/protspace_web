@@ -40,6 +40,139 @@ const METADATA_EXCLUDED_KEYS = new Set(['projection_name', 'name', 'info_json'])
 
 /** Match GO/ECO evidence codes: 2–5 uppercase letters OR ECO:NNNNNNN */
 const EVIDENCE_CODE_RE = /^(?:[A-Z]{2,5}|ECO:\d+)$/;
+const STRING_NUMERIC_DENSITY_THRESHOLD = 0.1;
+const STRING_NUMERIC_MIN_DISTINCT_VALUES = 8;
+const MAX_STRING_NUMERIC_DENSITY_DECIMALS = 6;
+
+function parseNumericAnnotationValue(rawValue: unknown): number | null {
+  if (typeof rawValue === 'number') {
+    return Number.isFinite(rawValue) ? rawValue : null;
+  }
+
+  if (typeof rawValue === 'bigint') {
+    const parsed = Number(rawValue);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+
+  if (typeof rawValue === 'string') {
+    const trimmed = rawValue.trim();
+    if (!trimmed || trimmed.includes(';') || trimmed.includes('|')) {
+      return null;
+    }
+
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function countNumericStringDecimalPlaces(rawValue: string): number {
+  const trimmed = rawValue.trim().toLowerCase();
+  if (!trimmed) {
+    return 0;
+  }
+
+  const scientificMatch = trimmed.match(/^[-+]?\d+(?:\.(\d+))?[e]([-+]?\d+)$/);
+  if (scientificMatch) {
+    const fractionalDigits = scientificMatch[1]?.length ?? 0;
+    const exponent = Number(scientificMatch[2]);
+    return Number.isFinite(exponent) ? Math.max(0, fractionalDigits - exponent) : 0;
+  }
+
+  const decimalIndex = trimmed.indexOf('.');
+  return decimalIndex === -1 ? 0 : trimmed.length - decimalIndex - 1;
+}
+
+function isScalarNumericAnnotationColumn(values: unknown[]): boolean {
+  let sawNumericValue = false;
+  let sawTypedNumericValue = false;
+  let sawStringValue = false;
+  const distinctNumericStringValues = new Set<number>();
+  let maxStringDecimalPlaces = 0;
+
+  for (const rawValue of values) {
+    if (rawValue == null) {
+      continue;
+    }
+
+    if (typeof rawValue === 'string') {
+      const trimmed = rawValue.trim();
+      if (trimmed === '') {
+        continue;
+      }
+      sawStringValue = true;
+    }
+
+    const parsed = parseNumericAnnotationValue(rawValue);
+    if (parsed == null) {
+      return false;
+    }
+
+    if (typeof rawValue === 'string') {
+      distinctNumericStringValues.add(parsed);
+      maxStringDecimalPlaces = Math.max(
+        maxStringDecimalPlaces,
+        countNumericStringDecimalPlaces(rawValue),
+      );
+    } else {
+      sawTypedNumericValue = true;
+    }
+
+    sawNumericValue = true;
+  }
+
+  if (!sawNumericValue) {
+    return false;
+  }
+
+  if (!sawStringValue) {
+    return true;
+  }
+
+  if (sawTypedNumericValue) {
+    return true;
+  }
+
+  if (distinctNumericStringValues.size < STRING_NUMERIC_MIN_DISTINCT_VALUES) {
+    return false;
+  }
+
+  const scale = 10 ** Math.min(maxStringDecimalPlaces, MAX_STRING_NUMERIC_DENSITY_DECIMALS);
+  const sortedValues = [...distinctNumericStringValues]
+    .map((value) => Math.round(value * scale))
+    .sort((left, right) => left - right);
+  const minValue = sortedValues[0];
+  const maxValue = sortedValues[sortedValues.length - 1];
+  const rangeWidth = maxValue - minValue + 1;
+  const density = rangeWidth > 0 ? sortedValues.length / rangeWidth : 1;
+
+  // Keep sparse numeric-looking string columns categorical by default so
+  // code-style identifiers do not flip to numeric only because cardinality grows.
+  return density >= STRING_NUMERIC_DENSITY_THRESHOLD;
+}
+
+function createNumericAnnotation(): Annotation {
+  return {
+    kind: 'numeric',
+    values: [],
+    colors: [],
+    shapes: [],
+  };
+}
+
+function createCategoricalAnnotation(
+  uniqueValues: string[],
+  colors: string[],
+  shapes: string[],
+): Annotation {
+  return {
+    kind: 'categorical',
+    values: uniqueValues,
+    colors,
+    shapes,
+  };
+}
 
 /**
  * Parse an annotation value that may contain a pipe-separated score or evidence code suffix.
@@ -268,12 +401,28 @@ function convertBundleFormatData(
 
   const annotations: Record<string, Annotation> = {};
   const annotation_data: Record<string, number[][]> = {};
+  const numeric_annotation_data: Record<string, (number | null)[]> = {};
   const annotation_scores: Record<string, (number[] | null)[][]> = {};
   const annotation_evidence: Record<string, (string | null)[][]> = {};
 
   const baseProjectionData = projectionGroups.values().next().value || rows;
+  const baseRowsByProteinId = new Map<string, Rows[number]>();
+  for (const row of baseProjectionData) {
+    baseRowsByProteinId.set(String(row[proteinIdCol] ?? ''), row);
+  }
 
   for (const annotationCol of annotationColumns) {
+    if (isScalarNumericAnnotationColumn(baseProjectionData.map((row) => row[annotationCol]))) {
+      numeric_annotation_data[annotationCol] = uniqueProteinIds.map((proteinId) => {
+        const row = baseRowsByProteinId.get(proteinId);
+        const rawValue = row?.[annotationCol];
+        if (rawValue == null) return null;
+        return parseNumericAnnotationValue(rawValue);
+      });
+      annotations[annotationCol] = createNumericAnnotation();
+      continue;
+    }
+
     const annotationMap = new Map<string, string[]>();
     const annotationScoreMap = new Map<string, (number[] | null)[]>();
     const annotationEvidenceMap = new Map<string, (string | null)[]>();
@@ -339,7 +488,7 @@ function convertBundleFormatData(
       );
     }
 
-    annotations[annotationCol] = { values: uniqueValues, colors, shapes };
+    annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;
   }
 
@@ -348,6 +497,7 @@ function convertBundleFormatData(
     projections,
     annotations,
     annotation_data,
+    numeric_annotation_data,
     annotation_scores,
     annotation_evidence,
   };
@@ -418,19 +568,25 @@ async function convertBundleFormatDataOptimized(
 
   // Use only base projection's rows for annotations (not all rows across projections)
   const baseProjectionRows = projectionGroups.values().next().value || rows;
-  const { annotations, annotation_data, annotation_scores, annotation_evidence } =
-    await extractAnnotationsOptimized(
-      baseProjectionRows,
-      columnNames,
-      proteinIdCol,
-      uniqueProteinIds,
-    );
+  const {
+    annotations,
+    annotation_data,
+    numeric_annotation_data,
+    annotation_scores,
+    annotation_evidence,
+  } = await extractAnnotationsOptimized(
+    baseProjectionRows,
+    columnNames,
+    proteinIdCol,
+    uniqueProteinIds,
+  );
 
   return {
     protein_ids: uniqueProteinIds,
     projections,
     annotations,
     annotation_data,
+    numeric_annotation_data,
     annotation_scores,
     annotation_evidence,
   };
@@ -479,10 +635,23 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
 
   const annotations: Record<string, Annotation> = {};
   const annotation_data: Record<string, number[][]> = {};
+  const numeric_annotation_data: Record<string, (number | null)[]> = {};
   const annotation_scores: Record<string, (number[] | null)[][]> = {};
   const annotation_evidence: Record<string, (string | null)[][]> = {};
 
   for (const annotationCol of annotationColumns) {
+    if (isScalarNumericAnnotationColumn(rows.map((row) => row[annotationCol]))) {
+      const numericValues = rows.map((row) => {
+        const rawValue = row[annotationCol];
+        if (rawValue == null) return null;
+        return parseNumericAnnotationValue(rawValue);
+      });
+
+      annotations[annotationCol] = createNumericAnnotation();
+      numeric_annotation_data[annotationCol] = numericValues;
+      continue;
+    }
+
     const rawValues: string[][] = rows.map((row) => {
       const v = row[annotationCol];
       return v == null ? [] : String(v).split(';');
@@ -520,7 +689,7 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
       valueArray.map((v) => valueToIndex.get(v) ?? -1),
     );
 
-    annotations[annotationCol] = { values: uniqueValues, colors, shapes };
+    annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;
     if (columnHasScores) {
       annotation_scores[annotationCol] = scoresByRow;
@@ -535,6 +704,7 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
     projections,
     annotations,
     annotation_data,
+    numeric_annotation_data,
     annotation_scores,
     annotation_evidence,
   };
@@ -679,6 +849,7 @@ async function extractAnnotationsOptimized(
 ): Promise<{
   annotations: Record<string, Annotation>;
   annotation_data: Record<string, number[][]>;
+  numeric_annotation_data: Record<string, (number | null)[]>;
   annotation_scores: Record<string, (number[] | null)[][]>;
   annotation_evidence: Record<string, (string | null)[][]>;
 }> {
@@ -687,11 +858,18 @@ async function extractAnnotationsOptimized(
 
   const annotations: Record<string, Annotation> = {};
   const annotation_data: Record<string, number[][]> = {};
+  const numeric_annotation_data: Record<string, (number | null)[]> = {};
   const annotation_scores: Record<string, (number[] | null)[][]> = {};
   const annotation_evidence: Record<string, (string | null)[][]> = {};
 
   if (annotationColumns.length === 0) {
-    return { annotations, annotation_data, annotation_scores, annotation_evidence };
+    return {
+      annotations,
+      annotation_data,
+      numeric_annotation_data,
+      annotation_scores,
+      annotation_evidence,
+    };
   }
 
   // Build protein ID → index map once (shared across all columns)
@@ -706,6 +884,33 @@ async function extractAnnotationsOptimized(
   // Process one column at a time so GC can reclaim between columns
   for (let colIdx = 0; colIdx < annotationColumns.length; colIdx++) {
     const annotationCol = annotationColumns[colIdx];
+
+    if (isScalarNumericAnnotationColumn(rows.map((row) => row[annotationCol]))) {
+      const numericValues: (number | null)[] = new Array(numProteins).fill(null);
+
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        const end = Math.min(i + chunkSize, rows.length);
+        for (let r = i; r < end; r++) {
+          const row = rows[r];
+          const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
+          const idx = idToIndex.get(proteinId);
+          if (idx === undefined) continue;
+
+          const rawValue = row[annotationCol];
+          if (rawValue == null) {
+            numericValues[idx] = null;
+            continue;
+          }
+
+          numericValues[idx] = parseNumericAnnotationValue(rawValue);
+        }
+        await fastYield();
+      }
+
+      annotations[annotationCol] = createNumericAnnotation();
+      numeric_annotation_data[annotationCol] = numericValues;
+      continue;
+    }
 
     // === Pass 1: Collect unique values, frequency counts, detect scores/evidence ===
     const valueCountMap = new Map<string, number>();
@@ -784,11 +989,17 @@ async function extractAnnotationsOptimized(
       }
     }
 
-    annotations[annotationCol] = { values: uniqueValues, colors, shapes };
+    annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;
     if (scoresArray) annotation_scores[annotationCol] = scoresArray;
     if (evidenceArray) annotation_evidence[annotationCol] = evidenceArray;
   }
 
-  return { annotations, annotation_data, annotation_scores, annotation_evidence };
+  return {
+    annotations,
+    annotation_data,
+    numeric_annotation_data,
+    annotation_scores,
+    annotation_evidence,
+  };
 }

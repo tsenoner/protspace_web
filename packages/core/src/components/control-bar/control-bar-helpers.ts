@@ -160,21 +160,6 @@ export function applyFiltersToData(data: ProtspaceData, activeFilters: ActiveFil
 }
 
 /**
- * Create custom annotation from filter results
- */
-export function createCustomAnnotation(): {
-  values: string[];
-  colors: string[];
-  shapes: string[];
-} {
-  return {
-    values: ['Filtered Proteins', 'Other Proteins'],
-    colors: ['#00A35A', '#9AA0A6'],
-    shapes: ['circle', 'circle'],
-  };
-}
-
-/**
  * Validate selection mode based on data size
  */
 export function shouldDisableSelection(dataSize: number): boolean {

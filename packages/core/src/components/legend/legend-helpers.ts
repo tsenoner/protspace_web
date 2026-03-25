@@ -5,7 +5,7 @@ import type {
   LegendPersistedSettings,
   ItemAction,
 } from './types';
-import { LEGEND_DEFAULTS, FIRST_NUMBER_SORT_ANNOTATIONS, LEGEND_VALUES } from './config';
+import { LEGEND_DEFAULTS, LEGEND_VALUES } from './config';
 
 /**
  * Pure helper functions for legend component.
@@ -91,11 +91,12 @@ export function calculatePointSize(shapeSize: number): number {
  * Creates default persisted settings for an annotation.
  */
 export function createDefaultSettings(selectedAnnotation: string): LegendPersistedSettings {
+  void selectedAnnotation;
   return {
     maxVisibleValues: LEGEND_DEFAULTS.maxVisibleValues,
     includeShapes: LEGEND_DEFAULTS.includeShapes,
     shapeSize: LEGEND_DEFAULTS.symbolSize,
-    sortMode: FIRST_NUMBER_SORT_ANNOTATIONS.has(selectedAnnotation) ? 'alpha-asc' : 'size-desc',
+    sortMode: 'size-desc',
     hiddenValues: [],
     categories: {},
     enableDuplicateStackUI: LEGEND_DEFAULTS.enableDuplicateStackUI,
@@ -107,7 +108,8 @@ export function createDefaultSettings(selectedAnnotation: string): LegendPersist
  * Gets the default sort mode for an annotation.
  */
 export function getDefaultSortMode(annotationName: string): LegendSortMode {
-  return FIRST_NUMBER_SORT_ANNOTATIONS.has(annotationName) ? 'alpha-asc' : 'size-desc';
+  void annotationName;
+  return 'size-desc';
 }
 
 /**

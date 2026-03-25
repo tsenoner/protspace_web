@@ -46,10 +46,12 @@ class ProtspaceProteinTooltip extends LitElement {
       return html``;
     }
 
-    const geneName = getGeneName(this.protein.annotationValues);
-    const proteinName = getProteinName(this.protein.annotationValues);
-    const uniprotKbId = getUniprotKbId(this.protein.annotationValues);
-    const tooltipAnnotationValues = this.protein.annotationValues[this.selectedAnnotation] ?? [];
+    const displayValues = this.protein.annotationDisplayValues ?? this.protein.annotationValues;
+    const geneName = getGeneName(displayValues);
+    const proteinName = getProteinName(displayValues);
+    const uniprotKbId = getUniprotKbId(displayValues);
+    const tooltipAnnotationValues = displayValues[this.selectedAnnotation] ?? [];
+    const rawNumericValue = this.protein.numericAnnotationValues?.[this.selectedAnnotation] ?? null;
     const tooltipAnnotationScores = this.protein.annotationScores?.[this.selectedAnnotation] ?? [];
     const tooltipAnnotationEvidence =
       this.protein.annotationEvidence?.[this.selectedAnnotation] ?? [];
@@ -74,6 +76,11 @@ class ProtspaceProteinTooltip extends LitElement {
           ${geneName
             ? html`<div class="tooltip-gene-name">
                 <span class="label">Gene:</span> ${geneName}
+              </div>`
+            : ''}
+          ${rawNumericValue !== null
+            ? html`<div class="tooltip-gene-name">
+                <span class="label">Raw value:</span> ${rawNumericValue}
               </div>`
             : ''}
           <div class="tooltip-annotations">

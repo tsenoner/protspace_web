@@ -1,8 +1,19 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import * as d3 from 'd3';
-import type { VisualizationData, PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
-import { DataProcessor } from '@protspace/utils';
+import type {
+  VisualizationData,
+  PlotDataPoint,
+  ScatterplotConfig,
+  NumericAnnotationDisplaySettingsMap,
+} from '@protspace/utils';
+import {
+  DataProcessor,
+  getNumericBinLabelMap,
+  materializeVisualizationData,
+  toInternalValue,
+} from '@protspace/utils';
+import type { LegendSortMode } from '../legend/types';
 import { scatterplotStyles } from './scatter-plot.styles';
 import './projection-metadata';
 import './protspace-tips';
@@ -54,6 +65,11 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Array }) hiddenAnnotationValues: string[] = [];
   @property({ type: Array }) otherAnnotationValues: string[] = [];
   @property({ type: Boolean }) useShapes: boolean = false;
+  @property({ type: Object }) numericAnnotationSettings: NumericAnnotationDisplaySettingsMap = {};
+  @property({ type: Object }) annotationSortModes: Record<string, LegendSortMode> = {};
+  @property({ type: Object }) numericManualOrderIdsByAnnotation: Record<string, string[]> = {};
+  @property({ type: Array }) filteredProteinIds: string[] = [];
+  @property({ type: Boolean, attribute: 'filters-active' }) filtersActive = false;
   @property({ type: Object }) config: Partial<ScatterplotConfig> = {};
   @property({ type: Boolean, attribute: 'show-tour-button' }) showTourButton = false;
 
@@ -72,6 +88,15 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _colorMapping: Record<string, string> | null = null;
   @state() private _shapeMapping: Record<string, string> | null = null;
   @state() private _canvasKey = 0;
+  @state() private _numericRecomputeState: {
+    running: boolean;
+    annotation: string | null;
+    startedAt: number | null;
+  } = {
+    running: false,
+    annotation: null,
+    startedAt: null,
+  };
 
   // Queries
   @query('canvas') private _canvas?: HTMLCanvasElement;
@@ -133,6 +158,11 @@ export class ProtspaceScatterplot extends LitElement {
 
   // Track data reference to detect projection-only changes (same data object, different projection index).
   private _lastDataRef: VisualizationData | null = null;
+  private _lastMaterializedSource: VisualizationData | null = null;
+  private _lastMaterializedNumericValues: Array<number | null> | null = null;
+  private _materializedDataCacheKey: string | null = null;
+  private _materializedDataCache: VisualizationData | null = null;
+  private _numericRecomputeJobId = 0;
 
   // Computed properties with caching
   private get _scales(): ScalePair | null {
@@ -172,6 +202,50 @@ export class ProtspaceScatterplot extends LitElement {
   private _invalidateScalesCache() {
     this._cachedScales = null;
     this._scalesCacheDeps = null;
+  }
+
+  private _getMaterializedData(): VisualizationData | null {
+    if (!this.data) return null;
+
+    const selectedNumericValues = this.selectedAnnotation
+      ? this.data.numeric_annotation_data?.[this.selectedAnnotation]
+      : undefined;
+    const selectedNumericSettings = this.selectedAnnotation
+      ? this.numericAnnotationSettings?.[this.selectedAnnotation]
+      : undefined;
+
+    const cacheKey = JSON.stringify({
+      dataRef: this.data.protein_ids.length,
+      selectedAnnotation: this.selectedAnnotation,
+      selectedNumericValuesLength: selectedNumericValues?.length ?? 0,
+      numericAnnotationSettings: selectedNumericSettings ?? null,
+      annotationKeys: Object.keys(this.data.annotations),
+    });
+
+    if (
+      this._lastMaterializedSource === this.data &&
+      this._lastMaterializedNumericValues === (selectedNumericValues ?? null) &&
+      this._materializedDataCacheKey === cacheKey &&
+      this._materializedDataCache
+    ) {
+      return this._materializedDataCache;
+    }
+
+    this._materializedDataCache = materializeVisualizationData(
+      this.data,
+      this.numericAnnotationSettings,
+      10,
+      this.selectedAnnotation,
+    );
+    this._lastMaterializedSource = this.data;
+    this._lastMaterializedNumericValues = selectedNumericValues ?? null;
+    this._materializedDataCacheKey = cacheKey;
+    return this._materializedDataCache;
+  }
+
+  private _getVisibleProteinIdsSet(): Set<string> | null {
+    if (!this.filtersActive) return null;
+    return new Set(this.filteredProteinIds);
   }
 
   constructor() {
@@ -325,8 +399,18 @@ export class ProtspaceScatterplot extends LitElement {
       }
     }
 
+    const numericSettingsChangedOnly =
+      changedProperties.has('numericAnnotationSettings') &&
+      !changedProperties.has('data') &&
+      !changedProperties.has('filteredProteinIds') &&
+      !changedProperties.has('filtersActive') &&
+      !changedProperties.has('selectedProjectionIndex') &&
+      !changedProperties.has('projectionPlane');
+
     if (
       changedProperties.has('data') ||
+      changedProperties.has('filteredProteinIds') ||
+      changedProperties.has('filtersActive') ||
       changedProperties.has('selectedProjectionIndex') ||
       changedProperties.has('projectionPlane')
     ) {
@@ -343,15 +427,23 @@ export class ProtspaceScatterplot extends LitElement {
       }
 
       // Dispatch data-change event for auto-sync with control bar and other components
-      if (changedProperties.has('data') && this.data) {
+      if (
+        (changedProperties.has('data') ||
+          changedProperties.has('filteredProteinIds') ||
+          changedProperties.has('filtersActive')) &&
+        this.data
+      ) {
         this.dispatchEvent(
           new CustomEvent('data-change', {
-            detail: { data: this.data },
+            detail: { data: this.getCurrentData() ?? this._getMaterializedData() ?? this.data },
             bubbles: true,
             composed: true,
           }),
         );
       }
+    }
+    if (numericSettingsChangedOnly && this.data) {
+      this._scheduleNumericAnnotationRefresh();
     }
     if (changedProperties.has('config')) {
       const prev = this._mergedConfig;
@@ -396,6 +488,7 @@ export class ProtspaceScatterplot extends LitElement {
     // Refresh cached style getters when any relevant input changes
     if (
       changedProperties.has('data') ||
+      changedProperties.has('numericAnnotationSettings') ||
       changedProperties.has('selectedAnnotation') ||
       changedProperties.has('hiddenAnnotationValues') ||
       changedProperties.has('otherAnnotationValues') ||
@@ -453,7 +546,7 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _processData() {
-    const dataToUse = this.data;
+    const dataToUse = this._getCurrentDisplayData();
     if (!dataToUse) return;
 
     // Detect whether only the projection changed (same data reference, not in isolation mode).
@@ -491,6 +584,173 @@ export class ProtspaceScatterplot extends LitElement {
     // Invalidate scales cache when plot data changes
     this._invalidateScalesCache();
     this._invalidateVirtualizationCache();
+  }
+
+  private _refreshSelectedAnnotationValues(dataToUse: VisualizationData) {
+    const annotationName = this.selectedAnnotation;
+    const annotation = dataToUse.annotations[annotationName];
+    const annotationRows = dataToUse.annotation_data?.[annotationName];
+
+    if (!annotation || !annotationRows) {
+      this._processData();
+      return;
+    }
+
+    const numericLabelMap = getNumericBinLabelMap(annotation);
+
+    for (const point of this._plotData) {
+      const annotationIndicesData = annotationRows[point.originalIndex];
+      const annotationIndices: unknown[] = Array.isArray(annotationIndicesData)
+        ? annotationIndicesData
+        : annotationIndicesData == null
+          ? []
+          : [annotationIndicesData];
+
+      point.annotationValues[annotationName] = annotationIndices
+        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+        .map((value) => toInternalValue(annotation.values[value]));
+      if (point.annotationDisplayValues) {
+        point.annotationDisplayValues[annotationName] = point.annotationValues[annotationName].map(
+          (value) => numericLabelMap.get(value) ?? value,
+        );
+      }
+    }
+
+    this._plotData = [...this._plotData];
+    this._lastDataRef = dataToUse;
+    this._invalidateVirtualizationCache();
+  }
+
+  private _scheduleNumericAnnotationRefresh() {
+    if (!this.data) return;
+
+    const jobId = ++this._numericRecomputeJobId;
+    this._numericRecomputeState = {
+      running: true,
+      annotation: this.selectedAnnotation,
+      startedAt: performance.now(),
+    };
+    this.dispatchEvent(
+      new CustomEvent('numeric-recompute-start', {
+        detail: { annotation: this.selectedAnnotation },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    this.requestUpdate();
+
+    requestAnimationFrame(() => {
+      if (jobId !== this._numericRecomputeJobId) return;
+
+      const materializedData = this._getMaterializedData();
+      if (!materializedData) {
+        this._numericRecomputeState = { running: false, annotation: null, startedAt: null };
+        return;
+      }
+
+      const displayData = this._getCurrentDisplayData() ?? materializedData;
+
+      if (this._plotData.length > 0) {
+        this._refreshSelectedAnnotationValues(displayData);
+      } else {
+        this._processData();
+      }
+
+      this._scheduleQuadtreeRebuild();
+      this._webglRenderer?.invalidateStyleCache();
+      this._updateStyleSignature();
+      this._webglRenderer?.setStyleSignature(this._styleSig);
+      this._renderPlot();
+      this._updateSelectionOverlays();
+
+      const currentData = this.getCurrentData() ?? displayData ?? materializedData ?? this.data;
+      if (currentData) {
+        this.dispatchEvent(
+          new CustomEvent('data-change', {
+            detail: { data: currentData },
+            bubbles: true,
+            composed: true,
+          }),
+        );
+      }
+
+      this.dispatchEvent(
+        new CustomEvent('numeric-recompute-end', {
+          detail: {
+            annotation: this.selectedAnnotation,
+            durationMs:
+              this._numericRecomputeState.startedAt == null
+                ? 0
+                : performance.now() - this._numericRecomputeState.startedAt,
+          },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+      this._numericRecomputeState = { running: false, annotation: null, startedAt: null };
+      this.requestUpdate();
+    });
+  }
+
+  private _getCurrentDisplayData(options?: {
+    includeFilteredProteinIds?: boolean;
+  }): VisualizationData | null {
+    const materializedData = this._getMaterializedData();
+    if (!materializedData) return null;
+
+    const visibleProteinIds =
+      options?.includeFilteredProteinIds === false ? null : this._getVisibleProteinIdsSet();
+    if (!visibleProteinIds) {
+      return materializedData;
+    }
+
+    const keptIndices: number[] = [];
+    materializedData.protein_ids.forEach((proteinId, index) => {
+      if (visibleProteinIds.has(proteinId)) {
+        keptIndices.push(index);
+      }
+    });
+
+    return {
+      ...materializedData,
+      protein_ids: keptIndices.map((index) => materializedData.protein_ids[index]),
+      projections: materializedData.projections.map((projection) => ({
+        ...projection,
+        data: keptIndices.map((index) => projection.data[index]),
+      })),
+      annotation_data: Object.fromEntries(
+        Object.entries(materializedData.annotation_data).map(([annotationName, rows]) => [
+          annotationName,
+          keptIndices.map((index) => rows[index]),
+        ]),
+      ),
+      numeric_annotation_data: materializedData.numeric_annotation_data
+        ? Object.fromEntries(
+            Object.entries(materializedData.numeric_annotation_data).map(
+              ([annotationName, values]) => [
+                annotationName,
+                keptIndices.map((index) => values[index]),
+              ],
+            ),
+          )
+        : undefined,
+      annotation_scores: materializedData.annotation_scores
+        ? Object.fromEntries(
+            Object.entries(materializedData.annotation_scores).map(([annotationName, rows]) => [
+              annotationName,
+              keptIndices.map((index) => rows[index]),
+            ]),
+          )
+        : undefined,
+      annotation_evidence: materializedData.annotation_evidence
+        ? Object.fromEntries(
+            Object.entries(materializedData.annotation_evidence).map(([annotationName, rows]) => [
+              annotationName,
+              keptIndices.map((index) => rows[index]),
+            ]),
+          )
+        : undefined,
+    };
   }
 
   /**
@@ -1335,7 +1595,12 @@ export class ProtspaceScatterplot extends LitElement {
 
   /** Build style getters for the current data and visual state. */
   private _buildStyleGetters(): ReturnType<typeof createStyleGetters> {
-    return createStyleGetters(this.data, {
+    const styleData =
+      this._getCurrentDisplayData({ includeFilteredProteinIds: false }) ??
+      this._getMaterializedData() ??
+      this.data;
+
+    return createStyleGetters(styleData, {
       selectedProteinIds: this.selectedProteinIds,
       highlightedProteinIds: this.highlightedProteinIds,
       selectedAnnotation: this.selectedAnnotation,
@@ -1377,12 +1642,13 @@ export class ProtspaceScatterplot extends LitElement {
   private _handleMouseOver(event: MouseEvent, point: PlotDataPoint) {
     const { x, y } = this._getLocalPointerPosition(event);
     this._tooltipData = { x, y, protein: point };
+    const pointForEvent = this._createDisplayPoint(point);
 
     if (this._hoveredProteinId !== point.id) {
       this._hoveredProteinId = point.id;
       this.dispatchEvent(
         new CustomEvent('protein-hover', {
-          detail: { proteinId: point.id, point },
+          detail: { proteinId: point.id, point: pointForEvent },
           bubbles: true,
         }),
       );
@@ -1390,11 +1656,12 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _handleClick(event: MouseEvent, point: PlotDataPoint) {
+    const pointForEvent = this._createDisplayPoint(point);
     this.dispatchEvent(
       new CustomEvent('protein-click', {
         detail: {
           proteinId: point.id,
-          point,
+          point: pointForEvent,
           modifierKeys: {
             ctrl: event.ctrlKey,
             meta: event.metaKey,
@@ -1406,6 +1673,15 @@ export class ProtspaceScatterplot extends LitElement {
         composed: true,
       }),
     );
+  }
+
+  private _createDisplayPoint(point: PlotDataPoint): PlotDataPoint {
+    return point.annotationDisplayValues
+      ? {
+          ...point,
+          annotationValues: point.annotationDisplayValues,
+        }
+      : point;
   }
 
   /**
@@ -1672,6 +1948,13 @@ export class ProtspaceScatterplot extends LitElement {
         ${this._isolationMode
           ? html` <div class="isolation-indicator">${this._plotData.length} points</div> `
           : ''}
+        ${this._numericRecomputeState.running
+          ? html`
+              <div class="isolation-indicator" style="left: auto; right: 0.5rem;">
+                Recalculating bins for ${this._numericRecomputeState.annotation ?? 'annotation'}...
+              </div>
+            `
+          : ''}
       </div>
     `;
   }
@@ -1828,37 +2111,66 @@ export class ProtspaceScatterplot extends LitElement {
     return this._isolationMode;
   }
 
-  getCurrentData(): VisualizationData | null {
-    if (!this.data) return null;
+  getCurrentData(options?: { includeFilteredProteinIds?: boolean }): VisualizationData | null {
+    const currentDisplayData = this._getCurrentDisplayData(options);
+    if (!currentDisplayData) return null;
 
     // If we're in isolation mode, return filtered data based on current plot data
     if (this._isolationMode && this._plotData.length > 0) {
       const currentProteinIds = this._plotData.map((point) => point.id);
       const currentProteinIdsSet = new Set(currentProteinIds);
+      const keptIndices: number[] = [];
+      currentDisplayData.protein_ids.forEach((proteinId, index) => {
+        if (currentProteinIdsSet.has(proteinId)) {
+          keptIndices.push(index);
+        }
+      });
 
       // Filter annotation data to match current protein IDs
       const filteredAnnotationData: { [key: string]: number[][] } = {};
+      const filteredNumericAnnotationData: { [key: string]: (number | null)[] } = {};
 
-      for (const [annotationName, annotationValues] of Object.entries(this.data.annotation_data)) {
+      for (const [annotationName, annotationValues] of Object.entries(
+        currentDisplayData.annotation_data,
+      )) {
         filteredAnnotationData[annotationName] = [];
 
         // Map original indices to current indices
-        this.data.protein_ids.forEach((proteinId, originalIndex) => {
+        currentDisplayData.protein_ids.forEach((proteinId, originalIndex) => {
           if (currentProteinIdsSet.has(proteinId)) {
             filteredAnnotationData[annotationName].push(annotationValues[originalIndex]);
           }
         });
       }
 
+      for (const [annotationName, annotationValues] of Object.entries(
+        currentDisplayData.numeric_annotation_data ?? {},
+      )) {
+        filteredNumericAnnotationData[annotationName] = [];
+        currentDisplayData.protein_ids.forEach((proteinId, originalIndex) => {
+          if (currentProteinIdsSet.has(proteinId)) {
+            filteredNumericAnnotationData[annotationName].push(annotationValues[originalIndex]);
+          }
+        });
+      }
+
       return {
-        ...this.data,
+        ...currentDisplayData,
         protein_ids: currentProteinIds,
         annotation_data: filteredAnnotationData,
-        projections: this.data.projections, // Keep original projections
+        numeric_annotation_data: filteredNumericAnnotationData,
+        projections: currentDisplayData.projections.map((projection) => ({
+          ...projection,
+          data: keptIndices.map((index) => projection.data[index]),
+        })),
       };
     }
 
-    return this.data;
+    return currentDisplayData;
+  }
+
+  getMaterializedData(): VisualizationData | null {
+    return this._getMaterializedData();
   }
 
   /**

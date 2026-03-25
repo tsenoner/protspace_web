@@ -43,7 +43,15 @@ function renderOtherItem(item: OtherItem, callbacks: OtherDialogCallbacks): Temp
  */
 export function renderCloseIcon(): TemplateResult {
   return html`
-    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg
+      width="24"
+      height="24"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden="true"
+      focusable="false"
+    >
       <path
         stroke-linecap="round"
         stroke-linejoin="round"

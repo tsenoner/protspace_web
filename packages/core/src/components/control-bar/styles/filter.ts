@@ -190,6 +190,12 @@ export const filterStyles = css`
     box-sizing: border-box;
   }
 
+  .filter-menu-list-item-options-note {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
   .filter-menu-list-item-options-done > button {
     width: 100%;
     box-sizing: border-box;

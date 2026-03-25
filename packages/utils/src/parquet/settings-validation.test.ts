@@ -164,9 +164,38 @@ describe('settings-validation', () => {
       expect(normalizeBundleSettings(settings)).toEqual(settings);
     });
 
-    it('returns null for invalid settings', () => {
-      expect(normalizeBundleSettings({ nope: true })).toBeNull();
+    it('returns empty normalized settings for malformed settings objects', () => {
+      expect(normalizeBundleSettings({ nope: true })).toEqual({
+        legendSettings: {},
+        exportOptions: {},
+      });
       expect(normalizeBundleSettings(null)).toBeNull();
+    });
+
+    it('drops invalid numeric settings but preserves the rest of the annotation settings', () => {
+      expect(
+        normalizeBundleSettings({
+          legendSettings: {
+            length: {
+              ...createValidLegendSettings(),
+              selectedPaletteId: 'viridis',
+              numericSettings: {
+                strategy: 'log',
+                signature: 'old-sig',
+              },
+            },
+          },
+          exportOptions: {},
+        }),
+      ).toEqual({
+        legendSettings: {
+          length: {
+            ...createValidLegendSettings(),
+            selectedPaletteId: 'viridis',
+          },
+        },
+        exportOptions: {},
+      });
     });
   });
 });

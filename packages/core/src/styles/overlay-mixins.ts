@@ -60,6 +60,7 @@ export const overlayMixins = css`
     align-items: center;
     justify-content: center;
     z-index: var(--z-modal);
+    overscroll-behavior: contain;
   }
 
   .modal-content {

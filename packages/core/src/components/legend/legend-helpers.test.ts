@@ -154,21 +154,13 @@ describe('legend-helpers', () => {
       expect(settings.categories).toEqual({});
     });
 
-    it('creates default settings with alpha-asc sort for length annotations', () => {
-      const settings = createDefaultSettings('length_fixed');
-      expect(settings.sortMode).toBe('alpha-asc');
+    it('creates default settings with size-desc sort for annotations without metadata', () => {
+      const settings = createDefaultSettings('length');
+      expect(settings.sortMode).toBe('size-desc');
     });
   });
 
   describe('getDefaultSortMode', () => {
-    it('returns alpha-asc for length_fixed', () => {
-      expect(getDefaultSortMode('length_fixed')).toBe('alpha-asc');
-    });
-
-    it('returns alpha-asc for length_quantile', () => {
-      expect(getDefaultSortMode('length_quantile')).toBe('alpha-asc');
-    });
-
     it('returns size-desc for other annotations', () => {
       expect(getDefaultSortMode('some_annotation')).toBe('size-desc');
     });
@@ -294,14 +286,9 @@ describe('legend-helpers', () => {
       expect(result).toEqual({ some_annotation: 'size-desc' });
     });
 
-    it('defaults to alpha-asc for length_fixed annotation', () => {
-      const result = initializeAnnotationSortMode({}, 'length_fixed', {});
-      expect(result).toEqual({ length_fixed: 'alpha-asc' });
-    });
-
-    it('defaults to alpha-asc for length_quantile annotation', () => {
-      const result = initializeAnnotationSortMode({}, 'length_quantile', {});
-      expect(result).toEqual({ length_quantile: 'alpha-asc' });
+    it('defaults to size-desc for raw annotation names without legend metadata', () => {
+      const result = initializeAnnotationSortMode({}, 'length', {});
+      expect(result).toEqual({ length: 'size-desc' });
     });
   });
 

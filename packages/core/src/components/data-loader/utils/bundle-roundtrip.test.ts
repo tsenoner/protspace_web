@@ -99,6 +99,89 @@ describe('round-trip with real data files', () => {
     const delimiterCount = countBundleDelimiters(uint8Array);
     expect(delimiterCount).toBe(3);
   });
+
+  it('should preserve raw numeric annotations through export/import', async () => {
+    const filePath = resolve(
+      __dirname,
+      '../../../../../../app/tests/fixtures/phosphatase_no_binning.parquetbundle',
+    );
+    const buffer = readFileSync(filePath);
+    const arrayBuffer = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength,
+    );
+
+    const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(arrayBuffer);
+    const original = convertParquetToVisualizationData(rows, projectionsMetadata);
+
+    expect(original.annotations.length?.kind).toBe('numeric');
+    expect(original.numeric_annotation_data?.length).toBeDefined();
+
+    const exportedBuffer = createParquetBundle(original);
+    const { rows: reimportedRows, projectionsMetadata: reimportedMetadata } =
+      await extractRowsFromParquetBundle(exportedBuffer);
+    const reimported = convertParquetToVisualizationData(reimportedRows, reimportedMetadata);
+
+    expect(reimported.annotations.length?.kind).toBe('numeric');
+    expect(reimported.numeric_annotation_data?.length).toEqual(
+      original.numeric_annotation_data?.length,
+    );
+  });
+
+  it('round-trips numeric legend settings through bundle settings', async () => {
+    const original = {
+      protein_ids: ['P1', 'P2', 'P3'],
+      projections: [
+        {
+          name: 'UMAP',
+          data: [
+            [0, 0],
+            [1, 1],
+            [2, 2],
+          ] as Array<[number, number]>,
+        },
+      ],
+      annotations: {
+        length: { kind: 'numeric' as const, values: [], colors: [], shapes: [] },
+      },
+      annotation_data: {},
+      numeric_annotation_data: {
+        length: [10, 50, 100],
+      },
+      annotation_scores: {},
+      annotation_evidence: {},
+    };
+
+    const settings = {
+      legendSettings: {
+        length: {
+          maxVisibleValues: 5,
+          includeShapes: false,
+          shapeSize: 24,
+          sortMode: 'alpha-asc' as const,
+          hiddenValues: ['10 - <28'],
+          categories: {},
+          enableDuplicateStackUI: false,
+          selectedPaletteId: 'cividis',
+          numericSettings: {
+            strategy: 'logarithmic' as const,
+            signature: 'abc12345',
+            topologySignature: 'def67890',
+            reverseGradient: false,
+          },
+        },
+      },
+      exportOptions: {},
+    };
+
+    const exportedBuffer = createParquetBundle(original, {
+      includeSettings: true,
+      settings,
+    });
+    const extracted = await extractRowsFromParquetBundle(exportedBuffer);
+
+    expect(extracted.settings).toEqual(settings);
+  });
 });
 
 describe('metadata preservation through round-trip', () => {
@@ -207,5 +290,50 @@ describe('metadata preservation through round-trip', () => {
         expect(reimportedMeta[key]).toEqual(value);
       }
     }
+  });
+});
+
+describe('numeric annotation round-trip', () => {
+  it('preserves raw numeric annotations through bundle export and import', async () => {
+    const original = {
+      protein_ids: ['P1', 'P2', 'P3'],
+      projections: [
+        {
+          name: 'UMAP',
+          data: [
+            [0, 0],
+            [1, 1],
+            [2, 2],
+          ] as Array<[number, number]>,
+        },
+      ],
+      annotations: {
+        length: { kind: 'numeric' as const, values: [], colors: [], shapes: [] },
+        family: {
+          kind: 'categorical' as const,
+          values: ['A', 'B'],
+          colors: ['#1F77B4', '#FF7F0E'],
+          shapes: ['circle', 'circle'],
+        },
+      },
+      annotation_data: {
+        family: [[0], [1], [0]],
+      },
+      numeric_annotation_data: {
+        length: [100, 250, null],
+      },
+      annotation_scores: {},
+      annotation_evidence: {},
+    };
+
+    const exportedBuffer = createParquetBundle(original);
+    const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(exportedBuffer);
+    const reimported = convertParquetToVisualizationData(rows, projectionsMetadata);
+
+    expect(reimported.annotations.length.kind).toBe('numeric');
+    expect(reimported.numeric_annotation_data?.length).toEqual([100, 250, null]);
+    expect(reimported.annotation_data.length).toBeUndefined();
+    expect(reimported.annotations.family.kind).toBe('categorical');
+    expect(reimported.annotation_data.family).toEqual([[0], [1], [0]]);
   });
 });

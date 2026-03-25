@@ -9,7 +9,6 @@ import {
   getActiveFilters,
   doesProteinMatchFilters,
   applyFiltersToData,
-  createCustomAnnotation,
   shouldDisableSelection,
   getSelectionDisabledMessage,
   areFilterConfigsEqual,
@@ -434,23 +433,6 @@ describe('control-bar-helpers', () => {
       const result = applyFiltersToData(data, []);
       // With no filters, all proteins match (no criteria to fail)
       expect(result).toEqual([0, 0, 0, 0]);
-    });
-  });
-
-  describe('createCustomAnnotation', () => {
-    it('creates annotation with correct structure', () => {
-      const result = createCustomAnnotation();
-
-      expect(result.values).toEqual(['Filtered Proteins', 'Other Proteins']);
-      expect(result.colors).toEqual(['#00A35A', '#9AA0A6']);
-      expect(result.shapes).toEqual(['circle', 'circle']);
-    });
-
-    it('returns same structure on repeated calls', () => {
-      const result1 = createCustomAnnotation();
-      const result2 = createCustomAnnotation();
-
-      expect(result1).toEqual(result2);
     });
   });
 
