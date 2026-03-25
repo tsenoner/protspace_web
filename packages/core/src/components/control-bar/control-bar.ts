@@ -9,8 +9,6 @@ import type {
   DataLoaderElement,
   StructureViewerElement,
 } from './types';
-import { LEGEND_VALUES } from '@protspace/utils';
-import { toInternalValue } from '../legend/config';
 import { handleDropdownEscape, isAnyDropdownOpen } from '../../utils/dropdown-helpers';
 import {
   EXPORT_DEFAULTS,
@@ -29,6 +27,8 @@ import {
 } from './control-bar.events';
 import './search';
 import './annotation-select';
+import './query-builder';
+import type { FilterQuery } from './query-types';
 
 /** Annotations used only for tooltip display, hidden from the annotation dropdown */
 const TOOLTIP_ONLY_ANNOTATIONS = new Set(['gene_name', 'protein_name', 'uniprot_kb_id']);
@@ -74,13 +74,10 @@ export class ProtspaceControlBar extends LitElement {
   @state() private showImportMenu: boolean = false;
   @state() private showFilterMenu: boolean = false;
   @state() private showProjectionMenu: boolean = false;
-  @state() private annotationValuesMap: Record<string, string[]> = {};
-  @state() private filterConfig: Record<string, { enabled: boolean; values: string[] }> = {};
-  @state() private lastAppliedFilterConfig: Record<string, { enabled: boolean; values: string[] }> =
-    {};
-  @state() private openValueMenus: Record<string, boolean> = {};
+  @state() private filterQuery: FilterQuery = [];
+  @state() private filterActive = false;
+  @state() private _currentData: ProtspaceData | undefined;
   @state() private projectionHighlightIndex: number = -1;
-  @state() private filterHighlightIndex: number = -1;
 
   // Export configuration state
   @state() private exportFormat: 'png' | 'pdf' | 'ids' | 'parquet' = EXPORT_DEFAULTS.FORMAT;
@@ -828,9 +825,8 @@ export class ProtspaceControlBar extends LitElement {
           <div class="data-actions-group" data-driver-id="data-actions">
             <div class="filter-container right-controls-filter">
               <button
-                class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''}"
+                class="dropdown-trigger ${this.showFilterMenu ? 'open' : ''} ${this.filterActive ? 'filter-active' : ''}"
                 @click=${this.toggleFilterMenu}
-                @keydown=${this.handleFilterKeydown}
                 title="Filter Options"
               >
                 <svg class="icon" viewBox="0 0 24 24">
@@ -841,151 +837,24 @@ export class ProtspaceControlBar extends LitElement {
                   />
                 </svg>
                 Filter
-                <svg class="chevron-down" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
+                ${this.filterActive
+                  ? html`<span class="filter-badge">${this.filterQuery.length}</span>`
+                  : html`<svg class="chevron-down" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>`}
               </button>
 
               ${this.showFilterMenu
                 ? html`
-                    <div class="filter-menu" @keydown=${this.handleFilterKeydown}>
-                      <ul class="filter-menu-list">
-                        ${this.annotations.map((annotation, index) => {
-                          const cfg = this.filterConfig[annotation] || {
-                            enabled: false,
-                            values: [],
-                          };
-                          const values = this.annotationValuesMap[annotation] || [];
-                          return html` <li
-                            class="filter-menu-list-item ${cfg.enabled
-                              ? 'filter-enabled'
-                              : ''} ${index === this.filterHighlightIndex ? 'highlighted' : ''}"
-                            @mouseenter=${() => {
-                              this.filterHighlightIndex = index;
-                            }}
-                          >
-                            <div class="filter-item-header">
-                              <label class="filter-item-checkbox-label">
-                                <input
-                                  type="checkbox"
-                                  class="filter-item-checkbox"
-                                  .checked=${cfg.enabled}
-                                  @change=${(e: Event) => {
-                                    const target = e.target as HTMLInputElement;
-                                    this.handleFilterToggle(annotation, target.checked);
-                                  }}
-                                />
-                                <span class="filter-item-name">${annotation}</span>
-                              </label>
-                              ${cfg.enabled && cfg.values && cfg.values.length > 0
-                                ? html`<span class="filter-item-badge"
-                                    >${cfg.values.length} selected</span
-                                  >`
-                                : ''}
-                            </div>
-                            <button
-                              class="btn-secondary filter-item-values-button"
-                              ?disabled=${!cfg.enabled}
-                              @click=${() => this.toggleValueMenu(annotation)}
-                            >
-                              ${cfg.values && cfg.values.length > 0
-                                ? 'Edit values'
-                                : 'Select values'}
-                              <svg class="chevron-down" viewBox="0 0 24 24">
-                                <path
-                                  stroke-linecap="round"
-                                  stroke-linejoin="round"
-                                  d="M19 9l-7 7-7-7"
-                                />
-                              </svg>
-                            </button>
-                            ${this.openValueMenus[annotation] && cfg.enabled
-                              ? html`
-                                  <div class="filter-menu-list-item-options">
-                                    <div class="filter-menu-list-item-options-selection">
-                                      <button
-                                        class="btn-danger"
-                                        @click=${() => this.clearAllValues(annotation)}
-                                      >
-                                        Clear all
-                                      </button>
-                                      <button
-                                        class="btn-secondary"
-                                        @click=${() => this.selectAllValues(annotation)}
-                                      >
-                                        Select all
-                                      </button>
-                                    </div>
-                                    <div class="filter-menu-list-item-options-inputs">
-                                      ${values.some((v) => v === LEGEND_VALUES.NA_VALUE)
-                                        ? html`
-                                            <label class="filter-value-label">
-                                              <input
-                                                type="checkbox"
-                                                class="filter-value-checkbox"
-                                                .checked=${(cfg.values || []).includes(
-                                                  LEGEND_VALUES.NA_VALUE,
-                                                )}
-                                                @change=${(e: Event) =>
-                                                  this.handleValueToggle(
-                                                    annotation,
-                                                    LEGEND_VALUES.NA_VALUE,
-                                                    (e.target as HTMLInputElement).checked,
-                                                  )}
-                                              />
-                                              <span class="filter-value-text"
-                                                >${LEGEND_VALUES.NA_DISPLAY}</span
-                                              >
-                                            </label>
-                                          `
-                                        : ''}
-                                      ${Array.from(
-                                        new Set(values.filter((v) => v !== LEGEND_VALUES.NA_VALUE)),
-                                      ).map(
-                                        (v) => html`
-                                          <label class="filter-value-label">
-                                            <input
-                                              type="checkbox"
-                                              class="filter-value-checkbox"
-                                              .checked=${(cfg.values || []).includes(String(v))}
-                                              @change=${(e: Event) =>
-                                                this.handleValueToggle(
-                                                  annotation,
-                                                  String(v),
-                                                  (e.target as HTMLInputElement).checked,
-                                                )}
-                                            />
-                                            <span class="filter-value-text">${String(v)}</span>
-                                          </label>
-                                        `,
-                                      )}
-                                    </div>
-                                    <div class="filter-menu-list-item-options-done">
-                                      <button
-                                        class="btn-primary"
-                                        @click=${() => this.toggleValueMenu(annotation)}
-                                      >
-                                        Done
-                                      </button>
-                                    </div>
-                                  </div>
-                                `
-                              : ''}
-                          </li>`;
-                        })}
-                      </ul>
-                      <div class="filter-menu-buttons">
-                        <button
-                          class="btn-secondary"
-                          @click=${() => {
-                            this.showFilterMenu = false;
-                          }}
-                        >
-                          Cancel
-                        </button>
-                        <button class="btn-primary" @click=${this.applyFilters}>Apply</button>
-                      </div>
-                    </div>
+                    <protspace-query-builder
+                      class="filter-menu"
+                      .annotations=${this.annotations}
+                      .data=${this._currentData}
+                      .query=${this.filterQuery}
+                      @query-changed=${this._handleQueryChanged}
+                      @query-apply=${this._handleQueryApply}
+                      @query-reset=${this._handleQueryReset}
+                    ></protspace-query-builder>
                   `
                 : ''}
             </div>
@@ -1580,9 +1449,7 @@ export class ProtspaceControlBar extends LitElement {
       this.showImportMenu = false;
       this.showFilterMenu = false;
       this.showProjectionMenu = false;
-      this.openValueMenus = {};
       this.projectionHighlightIndex = -1;
-      this.filterHighlightIndex = -1;
 
       // Close annotation dropdown via custom event
       const annotationSelect = this.shadowRoot?.querySelector('protspace-annotation-select');
@@ -1660,11 +1527,10 @@ export class ProtspaceControlBar extends LitElement {
     } catch (e) {
       console.error(e);
     }
-    // Update annotation value options for filter UI
-    try {
-      this._initializeFilterConfig(data);
-    } catch (e) {
-      console.error(e);
+    // Keep current data reference for query builder
+    if (this._scatterplotElement) {
+      const sp = this._scatterplotElement as ScatterplotElementLike;
+      this._currentData = sp.getCurrentData?.();
     }
 
     this._syncExportPersistenceFromData(data);
@@ -1781,27 +1647,6 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
-  /**
-   * Build annotation values map and initialize filter config from data
-   */
-  private _initializeFilterConfig(data: ProtspaceData) {
-    const annotations = data.annotations || {};
-    const map: Record<string, string[]> = {};
-    Object.keys(annotations).forEach((k) => {
-      const vals = annotations[k]?.values as (string | null)[] | undefined;
-      if (Array.isArray(vals)) {
-        map[k] = vals.map(toInternalValue);
-      }
-    });
-    this.annotationValuesMap = map;
-
-    const nextConfig: typeof this.filterConfig = { ...this.filterConfig };
-    Object.keys(map).forEach((k) => {
-      if (!nextConfig[k]) nextConfig[k] = { enabled: false, values: [] };
-    });
-    this.filterConfig = nextConfig;
-  }
-
   private _syncWithScatterplot() {
     if (this._scatterplotElement && 'getCurrentData' in this._scatterplotElement) {
       const scatterplot = this._scatterplotElement as ScatterplotElementLike;
@@ -1811,13 +1656,6 @@ export class ProtspaceControlBar extends LitElement {
       if (data) {
         // Extract projections and annotations
         this._updateOptionsFromData(data);
-
-        // Build annotation values map for filter UI
-        try {
-          this._initializeFilterConfig(data);
-        } catch (e) {
-          console.error(e);
-        }
 
         // Sync current values from scatterplot
         if (scatterplot.selectedAnnotation !== undefined) {
@@ -1994,246 +1832,49 @@ export class ProtspaceControlBar extends LitElement {
     this.showFilterMenu = opening;
     if (opening) {
       this.closeOtherDropdowns('filter');
-      // Restore last applied configuration if available
-      if (this.lastAppliedFilterConfig && Object.keys(this.lastAppliedFilterConfig).length > 0) {
-        const merged: typeof this.filterConfig = { ...this.filterConfig };
-        for (const key of Object.keys(this.lastAppliedFilterConfig)) {
-          const prev = merged[key] || { enabled: false, values: [] };
-          const applied = this.lastAppliedFilterConfig[key];
-          merged[key] = { ...prev, ...applied };
-        }
-        this.filterConfig = merged;
-        this.openValueMenus = {};
+      // Refresh current data for the query builder
+      if (this._scatterplotElement) {
+        const sp = this._scatterplotElement as ScatterplotElementLike;
+        this._currentData = sp.getCurrentData?.();
       }
-      this.filterHighlightIndex = 0;
-    } else {
-      this.filterHighlightIndex = -1;
     }
   }
 
-  private handleFilterKeydown(event: KeyboardEvent) {
-    if (!this.showFilterMenu) {
-      // Handle trigger button keys
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        this.toggleFilterMenu();
-      }
-      return;
-    }
-
-    // Check if any submenu is open - if so, allow native checkbox navigation
-    const hasOpenSubmenu = Object.values(this.openValueMenus).some((isOpen) => isOpen);
-    if (hasOpenSubmenu) {
-      // Let Tab and Shift+Tab work naturally for checkboxes in submenu
-      if (event.key === 'Tab') {
-        return; // Allow default Tab behavior
-      }
-      // Escape closes the submenu
-      if (event.key === 'Escape') {
-        handleDropdownEscape(event, () => {
-          this.openValueMenus = {};
-        });
-        return;
-      }
-      return;
-    }
-
-    // Special handling for Space and Enter/ArrowRight in filter menu
-    if (event.key === ' ') {
-      event.preventDefault();
-      if (this.filterHighlightIndex >= 0 && this.filterHighlightIndex < this.annotations.length) {
-        const annotation = this.annotations[this.filterHighlightIndex];
-        const cfg = this.filterConfig[annotation] || { enabled: false, values: [] };
-        this.handleFilterToggle(annotation, !cfg.enabled);
-      }
-      return;
-    }
-
-    if (event.key === 'Enter' || event.key === 'ArrowRight') {
-      event.preventDefault();
-      if (this.filterHighlightIndex >= 0 && this.filterHighlightIndex < this.annotations.length) {
-        const annotation = this.annotations[this.filterHighlightIndex];
-        const cfg = this.filterConfig[annotation] || { enabled: false, values: [] };
-        if (cfg.enabled) {
-          this.toggleValueMenu(annotation);
-        }
-      }
-      return;
-    }
-
-    // Use shared dropdown keyboard handler for common keys
-    this.handleDropdownKeydown(event, {
-      items: this.annotations,
-      highlightIndex: this.filterHighlightIndex,
-      onHighlightChange: (index) => {
-        this.filterHighlightIndex = index;
-      },
-      onSelect: () => {
-        // Filter doesn't select on Enter, handled above
-      },
-      onClose: () => {
-        this.showFilterMenu = false;
-        this.filterHighlightIndex = -1;
-      },
-      supportHomeEnd: false,
-    });
+  private _handleQueryChanged(e: CustomEvent<{ query: FilterQuery }>) {
+    this.filterQuery = e.detail.query;
   }
 
-  private handleFilterToggle(annotation: string, enabled: boolean) {
-    const current = this.filterConfig[annotation] || {
-      enabled: false,
-      values: [],
-    };
-    this.filterConfig = {
-      ...this.filterConfig,
-      [annotation]: { ...current, enabled },
-    };
-    if (!enabled) this.openValueMenus = { ...this.openValueMenus, [annotation]: false };
-  }
-
-  private toggleValueMenu(annotation: string) {
-    this.openValueMenus = {
-      ...this.openValueMenus,
-      [annotation]: !this.openValueMenus[annotation],
-    };
-  }
-
-  private handleValueToggle(annotation: string, value: string, checked: boolean) {
-    const current = this.filterConfig[annotation] || {
-      enabled: false,
-      values: [],
-    };
-    const next = new Set(current.values || []);
-    if (checked) next.add(value);
-    else next.delete(value);
-    this.filterConfig = {
-      ...this.filterConfig,
-      [annotation]: { ...current, values: Array.from(next) },
-    };
-  }
-
-  private selectAllValues(annotation: string) {
-    const all = this.annotationValuesMap[annotation] || [];
-    const current = this.filterConfig[annotation] || {
-      enabled: false,
-      values: [],
-    };
-    this.filterConfig = {
-      ...this.filterConfig,
-      [annotation]: { ...current, values: Array.from(new Set(all)) },
-    };
-  }
-
-  private clearAllValues(annotation: string) {
-    const current = this.filterConfig[annotation] || {
-      enabled: false,
-      values: [],
-    };
-    this.filterConfig = {
-      ...this.filterConfig,
-      [annotation]: { ...current, values: [] },
-    };
-  }
-
-  private applyFilters() {
-    if (!this._scatterplotElement || !('getCurrentData' in this._scatterplotElement)) {
-      return;
-    }
+  private _handleQueryApply(e: CustomEvent<{ matchedIndices: Set<number> }>) {
+    if (!this._scatterplotElement) return;
     const sp = this._scatterplotElement as ScatterplotElementLike;
     const data = sp.getCurrentData?.();
-    if (!data) return;
+    if (!data?.protein_ids) return;
 
-    // Collect active filters
-    const activeFilters = Object.entries(this.filterConfig)
-      .filter(([, cfg]) => cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0)
-      .map(([annotation, cfg]) => ({
-        annotation,
-        values: cfg.values,
-      }));
+    // Convert indices to protein IDs
+    const matchedIds = Array.from(e.detail.matchedIndices).map((i) => data.protein_ids![i]);
 
-    if (activeFilters.length === 0) {
-      this.showFilterMenu = false;
-      return;
-    }
+    // Set selection and isolate (dispatch event for downstream listeners)
+    sp.selectedProteinIds = matchedIds;
+    this.dispatchEvent(new CustomEvent('isolate-data', { detail: {}, bubbles: true, composed: true }));
+    sp.isolateSelection?.();
 
-    // Compute membership for each protein
-    const numProteins: number = Array.isArray(data.protein_ids) ? data.protein_ids.length : 0;
-    const indices: number[][] = new Array(numProteins);
-
-    for (let i = 0; i < numProteins; i++) {
-      let isMatch = true;
-      for (const { annotation, values } of activeFilters) {
-        const annotationIdxData = data.annotation_data?.[annotation];
-        const valuesArr: (string | null)[] | undefined = data.annotations?.[annotation]?.values;
-        if (!annotationIdxData || !valuesArr) {
-          isMatch = false;
-          break;
-        }
-        // Handle both number[] and number[][] formats
-        const annotationValue = Array.isArray(annotationIdxData[i])
-          ? (annotationIdxData[i] as number[])[0]
-          : (annotationIdxData as number[])[i];
-        const rawValue =
-          annotationValue != null && annotationValue >= 0 && annotationValue < valuesArr.length
-            ? valuesArr[annotationValue]
-            : null;
-        // Normalize raw value to internal format for comparison
-        const normalizedValue = toInternalValue(rawValue);
-        if (!values.some((allowed) => allowed === normalizedValue)) {
-          isMatch = false;
-          break;
-        }
-      }
-      // [0] => Filtered Proteins, [1] => Other Proteins
-      indices[i] = isMatch ? [0] : [1];
-    }
-
-    // Add or replace synthetic Custom annotation
-    const customName = 'Custom';
-    const newAnnotations: Record<
-      string,
-      { values: (string | null)[]; colors?: string[]; shapes?: string[] }
-    > = {
-      ...data.annotations,
-    };
-    newAnnotations[customName] = {
-      values: ['Filtered Proteins', 'Other Proteins'],
-      colors: ['#00A35A', '#9AA0A6'],
-      shapes: ['circle', 'circle'],
-    };
-    const newAnnotationData = { ...data.annotation_data, [customName]: indices };
-
-    const newData = {
-      ...data,
-      annotations: newAnnotations,
-      annotation_data: newAnnotationData,
-    };
-
-    this.lastAppliedFilterConfig = JSON.parse(JSON.stringify(this.filterConfig));
-
-    // Apply to scatterplot and select the Custom annotation
-    sp.data = newData;
-    if ('selectedAnnotation' in sp) sp.selectedAnnotation = customName;
-    this.annotations = Object.keys(newData.annotations || {}).filter(
-      (a) => !TOOLTIP_ONLY_ANNOTATIONS.has(a),
-    );
-    this.selectedAnnotation = customName;
-    this.annotationValuesMap = {
-      ...this.annotationValuesMap,
-      [customName]: newAnnotations[customName].values.map(toInternalValue),
-    };
-    // Annotation select component will automatically update via selectedAnnotation property binding
-
-    // Let listeners know the annotation changed to Custom
-    this.dispatchEvent(
-      new CustomEvent('annotation-change', {
-        detail: { annotation: customName },
-        bubbles: true,
-        composed: true,
-      }),
-    );
-
+    this.filterActive = true;
     this.showFilterMenu = false;
+  }
+
+  private _handleQueryReset() {
+    if (!this._scatterplotElement) return;
+    const sp = this._scatterplotElement as ScatterplotElementLike;
+    this.dispatchEvent(
+      new CustomEvent('reset-isolation', { detail: {}, bubbles: true, composed: true }),
+    );
+    sp.resetIsolation?.();
+
+    this.filterQuery = [];
+    this.filterActive = false;
+    this.isolationMode = false;
+    this.isolationHistory = [];
+    // Do NOT close popover -- user may want to start a new query
   }
 }
 
