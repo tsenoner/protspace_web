@@ -70,7 +70,7 @@ export class ProtspaceQueryBuilder extends LitElement {
         composed: true,
       }),
     );
-    this._scheduleEvaluation(newQuery);
+    // Match count update handled by updated() when query prop flows back down
   }
 
   // ─── Query mutations ─────────────────────────────────────────────────────

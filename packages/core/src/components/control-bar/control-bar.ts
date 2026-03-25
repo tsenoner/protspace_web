@@ -1848,10 +1848,11 @@ export class ProtspaceControlBar extends LitElement {
     if (!this._scatterplotElement) return;
     const sp = this._scatterplotElement as ScatterplotElementLike;
     const data = sp.getCurrentData?.();
-    if (!data?.protein_ids) return;
+    const proteinIds = data?.protein_ids;
+    if (!proteinIds) return;
 
     // Convert indices to protein IDs
-    const matchedIds = Array.from(e.detail.matchedIndices).map((i) => data.protein_ids![i]);
+    const matchedIds = Array.from(e.detail.matchedIndices).map((i) => proteinIds[i]);
 
     // Set selection and isolate (dispatch event for downstream listeners)
     sp.selectedProteinIds = matchedIds;

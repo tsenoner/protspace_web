@@ -66,6 +66,12 @@ function evaluateCondition(
   return matches;
 }
 
+/**
+ * `is`/`is_not` compare against the normalized value (toInternalValue), so the
+ * value picker can expose __NA__ for null annotations.
+ * `contains`/`starts_with` compare against the raw resolved string for
+ * human-readable substring matching; null values are non-matching.
+ */
 function matchesOperator(
   operator: FilterCondition['operator'],
   values: string[],

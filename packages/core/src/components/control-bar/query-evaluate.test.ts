@@ -99,6 +99,15 @@ describe('evaluateQuery', () => {
       const result = evaluateQuery(query, createTestData());
       expect(result).toEqual(new Set([1, 3, 4]));
     });
+
+    it('excludes proteins with any of multiple values', () => {
+      const query: FilterQuery = [
+        { id: '1', annotation: 'organism', operator: 'is_not', values: ['Human', 'Mouse'] },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      // Only P4=Zebrafish remains
+      expect(result).toEqual(new Set([3]));
+    });
   });
 
   describe('single condition - contains operator', () => {
