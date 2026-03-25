@@ -601,23 +601,7 @@ function findProjectionPairs(
 }
 
 function formatProjectionName(name: string): string {
-  if (name.toUpperCase() === 'PCA_2') return 'PCA 2';
-  if (name.toUpperCase() === 'PCA_3') return 'PCA 3';
-  if (/^PCA_?\d+$/i.test(name)) {
-    const number = name.replace(/^PCA_?/i, '');
-    return `PCA ${number}`;
-  }
-  return name
-    .split('_')
-    .map((part) => {
-      const lower = part.toLowerCase();
-      if (lower.includes('umap')) return 'UMAP' + part.replace(/umap/i, '');
-      if (lower.includes('pca')) return 'PCA' + part.replace(/pca/i, '');
-      if (lower.includes('tsne')) return 't-SNE' + part.replace(/tsne/i, '');
-      if (/^\d+$/.test(part)) return part;
-      return part.toUpperCase();
-    })
-    .join(' ');
+  return name;
 }
 
 function inferProjectionName(xCol: string, yCol: string): string {
