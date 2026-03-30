@@ -1,5 +1,6 @@
 import { GitHubIcon } from '@/components/icons/brand-icons';
 import { DOCS_URL } from '@/config';
+import { Link } from 'react-router-dom';
 
 const Footer = () => {
   return (
@@ -8,7 +9,7 @@ const Footer = () => {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           {/* Copyright */}
           <div className="text-sm text-muted-foreground text-center md:text-left">
-            © 2025 ProtSpace contributors · Apache-2.0 License
+            © 2025–{new Date().getFullYear()} ProtSpace contributors · Apache-2.0 License
           </div>
 
           {/* Links */}
@@ -28,6 +29,12 @@ const Footer = () => {
             >
               Documentation
             </a>
+            <Link
+              to="/privacy"
+              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            >
+              Privacy
+            </Link>
           </div>
         </div>
       </div>
