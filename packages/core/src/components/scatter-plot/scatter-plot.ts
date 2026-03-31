@@ -1001,13 +1001,25 @@ export class ProtspaceScatterplot extends LitElement {
 
       // Create brush
       const config = this._mergedConfig;
+      const t = this._transform;
+
+      // Compute the visible viewport in local (untransformed) coordinates.
+      // The brush group carries the zoom transform, so the extent must be in
+      // the same local coordinate system.  Using the inverse of the current
+      // transform ensures the brush covers the entire visible canvas at any
+      // zoom / pan level — no dead-zones at the edges.
+      const vx0 = t.invertX(0);
+      const vy0 = t.invertY(0);
+      const vx1 = t.invertX(config.width);
+      const vy1 = t.invertY(config.height);
+
       this._brush = d3
         .brush()
         // Keep the UX simple: no resize handles, just drag a rectangle.
         .handleSize(0)
         .extent([
-          [config.margin.left, config.margin.top],
-          [config.width - config.margin.right, config.height - config.margin.bottom],
+          [Math.min(vx0, vx1), Math.min(vy0, vy1)],
+          [Math.max(vx0, vx1), Math.max(vy0, vy1)],
         ])
         .on('end', (event) => this._handleBrushEnd(event));
 

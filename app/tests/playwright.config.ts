@@ -55,6 +55,14 @@ export default defineConfig({
       },
       testMatch: /numeric-binning\.spec\.ts/,
     },
+    {
+      name: 'brush-selection',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /brush-selection\.spec\.ts/,
+    },
   ],
 
   outputDir: '../test-results/',
