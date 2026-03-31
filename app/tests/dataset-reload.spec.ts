@@ -1,24 +1,19 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
+import {
+  clickLegendItem,
+  dismissTourIfPresent,
+  getFirstLegendItemValue,
+  isLegendItemHidden,
+  waitForExploreDataLoad,
+  waitForExploreInteractionReady,
+  waitForPersistedExploreDataset,
+} from './helpers/explore';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Wait for the scatterplot data to be loaded. */
-async function waitForDataLoad(page: Page, timeout = 30_000): Promise<void> {
-  await page.waitForSelector('#myPlot', { timeout });
-
-  await page.waitForFunction(
-    () => {
-      const plot = document.querySelector('#myPlot') as any;
-      return plot?.data?.protein_ids?.length > 0;
-    },
-    { timeout, polling: 1000 },
-  );
-
-  // Let rendering settle
-  await page.waitForTimeout(500);
-}
+const SPEC_DIR = path.dirname(new URL(import.meta.url).pathname);
+const CUSTOM_5K_BUNDLE_PATH = path.resolve(SPEC_DIR, '../public/data/5K.parquetbundle');
+const CUSTOM_5K_PROTEIN_COUNT = 5181;
 
 async function getProteinCount(page: Page): Promise<number> {
   const count = await page.evaluate(() => {
@@ -38,52 +33,10 @@ async function waitForProteinCount(page: Page, expected: number, timeout = 30_00
     expected,
     { timeout, polling: 500 },
   );
-
-  await page.waitForTimeout(300);
-}
-
-/** Dismiss the product tour if it appears. */
-async function dismissTourIfPresent(page: Page): Promise<void> {
-  const skipBtn = page.locator('.driver-tour-skip-btn');
-  if ((await skipBtn.count()) > 0) {
-    await skipBtn.click();
-    await page.waitForSelector('.driver-popover', { state: 'detached', timeout: 5_000 });
-  }
-}
-
-/** Get the first non-Other legend item's data-value from shadow DOM. */
-async function getFirstLegendItemValue(page: Page): Promise<string> {
-  const value = await page.evaluate(() => {
-    const legend = document.querySelector('protspace-legend') as any;
-    if (!legend?.shadowRoot) return null;
-    const item = legend.shadowRoot.querySelector(
-      '.legend-item:not([data-value="Other"]):not([data-value="__NA__"])',
-    );
-    return item?.getAttribute('data-value') ?? null;
-  });
-  if (!value) throw new Error('No legend item found');
-  return value;
-}
-
-/** Check if a legend item is hidden (has the 'hidden' CSS class). */
-async function isLegendItemHidden(page: Page, value: string): Promise<boolean> {
-  return page.evaluate((v) => {
-    const legend = document.querySelector('protspace-legend') as any;
-    if (!legend?.shadowRoot) return false;
-    const item = legend.shadowRoot.querySelector(`[data-value="${v}"]`);
-    return item?.classList.contains('hidden') ?? false;
-  }, value);
-}
-
-/** Click a legend item by its data-value. */
-async function clickLegendItem(page: Page, value: string): Promise<void> {
-  await page.evaluate((v) => {
-    const legend = document.querySelector('protspace-legend') as any;
-    const item = legend?.shadowRoot?.querySelector(`[data-value="${v}"]`) as HTMLElement;
-    item?.click();
-  }, value);
-  // Wait for state update and re-render
-  await page.waitForTimeout(300);
+  await page
+    .locator('#progressive-loading')
+    .waitFor({ state: 'hidden', timeout })
+    .catch(() => {});
 }
 
 /** Find a protspace legend localStorage key. */
@@ -135,41 +88,42 @@ async function writeCorruptedPersistedDataset(page: Page): Promise<void> {
   });
 }
 
-async function waitForPersistedDataset(page: Page, timeout = 30_000): Promise<void> {
-  const deadline = Date.now() + timeout;
+async function writeUnreadablePersistedDataset(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const storageWithDirectory = navigator.storage as StorageManager & {
+      getDirectory?: () => Promise<FileSystemDirectoryHandle>;
+    };
 
-  while (Date.now() < deadline) {
-    const hasPersistedDataset = await page.evaluate(async () => {
-      const storageWithDirectory = navigator.storage as StorageManager & {
-        getDirectory?: () => Promise<FileSystemDirectoryHandle>;
-      };
-
-      if (typeof storageWithDirectory.getDirectory !== 'function') {
-        return false;
-      }
-
-      const root = await storageWithDirectory.getDirectory();
-      try {
-        const dir = await root.getDirectoryHandle('protspace-last-import');
-        await dir.getFileHandle('metadata.json');
-        await dir.getFileHandle('dataset.bin');
-        return true;
-      } catch {
-        return false;
-      }
-    });
-
-    if (hasPersistedDataset) {
-      return;
+    if (typeof storageWithDirectory.getDirectory !== 'function') {
+      throw new Error('OPFS is unavailable in this browser context.');
     }
 
-    await page.waitForTimeout(250);
-  }
+    const root = await storageWithDirectory.getDirectory();
+    const store = await root.getDirectoryHandle('protspace-last-import', { create: true });
 
-  throw new Error('Timed out waiting for the persisted OPFS dataset to be written.');
+    const metadataHandle = await store.getFileHandle('metadata.json', { create: true });
+    const metadataWritable = await metadataHandle.createWritable();
+    await metadataWritable.write(
+      JSON.stringify({
+        schemaVersion: 1,
+        name: 'corrupt.parquetbundle',
+        type: 'application/octet-stream',
+        size: 16,
+        lastModified: Date.now(),
+        storedAt: new Date().toISOString(),
+      }),
+    );
+    await metadataWritable.close();
+
+    const datasetHandle = await store.getFileHandle('dataset.bin', { create: true });
+    const datasetWritable = await datasetHandle.createWritable();
+    await datasetWritable.write(new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]));
+    await datasetWritable.close();
+  });
 }
 
 async function openImportMenu(page: Page): Promise<void> {
+  await waitForExploreInteractionReady(page);
   await page.locator('protspace-control-bar [data-driver-id="import"] .dropdown-trigger').click();
   await expect(
     page.locator('protspace-control-bar [data-driver-id="import-own-dataset"]'),
@@ -191,6 +145,41 @@ async function loadCustomDataset(
     },
     { publicPath: datasetPublicPath, name: fileName },
   );
+}
+
+async function loadCustomDatasetFromPath(
+  page: Page,
+  datasetPath: string,
+  fileName: string,
+): Promise<void> {
+  const bytes = Array.from(fs.readFileSync(datasetPath));
+
+  await page.evaluate(
+    async ({ byteValues, name }) => {
+      const loader = document.getElementById('myDataLoader') as {
+        loadFromFile?: (file: File, options?: { source?: 'user' | 'auto' }) => Promise<void>;
+      } | null;
+
+      if (!loader?.loadFromFile) {
+        throw new Error('ProtSpace data loader was not found');
+      }
+
+      const file = new File([new Uint8Array(byteValues)], name, {
+        type: 'application/octet-stream',
+      });
+      await loader.loadFromFile(file, { source: 'user' });
+    },
+    { byteValues: bytes, name: fileName },
+  );
+}
+
+async function getCurrentDatasetName(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const controlBar = document.getElementById('myControlBar') as {
+      currentDatasetName?: string;
+    } | null;
+    return controlBar?.currentDatasetName ?? null;
+  });
 }
 
 async function loadDemoDatasetFromImportMenu(page: Page): Promise<void> {
@@ -305,7 +294,7 @@ test.describe('Dataset reload resets state (#178)', () => {
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
     await clearPersistedDataset(page);
     await page.goto('/explore');
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
   });
 
@@ -317,15 +306,14 @@ test.describe('Dataset reload resets state (#178)', () => {
 
     // Click to hide the item
     await clickLegendItem(page, itemValue);
-    expect(await isLegendItemHidden(page, itemValue)).toBe(true);
+    await expect.poll(() => isLegendItemHidden(page, itemValue)).toBe(true);
 
     // Verify localStorage was written
-    const storageKey = await findLegendStorageKey(page);
-    expect(storageKey).not.toBeNull();
+    await expect.poll(() => findLegendStorageKey(page)).not.toBeNull();
 
     // Reload the page
     await page.reload();
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     // After reload, the item should be visible again (default state restored)
@@ -337,10 +325,11 @@ test.describe('Dataset reload resets state (#178)', () => {
 
     // Modify legend state
     await clickLegendItem(page, itemValue);
+    await expect.poll(() => isLegendItemHidden(page, itemValue)).toBe(true);
 
     // Verify localStorage has legend entries
+    await expect.poll(() => findLegendStorageKey(page)).not.toBeNull();
     const storageKey = await findLegendStorageKey(page);
-    expect(storageKey).not.toBeNull();
 
     const savedSettings = await page.evaluate((key) => {
       return JSON.parse(localStorage.getItem(key!) || '{}');
@@ -349,7 +338,7 @@ test.describe('Dataset reload resets state (#178)', () => {
 
     // Reload the page
     await page.reload();
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
 
     // After reload + file settings applied, hiddenValues should not contain our item
     const reloadedKey = await findLegendStorageKey(page);
@@ -368,7 +357,7 @@ test.describe('Persisted custom datasets in OPFS (#176)', () => {
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
     await clearPersistedDataset(page);
     await page.goto('/explore');
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
   });
 
@@ -388,7 +377,7 @@ test.describe('Persisted custom datasets in OPFS (#176)', () => {
       defaultCount,
       { polling: 500, timeout: 30_000 },
     );
-    await waitForPersistedDataset(page);
+    await waitForPersistedExploreDataset(page);
 
     const customCount = await getProteinCount(page);
     expect(customCount).not.toBe(defaultCount);
@@ -398,7 +387,7 @@ test.describe('Persisted custom datasets in OPFS (#176)', () => {
     expect(await isLegendItemHidden(page, itemValue)).toBe(true);
 
     await page.reload();
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     expect(await getProteinCount(page)).toBe(customCount);
@@ -419,13 +408,13 @@ test.describe('Persisted custom datasets in OPFS (#176)', () => {
       defaultCount,
       { polling: 500, timeout: 30_000 },
     );
-    await waitForPersistedDataset(page);
+    await waitForPersistedExploreDataset(page);
 
     await loadDemoDatasetFromImportMenu(page);
     await waitForProteinCount(page, defaultCount);
 
     await page.reload();
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     expect(await getProteinCount(page)).toBe(defaultCount);
@@ -433,7 +422,7 @@ test.describe('Persisted custom datasets in OPFS (#176)', () => {
 
   test('compact layout still shows the import dropdown affordance', async ({ page }) => {
     await page.setViewportSize({ width: 568, height: 527 });
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     expect(await isImportChevronVisible(page)).toBe(true);
@@ -446,16 +435,94 @@ test.describe('Persisted dataset failure handling', () => {
   }) => {
     await page.goto('/explore');
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
+    await waitForExploreDataLoad(page);
+    await dismissTourIfPresent(page);
     await clearPersistedDataset(page);
     await writeCorruptedPersistedDataset(page);
 
     await page.goto('/explore');
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     await expect(page.getByText('Saved dataset was cleared.')).toBeVisible();
     await expect(page.getByText(/loaded the default demo dataset instead/i)).toBeVisible();
     expect(await getProteinCount(page)).toBeGreaterThan(0);
+  });
+
+  test('queued user imports win over corrupted OPFS fallback recovery', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('driver.overviewTour', 'true');
+
+      const originalDefine = customElements.define.bind(customElements);
+      customElements.define = (name, constructor, options) => {
+        if (name === 'protspace-data-loader') {
+          const proto = constructor.prototype as {
+            __queuedLoadHoldPatched?: boolean;
+            loadFromFile?: (...args: unknown[]) => Promise<unknown>;
+          };
+
+          if (!proto.__queuedLoadHoldPatched && typeof proto.loadFromFile === 'function') {
+            proto.__queuedLoadHoldPatched = true;
+            const originalLoadFromFile = proto.loadFromFile;
+            let releaseFirstLoad!: () => void;
+            const firstLoadGate = new Promise<void>((resolve) => {
+              releaseFirstLoad = resolve;
+            });
+
+            (
+              window as Window & { __releaseFirstProtspaceLoad?: () => void }
+            ).__releaseFirstProtspaceLoad = () => {
+              releaseFirstLoad();
+            };
+
+            proto.loadFromFile = async function (...args: unknown[]) {
+              const state = window as Window & { __firstProtspaceLoadHeld?: boolean };
+              if (!state.__firstProtspaceLoadHeld) {
+                state.__firstProtspaceLoadHeld = true;
+                await firstLoadGate;
+              }
+
+              return originalLoadFromFile.apply(this, args);
+            };
+          }
+        }
+
+        return originalDefine(name, constructor, options);
+      };
+    });
+
+    await page.goto('/explore');
+    await clearPersistedDataset(page);
+    await writeUnreadablePersistedDataset(page);
+
+    await page.goto('/explore');
+    await page.waitForFunction(() => {
+      const loader = document.getElementById('myDataLoader') as {
+        loadFromFile?: (file: File, options?: { source?: 'user' | 'auto' }) => Promise<void>;
+      } | null;
+      return typeof loader?.loadFromFile === 'function';
+    });
+
+    const userLoadPromise = loadCustomDatasetFromPath(
+      page,
+      CUSTOM_5K_BUNDLE_PATH,
+      '5K.parquetbundle',
+    );
+    await page.waitForFunction(
+      () => (window as Window & { __firstProtspaceLoadHeld?: boolean }).__firstProtspaceLoadHeld,
+    );
+    await page.evaluate(() => {
+      (
+        window as Window & { __releaseFirstProtspaceLoad?: () => void }
+      ).__releaseFirstProtspaceLoad?.();
+    });
+    await userLoadPromise;
+    await waitForProteinCount(page, CUSTOM_5K_PROTEIN_COUNT);
+    await expect.poll(() => getCurrentDatasetName(page)).toBe('5K.parquetbundle');
+    await dismissTourIfPresent(page);
+
+    expect(await getProteinCount(page)).toBe(CUSTOM_5K_PROTEIN_COUNT);
+    expect(await getCurrentDatasetName(page)).toBe('5K.parquetbundle');
   });
 
   test('OPFS access restrictions show a toast without blocking the current session load', async ({
@@ -472,7 +539,7 @@ test.describe('Persisted dataset failure handling', () => {
     });
 
     await page.goto('/explore');
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     const defaultCount = await getProteinCount(page);
@@ -510,7 +577,7 @@ test.describe('Persisted dataset failure handling', () => {
     });
 
     await page.goto('/explore');
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     const defaultCount = await getProteinCount(page);
@@ -546,14 +613,14 @@ test.describe('Persisted dataset failure handling', () => {
 
     await page.goto('/explore');
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     const defaultCount = await getProteinCount(page);
     await writeCorruptedPersistedDataset(page);
 
     await page.reload();
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     await expect(page.getByText('Saved dataset was cleared.')).toBeVisible();
@@ -571,7 +638,7 @@ test.describe('Persisted dataset failure handling', () => {
 
     await page.goto('/explore');
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     await page.evaluate(async () => {
@@ -595,7 +662,7 @@ test.describe('Persisted dataset failure handling', () => {
   test('successful parquet exports show a Sonner toast', async ({ page }) => {
     await page.goto('/explore');
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     await dispatchParquetExport(page);
@@ -613,7 +680,7 @@ test.describe('Persisted dataset failure handling', () => {
 
     await page.goto('/explore');
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     await dispatchBrokenParquetExport(page);
@@ -626,7 +693,7 @@ test.describe('Persisted dataset failure handling', () => {
   test('selection-disabled notifications use the shared Sonner path', async ({ page }) => {
     await page.goto('/explore');
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     await dispatchSelectionDisabledNotification(page);
@@ -642,7 +709,7 @@ test.describe('Unified app notifications', () => {
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
     await clearPersistedDataset(page);
     await page.goto('/explore');
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
   });
 
@@ -659,7 +726,7 @@ test.describe('Unified app notifications', () => {
     await writeCorruptedPersistedDataset(page);
 
     await page.reload();
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
 
     await expect(page.getByText('Saved dataset was cleared.')).toBeVisible();

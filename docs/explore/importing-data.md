@@ -32,7 +32,7 @@ Don't have data yet? Download example `.parquetbundle` files from the [GitHub da
 After successfully loading a file:
 
 1. **Scatterplot populates**: All proteins appear as colored points
-2. **Defaults applied**: First available projection and annotation are selected
+2. **View restored or initialized**: ProtSpace restores the requested URL annotation and projection when they exist in the dataset; otherwise it falls back to the first available options
 3. **Settings restored**: Previously saved or bundled customizations are applied
 4. **Legend appears**: Shows all categories with color assignments
 5. **Ready to explore**: You can now pan, zoom, and interact with the data
@@ -47,8 +47,13 @@ All persistence is local to your browser — **your data is never sent to a serv
 
 - **Your dataset is remembered**: The last imported file is saved in your browser's Origin Private File System (OPFS) and automatically restored when you revisit ProtSpace. Switching to the demo dataset clears the stored file.
 - **Settings persist per dataset**: Legend customizations (colors, shapes, hidden categories, sort order) and export options are saved in browser storage for each dataset. When you reload or revisit the same dataset, your settings are restored.
+- **Annotation and projection persist in the URL**: ProtSpace keeps the currently selected annotation and projection in the page URL as query parameters (`annotation=...` and `projection=...`). This means refreshing the page, using the browser's back/forward buttons, or sharing the link will restore the same view when those options exist in the active dataset.
 - **File-embedded settings take priority**: If a `.parquetbundle` includes saved settings (via the export dialog's "Include legend/export settings" options), those are applied on import, replacing any previously stored settings for that dataset.
 - **Starting fresh**: To reset all settings for a dataset, re-import a `.parquetbundle` that has embedded settings, or clear site data in your browser settings.
+
+::: info URL-backed view state
+If the URL points to an annotation or projection that does not exist in the currently loaded dataset, ProtSpace falls back to the closest valid view and updates the URL to match.
+:::
 
 ::: warning Automatic dataset restore requires OPFS
 ProtSpace uses the Origin Private File System (OPFS) to restore your last imported dataset after a page reload.
