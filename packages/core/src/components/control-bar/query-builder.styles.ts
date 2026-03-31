@@ -50,11 +50,14 @@ export const queryBuilderStyles = css`
 
   .query-footer {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--spacing-sm);
-    padding-top: var(--spacing-md);
+    gap: var(--spacing-xs);
+    padding-top: var(--spacing-sm);
     border-top: var(--border-width) solid var(--border);
+    box-sizing: border-box;
+  }
+
+  .query-footer button {
+    flex: none;
   }
 
   /* ==========================================
@@ -108,9 +111,9 @@ export const queryBuilderStyles = css`
   }
 
   .logical-op-select.op-not {
-    background: color-mix(in srgb, #e74c3c 15%, transparent);
-    color: #e74c3c;
-    border-color: #e74c3c;
+    background: color-mix(in srgb, var(--danger) 15%, transparent);
+    color: var(--danger);
+    border-color: var(--danger);
   }
 
   .logical-op-placeholder {
@@ -192,9 +195,9 @@ export const queryBuilderStyles = css`
   }
 
   .condition-remove:hover {
-    color: #e74c3c;
+    color: var(--danger);
     opacity: 1;
-    background: color-mix(in srgb, #e74c3c 10%, transparent);
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
   }
 
   /* ==========================================
@@ -241,8 +244,8 @@ export const queryBuilderStyles = css`
     gap: 4px;
     background: color-mix(in srgb, var(--primary) 15%, transparent);
     color: var(--primary);
-    border-radius: 12px;
-    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    padding: var(--spacing-2xs) var(--spacing-sm);
     font-size: var(--text-sm);
     white-space: nowrap;
     max-width: 160px;
@@ -273,12 +276,12 @@ export const queryBuilderStyles = css`
   .value-chip-add {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--spacing-2xs);
     border: var(--border-width) dashed var(--primary);
     color: var(--primary);
     background: none;
-    border-radius: 12px;
-    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    padding: var(--spacing-2xs) var(--spacing-sm);
     font-size: var(--text-sm);
     cursor: pointer;
     transition: var(--transition-fast);
@@ -323,7 +326,7 @@ export const queryBuilderStyles = css`
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
     cursor: pointer;
-    padding: 0.125rem 0.25rem;
+    padding: var(--spacing-2xs) var(--spacing-xs);
     border-radius: 0.25rem;
     transition: var(--transition-fast);
   }
@@ -342,7 +345,7 @@ export const queryBuilderStyles = css`
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
-    z-index: 10001;
+    z-index: var(--z-above-modal);
     max-width: 280px;
     min-width: 200px;
     padding: var(--spacing-sm);
@@ -429,7 +432,7 @@ export const queryBuilderStyles = css`
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
-    z-index: 10001;
+    z-index: var(--z-above-modal);
     min-width: 200px;
     max-width: 280px;
     padding: var(--spacing-sm);
@@ -460,7 +463,7 @@ export const queryBuilderStyles = css`
   .annotation-picker-category {
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
+    font-weight: var(--font-medium);
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -487,56 +490,7 @@ export const queryBuilderStyles = css`
      BUTTONS
      ========================================== */
 
-  .reset-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-xs);
-    padding: var(--button-padding-y) var(--button-padding-x);
-    border: var(--border-width) solid var(--danger-border);
-    border-radius: var(--radius);
-    background: color-mix(in srgb, #e74c3c 8%, transparent);
-    color: #e74c3c;
-    font-size: var(--text-base);
-    font-weight: var(--font-medium);
-    cursor: pointer;
-    transition: var(--transition-fast);
-    box-sizing: border-box;
-  }
-
-  .reset-btn:hover {
-    background: color-mix(in srgb, #e74c3c 15%, transparent);
-    border-color: #e74c3c;
-  }
-
-  .apply-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-xs);
-    padding: var(--button-padding-y) var(--button-padding-x);
-    border: var(--border-width) solid var(--primary);
-    border-radius: var(--radius);
-    background: var(--primary);
-    color: var(--text-light);
-    font-size: var(--text-base);
-    font-weight: var(--font-medium);
-    cursor: pointer;
-    transition: var(--transition-fast);
-    box-sizing: border-box;
-  }
-
-  .apply-btn:hover:not(:disabled) {
-    background: var(--primary-hover);
-    border-color: var(--primary-hover);
-    box-shadow: 0 2px 6px var(--primary-alpha-30);
-  }
-
-  .apply-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    pointer-events: none;
-  }
+  /* Reset and Apply buttons use btn-danger / btn-primary from buttonMixin */
 
   /* ==========================================
      FILTER BADGE (CONTROL-BAR)
@@ -548,7 +502,7 @@ export const queryBuilderStyles = css`
     justify-content: center;
     min-width: 18px;
     height: 18px;
-    border-radius: 9px;
+    border-radius: var(--radius-pill);
     background: var(--primary);
     color: white;
     font-size: var(--text-sm);

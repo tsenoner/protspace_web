@@ -5,6 +5,7 @@ import type { FilterQuery, FilterCondition, FilterGroup, LogicalOp } from './que
 import { createCondition, createGroup, isFilterGroup } from './query-types';
 import { evaluateQuery } from './query-evaluate';
 import { queryBuilderStyles } from './query-builder.styles';
+import { buttonMixin } from '../../styles/mixins';
 import './query-condition-row';
 
 /**
@@ -18,6 +19,7 @@ import './query-condition-row';
 @customElement('protspace-query-builder')
 class ProtspaceQueryBuilder extends LitElement {
   static styles = [
+    buttonMixin,
     queryBuilderStyles,
     css`
       :host {
@@ -268,9 +270,9 @@ class ProtspaceQueryBuilder extends LitElement {
         </div>
 
         <div class="query-footer">
-          <button class="reset-btn" @click=${this._handleReset}>Reset All</button>
+          <button class="btn-danger" @click=${this._handleReset}>Reset All</button>
           <button
-            class="apply-btn"
+            class="btn-primary"
             ?disabled=${this._matchCount === 0 || this.query.length === 0}
             @click=${this._handleApply}
           >
