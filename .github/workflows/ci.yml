@@ -2,7 +2,7 @@ name: CI - Code Quality
 
 on:
   push:
-    branches: [main, feat/**]
+    branches: ['**']
   pull_request:
     branches: [main]
   workflow_dispatch:

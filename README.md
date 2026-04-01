@@ -59,8 +59,8 @@ Before committing, run:
 pnpm precommit
 ```
 
-This runs formatting (Prettier), linting (ESLint), and type checking in one command.
-It mirrors the installed Git hook by running `lint-staged`, repo-wide type checks, Knip, and the CI test suite.
+It mirrors the installed Git hook by running `lint-staged`, repo-wide type checks, Knip,
+dependency-hygiene checks, the CI test suite, and a docs build.
 
 ## ⚖️ License
 

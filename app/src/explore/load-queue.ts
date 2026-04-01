@@ -1,5 +1,4 @@
-import type { DataLoader } from '@protspace/core';
-import type { LoadMeta, DatasetLoadKind } from './types';
+import type { LoadMeta, DatasetLoadKind, DataLoaderLoadOptions } from './types';
 
 interface PendingLoadFinalization {
   promise: Promise<void>;
@@ -7,11 +6,12 @@ interface PendingLoadFinalization {
 }
 
 interface LoadQueueOptions {
-  dataLoader: DataLoader;
   isDisposed: () => boolean;
+  loadFromFile: (file: File, options?: DataLoaderLoadOptions) => Promise<void>;
 }
 
 export interface LoadQueue {
+  enqueueLoadFromFile(file: File, options?: DataLoaderLoadOptions): Promise<void>;
   registerFileLoad(file: File, kind: DatasetLoadKind): LoadMeta;
   getLoadMetaForFile(file: File): LoadMeta | undefined;
   getRunningLoadMeta(): LoadMeta | null;
@@ -20,7 +20,7 @@ export interface LoadQueue {
   dispose(): void;
 }
 
-export function createLoadQueue({ dataLoader, isDisposed }: LoadQueueOptions): LoadQueue {
+export function createLoadQueue({ isDisposed, loadFromFile }: LoadQueueOptions): LoadQueue {
   let nextLoadSequence = 0;
   let runningLoadMeta: LoadMeta | null = null;
   let queuedLoad: Promise<void> = Promise.resolve();
@@ -62,8 +62,7 @@ export function createLoadQueue({ dataLoader, isDisposed }: LoadQueueOptions): L
     pendingLoadFinalizationBySequence.delete(sequence);
   };
 
-  const originalLoadFromFile = dataLoader.loadFromFile.bind(dataLoader);
-  dataLoader.loadFromFile = async (file: File, options?: { source?: 'user' | 'auto' }) => {
+  const enqueueLoadFromFile = async (file: File, options?: DataLoaderLoadOptions) => {
     const loadMeta =
       loadMetaByFile.get(file) ??
       registerFileLoad(file, options?.source === 'auto' ? 'default' : 'user');
@@ -79,7 +78,7 @@ export function createLoadQueue({ dataLoader, isDisposed }: LoadQueueOptions): L
         return;
       }
 
-      await originalLoadFromFile(file, options);
+      await loadFromFile(file, options);
       await pendingFinalization.promise;
     });
 
@@ -93,13 +92,13 @@ export function createLoadQueue({ dataLoader, isDisposed }: LoadQueueOptions): L
   };
 
   return {
+    enqueueLoadFromFile,
     registerFileLoad,
     getLoadMetaForFile: (file) => loadMetaByFile.get(file),
     getRunningLoadMeta: () => runningLoadMeta,
     getLatestSequence: () => nextLoadSequence,
     resolvePendingLoadFinalization,
     dispose() {
-      dataLoader.loadFromFile = originalLoadFromFile;
       pendingLoadFinalizationBySequence.forEach((pending) => pending.resolve());
       pendingLoadFinalizationBySequence.clear();
       runningLoadMeta = null;

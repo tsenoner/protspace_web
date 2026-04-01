@@ -101,6 +101,11 @@ export async function isLegendItemHidden(page: Page, value: string): Promise<boo
 }
 
 export async function waitForPersistedExploreDataset(page: Page, timeout = 30_000): Promise<void> {
+  const supportsOpfs = await supportsExplorePersistedDataset(page);
+  if (!supportsOpfs) {
+    throw new Error('OPFS is unavailable in this browser.');
+  }
+
   const deadline = Date.now() + timeout;
 
   while (Date.now() < deadline) {
@@ -132,6 +137,16 @@ export async function waitForPersistedExploreDataset(page: Page, timeout = 30_00
   }
 
   throw new Error('Timed out waiting for the persisted OPFS dataset to be written.');
+}
+
+export async function supportsExplorePersistedDataset(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const storageWithDirectory = navigator.storage as StorageManager & {
+      getDirectory?: () => Promise<FileSystemDirectoryHandle>;
+    };
+
+    return typeof storageWithDirectory.getDirectory === 'function';
+  });
 }
 
 interface ExploreViewStability {

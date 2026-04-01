@@ -80,10 +80,12 @@ export function createViewController({
       typeof plotElement.selectedProjectionIndex === 'number'
         ? plotElement.selectedProjectionIndex
         : availableProjections.indexOf(controlBar.selectedProjection);
+    const validControlBarProjection =
+      controlBar.selectedProjection && availableProjections.includes(controlBar.selectedProjection)
+        ? controlBar.selectedProjection
+        : null;
     const projection =
-      availableProjections[projectionIndex] ??
-      controlBar.selectedProjection ??
-      availableProjections[0];
+      availableProjections[projectionIndex] ?? validControlBarProjection ?? availableProjections[0];
     const annotation =
       plotElement.selectedAnnotation &&
       availableAnnotations.includes(plotElement.selectedAnnotation)
@@ -100,52 +102,11 @@ export function createViewController({
   };
 
   const selectProjection = (projection: string) => {
-    const controlBarInternals = controlBar as unknown as {
-      selectProjection?: (projectionName: string) => void;
-    };
-
-    if (typeof controlBarInternals.selectProjection === 'function') {
-      controlBarInternals.selectProjection(projection);
-      return;
-    }
-
-    controlBar.selectedProjection = projection;
-    const projectionIndex = controlBar.projections.indexOf(projection);
-    if (projectionIndex >= 0) {
-      plotElement.selectedProjectionIndex = projectionIndex;
-    }
-    controlBar.dispatchEvent(
-      new CustomEvent('projection-change', {
-        detail: { projection },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    controlBar.applyProjectionSelection(projection);
   };
 
   const selectAnnotation = (annotation: string) => {
-    const controlBarInternals = controlBar as unknown as {
-      handleAnnotationSelected?: (event: CustomEvent<{ annotation: string }>) => void;
-    };
-
-    if (typeof controlBarInternals.handleAnnotationSelected === 'function') {
-      controlBarInternals.handleAnnotationSelected(
-        new CustomEvent('annotation-select', {
-          detail: { annotation },
-        }),
-      );
-      return;
-    }
-
-    controlBar.selectedAnnotation = annotation;
-    plotElement.selectedAnnotation = annotation;
-    controlBar.dispatchEvent(
-      new CustomEvent('annotation-change', {
-        detail: { annotation },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    controlBar.applyAnnotationSelection(annotation);
   };
 
   const resolveLatestView = (dataOverride?: VisualizationData) => {

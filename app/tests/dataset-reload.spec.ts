@@ -130,21 +130,12 @@ async function openImportMenu(page: Page): Promise<void> {
   ).toBeVisible();
 }
 
-async function loadCustomDataset(
-  page: Page,
-  datasetPublicPath: string,
-  fileName: string,
-): Promise<void> {
-  await page.evaluate(
-    async ({ publicPath, name }) => {
-      const response = await fetch(publicPath);
-      const buffer = await response.arrayBuffer();
-      const file = new File([buffer], name, { type: 'application/octet-stream' });
-      const loader = document.getElementById('myDataLoader') as any;
-      await loader.loadFromFile(file);
-    },
-    { publicPath: datasetPublicPath, name: fileName },
-  );
+async function loadCustomDatasetFromImportMenu(page: Page, datasetPath: string): Promise<void> {
+  await openImportMenu(page);
+  await page
+    .locator('protspace-data-loader')
+    .locator('input[type="file"]')
+    .setInputFiles(datasetPath);
 }
 
 async function loadCustomDatasetFromPath(
@@ -366,7 +357,7 @@ test.describe('Persisted custom datasets in OPFS (#176)', () => {
   }) => {
     const defaultCount = await getProteinCount(page);
 
-    await loadCustomDataset(page, '/data/5K.parquetbundle', '5K.parquetbundle');
+    await loadCustomDatasetFromImportMenu(page, CUSTOM_5K_BUNDLE_PATH);
     await page.waitForFunction(
       (originalCount) => {
         const plot = document.querySelector('#myPlot') as any;
@@ -397,7 +388,7 @@ test.describe('Persisted custom datasets in OPFS (#176)', () => {
   test('reset to demo clears the persisted custom dataset', async ({ page }) => {
     const defaultCount = await getProteinCount(page);
 
-    await loadCustomDataset(page, '/data/5K.parquetbundle', '5K.parquetbundle');
+    await loadCustomDatasetFromImportMenu(page, CUSTOM_5K_BUNDLE_PATH);
     await page.waitForFunction(
       (originalCount) => {
         const plot = document.querySelector('#myPlot') as any;
@@ -544,7 +535,7 @@ test.describe('Persisted dataset failure handling', () => {
 
     const defaultCount = await getProteinCount(page);
 
-    await loadCustomDataset(page, '/data/5K.parquetbundle', '5K.parquetbundle');
+    await loadCustomDatasetFromImportMenu(page, CUSTOM_5K_BUNDLE_PATH);
     await page.waitForFunction(
       (originalCount) => {
         const plot = document.querySelector('#myPlot') as any;
@@ -582,7 +573,7 @@ test.describe('Persisted dataset failure handling', () => {
 
     const defaultCount = await getProteinCount(page);
 
-    await loadCustomDataset(page, '/data/5K.parquetbundle', '5K.parquetbundle');
+    await loadCustomDatasetFromImportMenu(page, CUSTOM_5K_BUNDLE_PATH);
     await page.waitForFunction(
       (originalCount) => {
         const plot = document.querySelector('#myPlot') as any;

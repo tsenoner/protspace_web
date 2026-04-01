@@ -69,6 +69,7 @@ export function createDatasetController({
     legendElement,
     overlayController,
     plotElement,
+    resolveInitialView: viewController.resolveLatestView,
     structureViewer,
   });
 
@@ -127,12 +128,11 @@ export function createDatasetController({
       legendElement.clearForNewDataset(datasetHash, shouldClearPersistedState);
       controlBar.clearForNewDataset(datasetHash, shouldClearPersistedState);
 
-      const initialView = viewController.resolveLatestView(data);
-      interactionController.setLastKnownAnnotation(
-        initialView?.annotation ?? Object.keys(data.annotations)[0] ?? '',
-      );
+      const initialViewFallback = Object.keys(data.annotations)[0] ?? '';
+      interactionController.setLastKnownAnnotation(initialViewFallback);
 
-      await loadData(data, initialView);
+      const initialView = await loadData(data);
+      interactionController.setLastKnownAnnotation(initialView?.annotation ?? initialViewFallback);
 
       const shouldApplyEmbeddedFileSettings = settings && loadMeta.kind !== 'opfs';
       if (shouldApplyEmbeddedFileSettings) {

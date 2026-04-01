@@ -37,7 +37,7 @@ pnpm dev          # App + docs
 pnpm dev:app      # App only
 pnpm dev:docs     # Docs only (localhost:5174)
 
-# Before committing (matches the installed Git hook)
+# Before committing (matches the installed Git hook, including docs validation)
 pnpm precommit
 ```
 
@@ -139,12 +139,16 @@ pnpm clean        # Clean build artifacts
 **Code quality checks:**
 
 ```bash
-pnpm precommit    # Mirror the installed pre-commit hook
+pnpm precommit    # Mirror the installed pre-commit hook, including docs validation
 
-# Or individually:
+# The exact hook path is `pnpm precommit`. Use these as targeted spot checks when you do not need the full hook:
 pnpm format       # Auto-format with Prettier
 pnpm lint:fix     # Auto-fix linting issues with ESLint
 pnpm type-check   # Validate TypeScript compilation
+pnpm knip         # Find unused files, exports, and imports
+pnpm knip:dependencies  # Validate dependency declarations
+pnpm test:ci      # Run the CI test suite locally
+pnpm docs:build   # Verify the documentation build
 ```
 
 ### Code Quality Standards

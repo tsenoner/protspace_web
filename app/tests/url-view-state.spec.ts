@@ -7,6 +7,7 @@ import {
   dismissTourIfPresent,
   getFirstLegendItemValue,
   isLegendItemHidden,
+  supportsExplorePersistedDataset,
   waitForExploreDataLoad,
   waitForExploreInteractionReady,
   waitForPersistedExploreDataset,
@@ -42,13 +43,13 @@ async function getCurrentView(page: Page) {
       controlBar?.projections ?? plot?.data?.projections?.map((p) => p.name) ?? [];
     const projectionIndex =
       plot?.selectedProjectionIndex ?? projections.indexOf(controlBar?.selectedProjection ?? '');
+    const plotProjection = projectionIndex >= 0 ? projections[projectionIndex] : null;
 
     return {
       annotation: controlBar?.selectedAnnotation ?? plot?.selectedAnnotation ?? null,
-      projection:
-        controlBar?.selectedProjection ??
-        (projectionIndex >= 0 ? projections[projectionIndex] : null) ??
-        null,
+      projection: plotProjection ?? controlBar?.selectedProjection ?? null,
+      controlBarProjection: controlBar?.selectedProjection ?? null,
+      plotProjection,
       annotations: controlBar?.annotations ?? [],
       projections,
     };
@@ -60,6 +61,18 @@ async function waitForView(
   expected: { annotation?: string; projection?: string },
   timeout = 30_000,
 ): Promise<void> {
+  if (expected.annotation) {
+    await expect
+      .poll(async () => (await getCurrentView(page)).annotation, { timeout })
+      .toBe(expected.annotation);
+  }
+
+  if (expected.projection) {
+    await expect
+      .poll(async () => (await getCurrentView(page)).projection, { timeout })
+      .toBe(expected.projection);
+  }
+
   const annotationTriggerText = page.locator(
     'protspace-control-bar protspace-annotation-select .dropdown-trigger-text',
   );
@@ -681,6 +694,11 @@ test.describe('URL-backed explore view state', () => {
   });
 
   test('restores the OPFS dataset and validates params against it on reload', async ({ page }) => {
+    test.skip(
+      !(await supportsExplorePersistedDataset(page)),
+      'OPFS is unavailable in this browser.',
+    );
+
     await page.goto('/explore');
     await dismissTourIfPresent(page);
     await waitForExploreDataLoad(page);

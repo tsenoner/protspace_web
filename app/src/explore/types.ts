@@ -19,6 +19,10 @@ export interface LoadMeta {
   kind: DatasetLoadKind;
 }
 
+export interface DataLoaderLoadOptions {
+  source?: 'user' | 'auto';
+}
+
 export interface ExploreViewChange {
   effective: EffectiveExploreView;
   source: ExploreViewChangeSource;
