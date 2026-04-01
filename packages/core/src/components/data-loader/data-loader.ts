@@ -9,6 +9,7 @@ import { readFileOptimized } from './utils/file-io';
 import { extractRowsFromParquetBundle } from './utils/bundle';
 import { convertParquetToVisualizationDataOptimized } from './utils/conversion';
 import {
+  assertValidFileExtension,
   assertWithinFileSizeLimit,
   assertValidParquetMagic,
   validateRowsBasic,
@@ -85,7 +86,7 @@ export class DataLoader extends LitElement {
       <input
         type="file"
         class="hidden-input"
-        accept=".parquet,.parquetbundle"
+        accept=".parquetbundle"
         @change=${this.handleFileSelect}
         style="display:none"
       />
@@ -147,6 +148,17 @@ export class DataLoader extends LitElement {
    */
   async loadFromFile(file: File, options?: { source?: DataLoadSource }) {
     const source: DataLoadSource = options?.source ?? 'user';
+
+    // Validate extension before any loading UI appears
+    try {
+      assertValidFileExtension(file.name);
+    } catch (error) {
+      const originalError = error instanceof Error ? error : new Error(String(error));
+      this.error = originalError.message;
+      this.dispatchError(this.error, originalError);
+      return;
+    }
+
     this.setLoading(true);
     this.error = null;
     this.dispatchLoadingStart();
