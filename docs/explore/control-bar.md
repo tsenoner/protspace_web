@@ -55,9 +55,14 @@ Find specific proteins by ID:
 Paste multiple IDs at once (newline or space separated) and all matching proteins will be selected. Useful for re-selecting a previously exported subset.
 :::
 
-## 4. Select Button
+## 4. Selection Tools
 
-Enable **box selection mode** to select multiple proteins at once. See the [Box Selection](/explore/scatterplot#box-selection) section for details.
+Click **Select** to enter selection mode. A tool picker appears with two options:
+
+- **Rectangle** (default) — drag to draw a box around proteins
+- **Lasso** — draw a freeform outline around proteins
+
+See [Box Selection](/explore/scatterplot#box-selection) and [Lasso Selection](/explore/scatterplot#lasso-selection) for details.
 
 ## 5. Clear Button
 
