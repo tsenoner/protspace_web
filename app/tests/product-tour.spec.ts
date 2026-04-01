@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { waitForDataLoad } from './helpers';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -42,22 +43,6 @@ const STEP_TARGETS: StepTarget[] = [
   { shadow: '[data-driver-id="other-row"]', host: '[data-driver-id="legend"]' }, // Expand Hidden Categories
   null, // You're All Set!
 ];
-
-/** Wait for the scatterplot data to be loaded. */
-async function waitForDataLoad(page: Page, timeout = 30_000): Promise<void> {
-  await page.waitForSelector('#myPlot', { timeout });
-
-  await page.waitForFunction(
-    () => {
-      const plot = document.querySelector('#myPlot') as any;
-      return plot?.data?.protein_ids?.length > 0;
-    },
-    { timeout, polling: 1000 },
-  );
-
-  // Let rendering settle
-  await page.waitForTimeout(500);
-}
 
 /** Wait for the driver.js tour popover to appear. */
 async function waitForTourPopover(page: Page, timeout = 10_000): Promise<void> {

@@ -293,6 +293,10 @@ export class ProtspaceScatterplot extends LitElement {
     this._cancelDuplicateStackCompute();
     this._clearDuplicateBadgesCanvas();
     this._webglRenderer?.destroy();
+    if (this._brush) {
+      this._brush.on('end', null);
+      this._brush = null;
+    }
 
     super.disconnectedCallback();
     this.removeEventListener('legend-zorder-change', this._handleZOrderChange);
@@ -865,6 +869,12 @@ export class ProtspaceScatterplot extends LitElement {
         }
       });
     this._svgSelection.call(this._zoom);
+    this._setupDblClickHandlers();
+  }
+
+  /** Disable D3's built-in double-click zoom and attach our own reset handler. */
+  private _setupDblClickHandlers() {
+    if (!this._svgSelection) return;
     this._svgSelection.on('dblclick.zoom', null);
     this._svgSelection.on('dblclick.reset', (event: MouseEvent) => {
       event.preventDefault();
@@ -1004,10 +1014,8 @@ export class ProtspaceScatterplot extends LitElement {
       const t = this._transform;
 
       // Compute the visible viewport in local (untransformed) coordinates.
-      // The brush group carries the zoom transform, so the extent must be in
-      // the same local coordinate system.  Using the inverse of the current
-      // transform ensures the brush covers the entire visible canvas at any
-      // zoom / pan level — no dead-zones at the edges.
+      // Since zoom is disabled during selection mode (on('.zoom', null) above),
+      // this extent stays valid for the lifetime of the brush.
       const vx0 = t.invertX(0);
       const vy0 = t.invertY(0);
       const vx1 = t.invertX(config.width);
@@ -1028,38 +1036,23 @@ export class ProtspaceScatterplot extends LitElement {
       // Re-enable zoom
       if (this._zoom) {
         this._svgSelection.call(this._zoom);
-        this._svgSelection.on('dblclick.zoom', null);
-        this._svgSelection.on('dblclick.reset', (event: MouseEvent) => {
-          event.preventDefault();
-          this.resetZoom();
-        });
+        this._setupDblClickHandlers();
       }
       this._brush = null;
     }
   }
 
   private _handleBrushEnd(event: d3.D3BrushEvent<unknown>) {
-    if (!event.selection || !this._scales) return;
+    if (!event.selection) return;
 
     const [[x0, y0], [x1, y1]] = event.selection as [[number, number], [number, number]];
-    const selectedIds: string[] = [];
-
-    this._plotData.forEach((d) => {
-      if (this._getOpacity(d) === 0) return;
-      const pointX = this._scales!.x(d.x);
-      const pointY = this._scales!.y(d.y);
-
-      if (pointX >= x0 && pointX <= x1 && pointY >= y0 && pointY <= y1) {
-        selectedIds.push(d.id);
-      }
-    });
+    const candidates = this._quadtreeIndex.queryByPixels(x0, y0, x1, y1);
+    const selectedIds = candidates.filter((d) => this._getOpacity(d) > 0).map((d) => d.id);
 
     if (selectedIds.length > 0) {
-      // Batch the updates for better performance
       requestAnimationFrame(() => {
         this.selectedProteinIds = [...selectedIds];
 
-        // Dispatch brush selection event instead of individual protein-click events
         this.dispatchEvent(
           new CustomEvent('brush-selection', {
             detail: {
@@ -1071,19 +1064,21 @@ export class ProtspaceScatterplot extends LitElement {
           }),
         );
 
-        this.requestUpdate(); // Force re-render for highlighting
-      });
-    }
+        this.requestUpdate();
 
-    // Clear brush selection
-    setTimeout(() => {
+        // Clear brush rectangle on the next frame, after the render settles
+        requestAnimationFrame(() => {
+          if (this._brush && this._brushGroup) {
+            this._brushGroup.call(this._brush.move, null);
+          }
+        });
+      });
+    } else {
+      // No points selected — just clear the brush rectangle
       if (this._brush && this._brushGroup) {
         this._brushGroup.call(this._brush.move, null);
       }
-      if (this._zoom && this._svgSelection && !this.selectionMode) {
-        this._svgSelection.call(this._zoom);
-      }
-    }, 100);
+    }
   }
 
   private _renderPlot() {
