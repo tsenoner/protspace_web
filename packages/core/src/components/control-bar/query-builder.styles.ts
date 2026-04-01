@@ -316,25 +316,6 @@ export const queryBuilderStyles = css`
     gap: var(--spacing-sm);
   }
 
-  .group-add-condition {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: none;
-    border: none;
-    color: var(--primary);
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    cursor: pointer;
-    padding: var(--spacing-2xs) var(--spacing-xs);
-    border-radius: 0.25rem;
-    transition: var(--transition-fast);
-  }
-
-  .group-add-condition:hover {
-    color: var(--primary-hover);
-  }
-
   /* ==========================================
      VALUE PICKER (DROPDOWN)
      ========================================== */
@@ -461,12 +442,13 @@ export const queryBuilderStyles = css`
   }
 
   .annotation-picker-category {
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-xs);
     font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    color: var(--text-secondary);
+    font-weight: var(--font-semibold);
+    color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    border-bottom: var(--border-width) solid var(--border);
     position: sticky;
     top: 0;
     background: var(--surface);

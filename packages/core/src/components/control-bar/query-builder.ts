@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { ProtspaceData } from './types';
 import type { FilterQuery, FilterCondition, FilterGroup, LogicalOp } from './query-types';
 import { createCondition, createGroup, isFilterGroup } from './query-types';
-import { evaluateQuery } from './query-evaluate';
+import { evaluateQuery, evaluateQueryExcluding } from './query-evaluate';
 import { queryBuilderStyles } from './query-builder.styles';
 import { buttonMixin } from '../../styles/mixins';
 import './query-condition-row';
@@ -33,7 +33,8 @@ class ProtspaceQueryBuilder extends LitElement {
   @property({ type: Object }) data: ProtspaceData | undefined = undefined;
   @property({ type: Array }) query: FilterQuery = [];
 
-  @state() private _matchCount: number = 0;
+  @state() private _matchedIndices: Set<number> = new Set();
+  @state() private _excludedMatchMap: Map<string, Set<number>> = new Map();
   @state() private _totalCount: number = 0;
 
   private _debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -60,9 +61,21 @@ class ProtspaceQueryBuilder extends LitElement {
     if (this._debounceTimer) clearTimeout(this._debounceTimer);
     this._debounceTimer = setTimeout(() => {
       if (!this.data) return;
-      const result = evaluateQuery(query, this.data);
-      this._matchCount = result.size;
+      this._matchedIndices = evaluateQuery(query, this.data);
       this._totalCount = this.data.protein_ids?.length ?? 0;
+
+      // Build per-condition "excluded" matched sets for dynamic value counts
+      const map = new Map<string, Set<number>>();
+      for (const item of query) {
+        if (isFilterGroup(item)) {
+          for (const cond of item.conditions) {
+            map.set(cond.id, evaluateQueryExcluding(query, this.data, cond.id));
+          }
+        } else {
+          map.set(item.id, evaluateQueryExcluding(query, this.data, item.id));
+        }
+      }
+      this._excludedMatchMap = map;
     }, 300);
   }
 
@@ -220,6 +233,7 @@ class ProtspaceQueryBuilder extends LitElement {
                 .condition=${item}
                 .annotations=${this.annotations}
                 .data=${this.data}
+                .matchedIndices=${this._excludedMatchMap.get(item.id) ?? this._matchedIndices}
                 .showLogicalOp=${index > 0}
                 @condition-changed=${(e: CustomEvent) => this._handleConditionChanged(e, group.id)}
                 @condition-removed=${(e: CustomEvent) => this._handleConditionRemoved(e, group.id)}
@@ -227,7 +241,7 @@ class ProtspaceQueryBuilder extends LitElement {
             `,
           )}
         </div>
-        <button class="group-add-condition" @click=${() => this._addConditionToGroup(group.id)}>
+        <button class="btn-link" @click=${() => this._addConditionToGroup(group.id)}>
           + Add condition
         </button>
       </div>
@@ -242,7 +256,7 @@ class ProtspaceQueryBuilder extends LitElement {
         <div class="query-header">
           <span>Filter Query</span>
           <span class="match-count">
-            ${this._matchCount} of ${this._totalCount} proteins matched
+            ${this._matchedIndices.size} of ${this._totalCount} proteins matched
           </span>
         </div>
 
@@ -256,6 +270,7 @@ class ProtspaceQueryBuilder extends LitElement {
                 .condition=${item}
                 .annotations=${this.annotations}
                 .data=${this.data}
+                .matchedIndices=${this._excludedMatchMap.get(item.id) ?? this._matchedIndices}
                 .showLogicalOp=${index > 0}
                 @condition-changed=${(e: CustomEvent) => this._handleConditionChanged(e, null)}
                 @condition-removed=${(e: CustomEvent) => this._handleConditionRemoved(e, null)}
@@ -265,15 +280,17 @@ class ProtspaceQueryBuilder extends LitElement {
         </div>
 
         <div class="query-actions">
-          <button @click=${this._addCondition}>+ Add condition</button>
-          <button @click=${this._addGroup}>+ Add group</button>
+          <button class="btn-secondary btn-compact" @click=${this._addCondition}>
+            + Add condition
+          </button>
+          <button class="btn-secondary btn-compact" @click=${this._addGroup}>+ Add group</button>
         </div>
 
         <div class="query-footer">
           <button class="btn-danger" @click=${this._handleReset}>Reset All</button>
           <button
             class="btn-primary"
-            ?disabled=${this._matchCount === 0 || this.query.length === 0}
+            ?disabled=${this._matchedIndices.size === 0 || this.query.length === 0}
             @click=${this._handleApply}
           >
             Apply &amp; Isolate

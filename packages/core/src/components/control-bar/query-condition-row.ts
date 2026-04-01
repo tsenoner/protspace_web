@@ -21,6 +21,7 @@ class ProtspaceQueryConditionRow extends LitElement {
   @property({ type: Object }) condition!: FilterCondition;
   @property({ type: Array }) annotations: string[] = [];
   @property({ type: Object }) data: ProtspaceData | undefined = undefined;
+  @property({ type: Object }) matchedIndices: Set<number> = new Set();
   @property({ type: Boolean }) showLogicalOp: boolean = false;
 
   @state() private _showAnnotationPicker: boolean = false;
@@ -258,6 +259,9 @@ class ProtspaceQueryConditionRow extends LitElement {
       <protspace-query-value-picker
         .annotation=${this.condition.annotation}
         .data=${this.data}
+        .matchedIndices=${this.matchedIndices}
+        .operator=${this.condition.operator}
+        .logicalOp=${this.condition.logicalOp}
         .selectedValues=${this.condition.values}
         .open=${this._showValuePicker}
         .triggerTop=${this._valuePickerPos.top}

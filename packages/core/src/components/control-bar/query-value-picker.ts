@@ -1,7 +1,9 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state, query as litQuery } from 'lit/decorators.js';
 import type { ProtspaceData } from './types';
+import type { ConditionOperator, LogicalOp } from './query-types';
 import { toInternalValue } from '../legend/config';
+import { resolveAnnotationValue } from './query-evaluate';
 import { LEGEND_VALUES } from '@protspace/utils';
 import { queryBuilderStyles } from './query-builder.styles';
 
@@ -18,6 +20,9 @@ class ProtspaceQueryValuePicker extends LitElement {
 
   @property({ type: String }) annotation: string = '';
   @property({ type: Object }) data: ProtspaceData | undefined = undefined;
+  @property({ type: Object }) matchedIndices: Set<number> = new Set();
+  @property({ type: String }) operator: ConditionOperator = 'is';
+  @property({ type: String }) logicalOp: LogicalOp | undefined = undefined;
   @property({ type: Array }) selectedValues: string[] = [];
   @property({ type: Boolean }) open: boolean = false;
   @property({ type: Number }) triggerTop: number = 0;
@@ -62,26 +67,24 @@ class ProtspaceQueryValuePicker extends LitElement {
   }
 
   /**
-   * Build a map from internal value → protein count.
+   * Build a map from internal value → count of proteins that have this value.
+   * When `indices` is provided, only count within that set; otherwise count all proteins.
    */
-  private _buildCountMap(): Map<string, number> {
+  private _buildCountMap(indices?: Set<number>): Map<string, number> {
     const counts = new Map<string, number>();
+    if (!this.data || !this.annotation) return counts;
 
-    const annotationMeta = this.data?.annotations?.[this.annotation];
-    const rawIndices = this.data?.annotation_data?.[this.annotation];
-
-    if (!annotationMeta || !rawIndices) {
-      return counts;
-    }
-
-    const values = annotationMeta.values;
-
-    // annotation_data entries can be number[] or number[][] (multi-label)
-    for (const entry of rawIndices) {
-      const indices: number[] = Array.isArray(entry) ? (entry as number[]) : [entry as number];
+    if (indices) {
       for (const idx of indices) {
-        const raw = values[idx];
-        const internal = toInternalValue(raw);
+        const resolved = resolveAnnotationValue(idx, this.annotation, this.data);
+        const internal = toInternalValue(resolved);
+        counts.set(internal, (counts.get(internal) ?? 0) + 1);
+      }
+    } else {
+      const numProteins = this.data.protein_ids?.length ?? 0;
+      for (let i = 0; i < numProteins; i++) {
+        const resolved = resolveAnnotationValue(i, this.annotation, this.data);
+        const internal = toInternalValue(resolved);
         counts.set(internal, (counts.get(internal) ?? 0) + 1);
       }
     }
@@ -103,7 +106,9 @@ class ProtspaceQueryValuePicker extends LitElement {
     }
 
     const selectedSet = new Set(this.selectedValues);
-    const countMap = this._buildCountMap();
+    const excludedCountMap = this._buildCountMap(this.matchedIndices);
+    // Full-dataset counts only needed for OR
+    const fullCountMap = this.logicalOp === 'OR' ? this._buildCountMap() : undefined;
 
     // Deduplicate while preserving order, applying toInternalValue normalisation
     const seen = new Set<string>();
@@ -116,13 +121,35 @@ class ProtspaceQueryValuePicker extends LitElement {
       }
     }
 
+    const excludedSize = this.matchedIndices.size;
+    const totalProteins = this.data?.protein_ids?.length ?? 0;
+    const isOR = this.logicalOp === 'OR';
+    // NOT logicalOp inverts the condition: NOT+is ≡ AND+is_not, NOT+is_not ≡ AND+is
+    const operatorInverts = this.operator === 'is_not';
+    const logicalOpInverts = this.logicalOp === 'NOT';
+    const shouldInvert = operatorInverts !== logicalOpInverts;
+
     const queryLower = this._searchQuery.trim().toLowerCase();
     const filteredValues = allValues
       .filter((v) => {
         if (!queryLower) return true;
         return this._displayValue(v).toLowerCase().includes(queryLower);
       })
-      .map((v) => ({ value: v, count: countMap.get(v) ?? 0 }));
+      .map((v) => {
+        const rawCount = excludedCountMap.get(v) ?? 0;
+        let count: number;
+        if (isOR) {
+          const fullCount = fullCountMap!.get(v) ?? 0;
+          // OR unions: excludedSet ∪ conditionResult
+          count =
+            this.operator === 'is_not'
+              ? totalProteins - fullCount + rawCount // union with "not X" set
+              : excludedSize + fullCount - rawCount; // union with "X" set
+        } else {
+          count = shouldInvert ? excludedSize - rawCount : rawCount;
+        }
+        return { value: v, count };
+      });
 
     return { allValues, filteredValues };
   }
@@ -194,7 +221,7 @@ class ProtspaceQueryValuePicker extends LitElement {
             ({ value, count }) => html`
               <div class="value-picker-item" @click=${() => this._selectValue(value)}>
                 <span>${this._highlightMatch(this._displayValue(value))}</span>
-                <span class="value-picker-count">${count} proteins</span>
+                <span class="value-picker-count">${count}</span>
               </div>
             `,
           )}

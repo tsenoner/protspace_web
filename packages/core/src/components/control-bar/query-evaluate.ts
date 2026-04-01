@@ -104,6 +104,43 @@ export function evaluateQuery(query: FilterQuery, data: ProtspaceData): Set<numb
   return evaluateItems(query, data, numProteins);
 }
 
+/**
+ * Evaluate a FilterQuery with one condition excluded (by id).
+ * Used to compute value counts that are independent of the current condition's own selections.
+ */
+export function evaluateQueryExcluding(
+  query: FilterQuery,
+  data: ProtspaceData,
+  excludeId: string,
+): Set<number> {
+  const numProteins = data.protein_ids?.length ?? 0;
+  if (numProteins === 0) return new Set();
+
+  const filtered = excludeItemById(query, excludeId);
+  if (filtered.length === 0) return allIndices(numProteins);
+
+  return evaluateItems(filtered, data, numProteins);
+}
+
+/**
+ * Return a shallow copy of the query with the item matching `id` removed.
+ * Searches both top-level items and group conditions.
+ */
+function excludeItemById(items: FilterQueryItem[], id: string): FilterQueryItem[] {
+  const result: FilterQueryItem[] = [];
+  for (const item of items) {
+    if (isFilterGroup(item)) {
+      const filteredConditions = item.conditions.filter((c) => c.id !== id);
+      if (filteredConditions.length > 0) {
+        result.push({ ...item, conditions: filteredConditions });
+      }
+    } else if (item.id !== id) {
+      result.push(item);
+    }
+  }
+  return result;
+}
+
 function evaluateItems(
   items: FilterQueryItem[],
   data: ProtspaceData,
