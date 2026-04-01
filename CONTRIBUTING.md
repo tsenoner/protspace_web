@@ -142,6 +142,7 @@ pnpm clean        # Clean build artifacts
 pnpm precommit    # Mirror the installed pre-commit hook, including docs validation
 
 # The exact hook path is `pnpm precommit`. Use these as targeted spot checks when you do not need the full hook:
+pnpm quality      # Run the shared static-quality gate (types + Knip)
 pnpm format       # Auto-format with Prettier
 pnpm lint:fix     # Auto-fix linting issues with ESLint
 pnpm type-check   # Validate TypeScript compilation
@@ -200,8 +201,9 @@ pnpm docs:build   # Verify the documentation build
 ### Testing
 
 ```bash
-pnpm test         # Run all tests
-pnpm test:watch   # Run tests in watch mode (if available)
+pnpm test         # Run tests in watch mode
+pnpm test:ci      # Run the non-watch CI test suite
+pnpm test:e2e     # Run Playwright browser coverage
 ```
 
 ## Documentation

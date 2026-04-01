@@ -62,6 +62,12 @@ pnpm precommit
 This matches the installed local Git hook by running `lint-staged`, repo-wide type checks, Knip,
 dependency-hygiene checks, the local unit/integration test suite, and a docs build.
 
+For a faster static-only pass while you are iterating, run:
+
+```bash
+pnpm quality
+```
+
 ## ⚖️ License
 
 Apache License 2.0 - see [LICENSE](LICENSE)
