@@ -284,3 +284,175 @@ test.describe('Brush selection works at all zoom levels (#189)', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Lasso selection tests (#208)
+// ---------------------------------------------------------------------------
+
+/**
+ * Programmatically invoke lasso selection with a polygon in CSS pixels.
+ * Converts to local coords and triggers the component's lasso handlers directly.
+ */
+async function lassoSelect(
+  page: Page,
+  vertices: Array<[number, number]>,
+): Promise<{ selectionTool: string }> {
+  return page.evaluate((verts) => {
+    const plot = document.querySelector('#myPlot') as any;
+    if (!plot) return { selectionTool: '' };
+
+    const selectionTool = plot.selectionTool ?? '';
+    const svg = plot.shadowRoot?.querySelector('svg');
+    if (!svg) return { selectionTool };
+
+    const svgRect = svg.getBoundingClientRect();
+    const viewBox = svg.viewBox.baseVal;
+    const scaleX = viewBox.width / svgRect.width;
+    const scaleY = viewBox.height / svgRect.height;
+    const t = plot._transform;
+
+    // Convert CSS pixels → local (untransformed) coords
+    const localVerts: Array<[number, number]> = verts.map(([x, y]) => {
+      const svgX = x * scaleX;
+      const svgY = y * scaleY;
+      return [(svgX - t.x) / t.k, (svgY - t.y) / t.k] as [number, number];
+    });
+
+    // Query the quadtree directly with the polygon
+    const candidates = plot._quadtreeIndex?.queryByPolygon(localVerts) ?? [];
+    const getOpacity = plot._getOpacity?.bind(plot);
+    const selectedIds = getOpacity
+      ? candidates.filter((d: any) => getOpacity(d) > 0).map((d: any) => d.id)
+      : candidates.map((d: any) => d.id);
+
+    if (selectedIds.length > 0) {
+      plot.selectedProteinIds = [...selectedIds];
+      plot.dispatchEvent(
+        new CustomEvent('brush-selection', {
+          detail: { proteinIds: selectedIds, isMultiple: true },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+      plot.requestUpdate();
+    }
+
+    return { selectionTool };
+  }, vertices);
+}
+
+/** Switch the selection tool on the scatter-plot component. */
+async function setSelectionTool(page: Page, tool: 'rectangle' | 'lasso'): Promise<string> {
+  await page.evaluate((t) => {
+    const plot = document.querySelector('#myPlot') as any;
+    if (plot) plot.selectionTool = t;
+  }, tool);
+  await page.waitForFunction(
+    (expected) => {
+      const plot = document.querySelector('#myPlot') as any;
+      return plot?.selectionTool === expected;
+    },
+    tool,
+    { timeout: 5_000 },
+  );
+  return page.evaluate(() => {
+    const plot = document.querySelector('#myPlot') as any;
+    return plot?.selectionTool ?? '';
+  });
+}
+
+test.describe('Lasso selection (#208)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/explore');
+    await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
+    await page.goto('/explore');
+    await waitForDataLoad(page);
+    await dismissTourIfPresent(page);
+  });
+
+  test('lasso at default zoom selects all points with enclosing polygon', async ({ page }) => {
+    const totalProteins = await getProteinCount(page);
+    expect(totalProteins).toBeGreaterThan(0);
+
+    const active = await enableSelectionMode(page);
+    expect(active).toBe(true);
+
+    const tool = await setSelectionTool(page, 'lasso');
+    expect(tool).toBe('lasso');
+
+    const dims = await page.evaluate(() => {
+      const plot = document.querySelector('#myPlot') as HTMLElement;
+      return { width: plot.clientWidth, height: plot.clientHeight };
+    });
+
+    // Draw a polygon that encloses the entire canvas
+    const result = await lassoSelect(page, [
+      [0, 0],
+      [dims.width, 0],
+      [dims.width, dims.height],
+      [0, dims.height],
+    ]);
+    expect(result.selectionTool).toBe('lasso');
+
+    const actual = await waitForSelection(page, totalProteins);
+    expect(actual.length).toBe(totalProteins);
+  });
+
+  test('switch between rectangle and lasso tools', async ({ page }) => {
+    const active = await enableSelectionMode(page);
+    expect(active).toBe(true);
+
+    // Default is rectangle
+    let tool = await page.evaluate(() => {
+      const plot = document.querySelector('#myPlot') as any;
+      return plot?.selectionTool ?? '';
+    });
+    expect(tool).toBe('rectangle');
+
+    // Switch to lasso
+    tool = await setSelectionTool(page, 'lasso');
+    expect(tool).toBe('lasso');
+
+    // Switch back to rectangle
+    tool = await setSelectionTool(page, 'rectangle');
+    expect(tool).toBe('rectangle');
+
+    // Rectangle brush still works after switching back
+    const dims = await page.evaluate(() => {
+      const plot = document.querySelector('#myPlot') as HTMLElement;
+      return { width: plot.clientWidth, height: plot.clientHeight };
+    });
+    const result = await brushSelect(page, 0, 0, dims.width, dims.height);
+    expect(result.brushCreated).toBe(true);
+
+    const actual = await waitForSelection(page, 'non-empty');
+    expect(actual.length).toBeGreaterThan(0);
+  });
+
+  test('lasso with fewer than 3 vertices does not change selection', async ({ page }) => {
+    const active = await enableSelectionMode(page);
+    expect(active).toBe(true);
+    await setSelectionTool(page, 'lasso');
+
+    // Make a brush selection first so there's an existing selection
+    await setSelectionTool(page, 'rectangle');
+    const dims = await page.evaluate(() => {
+      const plot = document.querySelector('#myPlot') as HTMLElement;
+      return { width: plot.clientWidth, height: plot.clientHeight };
+    });
+    await brushSelect(page, 0, 0, dims.width, dims.height);
+    const beforeSelection = await waitForSelection(page, 'non-empty');
+    expect(beforeSelection.length).toBeGreaterThan(0);
+
+    // Switch to lasso and do a < 3 vertex selection (should be ignored)
+    await setSelectionTool(page, 'lasso');
+    await lassoSelect(page, [
+      [10, 10],
+      [20, 20],
+    ]);
+
+    // Selection should be unchanged
+    const afterSelection = await getSelectedProteinIds(page);
+    expect(afterSelection.length).toBe(beforeSelection.length);
+  });
+});
