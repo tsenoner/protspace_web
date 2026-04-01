@@ -97,6 +97,17 @@ const scatterplotStylesCore = css`
     display: none;
   }
 
+  /* Lasso (freeform selection path) */
+  .lasso-path {
+    fill: var(--protspace-brush-fill);
+    stroke: var(--protspace-brush-stroke);
+    stroke-width: var(--protspace-brush-stroke-width);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+    vector-effect: non-scaling-stroke;
+  }
+
   /* Base loading overlay styles provided by overlayMixins */
   .loading-spinner {
     /* Override size from base mixin */

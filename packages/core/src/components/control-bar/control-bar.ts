@@ -65,6 +65,8 @@ export class ProtspaceControlBar extends LitElement {
   projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
   @property({ type: Boolean, attribute: 'selection-mode' })
   selectionMode: boolean = false;
+  @property({ type: String, attribute: 'selection-tool' })
+  selectionTool: 'rectangle' | 'lasso' = 'rectangle';
   @property({ type: Number, attribute: 'selected-proteins-count' })
   selectedProteinsCount: number = 0;
   @property({ type: Boolean, attribute: 'isolation-mode' })
@@ -376,6 +378,23 @@ export class ProtspaceControlBar extends LitElement {
       composed: true,
     });
     this.dispatchEvent(customEvent);
+  }
+
+  private handleSelectionToolChange(tool: 'rectangle' | 'lasso') {
+    this.selectionTool = tool;
+    if (this.autoSync && this._scatterplotElement) {
+      const scatterplot = this._scatterplotElement as ScatterplotElementLike;
+      if (scatterplot.selectionTool !== undefined) {
+        scatterplot.selectionTool = tool;
+      }
+    }
+    this.dispatchEvent(
+      new CustomEvent('selection-tool-change', {
+        detail: { selectionTool: tool },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private handleClearSelections() {
@@ -809,6 +828,54 @@ export class ProtspaceControlBar extends LitElement {
               </svg>
               Select
             </button>
+
+            <!-- Selection tool picker (visible only in selection mode) -->
+            ${this.selectionMode
+              ? html`
+                  <div class="tool-toggle" role="group" aria-label="Selection tool">
+                    <button
+                      class=${this.selectionTool === 'rectangle'
+                        ? 'tool-toggle-btn active'
+                        : 'tool-toggle-btn'}
+                      @click=${() => this.handleSelectionToolChange('rectangle')}
+                      title="Rectangle selection"
+                      aria-pressed=${this.selectionTool === 'rectangle'}
+                    >
+                      <svg class="icon" viewBox="0 0 24 24">
+                        <rect
+                          x="4"
+                          y="4"
+                          width="16"
+                          height="16"
+                          rx="1"
+                          stroke="currentColor"
+                          stroke-dasharray="3 2"
+                          fill="none"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      class=${this.selectionTool === 'lasso'
+                        ? 'tool-toggle-btn active'
+                        : 'tool-toggle-btn'}
+                      @click=${() => this.handleSelectionToolChange('lasso')}
+                      title="Lasso selection"
+                      aria-pressed=${this.selectionTool === 'lasso'}
+                    >
+                      <svg class="icon" viewBox="0 0 24 24">
+                        <path
+                          d="M12 3C7 3 3 7 3 11c0 3 2 5.5 5 7l1.5 2.5c.3.5.8.5 1 0L12 18c5 0 9-3.5 9-7.5S17 3 12 3z"
+                          stroke="currentColor"
+                          stroke-width="1.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          fill="none"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                `
+              : ''}
 
             <!-- Clear selections button -->
             <button

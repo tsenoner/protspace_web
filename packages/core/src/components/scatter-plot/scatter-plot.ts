@@ -62,6 +62,8 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Array }) highlightedProteinIds: string[] = [];
   @property({ type: Array }) selectedProteinIds: string[] = [];
   @property({ type: Boolean }) selectionMode = false;
+  @property({ type: String, attribute: 'selection-tool' })
+  selectionTool: 'rectangle' | 'lasso' = 'rectangle';
   @property({ type: Array }) hiddenAnnotationValues: string[] = [];
   @property({ type: Array }) otherAnnotationValues: string[] = [];
   @property({ type: Boolean }) useShapes: boolean = false;
@@ -112,6 +114,10 @@ export class ProtspaceScatterplot extends LitElement {
   private _brushGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _overlayGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _brush: d3.BrushBehavior<unknown> | null = null;
+  private _lassoVertices: Array<[number, number]> = [];
+  private _lassoPath: SVGPathElement | null = null;
+  private _isLassoing = false;
+  private _lassoRafId: number | null = null;
   private _webglRenderer: WebGLRenderer | null = null;
   private _zoomRafId: number | null = null;
   private _styleSig: string | null = null;
@@ -297,6 +303,7 @@ export class ProtspaceScatterplot extends LitElement {
       this._brush.on('end', null);
       this._brush = null;
     }
+    this._cleanupLasso();
 
     super.disconnectedCallback();
     this.removeEventListener('legend-zorder-change', this._handleZOrderChange);
@@ -486,7 +493,10 @@ export class ProtspaceScatterplot extends LitElement {
         this._webglRenderer?.invalidatePositionCache();
       }
     }
-    if (changedProperties.has('selectionMode')) {
+    if (
+      changedProperties.has('selectionMode') ||
+      (changedProperties.has('selectionTool') && this.selectionMode)
+    ) {
       this._updateSelectionMode();
     }
     // Refresh cached style getters when any relevant input changes
@@ -1000,46 +1010,158 @@ export class ProtspaceScatterplot extends LitElement {
   private _updateSelectionMode() {
     if (!this._svgSelection || !this._brushGroup || !this._scales) return;
 
-    // Clear existing brush
+    // Clean up both selection tools
     this._brushGroup.selectAll('*').remove();
+    this._cleanupLasso();
+    this._brush = null;
 
     if (this.selectionMode) {
-      // Disable zoom
+      // Disable zoom during selection
       if (this._zoom) {
         this._svgSelection.on('.zoom', null);
       }
 
-      // Create brush
-      const config = this._mergedConfig;
-      const t = this._transform;
-
-      // Compute the visible viewport in local (untransformed) coordinates.
-      // Since zoom is disabled during selection mode (on('.zoom', null) above),
-      // this extent stays valid for the lifetime of the brush.
-      const vx0 = t.invertX(0);
-      const vy0 = t.invertY(0);
-      const vx1 = t.invertX(config.width);
-      const vy1 = t.invertY(config.height);
-
-      this._brush = d3
-        .brush()
-        // Keep the UX simple: no resize handles, just drag a rectangle.
-        .handleSize(0)
-        .extent([
-          [Math.min(vx0, vx1), Math.min(vy0, vy1)],
-          [Math.max(vx0, vx1), Math.max(vy0, vy1)],
-        ])
-        .on('end', (event) => this._handleBrushEnd(event));
-
-      this._brushGroup.call(this._brush);
+      if (this.selectionTool === 'lasso') {
+        this._setupLasso();
+      } else {
+        this._setupBrush();
+      }
     } else {
       // Re-enable zoom
       if (this._zoom) {
         this._svgSelection.call(this._zoom);
         this._setupDblClickHandlers();
       }
-      this._brush = null;
     }
+  }
+
+  private _setupBrush() {
+    if (!this._svgSelection || !this._brushGroup) return;
+
+    const config = this._mergedConfig;
+    const t = this._transform;
+
+    // Compute the visible viewport in local (untransformed) coordinates.
+    // Since zoom is disabled during selection mode (on('.zoom', null) above),
+    // this extent stays valid for the lifetime of the brush.
+    const vx0 = t.invertX(0);
+    const vy0 = t.invertY(0);
+    const vx1 = t.invertX(config.width);
+    const vy1 = t.invertY(config.height);
+
+    this._brush = d3
+      .brush()
+      .handleSize(0)
+      .extent([
+        [Math.min(vx0, vx1), Math.min(vy0, vy1)],
+        [Math.max(vx0, vx1), Math.max(vy0, vy1)],
+      ])
+      .on('end', (event) => this._handleBrushEnd(event));
+
+    this._brushGroup.call(this._brush);
+  }
+
+  // ── Lasso selection ──────────────────────────────────────────────
+
+  private _setupLasso() {
+    if (!this._svgSelection) return;
+
+    this._svgSelection
+      .on('pointerdown.lasso', (event: PointerEvent) => this._handleLassoStart(event))
+      .on('pointermove.lasso', (event: PointerEvent) => this._handleLassoMove(event))
+      .on('pointerup.lasso', (event: PointerEvent) => this._handleLassoEnd(event));
+  }
+
+  private _cleanupLasso() {
+    if (this._svgSelection) {
+      this._svgSelection.on('pointerdown.lasso', null);
+      this._svgSelection.on('pointermove.lasso', null);
+      this._svgSelection.on('pointerup.lasso', null);
+    }
+    if (this._lassoRafId !== null) {
+      cancelAnimationFrame(this._lassoRafId);
+      this._lassoRafId = null;
+    }
+    this._lassoPath?.remove();
+    this._lassoPath = null;
+    this._lassoVertices = [];
+    this._isLassoing = false;
+  }
+
+  /** Convert a pointer event to local (untransformed) SVG coordinates. */
+  private _pointerToLocal(event: PointerEvent): [number, number] {
+    const [svgX, svgY] = d3.pointer(event);
+    const localX = (svgX - this._transform.x) / this._transform.k;
+    const localY = (svgY - this._transform.y) / this._transform.k;
+    return [localX, localY];
+  }
+
+  private _handleLassoStart(event: PointerEvent) {
+    if (event.button !== 0) return; // left click only
+    event.preventDefault();
+
+    this._isLassoing = true;
+    this._lassoVertices = [this._pointerToLocal(event)];
+
+    // Create the SVG path in the brush group (same coordinate space as the brush)
+    if (this._brushGroup) {
+      this._lassoPath = this._brushGroup.append('path').attr('class', 'lasso-path').node();
+    }
+
+    // Capture pointer for reliable tracking even if cursor leaves the SVG
+    (event.target as Element)?.setPointerCapture?.(event.pointerId);
+  }
+
+  private _handleLassoMove(event: PointerEvent) {
+    if (!this._isLassoing || !this._lassoPath) return;
+    event.preventDefault();
+
+    this._lassoVertices.push(this._pointerToLocal(event));
+
+    // Throttle SVG path updates to animation frames
+    if (this._lassoRafId === null) {
+      this._lassoRafId = requestAnimationFrame(() => {
+        this._lassoRafId = null;
+        if (!this._lassoPath || this._lassoVertices.length < 2) return;
+
+        const d = this._lassoVertices
+          .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x},${y}`)
+          .join(' ');
+        this._lassoPath.setAttribute('d', d);
+      });
+    }
+  }
+
+  private _handleLassoEnd(event: PointerEvent) {
+    if (!this._isLassoing) return;
+    event.preventDefault();
+    this._isLassoing = false;
+
+    (event.target as Element)?.releasePointerCapture?.(event.pointerId);
+
+    // Need at least 3 vertices to form a polygon
+    if (this._lassoVertices.length < 3) {
+      this._clearLassoVisual();
+      return;
+    }
+
+    // Close the path visually
+    if (this._lassoPath) {
+      const d = this._lassoPath.getAttribute('d') ?? '';
+      this._lassoPath.setAttribute('d', d + ' Z');
+    }
+
+    const candidates = this._quadtreeIndex.queryByPolygon(this._lassoVertices);
+    const selectedIds = candidates.filter((d) => this._getOpacity(d) > 0).map((d) => d.id);
+    this._commitSelection(selectedIds, () => this._clearLassoVisual());
+  }
+
+  private _clearLassoVisual() {
+    if (this._lassoPath) {
+      this._lassoPath.remove();
+      this._lassoPath = null;
+    }
+    this._lassoVertices = [];
   }
 
   private _handleBrushEnd(event: d3.D3BrushEvent<unknown>) {
@@ -1048,7 +1170,18 @@ export class ProtspaceScatterplot extends LitElement {
     const [[x0, y0], [x1, y1]] = event.selection as [[number, number], [number, number]];
     const candidates = this._quadtreeIndex.queryByPixels(x0, y0, x1, y1);
     const selectedIds = candidates.filter((d) => this._getOpacity(d) > 0).map((d) => d.id);
+    this._commitSelection(selectedIds, () => {
+      if (this._brush && this._brushGroup) {
+        this._brushGroup.call(this._brush.move, null);
+      }
+    });
+  }
 
+  /**
+   * Shared selection commit logic for both brush and lasso.
+   * Updates selectedProteinIds, dispatches the event, and schedules visual cleanup.
+   */
+  private _commitSelection(selectedIds: string[], clearVisual: () => void) {
     if (selectedIds.length > 0) {
       requestAnimationFrame(() => {
         this.selectedProteinIds = [...selectedIds];
@@ -1065,19 +1198,10 @@ export class ProtspaceScatterplot extends LitElement {
         );
 
         this.requestUpdate();
-
-        // Clear brush rectangle on the next frame, after the render settles
-        requestAnimationFrame(() => {
-          if (this._brush && this._brushGroup) {
-            this._brushGroup.call(this._brush.move, null);
-          }
-        });
+        requestAnimationFrame(clearVisual);
       });
     } else {
-      // No points selected — just clear the brush rectangle
-      if (this._brush && this._brushGroup) {
-        this._brushGroup.call(this._brush.move, null);
-      }
+      clearVisual();
     }
   }
 
@@ -1943,7 +2067,11 @@ export class ProtspaceScatterplot extends LitElement {
                 class="mode-indicator"
                 style="z-index: 10; display: flex; flex-direction: column; gap: 4px;"
               >
-                ${this.selectionMode ? html`<div>Selection Mode</div>` : ''}
+                ${this.selectionMode
+                  ? html`<div>
+                      Selection Mode (${this.selectionTool === 'lasso' ? 'Lasso' : 'Rectangle'})
+                    </div>`
+                  : ''}
                 ${this.selectedProteinIds.length > 0
                   ? html`<div style="font-size: 11px; opacity: 0.8;">
                       ${this.selectedProteinIds.length} proteins selected
