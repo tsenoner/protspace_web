@@ -7,15 +7,6 @@ import type {
   ResolvedExploreView,
 } from './view-state';
 
-export type {
-  EffectiveExploreView,
-  ExploreViewChangeSource,
-  ExploreViewNormalization,
-  ExploreViewRequestState,
-  RequestedExploreView,
-  ResolvedExploreView,
-} from './view-state';
-
 function getRequestedValue(searchParams: URLSearchParams, key: 'annotation' | 'projection') {
   if (!searchParams.has(key)) {
     return undefined;

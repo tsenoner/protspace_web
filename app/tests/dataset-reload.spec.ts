@@ -642,7 +642,7 @@ test.describe('Persisted dataset failure handling', () => {
     await dismissTourIfPresent(page);
 
     await page.evaluate(async () => {
-      const loader = document.getElementById('myDataLoader') as {
+      const loader = document.getElementById('myDataLoader') as unknown as {
         loadFromFile: (file: File) => Promise<void>;
       } | null;
       if (!loader) {

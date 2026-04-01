@@ -100,7 +100,7 @@ export function createViewController({
   };
 
   const selectProjection = (projection: string) => {
-    const controlBarInternals = controlBar as ProtspaceControlBar & {
+    const controlBarInternals = controlBar as unknown as {
       selectProjection?: (projectionName: string) => void;
     };
 
@@ -124,7 +124,7 @@ export function createViewController({
   };
 
   const selectAnnotation = (annotation: string) => {
-    const controlBarInternals = controlBar as ProtspaceControlBar & {
+    const controlBarInternals = controlBar as unknown as {
       handleAnnotationSelected?: (event: CustomEvent<{ annotation: string }>) => void;
     };
 

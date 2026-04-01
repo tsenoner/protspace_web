@@ -40,23 +40,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Format check
-        run: pnpm format:check
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Type check
-        run: pnpm type-check
-
-      - name: Check for unused code
-        run: pnpm knip
-
-      - name: Build
-        run: pnpm build
-
-      - name: Test
-        run: pnpm test:ci
+      - name: Run quality checks
+        run: pnpm quality:ci
 
   build-docs:
     name: Build Documentation

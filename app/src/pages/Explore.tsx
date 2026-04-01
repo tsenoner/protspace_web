@@ -30,7 +30,6 @@ const Explore = () => {
         }
 
         detachController = attachController(controller);
-
       } catch (error) {
         console.error('Failed to initialize the Explore runtime:', error);
       }

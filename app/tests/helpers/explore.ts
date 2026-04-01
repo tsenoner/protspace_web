@@ -134,7 +134,7 @@ export async function waitForPersistedExploreDataset(page: Page, timeout = 30_00
   throw new Error('Timed out waiting for the persisted OPFS dataset to be written.');
 }
 
-export interface ExploreViewStability {
+interface ExploreViewStability {
   loadStarts: number;
   overlayShows: number;
   initialNavigationEntries: number;

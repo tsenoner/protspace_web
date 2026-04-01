@@ -1,4 +1,4 @@
-import type { ProtspaceDataLoader } from '@protspace/core';
+import type { DataLoader as ProtspaceDataLoader } from '@protspace/core';
 import { notify } from '../lib/notify';
 import {
   StoredDatasetCorruptError,

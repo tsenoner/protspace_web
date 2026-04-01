@@ -1,11 +1,11 @@
 import type {
   ProtspaceControlBar,
-  ProtspaceDataLoader,
   ProtspaceLegend,
   ProtspaceScatterplot,
   ProtspaceStructureViewer,
   DataLoadedEventDetail,
   DataErrorEventDetail,
+  DataLoader as ProtspaceDataLoader,
 } from '@protspace/core';
 import { generateDatasetHash } from '@protspace/utils';
 import { notify } from '../lib/notify';

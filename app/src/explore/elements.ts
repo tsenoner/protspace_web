@@ -1,12 +1,12 @@
 import type {
   ProtspaceControlBar,
-  ProtspaceDataLoader,
   ProtspaceLegend,
   ProtspaceScatterplot,
   ProtspaceStructureViewer,
+  DataLoader as ProtspaceDataLoader,
 } from '@protspace/core';
 
-export interface ExploreElements {
+interface ExploreElements {
   controlBar: ProtspaceControlBar;
   dataLoader: ProtspaceDataLoader;
   legendElement: ProtspaceLegend;

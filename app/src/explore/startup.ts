@@ -1,4 +1,4 @@
-import type { ProtspaceDataLoader, ProtspaceScatterplot } from '@protspace/core';
+import type { DataLoader as ProtspaceDataLoader, ProtspaceScatterplot } from '@protspace/core';
 import { maybeRunWebglPerfSuite } from '../perf/webgl-perf-suite';
 import type { DatasetController } from './dataset-controller';
 

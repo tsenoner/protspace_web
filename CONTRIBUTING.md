@@ -37,7 +37,7 @@ pnpm dev          # App + docs
 pnpm dev:app      # App only
 pnpm dev:docs     # Docs only (localhost:5174)
 
-# Before committing (runs all checks)
+# Before committing (matches the installed Git hook)
 pnpm precommit
 ```
 
@@ -139,7 +139,7 @@ pnpm clean        # Clean build artifacts
 **Code quality checks:**
 
 ```bash
-pnpm precommit    # Run all checks (recommended before pushing)
+pnpm precommit    # Mirror the installed pre-commit hook
 
 # Or individually:
 pnpm format       # Auto-format with Prettier
@@ -225,7 +225,7 @@ pnpm docs:images   # Generate all documentation images (screenshots, animations,
 ## Pull Request Process
 
 1. **Ensure all checks pass:**
-   - Run `pnpm precommit` locally
+   - Run `pnpm precommit` locally (same checks as the Git hook)
    - Verify CI checks are green
    - Resolve any failing tests
 

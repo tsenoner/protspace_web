@@ -10,7 +10,6 @@ export type {
   ExploreViewChangeSource,
   ExploreViewNormalization,
   ExploreViewRequestState,
-  RequestedExploreView,
 } from './view-state';
 
 export type DatasetLoadKind = 'default' | 'opfs' | 'user';

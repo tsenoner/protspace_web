@@ -1,4 +1,4 @@
-export interface Lifecycle {
+interface Lifecycle {
   isDisposed(): boolean;
   addCleanup(cleanup: () => void): void;
   scheduleTimeout(callback: () => void, delayMs: number): number;

@@ -11,7 +11,7 @@ interface PersistedLegendOptions {
   plotElement: ProtspaceScatterplot;
 }
 
-export interface PersistedLegendController {
+interface PersistedLegendController {
   clearPersistedLegendHiddenValues(annotation: string, dataOverride?: VisualizationData): void;
 }
 
