@@ -43,6 +43,12 @@ jobs:
       - name: Run quality checks
         run: pnpm quality:ci
 
+      - name: Run test suite
+        run: pnpm test:ci
+
+      - name: Run build
+        run: pnpm build
+
   build-docs:
     name: Build Documentation
     runs-on: ubuntu-latest

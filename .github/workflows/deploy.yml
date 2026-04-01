@@ -53,6 +53,12 @@ jobs:
       - name: Run deploy quality checks
         run: pnpm quality:deploy
 
+      - name: Run test suite
+        run: pnpm test:ci
+
+      - name: Run build
+        run: pnpm build
+
       - name: Build documentation
         run: pnpm docs:build
 
