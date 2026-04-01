@@ -138,6 +138,73 @@ async function loadCustomDatasetFromImportMenu(page: Page, datasetPath: string):
     .setInputFiles(datasetPath);
 }
 
+async function measureSingleImportLifecycle(
+  page: Page,
+  action: () => Promise<void>,
+): Promise<{ loadingStarts: number; loadedEvents: number }> {
+  await page.evaluate(() => {
+    const loader = document.getElementById('myDataLoader');
+    if (!(loader instanceof EventTarget)) {
+      throw new Error('ProtSpace data loader was not found');
+    }
+
+    const win = window as Window & {
+      __protspaceImportLifecycle?: {
+        loadingStarts: number;
+        loadedEvents: number;
+        onStart: EventListener;
+        onLoaded: EventListener;
+      };
+    };
+
+    const onStart: EventListener = () => {
+      if (win.__protspaceImportLifecycle) {
+        win.__protspaceImportLifecycle.loadingStarts += 1;
+      }
+    };
+    const onLoaded: EventListener = () => {
+      if (win.__protspaceImportLifecycle) {
+        win.__protspaceImportLifecycle.loadedEvents += 1;
+      }
+    };
+
+    win.__protspaceImportLifecycle = {
+      loadingStarts: 0,
+      loadedEvents: 0,
+      onStart,
+      onLoaded,
+    };
+
+    loader.addEventListener('data-loading-start', onStart);
+    loader.addEventListener('data-loaded', onLoaded);
+  });
+
+  await action();
+
+  return page.evaluate(() => {
+    const loader = document.getElementById('myDataLoader');
+    const win = window as Window & {
+      __protspaceImportLifecycle?: {
+        loadingStarts: number;
+        loadedEvents: number;
+        onStart: EventListener;
+        onLoaded: EventListener;
+      };
+    };
+    const lifecycle = win.__protspaceImportLifecycle;
+
+    if (loader && lifecycle) {
+      loader.removeEventListener('data-loading-start', lifecycle.onStart);
+      loader.removeEventListener('data-loaded', lifecycle.onLoaded);
+    }
+
+    return {
+      loadingStarts: lifecycle?.loadingStarts ?? 0,
+      loadedEvents: lifecycle?.loadedEvents ?? 0,
+    };
+  });
+}
+
 async function loadCustomDatasetFromPath(
   page: Page,
   datasetPath: string,
@@ -417,6 +484,22 @@ test.describe('Persisted custom datasets in OPFS (#176)', () => {
     await dismissTourIfPresent(page);
 
     expect(await isImportChevronVisible(page)).toBe(true);
+  });
+
+  test('remounting Explore keeps a single queued import path active', async ({ page }) => {
+    await page.goto('/privacy');
+    await page.goto('/explore');
+    await waitForExploreDataLoad(page);
+    await dismissTourIfPresent(page);
+
+    const lifecycle = await measureSingleImportLifecycle(page, async () => {
+      await loadCustomDatasetFromImportMenu(page, CUSTOM_5K_BUNDLE_PATH);
+      await waitForProteinCount(page, CUSTOM_5K_PROTEIN_COUNT);
+    });
+
+    expect(lifecycle.loadingStarts).toBe(1);
+    expect(lifecycle.loadedEvents).toBe(1);
+    expect(await getCurrentDatasetName(page)).toBe('5K.parquetbundle');
   });
 });
 

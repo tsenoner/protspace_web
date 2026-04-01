@@ -7,11 +7,14 @@ interface PendingLoadFinalization {
 
 interface LoadQueueOptions {
   isDisposed: () => boolean;
-  loadFromFile: (file: File, options?: DataLoaderLoadOptions) => Promise<void>;
 }
 
 export interface LoadQueue {
-  enqueueLoadFromFile(file: File, options?: DataLoaderLoadOptions): Promise<void>;
+  enqueueLoadFromFile(
+    file: File,
+    options: DataLoaderLoadOptions | undefined,
+    loadFromFile: (file: File, options?: DataLoaderLoadOptions) => Promise<void>,
+  ): Promise<void>;
   registerFileLoad(file: File, kind: DatasetLoadKind): LoadMeta;
   getLoadMetaForFile(file: File): LoadMeta | undefined;
   getRunningLoadMeta(): LoadMeta | null;
@@ -20,7 +23,7 @@ export interface LoadQueue {
   dispose(): void;
 }
 
-export function createLoadQueue({ isDisposed, loadFromFile }: LoadQueueOptions): LoadQueue {
+export function createLoadQueue({ isDisposed }: LoadQueueOptions): LoadQueue {
   let nextLoadSequence = 0;
   let runningLoadMeta: LoadMeta | null = null;
   let queuedLoad: Promise<void> = Promise.resolve();
@@ -62,7 +65,11 @@ export function createLoadQueue({ isDisposed, loadFromFile }: LoadQueueOptions):
     pendingLoadFinalizationBySequence.delete(sequence);
   };
 
-  const enqueueLoadFromFile = async (file: File, options?: DataLoaderLoadOptions) => {
+  const enqueueLoadFromFile = async (
+    file: File,
+    options: DataLoaderLoadOptions | undefined,
+    loadFromFile: (file: File, options?: DataLoaderLoadOptions) => Promise<void>,
+  ) => {
     const loadMeta =
       loadMetaByFile.get(file) ??
       registerFileLoad(file, options?.source === 'auto' ? 'default' : 'user');

@@ -52,14 +52,13 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     controlBar.currentDatasetIsDemo = isDemo;
   };
 
-  const originalLoadFromFile = dataLoader.loadFromFile.bind(dataLoader);
   const loadQueue = createLoadQueue({
     isDisposed: lifecycle.isDisposed,
-    loadFromFile: originalLoadFromFile,
   });
-  dataLoader.loadFromFile = loadQueue.enqueueLoadFromFile;
+  dataLoader.loadFromFileHandler = (file, options, next) =>
+    loadQueue.enqueueLoadFromFile(file, options, next);
   lifecycle.addCleanup(() => {
-    dataLoader.loadFromFile = originalLoadFromFile;
+    dataLoader.loadFromFileHandler = undefined;
     loadQueue.dispose();
   });
 

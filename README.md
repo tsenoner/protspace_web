@@ -59,8 +59,8 @@ Before committing, run:
 pnpm precommit
 ```
 
-It mirrors the installed Git hook by running `lint-staged`, repo-wide type checks, Knip,
-dependency-hygiene checks, the CI test suite, and a docs build.
+This matches the installed local Git hook by running `lint-staged`, repo-wide type checks, Knip,
+dependency-hygiene checks, the local unit/integration test suite, and a docs build.
 
 ## ⚖️ License
 
