@@ -877,6 +877,10 @@ export class ProtspaceScatterplot extends LitElement {
             this._updateSelectionOverlays({ duplicateImmediate: false });
           });
         }
+        // Keep brush extent in sync with the viewport when scroll-zooming in selection mode
+        if (this.selectionMode && this.selectionTool === 'rectangle' && this._brush) {
+          this._updateBrushExtent();
+        }
       });
     this._svgSelection.call(this._zoom);
     this._setupDblClickHandlers();
@@ -1016,9 +1020,13 @@ export class ProtspaceScatterplot extends LitElement {
     this._brush = null;
 
     if (this.selectionMode) {
-      // Disable zoom during selection
-      if (this._zoom) {
-        this._svgSelection.on('.zoom', null);
+      // Keep scroll-wheel zoom active but disable drag-to-pan (drag = selection)
+      if (this._zoom && this._svgSelection) {
+        this._svgSelection
+          .on('mousedown.zoom', null)
+          .on('touchstart.zoom', null)
+          .on('touchmove.zoom', null)
+          .on('touchend.zoom', null);
       }
 
       if (this.selectionTool === 'lasso') {
@@ -1038,25 +1046,29 @@ export class ProtspaceScatterplot extends LitElement {
   private _setupBrush() {
     if (!this._svgSelection || !this._brushGroup) return;
 
+    this._brush = d3
+      .brush()
+      .handleSize(0)
+      .on('end', (event) => this._handleBrushEnd(event));
+
+    this._updateBrushExtent();
+  }
+
+  /** Recompute the brush extent from the current zoom transform and re-apply. */
+  private _updateBrushExtent() {
+    if (!this._brush || !this._brushGroup) return;
+
     const config = this._mergedConfig;
     const t = this._transform;
-
-    // Compute the visible viewport in local (untransformed) coordinates.
-    // Since zoom is disabled during selection mode (on('.zoom', null) above),
-    // this extent stays valid for the lifetime of the brush.
     const vx0 = t.invertX(0);
     const vy0 = t.invertY(0);
     const vx1 = t.invertX(config.width);
     const vy1 = t.invertY(config.height);
 
-    this._brush = d3
-      .brush()
-      .handleSize(0)
-      .extent([
-        [Math.min(vx0, vx1), Math.min(vy0, vy1)],
-        [Math.max(vx0, vx1), Math.max(vy0, vy1)],
-      ])
-      .on('end', (event) => this._handleBrushEnd(event));
+    this._brush.extent([
+      [Math.min(vx0, vx1), Math.min(vy0, vy1)],
+      [Math.max(vx0, vx1), Math.max(vy0, vy1)],
+    ]);
 
     this._brushGroup.call(this._brush);
   }
