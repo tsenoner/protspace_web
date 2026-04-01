@@ -681,6 +681,11 @@ export class ProtspaceLegend extends LitElement {
   private _handleAnnotationChange(annotation: string): void {
     this.selectedAnnotation = annotation;
     this._hiddenValues = [];
+    // Reset pre-isolation visible values so the new annotation uses maxVisibleValues
+    // instead of being constrained to the old annotation's visible set
+    if (this.isolationMode) {
+      this._preIsolationVisibleValues = new Set<string>();
+    }
     this._scatterplotController.forceSync();
   }
 
