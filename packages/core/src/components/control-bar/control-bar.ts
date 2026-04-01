@@ -29,6 +29,7 @@ import './search';
 import './annotation-select';
 import './query-builder';
 import type { FilterQuery } from './query-types';
+import { createCondition } from './query-types';
 
 /** Annotations used only for tooltip display, hidden from the annotation dropdown */
 const TOOLTIP_ONLY_ANNOTATIONS = new Set(['gene_name', 'protein_name', 'uniprot_kb_id']);
@@ -1845,6 +1846,10 @@ export class ProtspaceControlBar extends LitElement {
       if (this._scatterplotElement) {
         const sp = this._scatterplotElement as ScatterplotElementLike;
         this._currentData = sp.getCurrentData?.();
+      }
+      // Seed with one empty condition so the user sees a row immediately
+      if (this.filterQuery.length === 0) {
+        this.filterQuery = [createCondition()];
       }
     }
   }

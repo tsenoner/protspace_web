@@ -508,11 +508,10 @@ export const queryBuilderStyles = css`
     position: fixed;
     inset: 0;
     z-index: 1000;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(2px);
   }
 
   .query-builder-modal {
