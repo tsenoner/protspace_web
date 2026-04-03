@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { LEGEND_VALUES } from '@protspace/utils';
 import {
   filterAnnotationValues,
+  getAnnotationHeaderType,
   getGeneName,
   getProteinName,
   getUniprotKbId,
@@ -102,5 +103,47 @@ describe('getUniprotKbId', () => {
 
   it('joins multiple IDs', () => {
     expect(getUniprotKbId({ uniprot_kb_id: ['P04637', 'Q9NZC2'] })).toBe('P04637, Q9NZC2');
+  });
+});
+
+describe('getAnnotationHeaderType', () => {
+  it('returns null when both scores and evidence are empty', () => {
+    expect(getAnnotationHeaderType([], [])).toBeNull();
+  });
+
+  it('returns null when scores are all null and evidence are all null', () => {
+    expect(getAnnotationHeaderType([null, null], [null, null])).toBeNull();
+  });
+
+  it('returns "bitscore" when scores contain non-empty arrays', () => {
+    expect(getAnnotationHeaderType([[1.5e-10]], [null])).toBe('bitscore');
+  });
+
+  it('returns "bitscore" when scores have multiple values', () => {
+    expect(getAnnotationHeaderType([[1.5e-10, 2.3e-5]], [null])).toBe('bitscore');
+  });
+
+  it('returns "evidence" when evidence codes are present but no scores', () => {
+    expect(getAnnotationHeaderType([null], ['ECO:0000269'])).toBe('evidence');
+  });
+
+  it('returns "evidence" for short evidence codes like EXP', () => {
+    expect(getAnnotationHeaderType([], ['EXP'])).toBe('evidence');
+  });
+
+  it('returns "bitscore" when both scores and evidence are present (scores take priority)', () => {
+    expect(getAnnotationHeaderType([[42]], ['EXP'])).toBe('bitscore');
+  });
+
+  it('returns null when scores are empty arrays', () => {
+    expect(getAnnotationHeaderType([[]], [])).toBeNull();
+  });
+
+  it('returns "bitscore" when at least one entry has scores among nulls', () => {
+    expect(getAnnotationHeaderType([null, [0.5], null], [null, null, null])).toBe('bitscore');
+  });
+
+  it('returns "evidence" when at least one entry has evidence among nulls', () => {
+    expect(getAnnotationHeaderType([null, null], [null, 'IDA'])).toBe('evidence');
   });
 });
