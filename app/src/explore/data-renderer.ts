@@ -216,6 +216,10 @@ export function createDataRenderer({
         await new Promise((resolve) => setTimeout(resolve, 800));
       }
 
+      if (getIsDisposed()) {
+        return null;
+      }
+
       const loadingTime = performance.now() - startTime;
       console.log('Data loading completed:', {
         proteins: newData.protein_ids.length.toLocaleString(),
@@ -227,7 +231,7 @@ export function createDataRenderer({
         projection: resolvedInitialView.projectionName,
       };
     } finally {
-      if (isLargeDataset) {
+      if (isLargeDataset && !getIsDisposed()) {
         overlayController.update(false);
       }
     }
