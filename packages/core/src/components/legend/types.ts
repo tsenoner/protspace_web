@@ -7,6 +7,7 @@ import type { LegendErrorEventDetail, LegendErrorSource } from './legend.events'
 export interface LegendItem {
   /** Category value. N/A items use '__NA__', "Other" uses 'Other' */
   value: string;
+  displayValue?: string;
   color: string;
   shape: string;
   count: number;
@@ -26,14 +27,44 @@ export interface OtherItem {
 
 export interface ScatterplotData {
   protein_ids: string[];
-  annotations: Record<string, { values: (string | null)[] }>;
+  annotations: Record<
+    string,
+    {
+      kind?: 'categorical' | 'numeric';
+      sourceKind?: 'categorical' | 'numeric';
+      values: (string | null)[];
+      colors?: string[];
+      shapes?: string[];
+      numericMetadata?: LegendAnnotationData['numericMetadata'];
+    }
+  >;
   annotation_data: Record<string, (number | number[])[]>;
+  numeric_annotation_data?: Record<string, (number | null)[]>;
   projections?: Array<{ name: string }>;
 }
 
 export interface LegendAnnotationData {
   name: string;
   values: (string | null)[];
+  colors?: string[];
+  shapes?: string[];
+  kind?: 'categorical' | 'numeric';
+  sourceKind?: 'categorical' | 'numeric';
+  numericMetadata?: {
+    strategy: 'linear' | 'quantile' | 'logarithmic';
+    binCount: number;
+    signature: string;
+    topologySignature: string;
+    logSupported: boolean;
+    bins: Array<{
+      id: string;
+      label: string;
+      lowerBound: number;
+      upperBound: number;
+      count: number;
+      colorPosition?: number;
+    }>;
+  };
 }
 
 // Note: IScatterplotElement in scatterplot-interface.ts is the canonical interface
@@ -47,7 +78,9 @@ export interface LegendAnnotationData {
 export type ItemAction = 'toggle' | 'isolate' | 'extract';
 
 export interface LegendDataInput {
-  annotations?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
+  annotations?: ScatterplotData['annotations'];
+  protein_ids?: string[];
+  numeric_annotation_data?: ScatterplotData['numeric_annotation_data'];
 }
 
 export type { LegendErrorEventDetail, LegendErrorSource };

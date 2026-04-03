@@ -1,41 +1,37 @@
 import { useEffect } from 'react';
-import type { DataLoader } from '@protspace/core';
+import { useSearchParams } from 'react-router-dom';
 import Header, { HEADER_HEIGHT_CLASS } from '@/components/Header';
+import { useExploreUrlStateSync } from '../explore/use-url-state-sync';
 import './Explore.css';
 
 const Explore = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { attachController } = useExploreUrlStateSync(searchParams, setSearchParams);
+
   useEffect(() => {
     let mounted = true;
-    let scatterplot: HTMLElement | null = null;
+    let detachController: (() => void) | null = null;
 
-    // Setup file drop handler
-    const handleFileDrop = (e: CustomEvent<{ file?: File }>) => {
-      const file = e.detail.file;
-      const loader = document.getElementById('myDataLoader') as DataLoader | null;
-      if (file && loader) {
-        void loader.loadFromFile(file);
-      }
-    };
-
-    // Initialize demo asynchronously
+    // Initialize the Explore runtime asynchronously
     const init = async () => {
       try {
-        // Import and initialize demo
-        const { initializeDemo } = await import('../demo/main.ts');
+        // Import and initialize the Explore runtime
+        const { initializeExploreRuntime } = await import('../explore/runtime');
 
         // Only proceed if component is still mounted
         if (!mounted) return;
 
         // Wait for custom elements to be defined and initialized
-        await initializeDemo();
+        const controller = await initializeExploreRuntime();
 
-        // Setup file drop handler after initialization
-        if (mounted) {
-          scatterplot = document.getElementById('myPlot');
-          scatterplot?.addEventListener('file-dropped', handleFileDrop as EventListener);
+        if (!mounted) {
+          controller.dispose();
+          return;
         }
+
+        detachController = attachController(controller);
       } catch (error) {
-        console.error('Failed to initialize demo:', error);
+        console.error('Failed to initialize the Explore runtime:', error);
       }
     };
 
@@ -43,11 +39,9 @@ const Explore = () => {
 
     return () => {
       mounted = false;
-      if (scatterplot) {
-        scatterplot.removeEventListener('file-dropped', handleFileDrop as EventListener);
-      }
+      detachController?.();
     };
-  }, []);
+  }, [attachController]);
 
   return (
     <div className="h-screen w-full bg-[#f4f4f4] flex flex-col overflow-y-auto">
@@ -61,8 +55,6 @@ const Explore = () => {
           <protspace-control-bar
             id="myControlBar"
             data-driver-id="control-bar"
-            selected-projection="UMAP"
-            selected-annotation="protein_families"
             selected-proteins-count="0"
             auto-sync="true"
             scatterplot-selector="#myPlot"

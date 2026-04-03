@@ -248,6 +248,56 @@ describe('legend-data-processor', () => {
       expect(result.topItems[2][0]).toBe(LEGEND_VALUES.NA_VALUE);
     });
 
+    it('sorts numeric interval labels by lower bound in alpha-asc mode', () => {
+      const freq = new Map<string, number>([
+        ['10 - <20', 5],
+        ['2 - <5', 10],
+        ['5 - <10', 8],
+      ]);
+      const numericOrderValues = new Map<string, number>([
+        ['10 - <20', 10],
+        ['2 - <5', 2],
+        ['5 - <10', 5],
+      ]);
+
+      const result = LegendDataProcessor.sortAndLimitItems(
+        freq,
+        10,
+        false,
+        'alpha-asc',
+        new Map(),
+        new Set(),
+        numericOrderValues,
+      );
+
+      expect(result.topItems.map(([value]) => value)).toEqual(['2 - <5', '5 - <10', '10 - <20']);
+    });
+
+    it('sorts numeric interval labels by lower bound in alpha-desc mode', () => {
+      const freq = new Map<string, number>([
+        ['10 - <20', 5],
+        ['2 - <5', 10],
+        ['5 - <10', 8],
+      ]);
+      const numericOrderValues = new Map<string, number>([
+        ['10 - <20', 10],
+        ['2 - <5', 2],
+        ['5 - <10', 5],
+      ]);
+
+      const result = LegendDataProcessor.sortAndLimitItems(
+        freq,
+        10,
+        false,
+        'alpha-desc',
+        new Map(),
+        new Set(),
+        numericOrderValues,
+      );
+
+      expect(result.topItems.map(([value]) => value)).toEqual(['10 - <20', '5 - <10', '2 - <5']);
+    });
+
     it('uses visibleValues to prioritize items and expands when maxVisibleValues allows', () => {
       const freq = new Map<string, number>([
         ['a', 10],
@@ -287,6 +337,8 @@ describe('legend-data-processor', () => {
         'size-desc',
         new Map(),
         visibleValues,
+        new Map(),
+        true,
         'b', // pendingExtract
       );
       expect(result.topItems.map(([v]) => v)).toContain('b');
@@ -306,6 +358,8 @@ describe('legend-data-processor', () => {
         'size-desc',
         new Map(),
         visibleValues,
+        new Map(),
+        true,
         undefined,
         'b', // pendingMerge
       );
@@ -325,6 +379,8 @@ describe('legend-data-processor', () => {
         'size-desc',
         new Map(),
         visibleValues,
+        new Map(),
+        true,
         LEGEND_VALUES.NA_VALUE, // Extract N/A
       );
       expect(result.topItems.map(([v]) => v)).toContain(LEGEND_VALUES.NA_VALUE);
@@ -343,6 +399,8 @@ describe('legend-data-processor', () => {
         'size-desc',
         new Map(),
         visibleValues,
+        new Map(),
+        true,
         undefined,
         LEGEND_VALUES.NA_VALUE, // Merge N/A back
       );
@@ -995,6 +1053,37 @@ describe('legend-data-processor', () => {
       expect(result.legendItems.find((i) => i.value === 'a')?.count).toBe(2);
     });
 
+    it('retains known numeric values with zero counts when the current view is empty', () => {
+      const result = LegendDataProcessor.processLegendItems(
+        ctx,
+        'length',
+        [],
+        [],
+        10,
+        false,
+        [],
+        [],
+        'alpha-asc',
+        false,
+        {},
+        new Set(),
+        new Map([
+          ['0 - <10', 0],
+          ['10 - 20', 10],
+        ]),
+        false,
+        undefined,
+        undefined,
+        ['0 - <10', '10 - 20'],
+      );
+
+      expect(result.legendItems).toEqual([
+        expect.objectContaining({ value: '0 - <10', count: 0 }),
+        expect.objectContaining({ value: '10 - 20', count: 0 }),
+      ]);
+      expect(result.otherItems).toEqual([]);
+    });
+
     it('preserves Other category during isolation mode', () => {
       // 7 unique values but maxVisibleValues=3 → 4 overflow into Other
       const values = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
@@ -1142,6 +1231,8 @@ describe('legend-data-processor', () => {
         false,
         {},
         visibleValues,
+        new Map(),
+        true,
         'b', // pendingExtract
       );
       const legendValues = result.legendItems.map((i) => i.value);
@@ -1165,6 +1256,8 @@ describe('legend-data-processor', () => {
         false,
         {},
         visibleValues,
+        new Map(),
+        true,
         undefined,
         'b', // pendingMerge
       );

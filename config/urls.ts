@@ -11,7 +11,7 @@ export const PORTS = {
 } as const;
 
 // Production domain
-export const PRODUCTION_DOMAIN = 'https://protspace.app';
+const PRODUCTION_DOMAIN = 'https://protspace.app';
 
 // URL configuration for each environment
 export const URLS = {

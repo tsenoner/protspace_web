@@ -16,22 +16,18 @@ export const itemStyles = css`
     justify-content: space-between;
     padding: 6px 10px 6px 2px;
     border-radius: 0.5rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    cursor: default;
+    transition:
+      box-shadow 0.2s ease,
+      background-color 0.2s ease,
+      opacity 0.2s ease,
+      transform 0.2s ease,
+      border-color 0.2s ease;
     background: var(--legend-hover-bg);
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     position: relative;
     width: 100%;
     box-sizing: border-box;
-  }
-
-  .legend-item:hover {
-    background: var(--legend-hover-bg);
-    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1);
-  }
-
-  .legend-item:active {
-    background: var(--legend-active-bg);
   }
 
   .legend-item.hidden {
@@ -85,7 +81,10 @@ export const itemStyles = css`
     border: 2px dashed var(--primary);
     border-radius: 0.5rem;
     box-shadow: 0 0 0 2px var(--primary-alpha-20);
-    transition: all 0.15s ease;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
   }
 
   /* Just-dropped highlight - brief flash on the item after drag-and-drop reorder */
@@ -117,12 +116,7 @@ export const itemStyles = css`
     box-shadow: 0 0 0 2px var(--legend-selected-ring);
   }
 
-  .legend-item:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px var(--legend-selected-ring);
-  }
-
-  .legend-item:focus-visible {
+  .legend-item:focus-within {
     outline: none;
     box-shadow: 0 0 0 2px var(--legend-selected-ring);
   }
@@ -131,18 +125,47 @@ export const itemStyles = css`
     display: flex;
     align-items: center;
     gap: 7px;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     box-sizing: border-box;
+  }
+
+  .legend-item-main {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .legend-item-main:hover {
+    color: inherit;
+  }
+
+  .legend-item-main:focus-visible {
+    outline: 2px solid var(--legend-selected-ring);
+    outline-offset: 2px;
+    border-radius: 0.375rem;
   }
 
   .drag-handle {
     display: flex;
     align-items: center;
     padding: 0.25rem;
+    border: none;
+    background: transparent;
     border-radius: 0.25rem;
     cursor: grab;
     color: var(--legend-text-secondary);
-    transition: all 0.15s ease;
+    transition:
+      color 0.15s ease,
+      background-color 0.15s ease,
+      opacity 0.15s ease;
   }
 
   .drag-handle:hover {
@@ -154,16 +177,43 @@ export const itemStyles = css`
     cursor: grabbing;
   }
 
+  .drag-handle:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .drag-handle-disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  .drag-handle-disabled:hover {
+    color: var(--legend-text-secondary);
+    background: transparent;
+  }
+
   .legend-symbol {
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: visible;
+    flex: 0 0 auto;
   }
 
   .legend-symbol-clickable {
     cursor: pointer;
     border-radius: 4px;
-    transition: all 0.15s ease;
+    transition:
+      background-color 0.15s ease,
+      transform 0.15s ease;
+  }
+
+  .legend-symbol-button {
+    border: none;
+    background: transparent;
+    padding: 0;
+    display: flex;
+    align-items: center;
   }
 
   .legend-symbol-clickable:hover {
@@ -261,7 +311,11 @@ export const itemStyles = css`
     border-radius: 4px;
     background: var(--legend-bg);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      background-color 0.15s ease,
+      color 0.15s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -275,6 +329,11 @@ export const itemStyles = css`
   .shape-picker-swatch.active {
     border-color: var(--primary);
     box-shadow: 0 0 0 2px var(--primary-alpha-30);
+  }
+
+  .shape-picker-swatch:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
   }
 
   .shape-picker-swatch.disabled {
@@ -317,7 +376,11 @@ export const itemStyles = css`
     border-radius: 4px;
     background: var(--legend-bg);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition:
+      border-color 0.15s ease,
+      background-color 0.15s ease,
+      color 0.15s ease,
+      box-shadow 0.15s ease;
     color: var(--legend-text-secondary);
   }
 
@@ -338,6 +401,11 @@ export const itemStyles = css`
     box-shadow: 0 0 0 2px var(--primary-alpha-20);
   }
 
+  .shape-picker-item:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
   /* Note for disabled shape picker (multilabel) */
   .symbol-picker-note {
     font-size: 0.7rem;
@@ -347,9 +415,14 @@ export const itemStyles = css`
   }
 
   .legend-text {
+    display: block;
     font-size: 0.875rem;
+    line-height: 1.35;
     color: var(--legend-text-color);
     width: 100%;
+    min-width: 0;
+    white-space: normal;
+    word-break: break-word;
     overflow-wrap: anywhere;
   }
 
@@ -368,6 +441,7 @@ export const itemStyles = css`
     color: var(--legend-text-secondary);
     font-weight: 500;
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
     height: 100%;

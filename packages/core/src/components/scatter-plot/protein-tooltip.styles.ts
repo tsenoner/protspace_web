@@ -105,6 +105,17 @@ export const proteinTooltipStyles = css`
     gap: 0.25rem;
   }
 
+  .tooltip-annotation-header {
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.125rem;
+  }
+
   .tooltip-annotation {
     font-size: 0.75rem;
     color: #64748b;

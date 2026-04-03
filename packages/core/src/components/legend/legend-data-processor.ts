@@ -69,8 +69,9 @@ export class LegendDataProcessor {
     isolationMode: boolean,
     isolationHistory: string[][],
     filteredIndices: Set<number>,
+    knownValues: string[] = [],
   ): Map<string, number> {
-    const freq = new Map<string, number>();
+    const freq = new Map<string, number>(knownValues.map((value) => [value, 0] as const));
 
     const countValue = (rawValue: string | null) => {
       const value = toInternalValue(rawValue);
@@ -101,6 +102,8 @@ export class LegendDataProcessor {
     sortMode: LegendSortMode,
     existingZOrders: Map<string, number> = new Map(),
     visibleValues: Set<string> = new Set(),
+    numericOrderValues: Map<string, number> = new Map(),
+    useOtherBucket: boolean = true,
     pendingExtract?: string,
     pendingMerge?: string,
   ): {
@@ -121,6 +124,15 @@ export class LegendDataProcessor {
         if (aIsNA && !bIsNA) return 1;
         if (!aIsNA && bIsNA) return -1;
         if (aIsNA && bIsNA) return 0;
+        const aNumericOrder = numericOrderValues.get(a[0]);
+        const bNumericOrder = numericOrderValues.get(b[0]);
+        if (
+          aNumericOrder !== undefined &&
+          bNumericOrder !== undefined &&
+          aNumericOrder !== bNumericOrder
+        ) {
+          return isAsc ? aNumericOrder - bNumericOrder : bNumericOrder - aNumericOrder;
+        }
         const cmp = a[0].localeCompare(b[0], undefined, {
           numeric: true,
           sensitivity: 'base',
@@ -204,8 +216,8 @@ export class LegendDataProcessor {
 
     return {
       topItems,
-      otherItems: beyondCap.map(([value, count]) => ({ value, count })),
-      otherCount: beyondCap.reduce((sum, [, count]) => sum + count, 0),
+      otherItems: useOtherBucket ? beyondCap.map(([value, count]) => ({ value, count })) : [],
+      otherCount: useOtherBucket ? beyondCap.reduce((sum, [, count]) => sum + count, 0) : 0,
     };
   }
 
@@ -399,8 +411,11 @@ export class LegendDataProcessor {
     shapesEnabled: boolean = false,
     persistedCategories: Record<string, PersistedCategoryData> = {},
     visibleValues: Set<string> = new Set(),
+    numericOrderValues: Map<string, number> = new Map(),
+    useOtherBucket: boolean = true,
     pendingExtract?: string,
     pendingMerge?: string,
+    knownValues: string[] = [],
   ): { legendItems: LegendItem[]; otherItems: OtherItem[] } {
     this.resetIfAnnotationChanged(ctx, annotationName);
 
@@ -410,6 +425,7 @@ export class LegendDataProcessor {
       isolationMode,
       isolationHistory,
       filteredIndices,
+      knownValues,
     );
 
     // Build existing zOrder map for manual sorting
@@ -432,6 +448,8 @@ export class LegendDataProcessor {
       sortMode,
       existingZOrders,
       visibleValues,
+      numericOrderValues,
+      useOtherBucket,
       pendingExtract,
       pendingMerge,
     );

@@ -143,7 +143,7 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
-  private selectProjection(projection: string) {
+  applyProjectionSelection(projection: string) {
     this.selectedProjection = projection;
     this.showProjectionMenu = false;
     this.projectionHighlightIndex = -1;
@@ -189,7 +189,7 @@ export class ProtspaceControlBar extends LitElement {
         this.projectionHighlightIndex = index;
       },
       onSelect: (index) => {
-        this.selectProjection(this.projections[index]);
+        this.applyProjectionSelection(this.projections[index]);
       },
       onClose: () => {
         this.showProjectionMenu = false;
@@ -298,8 +298,7 @@ export class ProtspaceControlBar extends LitElement {
     this.dispatchEvent(customEvent);
   }
 
-  private handleAnnotationSelected(event: CustomEvent<{ annotation: string }>) {
-    const annotation = event.detail.annotation;
+  applyAnnotationSelection(annotation: string) {
     if (annotation !== this.selectedAnnotation) {
       this.selectedAnnotation = annotation;
       this._exportPersistence.updateSelectedAnnotation(annotation);
@@ -321,6 +320,10 @@ export class ProtspaceControlBar extends LitElement {
       composed: true,
     });
     this.dispatchEvent(customEvent);
+  }
+
+  private handleAnnotationSelected(event: CustomEvent<{ annotation: string }>) {
+    this.applyAnnotationSelection(event.detail.annotation);
   }
 
   private handleToggleSelectionMode() {
@@ -675,7 +678,7 @@ export class ProtspaceControlBar extends LitElement {
                                 : ''}"
                               role="option"
                               aria-selected=${projection === this.selectedProjection}
-                              @click=${() => this.selectProjection(projection)}
+                              @click=${() => this.applyProjectionSelection(projection)}
                               @mouseenter=${() => {
                                 this.projectionHighlightIndex = index;
                               }}

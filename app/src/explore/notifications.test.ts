@@ -14,9 +14,9 @@ import {
   getLegendErrorNotification,
   getSelectionDisabledNotification,
   getStructureErrorNotification,
-} from './demo-notifications';
+} from './notifications';
 
-describe('demo notifications', () => {
+describe('explore notifications', () => {
   it('classifies OPFS SecurityError failures with private browsing guidance', () => {
     const notification = getDatasetPersistenceFailureNotification(
       new DOMException('Security error when calling GetDirectory', 'SecurityError'),

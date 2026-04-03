@@ -192,12 +192,12 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
   await waitUntil(() => !document.getElementById('progressive-loading'), timeoutMs);
 }
 
-export async function maybeRunWebglPerfSuite(args: Args): Promise<void> {
+export async function maybeRunWebglPerfSuite(args: Args): Promise<boolean> {
   const params = new URLSearchParams(window.location.search);
-  if (params.get('webglPerf') !== '1') return;
+  if (params.get('webglPerf') !== '1') return false;
 
   const g = globalThis as PerfSuiteGlobalState;
-  if (g.__protspaceWebglPerfSuiteInFlight || g.__protspaceWebglPerfSuiteConsumed) return;
+  if (g.__protspaceWebglPerfSuiteInFlight || g.__protspaceWebglPerfSuiteConsumed) return true;
   g.__protspaceWebglPerfSuiteInFlight = true;
   showPerfOverlay();
 
@@ -241,4 +241,6 @@ export async function maybeRunWebglPerfSuite(args: Args): Promise<void> {
     if (success) g.__protspaceWebglPerfSuiteConsumed = true;
     hidePerfOverlay();
   }
+
+  return true;
 }

@@ -40,8 +40,19 @@ export abstract class BasePersistenceController<
     return this._fileSettings !== null;
   }
 
-  updateDatasetHash(proteinIds: string[]): boolean {
-    const newHash = generateDatasetHash(proteinIds);
+  updateDatasetHash(
+    data:
+      | string[]
+      | {
+          protein_ids: string[];
+          annotations?: Record<
+            string,
+            { kind?: 'categorical' | 'numeric'; values?: (string | null)[] }
+          >;
+          numeric_annotation_data?: Record<string, (number | null)[]>;
+        },
+  ): boolean {
+    const newHash = generateDatasetHash(data);
     if (newHash !== this._datasetHash) {
       this._datasetHash = newHash;
       this._settingsLoaded = false;

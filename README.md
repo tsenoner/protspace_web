@@ -59,7 +59,14 @@ Before committing, run:
 pnpm precommit
 ```
 
-This runs formatting (Prettier), linting (ESLint), and type checking in one command.
+This matches the installed local Git hook by running `lint-staged`, repo-wide type checks, Knip,
+dependency-hygiene checks, the local unit/integration test suite, and a docs build.
+
+For a faster static-only pass while you are iterating, run:
+
+```bash
+pnpm quality
+```
 
 ## ⚖️ License
 

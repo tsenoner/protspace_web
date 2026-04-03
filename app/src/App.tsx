@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Index from './pages/Index';
 import Explore from './pages/Explore';
 import NotFound from './pages/NotFound';
+import Privacy from './pages/Privacy';
 
 const App = () => (
   <TooltipProvider>
@@ -12,6 +13,7 @@ const App = () => (
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/explore" element={<Explore />} />
+        <Route path="/privacy" element={<Privacy />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
