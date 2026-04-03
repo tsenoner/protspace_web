@@ -6,7 +6,7 @@
  */
 import { getUrls, buildUrl, type Environment } from './urls';
 
-export interface NavItem {
+interface NavItem {
   text: string;
   link?: string;
   /** Whether this link is internal (uses React Router) or external (uses <a> tag) */
@@ -56,18 +56,4 @@ export const getNavigation = (mode: Environment): NavItem[] => {
       icon: 'github',
     },
   ];
-};
-
-/**
- * Get primary navigation items (excludes external links like GitHub)
- */
-export const getPrimaryNavigation = (mode: Environment): NavItem[] => {
-  return getNavigation(mode).filter((item) => !item.target);
-};
-
-/**
- * Get external links (e.g., GitHub, social media)
- */
-export const getExternalLinks = (mode: Environment): NavItem[] => {
-  return getNavigation(mode).filter((item) => item.target);
 };

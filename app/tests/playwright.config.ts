@@ -55,6 +55,30 @@ export default defineConfig({
       },
       testMatch: /numeric-binning\.spec\.ts/,
     },
+    {
+      name: 'url-view-state',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /url-view-state\.spec\.ts/,
+    },
+    {
+      name: 'url-view-state-firefox',
+      use: {
+        ...devices['Desktop Firefox'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /url-view-state\.spec\.ts/,
+    },
+    {
+      name: 'url-view-state-webkit',
+      use: {
+        ...devices['Desktop Safari'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /url-view-state\.spec\.ts/,
+    },
   ],
 
   outputDir: '../test-results/',

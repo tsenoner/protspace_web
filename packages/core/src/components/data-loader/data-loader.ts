@@ -17,6 +17,12 @@ import {
 
 /** Whether data was loaded by user action or automatically (e.g. page reload) */
 export type DataLoadSource = 'user' | 'auto';
+export type DataLoaderFileLoadOptions = { source?: DataLoadSource };
+export type DataLoaderFileLoadHandler = (
+  file: File,
+  options: DataLoaderFileLoadOptions | undefined,
+  next: (file: File, options?: DataLoaderFileLoadOptions) => Promise<void>,
+) => Promise<void>;
 
 /**
  * Event detail for data-loaded event
@@ -61,6 +67,9 @@ export class DataLoader extends LitElement {
     projection_y?: string;
     projectionName?: string;
   } = {};
+
+  @property({ attribute: false })
+  loadFromFileHandler?: DataLoaderFileLoadHandler;
 
   private totalSteps = 0;
   private completedSteps = 0;
@@ -146,7 +155,15 @@ export class DataLoader extends LitElement {
   /**
    * Load Parquet data from a File object with performance optimizations
    */
-  async loadFromFile(file: File, options?: { source?: DataLoadSource }) {
+  async loadFromFile(file: File, options?: DataLoaderFileLoadOptions) {
+    if (this.loadFromFileHandler) {
+      return this.loadFromFileHandler(file, options, this.loadFromFileDirect.bind(this));
+    }
+
+    return this.loadFromFileDirect(file, options);
+  }
+
+  private async loadFromFileDirect(file: File, options?: DataLoaderFileLoadOptions) {
     const source: DataLoadSource = options?.source ?? 'user';
 
     // Validate extension before any loading UI appears

@@ -15,10 +15,7 @@ URLS = { production: {...}, development: {...} }
 ### Navigation Configuration (`navigation.ts`)
 
 ```typescript
-NavItem = { text, link, internal?, target?, icon? }
-getNavigation(mode) // Returns all navigation items
-getPrimaryNavigation(mode) // Returns main nav (excludes external)
-getExternalLinks(mode) // Returns external links only
+getNavigation(mode); // Returns all navigation items
 ```
 
 ## Usage
@@ -43,8 +40,8 @@ import { getNavigation } from '../../config/navigation';
 const navItems = getNavigation(mode);
 
 // VitePress config
-import { getPrimaryNavigation } from '../../config/navigation';
-const primaryNav = getPrimaryNavigation(mode);
+import { getNavigation } from '../../config/navigation';
+const primaryNav = getNavigation(mode).filter((item) => !item.target);
 ```
 
 ## Development Proxy
