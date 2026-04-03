@@ -1324,7 +1324,13 @@ export class ProtspaceControlBar extends LitElement {
       ${this.showFilterMenu
         ? html`
             <div class="query-builder-overlay" @click=${this._handleOverlayClick}>
-              <div class="query-builder-modal" @click=${(e: Event) => e.stopPropagation()}>
+              <div
+                class="query-builder-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Filter Query Builder"
+                @click=${(e: Event) => e.stopPropagation()}
+              >
                 <protspace-query-builder
                   .annotations=${this.annotations}
                   .data=${this._currentData}
@@ -1332,6 +1338,7 @@ export class ProtspaceControlBar extends LitElement {
                   @query-changed=${this._handleQueryChanged}
                   @query-apply=${this._handleQueryApply}
                   @query-reset=${this._handleQueryReset}
+                  @query-close=${this._handleQueryClose}
                 ></protspace-query-builder>
               </div>
             </div>
@@ -1404,14 +1411,19 @@ export class ProtspaceControlBar extends LitElement {
     const inAriaModal = path.some(
       (n) => n instanceof HTMLElement && n.getAttribute('aria-modal') === 'true',
     );
-    if (inAriaModal) return;
+    if (inAriaModal) {
+      // ESC inside the filter modal closes the modal
+      if (event.key === 'Escape' && this.showFilterMenu) {
+        this.showFilterMenu = false;
+      }
+      return;
+    }
 
     if (event.key === 'Escape') {
       // Don't handle Escape if any dropdown is open (they handle it themselves)
       if (
         isAnyDropdownOpen({
           projection: this.showProjectionMenu,
-          filter: this.showFilterMenu,
           export: this.showExportMenu,
           import: this.showImportMenu,
         })
@@ -1540,10 +1552,11 @@ export class ProtspaceControlBar extends LitElement {
     } catch (e) {
       console.error(e);
     }
-    // Keep current data reference for query builder
+    // Keep current data reference for query builder — use materialized (full) data
+    // so match count reflects the full dataset, not the isolated subset
     if (this._scatterplotElement) {
       const sp = this._scatterplotElement as ScatterplotElementLike;
-      this._currentData = sp.getCurrentData?.();
+      this._currentData = sp.getMaterializedData?.() ?? sp.getCurrentData?.();
     }
 
     this._syncExportPersistenceFromData(data);
@@ -1845,16 +1858,21 @@ export class ProtspaceControlBar extends LitElement {
     this.showFilterMenu = opening;
     if (opening) {
       this.closeOtherDropdowns('filter');
-      // Refresh current data for the query builder
+      // Refresh current data for the query builder — use materialized (full) data
+      // so match count reflects the full dataset, not the isolated subset
       if (this._scatterplotElement) {
         const sp = this._scatterplotElement as ScatterplotElementLike;
-        this._currentData = sp.getCurrentData?.();
+        this._currentData = sp.getMaterializedData?.() ?? sp.getCurrentData?.();
       }
       // Seed with one empty condition so the user sees a row immediately
       if (this.filterQuery.length === 0) {
         this.filterQuery = [createCondition()];
       }
     }
+  }
+
+  private _handleQueryClose() {
+    this.showFilterMenu = false;
   }
 
   private _handleQueryChanged(e: CustomEvent<{ query: FilterQuery }>) {
@@ -1890,7 +1908,7 @@ export class ProtspaceControlBar extends LitElement {
     );
     sp.resetIsolation?.();
 
-    this.filterQuery = [];
+    this.filterQuery = [createCondition()];
     this.filterActive = false;
     this.isolationMode = false;
     this.isolationHistory = [];

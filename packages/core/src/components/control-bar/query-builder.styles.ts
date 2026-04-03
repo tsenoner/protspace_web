@@ -45,12 +45,12 @@ export const queryBuilderStyles = css`
     display: flex;
     align-items: center;
     gap: var(--spacing-md);
-    margin-bottom: var(--spacing-md);
   }
 
   .query-footer {
     display: flex;
-    gap: var(--spacing-xs);
+    align-items: center;
+    gap: var(--spacing-sm);
     padding-top: var(--spacing-sm);
     border-top: var(--border-width) solid var(--border);
     box-sizing: border-box;
@@ -58,6 +58,10 @@ export const queryBuilderStyles = css`
 
   .query-footer button {
     flex: none;
+  }
+
+  .query-footer-reset {
+    margin-inline-end: auto;
   }
 
   /* ==========================================
@@ -87,12 +91,16 @@ export const queryBuilderStyles = css`
   }
 
   .logical-op-select {
-    width: 56px;
-    min-width: 56px;
-    padding: var(--input-padding-y) var(--spacing-xs);
+    width: 64px;
+    min-width: 64px;
+    padding: var(--input-padding-y) 18px var(--input-padding-y) var(--spacing-xs);
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius);
-    background: var(--surface);
+    background-color: var(--surface);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6b7a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 4px center;
+    background-size: 12px;
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
     text-align: center;
@@ -103,22 +111,13 @@ export const queryBuilderStyles = css`
     -webkit-appearance: none;
   }
 
-  .logical-op-select.op-and,
-  .logical-op-select.op-or {
-    background: color-mix(in srgb, var(--primary) 15%, transparent);
-    color: var(--primary);
-    border-color: var(--primary);
-  }
-
-  .logical-op-select.op-not {
-    background: color-mix(in srgb, var(--danger) 15%, transparent);
-    color: var(--danger);
-    border-color: var(--danger);
+  .logical-op-select.op-blank {
+    opacity: 0.5;
   }
 
   .logical-op-placeholder {
-    width: 56px;
-    min-width: 56px;
+    width: 64px;
+    min-width: 64px;
     flex-shrink: 0;
   }
 
@@ -155,28 +154,6 @@ export const queryBuilderStyles = css`
       0 0 0 3px var(--focus-ring-bg);
   }
 
-  .operator-select {
-    padding: var(--input-padding-y) var(--input-padding-x);
-    border: var(--border-width) solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-base);
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: var(--transition-fast);
-    box-sizing: border-box;
-    appearance: none;
-    -webkit-appearance: none;
-  }
-
-  .operator-select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow:
-      0 0 0 1px var(--primary),
-      0 0 0 3px var(--focus-ring-bg);
-  }
-
   .condition-remove {
     display: flex;
     align-items: center;
@@ -201,31 +178,6 @@ export const queryBuilderStyles = css`
   }
 
   /* ==========================================
-     TEXT INPUT
-     ========================================== */
-
-  .text-input {
-    flex: 1;
-    min-width: 0;
-    padding: var(--input-padding-y) var(--input-padding-x);
-    border: var(--border-width) solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-base);
-    color: var(--text-primary);
-    transition: var(--transition-fast);
-    box-sizing: border-box;
-  }
-
-  .text-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow:
-      0 0 0 1px var(--primary),
-      0 0 0 3px var(--focus-ring-bg);
-  }
-
-  /* ==========================================
      VALUE CHIPS
      ========================================== */
 
@@ -247,10 +199,14 @@ export const queryBuilderStyles = css`
     border-radius: var(--radius-pill);
     padding: var(--spacing-2xs) var(--spacing-sm);
     font-size: var(--text-sm);
-    white-space: nowrap;
     max-width: 160px;
+  }
+
+  .value-chip-text {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
 
   .value-chip-remove {
@@ -507,11 +463,12 @@ export const queryBuilderStyles = css`
   .query-builder-overlay {
     position: fixed;
     inset: 0;
-    z-index: 1000;
+    z-index: var(--z-modal);
     background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
+    overscroll-behavior: contain;
   }
 
   .query-builder-modal {
@@ -520,10 +477,10 @@ export const queryBuilderStyles = css`
     max-width: 900px;
     height: 70vh;
     max-height: 80vh;
-    background: var(--surface, #fff);
-    border: var(--border-width, 1px) solid var(--border, #e0e0e0);
-    border-radius: var(--radius, 8px);
-    box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.2));
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
     overflow: visible;
   }
 

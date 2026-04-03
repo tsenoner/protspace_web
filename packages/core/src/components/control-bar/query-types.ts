@@ -1,11 +1,9 @@
 export type LogicalOp = 'AND' | 'OR' | 'NOT';
-export type ConditionOperator = 'is' | 'is_not' | 'contains' | 'starts_with';
 
 export interface FilterCondition {
   id: string;
   logicalOp?: LogicalOp;
   annotation: string;
-  operator: ConditionOperator;
   values: string[];
 }
 
@@ -28,7 +26,6 @@ export function createCondition(overrides?: Partial<FilterCondition>): FilterCon
   return {
     id: generateId(),
     annotation: '',
-    operator: 'is',
     values: [],
     ...overrides,
   };

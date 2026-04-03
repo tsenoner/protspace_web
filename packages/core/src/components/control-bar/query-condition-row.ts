@@ -1,6 +1,6 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state, query as litQuery } from 'lit/decorators.js';
-import type { FilterCondition, LogicalOp, ConditionOperator } from './query-types';
+import type { FilterCondition, LogicalOp } from './query-types';
 import type { ProtspaceData } from './types';
 import { groupAnnotations } from './annotation-categories';
 import { LEGEND_VALUES } from '@protspace/utils';
@@ -22,7 +22,7 @@ class ProtspaceQueryConditionRow extends LitElement {
   @property({ type: Array }) annotations: string[] = [];
   @property({ type: Object }) data: ProtspaceData | undefined = undefined;
   @property({ type: Object }) matchedIndices: Set<number> = new Set();
-  @property({ type: Boolean }) showLogicalOp: boolean = false;
+  @property({ type: Boolean }) isFirst: boolean = false;
 
   @state() private _showAnnotationPicker: boolean = false;
   @state() private _showValuePicker: boolean = false;
@@ -77,10 +77,6 @@ class ProtspaceQueryConditionRow extends LitElement {
     );
   }
 
-  private _isTextOperator(op: ConditionOperator): boolean {
-    return op === 'contains' || op === 'starts_with';
-  }
-
   // ─── Annotation picker grouping ───────────────────────────────────────────
 
   private _groupAnnotations() {
@@ -105,6 +101,7 @@ class ProtspaceQueryConditionRow extends LitElement {
 
   private _handleAnnotationPickerKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
+      e.stopPropagation();
       this._showAnnotationPicker = false;
       this._annotationSearch = '';
     }
@@ -118,17 +115,9 @@ class ProtspaceQueryConditionRow extends LitElement {
   }
 
   private _handleLogicalOpChange(e: Event) {
-    const value = (e.target as HTMLSelectElement).value as LogicalOp;
+    const raw = (e.target as HTMLSelectElement).value;
+    const value = raw === '' ? undefined : (raw as LogicalOp);
     this._dispatchChanged({ ...this.condition, logicalOp: value });
-  }
-
-  private _handleOperatorChange(e: Event) {
-    const newOp = (e.target as HTMLSelectElement).value as ConditionOperator;
-    const oldIsText = this._isTextOperator(this.condition.operator);
-    const newIsText = this._isTextOperator(newOp);
-    // Clear values when switching between chip-style and text-style operators
-    const values = oldIsText !== newIsText ? [] : this.condition.values;
-    this._dispatchChanged({ ...this.condition, operator: newOp, values });
   }
 
   private _removeValue(value: string) {
@@ -145,11 +134,6 @@ class ProtspaceQueryConditionRow extends LitElement {
 
   private _handleValuePickerClose() {
     this._showValuePicker = false;
-  }
-
-  private _handleTextInput(e: Event) {
-    const text = (e.target as HTMLInputElement).value;
-    this._dispatchChanged({ ...this.condition, values: [text] });
   }
 
   private _handleRemove() {
@@ -214,23 +198,12 @@ class ProtspaceQueryConditionRow extends LitElement {
   }
 
   private _renderValues() {
-    if (this._isTextOperator(this.condition.operator)) {
-      return html`
-        <input
-          class="text-input"
-          .value=${this.condition.values[0] ?? ''}
-          @input=${this._handleTextInput}
-          placeholder="Enter text..."
-        />
-      `;
-    }
-
     return html`
       <div class="value-chips">
         ${this.condition.values.map(
           (v) => html`
             <span class="value-chip">
-              ${this._displayValue(v)}
+              <span class="value-chip-text">${this._displayValue(v)}</span>
               <button
                 class="value-chip-remove"
                 @click=${() => this._removeValue(v)}
@@ -260,7 +233,6 @@ class ProtspaceQueryConditionRow extends LitElement {
         .annotation=${this.condition.annotation}
         .data=${this.data}
         .matchedIndices=${this.matchedIndices}
-        .operator=${this.condition.operator}
         .logicalOp=${this.condition.logicalOp}
         .selectedValues=${this.condition.values}
         .open=${this._showValuePicker}
@@ -275,16 +247,22 @@ class ProtspaceQueryConditionRow extends LitElement {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   render() {
-    const opClass = this.condition.logicalOp
-      ? `op-${this.condition.logicalOp.toLowerCase()}`
-      : 'op-and';
-
     return html`
       <div class="condition-row">
-        ${this.showLogicalOp
+        ${this.isFirst
           ? html`
               <select
-                class="logical-op-select ${opClass}"
+                class="logical-op-select ${this.condition.logicalOp === 'NOT' ? '' : 'op-blank'}"
+                .value=${this.condition.logicalOp ?? ''}
+                @change=${this._handleLogicalOpChange}
+              >
+                <option value="">​</option>
+                <option value="NOT">NOT</option>
+              </select>
+            `
+          : html`
+              <select
+                class="logical-op-select"
                 .value=${this.condition.logicalOp ?? 'AND'}
                 @change=${this._handleLogicalOpChange}
               >
@@ -292,26 +270,13 @@ class ProtspaceQueryConditionRow extends LitElement {
                 <option value="OR">OR</option>
                 <option value="NOT">NOT</option>
               </select>
-            `
-          : html`<div class="logical-op-placeholder"></div>`}
+            `}
 
         <button class="annotation-select-trigger" @click=${this._toggleAnnotationPicker}>
           ${this.condition.annotation || 'Select annotation...'}
         </button>
 
         ${this._showAnnotationPicker ? this._renderAnnotationPicker() : nothing}
-
-        <select
-          class="operator-select"
-          .value=${this.condition.operator}
-          @change=${this._handleOperatorChange}
-        >
-          <option value="is">is</option>
-          <option value="is_not">is not</option>
-          <option value="contains">contains</option>
-          <option value="starts_with">starts with</option>
-        </select>
-
         ${this._renderValues()}
 
         <button class="condition-remove" @click=${this._handleRemove} title="Remove condition">

@@ -1,7 +1,7 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state, query as litQuery } from 'lit/decorators.js';
 import type { ProtspaceData } from './types';
-import type { ConditionOperator, LogicalOp } from './query-types';
+import type { LogicalOp } from './query-types';
 import { toInternalValue } from '../legend/config';
 import { resolveAnnotationValue } from './query-evaluate';
 import { LEGEND_VALUES } from '@protspace/utils';
@@ -21,7 +21,6 @@ class ProtspaceQueryValuePicker extends LitElement {
   @property({ type: String }) annotation: string = '';
   @property({ type: Object }) data: ProtspaceData | undefined = undefined;
   @property({ type: Object }) matchedIndices: Set<number> = new Set();
-  @property({ type: String }) operator: ConditionOperator = 'is';
   @property({ type: String }) logicalOp: LogicalOp | undefined = undefined;
   @property({ type: Array }) selectedValues: string[] = [];
   @property({ type: Boolean }) open: boolean = false;
@@ -122,12 +121,8 @@ class ProtspaceQueryValuePicker extends LitElement {
     }
 
     const excludedSize = this.matchedIndices.size;
-    const totalProteins = this.data?.protein_ids?.length ?? 0;
     const isOR = this.logicalOp === 'OR';
-    // NOT logicalOp inverts the condition: NOT+is ≡ AND+is_not, NOT+is_not ≡ AND+is
-    const operatorInverts = this.operator === 'is_not';
-    const logicalOpInverts = this.logicalOp === 'NOT';
-    const shouldInvert = operatorInverts !== logicalOpInverts;
+    const isNOT = this.logicalOp === 'NOT';
 
     const queryLower = this._searchQuery.trim().toLowerCase();
     const filteredValues = allValues
@@ -141,12 +136,13 @@ class ProtspaceQueryValuePicker extends LitElement {
         if (isOR) {
           const fullCount = fullCountMap!.get(v) ?? 0;
           // OR unions: excludedSet ∪ conditionResult
-          count =
-            this.operator === 'is_not'
-              ? totalProteins - fullCount + rawCount // union with "not X" set
-              : excludedSize + fullCount - rawCount; // union with "X" set
+          count = excludedSize + fullCount - rawCount;
+        } else if (isNOT) {
+          // NOT inverts: proteins that do NOT have this value
+          count = excludedSize - rawCount;
         } else {
-          count = shouldInvert ? excludedSize - rawCount : rawCount;
+          // AND: proteins in excluded set that have this value
+          count = rawCount;
         }
         return { value: v, count };
       });
@@ -183,6 +179,7 @@ class ProtspaceQueryValuePicker extends LitElement {
 
   private _handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
+      e.stopPropagation();
       this.dispatchEvent(new CustomEvent('picker-close', { bubbles: true, composed: true }));
     }
   }

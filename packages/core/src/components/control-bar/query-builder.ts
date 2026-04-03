@@ -6,6 +6,7 @@ import { createCondition, createGroup, isFilterGroup } from './query-types';
 import { evaluateQuery, evaluateQueryExcluding } from './query-evaluate';
 import { queryBuilderStyles } from './query-builder.styles';
 import { buttonMixin } from '../../styles/mixins';
+import { renderCloseIcon } from '../legend/legend-other-dialog';
 import './query-condition-row';
 
 /**
@@ -41,6 +42,17 @@ class ProtspaceQueryBuilder extends LitElement {
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
+  private _onKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      this._handleClose();
+    }
+  };
+
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener('keydown', this._onKeydown);
+  }
+
   updated(changedProperties: Map<string, unknown>) {
     if (changedProperties.has('data') || changedProperties.has('query')) {
       this._scheduleEvaluation(this.query);
@@ -49,6 +61,7 @@ class ProtspaceQueryBuilder extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    document.removeEventListener('keydown', this._onKeydown);
     if (this._debounceTimer) {
       clearTimeout(this._debounceTimer);
       this._debounceTimer = null;
@@ -207,14 +220,12 @@ class ProtspaceQueryBuilder extends LitElement {
   // ─── Group rendering ──────────────────────────────────────────────────────
 
   private _renderGroup(group: FilterGroup, groupIndex: number) {
-    const opClass = group.logicalOp ? `op-${group.logicalOp.toLowerCase()}` : 'op-and';
-
     return html`
       <div class="group-container">
         <div class="group-header">
           ${groupIndex > 0
             ? html`<select
-                class="logical-op-select ${opClass}"
+                class="logical-op-select"
                 .value=${group.logicalOp ?? 'AND'}
                 @change=${(e: Event) => this._handleGroupLogicalOpChange(group.id, e)}
               >
@@ -234,7 +245,7 @@ class ProtspaceQueryBuilder extends LitElement {
                 .annotations=${this.annotations}
                 .data=${this.data}
                 .matchedIndices=${this._excludedMatchMap.get(item.id) ?? this._matchedIndices}
-                .showLogicalOp=${index > 0}
+                .isFirst=${index === 0}
                 @condition-changed=${(e: CustomEvent) => this._handleConditionChanged(e, group.id)}
                 @condition-removed=${(e: CustomEvent) => this._handleConditionRemoved(e, group.id)}
               ></protspace-query-condition-row>
@@ -242,13 +253,22 @@ class ProtspaceQueryBuilder extends LitElement {
           )}
         </div>
         <button class="btn-link" @click=${() => this._addConditionToGroup(group.id)}>
-          + Add condition
+          + Add group condition
         </button>
       </div>
     `;
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
+
+  private _handleClose() {
+    this.dispatchEvent(
+      new CustomEvent('query-close', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
   render() {
     return html`
@@ -258,6 +278,14 @@ class ProtspaceQueryBuilder extends LitElement {
           <span class="match-count">
             ${this._matchedIndices.size} of ${this._totalCount} proteins matched
           </span>
+          <button
+            class="btn-close"
+            title="Close"
+            aria-label="Close filter query builder"
+            @click=${this._handleClose}
+          >
+            ${renderCloseIcon()}
+          </button>
         </div>
 
         <div class="query-conditions">
@@ -271,23 +299,23 @@ class ProtspaceQueryBuilder extends LitElement {
                 .annotations=${this.annotations}
                 .data=${this.data}
                 .matchedIndices=${this._excludedMatchMap.get(item.id) ?? this._matchedIndices}
-                .showLogicalOp=${index > 0}
+                .isFirst=${index === 0}
                 @condition-changed=${(e: CustomEvent) => this._handleConditionChanged(e, null)}
                 @condition-removed=${(e: CustomEvent) => this._handleConditionRemoved(e, null)}
               ></protspace-query-condition-row>
             `;
           })}
-        </div>
-
-        <div class="query-actions">
-          <button class="btn-secondary btn-compact" @click=${this._addCondition}>
-            + Add condition
-          </button>
-          <button class="btn-secondary btn-compact" @click=${this._addGroup}>+ Add group</button>
+          <div class="query-actions">
+            <button class="btn-link" @click=${this._addCondition}>+ Add condition</button>
+            <button class="btn-link" @click=${this._addGroup}>+ Add group</button>
+          </div>
         </div>
 
         <div class="query-footer">
-          <button class="btn-danger" @click=${this._handleReset}>Reset All</button>
+          <button class="btn-danger query-footer-reset" @click=${this._handleReset}>
+            Reset All
+          </button>
+          <button class="btn-secondary" @click=${this._handleClose}>Cancel</button>
           <button
             class="btn-primary"
             ?disabled=${this._matchedIndices.size === 0 || this.query.length === 0}

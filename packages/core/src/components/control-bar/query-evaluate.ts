@@ -35,6 +35,9 @@ function normalizeValue(value: string | null): string {
 
 /**
  * Evaluate a single condition against all proteins, returning a Set of matching indices.
+ * Always uses "is" semantics: a protein matches if its normalized annotation value
+ * is among the condition's selected values. Negation is handled at the combining
+ * level via the NOT logical operator.
  */
 function evaluateCondition(
   condition: FilterCondition,
@@ -49,48 +52,19 @@ function evaluateCondition(
     return new Set();
   }
 
+  const valuesSet = new Set(condition.values);
   const matches = new Set<number>();
 
   for (let i = 0; i < numProteins; i++) {
     const resolved = resolveAnnotationValue(i, condition.annotation, data);
     const normalized = normalizeValue(resolved);
 
-    if (matchesOperator(condition.operator, condition.values, resolved, normalized)) {
+    if (valuesSet.has(normalized)) {
       matches.add(i);
     }
   }
 
   return matches;
-}
-
-/**
- * `is`/`is_not` compare against the normalized value (toInternalValue), so the
- * value picker can expose __NA__ for null annotations.
- * `contains`/`starts_with` compare against the raw resolved string for
- * human-readable substring matching; null values are non-matching.
- */
-function matchesOperator(
-  operator: FilterCondition['operator'],
-  values: string[],
-  resolved: string | null,
-  normalized: string,
-): boolean {
-  switch (operator) {
-    case 'is':
-      return values.some((v) => v === normalized);
-    case 'is_not':
-      return !values.some((v) => v === normalized);
-    case 'contains': {
-      if (resolved == null) return false;
-      const search = (values[0] ?? '').toLowerCase();
-      return resolved.toLowerCase().includes(search);
-    }
-    case 'starts_with': {
-      if (resolved == null) return false;
-      const prefix = (values[0] ?? '').toLowerCase();
-      return resolved.toLowerCase().startsWith(prefix);
-    }
-  }
 }
 
 /**

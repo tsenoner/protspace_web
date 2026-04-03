@@ -86,21 +86,35 @@ Isolate is useful for examining relationships within a specific protein subset -
 
 ## 7. Filter Button
 
-**Filter** shows only proteins matching specific annotation criteria:
+**Filter** opens a query builder modal for building complex annotation-based filters:
 
-1. Click **Filter** to open the filter menu
-2. Select one or more annotations to filter by (e.g., taxonomy, family)
-3. Choose specific values for each annotation
-4. Click **Apply**
+1. Click **Filter** to open the query builder
+2. Each row is a condition: select an annotation, then click **+** to pick values
+3. Combine conditions with **AND**, **OR**, or **NOT** logic
+4. Use **+ Add group** for nested logic (parenthetical grouping)
+5. The live match count shows how many proteins match your query
+6. Click **Apply & Isolate** to filter the scatterplot
 
-Filtered proteins are highlighted with a custom color scheme.
+Close the modal with the **×** button, **Cancel**, **Escape** key, or clicking the backdrop.
 
-::: info Isolate vs Filter
+**Reset All** clears the query and restores all proteins without closing the modal.
 
-- **Isolate**: Works with selected proteins - hides everything else
-- **Filter**: Works with annotation values - highlights matches, dims non-matches
+::: tip Logical Operators
 
-Use **Isolate** for ad-hoc selections (like search results). Use **Filter** for annotation-based queries (like "show all kinases").
+- **AND**: Protein must match both conditions
+- **OR**: Protein must match either condition
+- **NOT**: Protein must NOT match the condition (negation)
+
+The first condition can optionally be set to **NOT** for immediate negation.
+:::
+
+::: info Filter vs Isolate
+Both reduce visible proteins, but they work differently:
+
+- **Filter**: Build annotation-based queries (e.g., "show all Human AND reviewed proteins")
+- **Isolate**: Manually select proteins first, then hide everything else
+
+Use **Filter** for structured queries. Use **Isolate** for ad-hoc selections.
 :::
 
 ## 8. Export
