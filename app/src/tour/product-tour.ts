@@ -215,7 +215,7 @@ const steps: DriveStep[] = [
   shadowStep(CONTROL_BAR, 'selection', {
     title: 'Selection Tools',
     description:
-      '<strong>Select</strong> enters selection mode\u2009—\u2009click points or drag a rectangle to select multiple. Press <kbd>Esc</kbd> to exit.<br><br><strong>Clear</strong> deselects all, <strong>Isolate</strong> focuses on selected proteins, and <strong>Reset</strong> restores the full dataset.',
+      '<strong>Select</strong> enters selection mode\u2009—\u2009click points or drag to select multiple. Choose <strong>rectangle</strong> or <strong>lasso</strong> to switch tools. Press <kbd>Esc</kbd> to exit.<br><br><strong>Clear</strong> deselects all, <strong>Isolate</strong> focuses on selected proteins, and <strong>Reset</strong> restores the full dataset.',
   }),
 
   // ── Step 6 – Filter, Export & Import (Shadow DOM) ──────────

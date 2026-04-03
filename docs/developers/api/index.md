@@ -29,23 +29,25 @@ The main visualization component.
 
 ### Attributes
 
-| Attribute          | Type    | Default | Description            |
-| ------------------ | ------- | ------- | ---------------------- |
-| `show-grid`        | boolean | false   | Show grid lines        |
-| `enable-zoom`      | boolean | false   | Enable scroll zoom     |
-| `enable-pan`       | boolean | false   | Enable drag panning    |
-| `enable-selection` | boolean | false   | Enable point selection |
-| `point-size`       | number  | 5       | Point radius in pixels |
-| `point-opacity`    | number  | 0.8     | Point opacity (0-1)    |
+| Attribute          | Type    | Default       | Description                                |
+| ------------------ | ------- | ------------- | ------------------------------------------ |
+| `show-grid`        | boolean | false         | Show grid lines                            |
+| `enable-zoom`      | boolean | false         | Enable scroll zoom                         |
+| `enable-pan`       | boolean | false         | Enable drag panning                        |
+| `enable-selection` | boolean | false         | Enable point selection                     |
+| `selection-tool`   | string  | `'rectangle'` | Selection tool: `'rectangle'` or `'lasso'` |
+| `point-size`       | number  | 5             | Point radius in pixels                     |
+| `point-opacity`    | number  | 0.8           | Point opacity (0-1)                        |
 
 ### Properties
 
-| Property                  | Type              | Description                    |
-| ------------------------- | ----------------- | ------------------------------ |
-| `data`                    | VisualizationData | The loaded dataset             |
-| `selectedProjectionIndex` | number            | Current projection index       |
-| `selectedAnnotation`      | string            | Current coloring annotation    |
-| `selectedProteins`        | string[]          | Currently selected protein IDs |
+| Property                  | Type                       | Description                    |
+| ------------------------- | -------------------------- | ------------------------------ |
+| `data`                    | VisualizationData          | The loaded dataset             |
+| `selectedProjectionIndex` | number                     | Current projection index       |
+| `selectedAnnotation`      | string                     | Current coloring annotation    |
+| `selectionTool`           | `'rectangle'` \| `'lasso'` | Current selection tool         |
+| `selectedProteins`        | string[]                   | Currently selected protein IDs |
 
 ### Methods
 
@@ -153,6 +155,7 @@ Projection and annotation selection controls.
 | `annotation-change`               | { annotation }                         | Annotation changed                                         |
 | `search`                          | { query, results }                     | Search performed                                           |
 | `export`                          | { type, ...options }                   | Export requested                                           |
+| `selection-tool-change`           | { selectionTool }                      | Selection tool changed (rectangle/lasso)                   |
 | `selection-disabled-notification` | { message, severity, source, context } | Host-consumed warning when selection mode is auto-disabled |
 
 ### Example
