@@ -81,7 +81,8 @@ export const tokens = css`
     --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.05);
     --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.08);
 
-    /* Spacing Scale (8px base unit) */
+    /* Spacing Scale (4px base unit) */
+    --spacing-2xs: 0.125rem; /*  2px */
     --spacing-xs: 0.25rem; /*  4px */
     --spacing-sm: 0.5rem; /*  8px */
     --spacing-md: 0.75rem; /* 12px */
@@ -98,6 +99,7 @@ export const tokens = css`
     /* Border & Radius */
     --border-width: 1px;
     --radius: 0.25rem; /* 4px */
+    --radius-pill: 0.75rem; /* 12px */
 
     /* Typography Scale */
     --font-family: system-ui, -apple-system, sans-serif;
@@ -128,6 +130,7 @@ export const tokens = css`
     --z-tooltip: 20;
     --z-dropdown: 100;
     --z-modal: 1000;
+    --z-above-modal: 1001;
 
     /* Component sizing */
     --input-padding-y: 0.375rem; /* 6px */
