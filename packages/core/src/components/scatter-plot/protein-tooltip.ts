@@ -3,7 +3,17 @@ import { customElement, property } from 'lit/decorators.js';
 import { toDisplayValue, toInternalValue } from '@protspace/utils';
 import type { PlotDataPoint } from '@protspace/utils';
 import { proteinTooltipStyles } from './protein-tooltip.styles';
-import { getGeneName, getProteinName, getUniprotKbId } from './protein-tooltip-helpers';
+import {
+  getAnnotationHeaderType,
+  getGeneName,
+  getProteinName,
+  getUniprotKbId,
+} from './protein-tooltip-helpers';
+
+const ANNOTATION_HEADER_LABELS: Record<'bitscore' | 'evidence', string> = {
+  bitscore: 'Bitscore',
+  evidence: 'Evidence',
+};
 
 const SUPERSCRIPT_DIGITS: Record<string, string> = {
   '0': '\u2070',
@@ -55,6 +65,7 @@ class ProtspaceProteinTooltip extends LitElement {
     const tooltipAnnotationScores = this.protein.annotationScores?.[this.selectedAnnotation] ?? [];
     const tooltipAnnotationEvidence =
       this.protein.annotationEvidence?.[this.selectedAnnotation] ?? [];
+    const headerType = getAnnotationHeaderType(tooltipAnnotationScores, tooltipAnnotationEvidence);
 
     return html`
       <div class="tooltip">
@@ -84,6 +95,10 @@ class ProtspaceProteinTooltip extends LitElement {
               </div>`
             : ''}
           <div class="tooltip-annotations">
+            <div class="tooltip-annotation-header">
+              <span>${this.selectedAnnotation}</span>
+              ${headerType ? html`<span>${ANNOTATION_HEADER_LABELS[headerType]}</span>` : ''}
+            </div>
             ${tooltipAnnotationValues.map((value, idx) => {
               const scores = tooltipAnnotationScores[idx];
               const evidence = tooltipAnnotationEvidence[idx];

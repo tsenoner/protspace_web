@@ -20,6 +20,10 @@ Switch between different dimensionality reduction methods:
 
 Different projections reveal different patterns - try switching between them!
 
+::: info URL persistence
+Your current projection is reflected in the page URL, so refresh, browser back/forward navigation, and shared links reopen the same view when possible. A bare `/explore` URL stays unchanged on first load; ProtSpace writes projection and annotation params after you change the view or when it needs to normalize an invalid URL value.
+:::
+
 ::: tip 3D Projections
 When a 3D projection is available, a **plane selector** (XY / XZ / YZ) appears, letting you view different 2D slices of the 3D space.
 :::
@@ -37,6 +41,10 @@ The Annotation dropdown features:
 - **Keyboard navigation**: Use arrow keys to navigate, Enter to select, Escape to close
 
 Only categories present in your dataset appear in the dropdown. Any columns that don't match a known category appear under **Other**. See the [ProtSpace Python package](https://github.com/tsenoner/protspace) for the complete list of available annotations per source.
+
+::: info Shareable view state
+The selected annotation is also stored in the page URL together with the current projection. This makes the current Explore view shareable and restorable across refreshes without reloading the page.
+:::
 
 ::: info Tooltip-only annotations
 `gene_name`, `protein_name`, and `uniprot_kb_id` are excluded from the dropdown but are still shown in the [tooltip](/explore/scatterplot#protein-tooltip) on hover.

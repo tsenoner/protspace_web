@@ -38,3 +38,17 @@ export function getProteinName(annotationValues: Record<string, string[]>): stri
 export function getUniprotKbId(annotationValues: Record<string, string[]>): string | null {
   return filterAnnotationValues(annotationValues?.uniprot_kb_id);
 }
+
+/**
+ * Determine the annotation header type based on available scores and evidence.
+ * Returns 'bitscore' if any scores are present, 'evidence' if any evidence codes
+ * are present (but no scores), or null if neither exists.
+ */
+export function getAnnotationHeaderType(
+  scores: (number[] | null)[],
+  evidence: (string | null)[],
+): 'bitscore' | 'evidence' | null {
+  if (scores.some((s) => Array.isArray(s) && s.length > 0)) return 'bitscore';
+  if (evidence.some((e) => e != null)) return 'evidence';
+  return null;
+}

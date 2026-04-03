@@ -37,8 +37,8 @@ protspace_web/
 
 ## Requirements
 
-- Node.js 18+
-- pnpm 8+
+- Node.js 22+
+- pnpm 10.24.0+
 - Git
 
 ## Setup
@@ -54,11 +54,11 @@ pnpm install
 # Build all packages
 pnpm build
 
-# Start development server
+# Start development servers
 pnpm dev
 ```
 
-The dev server runs at `http://localhost:5173`
+The app runs at `http://localhost:8080` and the docs run at `http://localhost:5174/docs/`.
 
 ## Development Commands
 
@@ -79,13 +79,16 @@ pnpm lint:fix
 pnpm format
 
 # Type check
-pnpm typecheck
+pnpm type-check
+
+# Static quality gate
+pnpm quality
 
 # Build documentation
 pnpm docs:build
 
 # Preview documentation
-pnpm docs:dev
+pnpm docs:preview
 ```
 
 ## Architecture
@@ -231,7 +234,7 @@ Documentation uses VitePress:
 
 ```bash
 # Start docs dev server
-pnpm docs:dev
+pnpm dev:docs
 
 # Build documentation
 pnpm docs:build

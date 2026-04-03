@@ -1,0 +1,164 @@
+import type {
+  LegendErrorEventDetail,
+  ProtspaceLegend,
+  ProtspaceScatterplot,
+  ProtspaceStructureViewer,
+  StructureErrorEventDetail,
+  StructureLoadEvent,
+} from '@protspace/core';
+import type { VisualizationData } from '@protspace/utils';
+import { notify } from '../lib/notify';
+import { getLegendErrorNotification, getStructureErrorNotification } from './notifications';
+
+interface InteractionControllerOptions {
+  legendElement: ProtspaceLegend;
+  plotElement: ProtspaceScatterplot;
+  selectedProteinElement: HTMLElement | null;
+  structureViewer: ProtspaceStructureViewer;
+  clearPersistedLegendHiddenValues: (annotation: string, dataOverride?: VisualizationData) => void;
+}
+
+export interface InteractionController {
+  updateLegend(): void;
+  updateSelectedProteinDisplay(proteinId: string | null): void;
+  getSelectedProteins(): string[];
+  setLastKnownAnnotation(annotation: string): void;
+  handleSelectionChange(event: Event): void;
+  handlePlotDataChange(): void;
+  handleLegendItemClick(event: Event): void;
+  handleLegendError(event: Event): void;
+  handleStructureLoad(event: Event): void;
+  handleStructureError(event: Event): void;
+  handleStructureClose(event: Event): void;
+  handleAnnotationChange(nextAnnotation: string): void;
+}
+
+export function createInteractionController({
+  legendElement,
+  plotElement,
+  selectedProteinElement,
+  structureViewer,
+  clearPersistedLegendHiddenValues,
+}: InteractionControllerOptions): InteractionController {
+  let hiddenValues: string[] = [];
+  let selectedProteins: string[] = [];
+  let lastKnownAnnotation = '';
+
+  const updateSelectedProteinDisplay = (proteinId: string | null) => {
+    if (!selectedProteinElement) {
+      return;
+    }
+
+    if (proteinId) {
+      selectedProteinElement.textContent = `Selected: ${proteinId}`;
+      selectedProteinElement.style.color = '#3b82f6';
+      return;
+    }
+
+    selectedProteinElement.textContent = 'No protein selected';
+    selectedProteinElement.style.color = '#6b7280';
+  };
+
+  const updateLegend = () => {
+    const currentAnnotation = plotElement.selectedAnnotation;
+    const currentData = plotElement.getCurrentData();
+    const annotationRows = currentData?.annotation_data?.[currentAnnotation];
+    if (!currentAnnotation || !currentData || !currentData.annotations[currentAnnotation]) {
+      return;
+    }
+
+    if (legendElement.autoSync && 'forceSync' in legendElement) {
+      legendElement.forceSync();
+      return;
+    }
+
+    if (legendElement.autoSync) {
+      return;
+    }
+
+    legendElement.data = { annotations: currentData.annotations };
+    legendElement.selectedAnnotation = currentAnnotation;
+    legendElement.annotationValues = currentData.protein_ids.flatMap((_, index) => {
+      const annotationIdxArray = annotationRows?.[index] ?? [];
+      return annotationIdxArray.map((annotationIdx) => {
+        return currentData.annotations[currentAnnotation].values[annotationIdx];
+      });
+    });
+    legendElement.proteinIds = currentData.protein_ids;
+  };
+
+  return {
+    updateLegend,
+    updateSelectedProteinDisplay,
+    getSelectedProteins() {
+      return selectedProteins;
+    },
+    setLastKnownAnnotation(annotation) {
+      lastKnownAnnotation = annotation;
+    },
+    handleSelectionChange(event) {
+      const customEvent = event as CustomEvent<{ proteinIds?: string[] }>;
+      selectedProteins = Array.isArray(customEvent.detail.proteinIds)
+        ? [...customEvent.detail.proteinIds]
+        : [];
+
+      if (selectedProteins.length > 0) {
+        const lastSelected = selectedProteins[selectedProteins.length - 1];
+        structureViewer.loadProtein(lastSelected);
+        updateSelectedProteinDisplay(`${selectedProteins.length} proteins selected`);
+        return;
+      }
+
+      updateSelectedProteinDisplay(null);
+    },
+    handlePlotDataChange() {
+      selectedProteins = plotElement.selectedProteinIds || [];
+      updateLegend();
+    },
+    handleLegendItemClick(event) {
+      const customEvent = event as CustomEvent<{ value: string | null }>;
+      const valueKey = customEvent.detail.value === null ? 'null' : customEvent.detail.value;
+
+      if (hiddenValues.includes(valueKey)) {
+        hiddenValues = hiddenValues.filter((value) => value !== valueKey);
+        return;
+      }
+
+      hiddenValues = [...hiddenValues, valueKey];
+    },
+    handleLegendError(event) {
+      const customEvent = event as CustomEvent<LegendErrorEventDetail>;
+      console.error('Legend error:', customEvent.detail);
+      notify.error(getLegendErrorNotification(customEvent.detail));
+    },
+    handleStructureLoad(event) {
+      const customEvent = event as StructureLoadEvent;
+      if (customEvent.detail.status === 'loaded') {
+        console.log(`✅ Structure loaded: ${customEvent.detail.proteinId}`);
+      }
+    },
+    handleStructureError(event) {
+      const customEvent = event as CustomEvent<StructureErrorEventDetail>;
+      console.warn('Structure viewer error:', customEvent.detail);
+      notify.error(getStructureErrorNotification(customEvent.detail));
+    },
+    handleStructureClose(event) {
+      const customEvent = event as CustomEvent<{ proteinId?: string }>;
+      console.log(
+        `🔒 Structure viewer closed for protein: ${customEvent.detail.proteinId || 'none'}`,
+      );
+      console.log('Structure viewer should now be hidden');
+      updateSelectedProteinDisplay(null);
+    },
+    handleAnnotationChange(nextAnnotation) {
+      if (lastKnownAnnotation && lastKnownAnnotation !== nextAnnotation) {
+        clearPersistedLegendHiddenValues(lastKnownAnnotation);
+      }
+
+      hiddenValues = [];
+      plotElement.hiddenAnnotationValues = hiddenValues;
+      updateLegend();
+      lastKnownAnnotation = nextAnnotation;
+    },
+  };
+}

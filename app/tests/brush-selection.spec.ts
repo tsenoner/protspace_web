@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { waitForDataLoad, dismissTourIfPresent } from './helpers';
+import { waitForExploreDataLoad, dismissTourIfPresent } from './helpers/explore';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -158,7 +158,7 @@ test.describe('Brush selection works at all zoom levels (#189)', () => {
     await page.goto('/explore');
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
     await page.goto('/explore');
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
   });
 
@@ -366,7 +366,7 @@ test.describe('Lasso selection (#208)', () => {
     await page.goto('/explore');
     await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
     await page.goto('/explore');
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     await dismissTourIfPresent(page);
   });
 

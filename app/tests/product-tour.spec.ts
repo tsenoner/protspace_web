@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { waitForDataLoad } from './helpers';
+import { waitForExploreDataLoad } from './helpers/explore';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -124,7 +124,7 @@ test.describe('Product Tour', () => {
     await page.evaluate(() => localStorage.removeItem('driver.overviewTour'));
     // Navigate again so the page initialises with a clean slate
     await page.goto('/explore');
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
     // Wait for the tour to auto-start (there's an 800 ms delay after data-loaded)
     await waitForTourPopover(page);
   });
@@ -229,7 +229,7 @@ test.describe('Product Tour', () => {
     // Navigate away and back
     await page.goto('/');
     await page.goto('/explore');
-    await waitForDataLoad(page);
+    await waitForExploreDataLoad(page);
 
     // Give the auto-start delay time to fire (800 ms + buffer)
     await page.waitForTimeout(1500);
