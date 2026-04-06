@@ -52,6 +52,7 @@ export interface ScatterplotElementLike extends Element {
   selectedProjectionIndex?: number;
   selectedAnnotation?: string;
   selectionMode?: boolean;
+  selectionTool?: 'rectangle' | 'lasso';
   selectedProteinIds?: string[];
   projectionPlane?: 'xy' | 'xz' | 'yz';
   data?: ProtspaceData;

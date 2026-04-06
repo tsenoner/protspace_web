@@ -161,8 +161,9 @@ void main() {
   }
 
   // Darken near the edge to mimic a border/outline.
+  // Skip for faded points (low alpha) where the darkening is disproportionately visible.
   float strokeWidth = 0.15;
-  if (max(edgeDist, 0.0) < strokeWidth) {
+  if (v_color.a > 0.5 && max(edgeDist, 0.0) < strokeWidth) {
     finalColor = finalColor * 0.5;
   }
 
@@ -273,11 +274,13 @@ export class WebGLRenderer {
   // update path so it iterates points in the same order as the position buffer.
   private sortedPoints: PlotDataPoint[] = [];
 
+  // Selection-aware two-pass rendering
+  private selectionActive = false;
+  private selectedStartIndex = 0;
+
   // Caching
   private lastDataSignature: string | null = null;
   private lastStyleSignature: string | null = null;
-
-  private selectionActive = false;
 
   // Track rendered point IDs for hover detection
   private trackRenderedPointIds = false;
@@ -352,9 +355,7 @@ export class WebGLRenderer {
   }
 
   setSelectionActive(active: boolean) {
-    if (this.selectionActive !== active) {
-      this.selectionActive = active;
-    }
+    this.selectionActive = active;
   }
 
   /**
@@ -618,12 +619,6 @@ export class WebGLRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    if (this.selectionActive) {
-      gl.disable(gl.BLEND);
-    } else {
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    }
     this.renderPoints(transform);
 
     // Pass 2: Gamma correction to canvas
@@ -674,13 +669,6 @@ export class WebGLRenderer {
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    if (this.selectionActive) {
-      gl.disable(gl.BLEND);
-    } else {
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    }
 
     this.renderPoints(transform);
   }
@@ -1596,7 +1584,31 @@ export class WebGLRenderer {
     gl.uniform1i(this.pointUniformLocations.labelColors, 1);
 
     gl.bindVertexArray(this.pointVao);
-    gl.drawArrays(gl.POINTS, 0, this.currentPointCount);
+
+    if (this.selectionActive && this.selectedStartIndex < this.currentPointCount) {
+      // Two-pass rendering:
+      // Pass 1 — Unselected points (blend OFF): flat fading, no density accumulation.
+      // The subtle MSAA edge artifact at low alpha is imperceptible.
+      gl.disable(gl.BLEND);
+      if (this.selectedStartIndex > 0) {
+        gl.drawArrays(gl.POINTS, 0, this.selectedStartIndex);
+      }
+
+      // Pass 2 — Selected points (blend ON): correct MSAA anti-aliasing on opaque points.
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.drawArrays(
+        gl.POINTS,
+        this.selectedStartIndex,
+        this.currentPointCount - this.selectedStartIndex,
+      );
+    } else {
+      // No selection — single pass with blend (density visible, original behavior)
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.drawArrays(gl.POINTS, 0, this.currentPointCount);
+    }
+
     gl.bindVertexArray(null);
   }
 
@@ -1699,6 +1711,15 @@ export class WebGLRenderer {
       // Draw far -> near, so near points end up on top.
       // NOTE: `getDepth` is defined such that smaller depth is "closer" (wins in LESS mode).
       staged.sort((a, b) => b.depth - a.depth);
+
+      // Find where selected points start (opacity ≈ 1.0, contiguous at the end after sort).
+      // Used for two-pass rendering: unselected without blend, selected with blend.
+      if (this.selectionActive) {
+        const idx = staged.findIndex((s) => s.opacity >= 0.99);
+        this.selectedStartIndex = idx === -1 ? staged.length : idx;
+      } else {
+        this.selectedStartIndex = staged.length;
+      }
 
       // Cache sorted point order for the color-only update path
       this.sortedPoints = staged.map((s) => s.point);
