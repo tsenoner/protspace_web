@@ -2,62 +2,7 @@ import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { annotationSelectStyles } from './annotation-select.styles';
 import { handleDropdownEscape } from '../../utils/dropdown-helpers';
-
-/**
- * Annotation categories as defined in the plan
- */
-const ANNOTATION_CATEGORIES = {
-  UniProt: [
-    'annotation_score',
-    'cc_subcellular_location',
-    'ec',
-    'fragment',
-    'gene_name',
-    'go_bp',
-    'go_cc',
-    'go_mf',
-    'keyword',
-    'length',
-    'protein_existence',
-    'protein_families',
-    'reviewed',
-    'xref_pdb',
-  ],
-  InterPro: [
-    'cath',
-    'cdd',
-    'panther',
-    'pfam',
-    'prints',
-    'prosite',
-    'signal_peptide',
-    'smart',
-    'superfamily',
-  ],
-  Taxonomy: ['root', 'domain', 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species'],
-} as const;
-
-/**
- * Taxonomy order for sorting (as specified in plan)
- */
-const TAXONOMY_ORDER = [
-  'root',
-  'domain',
-  'kingdom',
-  'phylum',
-  'class',
-  'order',
-  'family',
-  'genus',
-  'species',
-] as const;
-
-type CategoryName = 'UniProt' | 'InterPro' | 'Taxonomy' | 'Numeric' | 'Other';
-
-interface GroupedAnnotation {
-  category: CategoryName;
-  annotations: string[];
-}
+import { groupAnnotations, type GroupedAnnotation } from './annotation-categories';
 
 /**
  * Custom dropdown component for annotation selection with section headers and search
@@ -67,8 +12,6 @@ class ProtspaceAnnotationSelect extends LitElement {
   static styles = annotationSelectStyles;
 
   @property({ type: Array }) annotations: string[] = [];
-  @property({ attribute: false })
-  annotationKinds: Record<string, 'categorical' | 'numeric' | undefined> = {};
   @property({ type: String, attribute: 'selected-annotation' }) selectedAnnotation: string = '';
   @property({ type: String }) placeholder: string = 'Select annotation';
 
@@ -183,61 +126,10 @@ class ProtspaceAnnotationSelect extends LitElement {
   }
 
   /**
-   * Categorize annotations according to the plan
+   * Categorize annotations using the shared utility.
    */
   private categorizeAnnotations(annotations: string[]): GroupedAnnotation[] {
-    const categorized: Record<CategoryName, string[]> = {
-      UniProt: [],
-      InterPro: [],
-      Taxonomy: [],
-      Numeric: [],
-      Other: [],
-    };
-
-    for (const annotation of annotations) {
-      let found = false;
-      for (const [category, categoryAnnotations] of Object.entries(ANNOTATION_CATEGORIES)) {
-        if ((categoryAnnotations as readonly string[]).includes(annotation)) {
-          categorized[category as CategoryName].push(annotation);
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        const annotationKind = this.annotationKinds[annotation];
-        if (annotationKind === 'numeric') {
-          categorized.Numeric.push(annotation);
-        } else {
-          categorized.Other.push(annotation);
-        }
-      }
-    }
-
-    // Sort annotations within each category
-    categorized.UniProt.sort((a, b) => a.localeCompare(b));
-    categorized.InterPro.sort((a, b) => a.localeCompare(b));
-    categorized.Numeric.sort((a, b) => a.localeCompare(b));
-    categorized.Other.sort((a, b) => a.localeCompare(b));
-    // Taxonomy uses predefined order
-    categorized.Taxonomy.sort((a, b) => {
-      const aIndex = TAXONOMY_ORDER.indexOf(a as (typeof TAXONOMY_ORDER)[number]);
-      const bIndex = TAXONOMY_ORDER.indexOf(b as (typeof TAXONOMY_ORDER)[number]);
-      if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
-      if (aIndex === -1) return 1;
-      if (bIndex === -1) return -1;
-      return aIndex - bIndex;
-    });
-
-    // Build grouped array, sorting categories alphabetically (Other last)
-    const groups: GroupedAnnotation[] = [];
-    const categoryOrder: CategoryName[] = ['InterPro', 'Taxonomy', 'UniProt', 'Numeric', 'Other'];
-    for (const category of categoryOrder) {
-      if (categorized[category].length > 0) {
-        groups.push({ category, annotations: categorized[category] });
-      }
-    }
-
-    return groups;
+    return groupAnnotations(annotations);
   }
 
   /**
