@@ -114,6 +114,7 @@ export class ProtspaceScatterplot extends LitElement {
   private _brushGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _overlayGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _brush: d3.BrushBehavior<unknown> | null = null;
+  private _isBrushing = false;
   private _lassoVertices: Array<[number, number]> = [];
   private _lassoPath: SVGPathElement | null = null;
   private _isLassoing = false;
@@ -300,8 +301,9 @@ export class ProtspaceScatterplot extends LitElement {
     this._clearDuplicateBadgesCanvas();
     this._webglRenderer?.destroy();
     if (this._brush) {
-      this._brush.on('end', null);
+      this._brush.on('start', null).on('end', null);
       this._brush = null;
+      this._isBrushing = false;
     }
     this._cleanupLasso();
 
@@ -877,8 +879,14 @@ export class ProtspaceScatterplot extends LitElement {
             this._updateSelectionOverlays({ duplicateImmediate: false });
           });
         }
-        // Keep brush extent in sync with the viewport when scroll-zooming in selection mode
-        if (this.selectionMode && this.selectionTool === 'rectangle' && this._brush) {
+        // Keep brush extent in sync with the viewport when scroll-zooming in selection mode.
+        // Skip if a brush gesture is in progress — re-applying the brush resets D3's drag state.
+        if (
+          this.selectionMode &&
+          this.selectionTool === 'rectangle' &&
+          this._brush &&
+          !this._isBrushing
+        ) {
           this._updateBrushExtent();
         }
       });
@@ -1018,6 +1026,7 @@ export class ProtspaceScatterplot extends LitElement {
     this._brushGroup.selectAll('*').remove();
     this._cleanupLasso();
     this._brush = null;
+    this._isBrushing = false;
 
     if (this.selectionMode) {
       // Keep scroll-wheel zoom active but disable drag-to-pan (drag = selection)
@@ -1049,7 +1058,13 @@ export class ProtspaceScatterplot extends LitElement {
     this._brush = d3
       .brush()
       .handleSize(0)
-      .on('end', (event) => this._handleBrushEnd(event));
+      .on('start', () => {
+        this._isBrushing = true;
+      })
+      .on('end', (event) => {
+        this._isBrushing = false;
+        this._handleBrushEnd(event);
+      });
 
     this._updateBrushExtent();
   }

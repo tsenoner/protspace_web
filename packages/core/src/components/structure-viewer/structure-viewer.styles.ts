@@ -25,9 +25,8 @@ const structureViewerStylesCore = css`
     background: var(--protspace-viewer-bg);
     border: 1px solid var(--protspace-viewer-border);
     flex-shrink: 1;
-    flex-grow: 0;
-    min-height: 400px;
-    max-height: 50%;
+    flex-grow: 1;
+    min-height: 150px;
     border-radius: 6px;
   }
 

@@ -44,7 +44,7 @@ const Explore = () => {
   }, [attachController]);
 
   return (
-    <div className="h-screen w-full bg-[#f4f4f4] flex flex-col overflow-y-auto">
+    <div className="h-screen w-full bg-[#f4f4f4] flex flex-col overflow-hidden">
       <div className={`${HEADER_HEIGHT_CLASS} flex-none z-50`}>
         <Header variant="light" />
       </div>
