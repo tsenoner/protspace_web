@@ -101,7 +101,7 @@ export function renderOtherDialog(
 
         <div class="modal-footer">
           <button
-            class="btn-primary extract-all-button"
+            class="btn-danger extract-all-button"
             @click=${callbacks.onExtractAll}
             title="Undo through Settings > Legend > Max legend items"
             aria-label="Extract all"

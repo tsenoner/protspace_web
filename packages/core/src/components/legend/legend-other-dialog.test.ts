@@ -29,11 +29,11 @@ describe('renderOtherDialog', () => {
   ];
 
   describe('extract-all button', () => {
-    it('uses btn-primary class, not btn-danger', () => {
+    it('uses btn-danger class, not btn-primary', () => {
       const { container } = renderToContainer(sampleItems);
       const btn = container.querySelector('.extract-all-button')!;
-      expect(btn.classList.contains('btn-primary')).toBe(true);
-      expect(btn.classList.contains('btn-danger')).toBe(false);
+      expect(btn.classList.contains('btn-danger')).toBe(true);
+      expect(btn.classList.contains('btn-primary')).toBe(false);
     });
 
     it('is disabled when otherItems is empty', () => {
