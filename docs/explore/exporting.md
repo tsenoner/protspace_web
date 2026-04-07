@@ -19,14 +19,16 @@ Click **Export** in the control bar to see available options:
 
 ## Figure export (PNG / PDF)
 
-Publication export uses **fixed sizes in millimeters** and **300 DPI** raster output for the scatter panel (via native WebGL capture). You choose:
+Publication export uses **fixed sizes in millimeters** and **300 DPI** raster output for the scatter panel (via native WebGL capture). The **Layout** selector offers four options:
 
-| Setting             | Options                                                               |
-| ------------------- | --------------------------------------------------------------------- |
-| **Figure size**     | One column (88×70 mm), two column (178×95 mm), full page (180×140 mm) |
-| **Legend position** | Right or below (layout reserves a fixed band for the legend)          |
+| Layout | Dimensions | Legend |
+|--------|-----------|--------|
+| **One column (legend below)** | 88×70 mm | Below scatter, 2 sub-columns |
+| **Two column (legend right)** | 178×95 mm | Right of scatter, single column |
+| **Two column (legend below)** | 178×95 mm | Below scatter, 3 sub-columns |
+| **Full page (legend top)** | 180×250 mm | Above scatter, 3 sub-columns |
 
-Legend text uses a condensed font stack when available; category labels wrap to **two lines** with ellipsis. **Only a bounded number of legend rows** are drawn per layout; if there are more categories, a **“+ N more categories”** line is shown. For the complete category list, use **Parquet** or **Protein IDs** exports.
+Legend categories fill columns **top-to-bottom** (column-major), then continue into the next column. Long labels wrap to two lines and truncate with `…` if needed. When more categories exist than the layout can fit, a `+ N more categories` line appears below the legend grid; for the complete list, export Protein IDs or use the Parquet export instead.
 
 PNG/PDF export **requires** native `captureAtResolution` on the scatterplot (no html2canvas fallback).
 
@@ -35,7 +37,7 @@ PNG/PDF export **requires** native `captureAtResolution` on the scatterplot (no 
 Export a `.parquetbundle` file that can be loaded back into ProtSpace or shared with others.
 
 - **Include legend settings**: When checked, your current legend customizations (colors, shapes, ordering, visibility, palette) are saved inside the file.
-- **Include export options**: When checked, your current figure export preferences (preset size and legend placement) are saved inside the file.
+- **Include export options**: When checked, your current figure export preferences (layout choice) are saved inside the file.
 
 ## Protein IDs export
 
