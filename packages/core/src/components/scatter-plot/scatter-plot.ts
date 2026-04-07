@@ -352,6 +352,15 @@ export class ProtspaceScatterplot extends LitElement {
     this._zOrderMapping = customEvent.detail.zOrderMapping;
     // z-order affects GPU depth; force a fresh style getter cache so getDepth sees the new mapping
     this._styleGettersCache = null;
+
+    if (this._plotData.length > 0) {
+      // Z-order changed: need to invalidate positions to force a full re-sort
+      // (the renderer's depth-sampling optimization compares unsorted points against
+      // sorted depths, which can miss swapped z-order between categories)
+      this._webglRenderer?.invalidatePositionCache();
+      this._webglRenderer?.invalidateStyleCache();
+      this._renderPlot();
+    }
   };
 
   private _handleColorMappingChange = (event: Event) => {
