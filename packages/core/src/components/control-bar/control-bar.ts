@@ -4,8 +4,7 @@ import { controlBarStyles } from './control-bar.styles';
 import type {
   ExportOptionsMap,
   PersistedExportOptions,
-  FigurePresetId,
-  LegendPlacement,
+  PublicationFigureLayoutId,
 } from '@protspace/utils';
 import { LEGEND_VALUES, maxLegendItemsForLayout } from '@protspace/utils';
 import type {
@@ -83,8 +82,7 @@ export class ProtspaceControlBar extends LitElement {
 
   // Export configuration state
   @state() private exportFormat: 'png' | 'pdf' | 'ids' | 'parquet' = EXPORT_DEFAULTS.FORMAT;
-  @state() private exportPublicationPreset: FigurePresetId = EXPORT_DEFAULTS.PUBLICATION_PRESET;
-  @state() private exportLegendPlacement: LegendPlacement = EXPORT_DEFAULTS.LEGEND_PLACEMENT;
+  @state() private exportLayoutId: PublicationFigureLayoutId = EXPORT_DEFAULTS.LAYOUT_ID;
   @state() private exportIncludeLegendSettings: boolean = true;
   @state() private exportIncludeExportOptions: boolean = true;
   private _scatterplotElement: ScatterplotElementLike | null = null;
@@ -412,8 +410,7 @@ export class ProtspaceControlBar extends LitElement {
         ? {
             ...base,
             mode: 'publication' as const,
-            presetId: this.exportPublicationPreset,
-            legendPlacement: this.exportLegendPlacement,
+            layoutId: this.exportLayoutId,
           }
         : base;
     const customEvent = new CustomEvent('export', {
@@ -505,7 +502,7 @@ export class ProtspaceControlBar extends LitElement {
   private _legendExceedsPublicationCap(): boolean {
     const n = this._visibleLegendExportItemCount();
     if (n === 0) return false;
-    return n > maxLegendItemsForLayout(this.exportPublicationPreset, this.exportLegendPlacement);
+    return n > maxLegendItemsForLayout(this.exportLayoutId);
   }
 
   public getAllPersistedExportOptions(): ExportOptionsMap {
@@ -539,17 +536,14 @@ export class ProtspaceControlBar extends LitElement {
       legendFontSizePx: EXPORT_DEFAULTS.LEGACY_LEGEND_FONT_SIZE_PX,
       includeLegendSettings: this.exportIncludeLegendSettings,
       includeExportOptions: this.exportIncludeExportOptions,
-      publicationPresetId: this.exportPublicationPreset,
-      legendPlacement: this.exportLegendPlacement,
+      layoutId: this.exportLayoutId,
     };
   }
 
   private _applyPersistedExportSettings(settings: PersistedExportOptions): void {
     this.exportIncludeLegendSettings = settings.includeLegendSettings;
     this.exportIncludeExportOptions = settings.includeExportOptions;
-    this.exportPublicationPreset =
-      settings.publicationPresetId ?? EXPORT_DEFAULTS.PUBLICATION_PRESET;
-    this.exportLegendPlacement = settings.legendPlacement ?? EXPORT_DEFAULTS.LEGEND_PLACEMENT;
+    this.exportLayoutId = settings.layoutId ?? EXPORT_DEFAULTS.LAYOUT_ID;
   }
 
   private _applyUserExportSettingsChange(update: () => void): void {
@@ -1075,93 +1069,29 @@ export class ProtspaceControlBar extends LitElement {
                         ${this.exportFormat === 'png' || this.exportFormat === 'pdf'
                           ? html`
                               <div class="export-option-group">
-                                <label class="export-option-label">Figure size (print)</label>
-                                <div class="export-format-options">
-                                  <button
-                                    type="button"
-                                    class="btn-secondary btn-compact ${this
-                                      .exportPublicationPreset === 'one_column'
-                                      ? 'active'
-                                      : ''}"
-                                    @click=${() => {
-                                      this._applyUserExportSettingsChange(() => {
-                                        this.exportPublicationPreset = 'one_column';
-                                      });
-                                    }}
-                                  >
-                                    1 col (88×70 mm)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="btn-secondary btn-compact ${this
-                                      .exportPublicationPreset === 'two_column'
-                                      ? 'active'
-                                      : ''}"
-                                    @click=${() => {
-                                      this._applyUserExportSettingsChange(() => {
-                                        this.exportPublicationPreset = 'two_column';
-                                      });
-                                    }}
-                                  >
-                                    2 col (178×95 mm)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="btn-secondary btn-compact ${this
-                                      .exportPublicationPreset === 'full_page'
-                                      ? 'active'
-                                      : ''}"
-                                    @click=${() => {
-                                      this._applyUserExportSettingsChange(() => {
-                                        this.exportPublicationPreset = 'full_page';
-                                      });
-                                    }}
-                                  >
-                                    Full (180×140 mm)
-                                  </button>
-                                </div>
-                              </div>
-                              <div class="export-option-group">
-                                <label class="export-option-label">Legend position</label>
-                                <div class="export-format-options">
-                                  <button
-                                    type="button"
-                                    class="btn-secondary btn-compact ${this
-                                      .exportLegendPlacement === 'right'
-                                      ? 'active'
-                                      : ''}"
-                                    @click=${() => {
-                                      this._applyUserExportSettingsChange(() => {
-                                        this.exportLegendPlacement = 'right';
-                                      });
-                                    }}
-                                  >
-                                    Right
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="btn-secondary btn-compact ${this
-                                      .exportLegendPlacement === 'below'
-                                      ? 'active'
-                                      : ''}"
-                                    @click=${() => {
-                                      this._applyUserExportSettingsChange(() => {
-                                        this.exportLegendPlacement = 'below';
-                                      });
-                                    }}
-                                  >
-                                    Below
-                                  </button>
-                                </div>
+                                <label class="export-option-label">Layout</label>
+                                <select
+                                  class="export-select"
+                                  .value=${this.exportLayoutId}
+                                  @change=${(e: Event) => {
+                                    this._applyUserExportSettingsChange(() => {
+                                      this.exportLayoutId = (
+                                        e.target as HTMLSelectElement
+                                      ).value as PublicationFigureLayoutId;
+                                    });
+                                  }}
+                                >
+                                  <option value="one_column_below">One column (legend below)</option>
+                                  <option value="two_column_right">Two column (legend right)</option>
+                                  <option value="two_column_below">Two column (legend below)</option>
+                                  <option value="full_page_top">Full page (legend top)</option>
+                                </select>
                               </div>
                               ${this._legendExceedsPublicationCap()
                                 ? html`
                                     <div class="export-parquet-help">
                                       Legend lists up to
-                                      ${maxLegendItemsForLayout(
-                                        this.exportPublicationPreset,
-                                        this.exportLegendPlacement,
-                                      )}
+                                      ${maxLegendItemsForLayout(this.exportLayoutId)}
                                       categories; additional ones appear as a summary line. Use
                                       Parquet or Protein IDs for the full list.
                                     </div>
