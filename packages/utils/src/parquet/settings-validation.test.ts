@@ -7,6 +7,7 @@ import {
   isValidPersistedCategoryData,
   isValidPersistedExportOptions,
   isValidSortMode,
+  migratePublicationLayoutId,
   normalizeBundleSettings,
 } from './settings-validation';
 import type {
@@ -37,8 +38,7 @@ const createValidExportOptions = (): PersistedExportOptions => ({
   legendFontSizePx: 24,
   includeLegendSettings: true,
   includeExportOptions: true,
-  publicationPresetId: 'two_column',
-  legendPlacement: 'right',
+  layoutId: 'two_column_below',
 });
 
 const createNormalizedBundleSettings = (): BundleSettings => ({
@@ -122,19 +122,15 @@ describe('settings-validation', () => {
       expect(isValidPersistedExportOptions(null)).toBe(false);
     });
 
-    it('accepts legacy export options without publication fields', () => {
-      const {
-        publicationPresetId: _p,
-        legendPlacement: _l,
-        ...legacy
-      } = createValidExportOptions();
+    it('accepts export options without layoutId', () => {
+      const { layoutId: _l, ...legacy } = createValidExportOptions();
       expect(isValidPersistedExportOptions(legacy)).toBe(true);
     });
 
-    it('rejects invalid publication preset id', () => {
+    it('rejects invalid layoutId', () => {
       const bad: Record<string, unknown> = {
         ...createValidExportOptions(),
-        publicationPresetId: 'wide',
+        layoutId: 'wide',
       };
       expect(isValidPersistedExportOptions(bad)).toBe(false);
     });
@@ -187,5 +183,28 @@ describe('settings-validation', () => {
       expect(normalizeBundleSettings({ nope: true })).toBeNull();
       expect(normalizeBundleSettings(null)).toBeNull();
     });
+  });
+});
+
+describe('migratePublicationLayoutId', () => {
+  it('returns the new id when raw uses {layoutId}', () => {
+    expect(migratePublicationLayoutId({ layoutId: 'full_page_top' })).toBe('full_page_top');
+  });
+
+  it.each([
+    ['one_column', 'right', 'one_column_below'],
+    ['one_column', 'below', 'one_column_below'],
+    ['two_column', 'right', 'two_column_right'],
+    ['two_column', 'below', 'two_column_below'],
+    ['full_page', 'right', 'full_page_top'],
+    ['full_page', 'below', 'full_page_top'],
+  ])('migrates legacy (%s, %s) → %s', (preset, placement, expected) => {
+    expect(
+      migratePublicationLayoutId({ publicationPresetId: preset, legendPlacement: placement }),
+    ).toBe(expected);
+  });
+
+  it('returns undefined when input has neither shape', () => {
+    expect(migratePublicationLayoutId({ imageWidth: 1024 })).toBeUndefined();
   });
 });

@@ -7,8 +7,7 @@ import type {
   PersistedCategoryData,
   PersistedExportOptions,
   LegendSortMode,
-  PublicationFigurePresetId,
-  PublicationLegendPlacementId,
+  PublicationFigureLayoutId,
 } from '../types';
 
 /**
@@ -80,27 +79,44 @@ export function isValidLegendSettings(obj: unknown): obj is LegendPersistedSetti
   return true;
 }
 
-const PUBLICATION_PRESET_IDS: PublicationFigurePresetId[] = [
-  'one_column',
-  'two_column',
-  'full_page',
+const PUBLICATION_LAYOUT_IDS: PublicationFigureLayoutId[] = [
+  'one_column_below',
+  'two_column_right',
+  'two_column_below',
+  'full_page_top',
 ];
 
-const PUBLICATION_LEGEND_PLACEMENTS: PublicationLegendPlacementId[] = ['right', 'below'];
-
-function isOptionalPublicationPresetId(value: unknown): boolean {
-  if (value === undefined) return true;
+function isOptionalPublicationLayoutId(value: unknown): boolean {
   return (
-    typeof value === 'string' && PUBLICATION_PRESET_IDS.includes(value as PublicationFigurePresetId)
+    value === undefined ||
+    (typeof value === 'string' &&
+      PUBLICATION_LAYOUT_IDS.includes(value as PublicationFigureLayoutId))
   );
 }
 
-function isOptionalPublicationLegendPlacement(value: unknown): boolean {
-  if (value === undefined) return true;
-  return (
-    typeof value === 'string' &&
-    PUBLICATION_LEGEND_PLACEMENTS.includes(value as PublicationLegendPlacementId)
-  );
+const LEGACY_PRESET_PLACEMENT_TO_LAYOUT: Record<string, PublicationFigureLayoutId> = {
+  one_column_below: 'one_column_below',
+  one_column_right: 'one_column_below',
+  two_column_right: 'two_column_right',
+  two_column_below: 'two_column_below',
+  full_page_right: 'full_page_top',
+  full_page_below: 'full_page_top',
+};
+
+export function migratePublicationLayoutId(raw: unknown): PublicationFigureLayoutId | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+
+  if (typeof r.layoutId === 'string' && isOptionalPublicationLayoutId(r.layoutId)) {
+    return r.layoutId as PublicationFigureLayoutId;
+  }
+
+  if (typeof r.publicationPresetId === 'string' && typeof r.legendPlacement === 'string') {
+    const key = `${r.publicationPresetId}_${r.legendPlacement}`;
+    return LEGACY_PRESET_PLACEMENT_TO_LAYOUT[key] ?? 'two_column_below';
+  }
+
+  return undefined;
 }
 
 /**
@@ -118,8 +134,7 @@ export function isValidPersistedExportOptions(obj: unknown): obj is PersistedExp
     typeof settings.legendFontSizePx === 'number' &&
     typeof settings.includeLegendSettings === 'boolean' &&
     typeof settings.includeExportOptions === 'boolean' &&
-    isOptionalPublicationPresetId(settings.publicationPresetId) &&
-    isOptionalPublicationLegendPlacement(settings.legendPlacement)
+    isOptionalPublicationLayoutId(settings.layoutId)
   );
 }
 
