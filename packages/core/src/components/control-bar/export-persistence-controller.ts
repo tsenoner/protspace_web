@@ -1,4 +1,5 @@
 import {
+  migratePublicationLayoutId,
   setStorageItem,
   type ExportOptionsMap,
   type PersistedExportOptions,
@@ -34,14 +35,22 @@ export class ExportPersistenceController extends BasePersistenceController<
   loadSettings(): void {
     const fileSettings = this.tryLoadFileSettings();
     if (fileSettings) {
-      this.callbacks.onSettingsLoaded(fileSettings);
+      const migratedLayoutId = migratePublicationLayoutId(fileSettings);
+      const settings: PersistedExportOptions = migratedLayoutId
+        ? { ...fileSettings, layoutId: migratedLayoutId }
+        : fileSettings;
+      this.callbacks.onSettingsLoaded(settings);
       this._settingsLoaded = true;
       return;
     }
 
     const storageSettings = this.loadFromStorage();
     if (storageSettings) {
-      this.callbacks.onSettingsLoaded(storageSettings);
+      const migratedLayoutId = migratePublicationLayoutId(storageSettings);
+      const settings: PersistedExportOptions = migratedLayoutId
+        ? { ...storageSettings, layoutId: migratedLayoutId }
+        : storageSettings;
+      this.callbacks.onSettingsLoaded(settings);
       this._settingsLoaded = true;
     }
   }

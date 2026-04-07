@@ -26,8 +26,7 @@ describe('control-bar-helpers', () => {
   describe('EXPORT_DEFAULTS', () => {
     it('has correct default values', () => {
       expect(EXPORT_DEFAULTS.FORMAT).toBe('png');
-      expect(EXPORT_DEFAULTS.PUBLICATION_PRESET).toBe('two_column');
-      expect(EXPORT_DEFAULTS.LEGEND_PLACEMENT).toBe('right');
+      expect(EXPORT_DEFAULTS.LAYOUT_ID).toBe('two_column_below');
       expect(EXPORT_DEFAULTS.LEGACY_IMAGE_WIDTH).toBe(2048);
       expect(EXPORT_DEFAULTS.LEGACY_IMAGE_HEIGHT).toBe(1024);
     });
@@ -41,8 +40,7 @@ describe('control-bar-helpers', () => {
         legendFontSizePx: EXPORT_DEFAULTS.LEGACY_LEGEND_FONT_SIZE_PX,
         includeLegendSettings: true,
         includeExportOptions: true,
-        publicationPresetId: EXPORT_DEFAULTS.PUBLICATION_PRESET,
-        legendPlacement: EXPORT_DEFAULTS.LEGEND_PLACEMENT,
+        layoutId: EXPORT_DEFAULTS.LAYOUT_ID,
       });
     });
 

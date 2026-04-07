@@ -11,6 +11,7 @@ vi.mock('@protspace/utils', () => ({
   ),
   generateDatasetHash: vi.fn((ids: string[]) => `hash_${ids.join('_')}`),
   getStorageItem: vi.fn(),
+  migratePublicationLayoutId: vi.fn(),
   removeAllStorageItemsByHash: vi.fn(),
   setStorageItem: vi.fn(),
 }));
@@ -19,6 +20,7 @@ import {
   buildStorageKey,
   generateDatasetHash,
   getStorageItem,
+  migratePublicationLayoutId,
   removeAllStorageItemsByHash,
   setStorageItem,
 } from '@protspace/utils';
@@ -33,8 +35,7 @@ const createSettings = (
   legendFontSizePx: 24,
   includeLegendSettings: true,
   includeExportOptions: true,
-  publicationPresetId: 'two_column',
-  legendPlacement: 'right',
+  layoutId: 'two_column_below',
   ...overrides,
 });
 
@@ -44,6 +45,7 @@ describe('ExportPersistenceController', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(migratePublicationLayoutId).mockReturnValue(undefined);
 
     callbacks = {
       onSettingsLoaded: vi.fn(),
@@ -222,6 +224,29 @@ describe('ExportPersistenceController', () => {
     // pathway & taxonomy: empty in storage, should be excluded
     expect(result.pathway).toBeUndefined();
     expect(result.taxonomy).toBeUndefined();
+  });
+
+  it('migrates legacy (publicationPresetId, legendPlacement) on load', () => {
+    vi.mocked(getStorageItem).mockReturnValue({
+      imageWidth: 2048,
+      imageHeight: 1024,
+      lockAspectRatio: true,
+      legendWidthPercent: 25,
+      legendFontSizePx: 24,
+      includeLegendSettings: true,
+      includeExportOptions: true,
+      publicationPresetId: 'two_column',
+      legendPlacement: 'right',
+    });
+    vi.mocked(migratePublicationLayoutId).mockReturnValue('two_column_right');
+
+    controller.updateDatasetHash(['P1']);
+    controller.updateSelectedAnnotation('organism');
+    controller.loadSettings();
+
+    expect(callbacks.onSettingsLoaded).toHaveBeenCalledWith(
+      expect.objectContaining({ layoutId: 'two_column_right' }),
+    );
   });
 
   it('clearForNewDataset followed by setFileSettings works correctly', () => {

@@ -30,6 +30,7 @@ export {
   isValidLegendSettingsMap,
   isValidExportOptionsMap,
   isValidSortMode,
+  migratePublicationLayoutId,
   normalizeBundleSettings,
 } from './settings-validation';
 

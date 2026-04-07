@@ -1,14 +1,9 @@
-import type {
-  PersistedExportOptions,
-  PublicationFigurePresetId,
-  PublicationLegendPlacementId,
-} from '@protspace/utils';
+import type { PersistedExportOptions, PublicationFigureLayoutId } from '@protspace/utils';
 import type { ProtspaceData } from './types';
 
 export const EXPORT_DEFAULTS = {
   FORMAT: 'png' as const,
-  PUBLICATION_PRESET: 'two_column' as PublicationFigurePresetId,
-  LEGEND_PLACEMENT: 'right' as PublicationLegendPlacementId,
+  LAYOUT_ID: 'two_column_below' as PublicationFigureLayoutId,
   LEGACY_IMAGE_WIDTH: 2048,
   LEGACY_IMAGE_HEIGHT: 1024,
   LEGACY_LEGEND_WIDTH_PERCENT: 25,
@@ -24,8 +19,7 @@ export function createDefaultExportOptions(): PersistedExportOptions {
     legendFontSizePx: EXPORT_DEFAULTS.LEGACY_LEGEND_FONT_SIZE_PX,
     includeLegendSettings: true,
     includeExportOptions: true,
-    publicationPresetId: EXPORT_DEFAULTS.PUBLICATION_PRESET,
-    legendPlacement: EXPORT_DEFAULTS.LEGEND_PLACEMENT,
+    layoutId: EXPORT_DEFAULTS.LAYOUT_ID,
   };
 }
 
