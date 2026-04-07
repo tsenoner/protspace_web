@@ -1,4 +1,4 @@
-export type { FigureLayoutId, LegendPlacement, FigureLayout } from './presets';
+export type { FigureLayoutId, LegendPlacement, LegendGrid, FigureLayout } from './presets';
 export { FIGURE_LAYOUTS } from './presets';
 export { MAX_LEGEND_ITEMS, maxLegendItemsForLayout } from './legend-caps';
 export { sliceLegendItemsForLayout, type SlicedLegend } from './legend-slice';
