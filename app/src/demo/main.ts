@@ -8,7 +8,7 @@ import type {
   DataLoader,
   DataLoadedEventDetail,
 } from '@protspace/core';
-import type { FigurePresetId, LegendPlacement } from '@protspace/utils';
+import type { PublicationFigureLayoutId } from '@protspace/utils';
 import {
   createScatterCaptureFromElement,
   exportPublicationFigure,
@@ -742,11 +742,10 @@ export async function initializeDemo() {
 
         if (type === 'png' || type === 'pdf') {
           const pub = customEvent.detail as {
-            mode?: string;
-            presetId?: FigurePresetId;
-            legendPlacement?: LegendPlacement;
+            mode?: 'publication';
+            layoutId?: PublicationFigureLayoutId;
           };
-          if (pub.mode !== 'publication' || !pub.presetId || !pub.legendPlacement) {
+          if (pub.mode !== 'publication' || !pub.layoutId) {
             throw new Error(
               'PNG/PDF export requires publication layout settings from the control bar.',
             );
@@ -765,8 +764,7 @@ export async function initializeDemo() {
           );
           const fileNameBase = generateProtspaceExportBasename(plotElement);
           await exportPublicationFigure({
-            presetId: pub.presetId,
-            legendPlacement: pub.legendPlacement,
+            layoutId: pub.layoutId,
             format: type,
             backgroundColor: '#ffffff',
             scatterCapture: createScatterCaptureFromElement(plotElement),
