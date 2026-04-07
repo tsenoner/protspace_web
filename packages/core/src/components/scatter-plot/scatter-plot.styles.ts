@@ -97,6 +97,17 @@ const scatterplotStylesCore = css`
     display: none;
   }
 
+  /* Lasso (freeform selection path) */
+  .lasso-path {
+    fill: var(--protspace-brush-fill);
+    stroke: var(--protspace-brush-stroke);
+    stroke-width: var(--protspace-brush-stroke-width);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+    vector-effect: non-scaling-stroke;
+  }
+
   /* Base loading overlay styles provided by overlayMixins */
   .loading-spinner {
     /* Override size from base mixin */
@@ -117,6 +128,23 @@ const scatterplotStylesCore = css`
     display: flex;
     align-items: center;
     gap: 0.25rem;
+  }
+
+  .isolation-indicator {
+    position: absolute;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    z-index: var(--z-overlay);
+    padding: 0.375rem 0.625rem;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(4px);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.6875rem;
+    font-weight: var(--font-medium);
+    letter-spacing: 0.01em;
+    border-radius: 0.375rem;
+    pointer-events: none;
+    user-select: none;
   }
 
   /* Duplicate stack spiderfy UI (SVG overlay) */

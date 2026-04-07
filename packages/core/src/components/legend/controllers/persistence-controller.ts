@@ -17,6 +17,8 @@ export interface PersistenceCallbacks {
   onSettingsLoaded: (settings: LegendPersistedSettings) => void;
   getLegendItems: () => LegendItem[];
   getHiddenValues: () => string[];
+  shouldPersistCategories: () => boolean;
+  shouldPersistCategoryEncodings: () => boolean;
   getCurrentSettings: () => {
     maxVisibleValues: number;
     includeShapes: boolean;
@@ -24,6 +26,7 @@ export interface PersistenceCallbacks {
     sortMode: LegendSortMode;
     enableDuplicateStackUI: boolean;
     selectedPaletteId: string;
+    numericSettings?: LegendPersistedSettings['numericSettings'];
   };
 }
 
@@ -87,7 +90,9 @@ export class PersistenceController
       mergedSettings = storageSettings;
     }
 
-    this._pendingCategories = mergedSettings.categories;
+    this._pendingCategories = this.callbacks.shouldPersistCategories()
+      ? mergedSettings.categories
+      : {};
     this._settingsLoaded = true;
 
     this.callbacks.onSettingsLoaded(mergedSettings);
@@ -112,6 +117,7 @@ export class PersistenceController
       categories,
       enableDuplicateStackUI: currentSettings.enableDuplicateStackUI,
       selectedPaletteId: currentSettings.selectedPaletteId,
+      numericSettings: currentSettings.numericSettings,
     };
 
     setStorageItem(key, settings);
@@ -125,14 +131,19 @@ export class PersistenceController
    * Build categories from current legend items (excluding "Other" which is synthetic)
    */
   private _buildCategoriesFromItems(): Record<string, PersistedCategoryData> {
+    if (!this.callbacks.shouldPersistCategories()) {
+      return {};
+    }
+
     const legendItems = this.callbacks.getLegendItems();
+    const persistCategoryEncodings = this.callbacks.shouldPersistCategoryEncodings();
     const categories: Record<string, PersistedCategoryData> = {};
     legendItems.forEach((item) => {
       if (item.value !== LEGEND_VALUES.OTHER) {
         categories[item.value] = {
           zOrder: item.zOrder,
-          color: item.color,
-          shape: item.shape,
+          color: persistCategoryEncodings ? item.color : '',
+          shape: persistCategoryEncodings ? item.shape : '',
         };
       }
     });
@@ -155,6 +166,7 @@ export class PersistenceController
       categories: this._buildCategoriesFromItems(),
       enableDuplicateStackUI: currentSettings.enableDuplicateStackUI,
       selectedPaletteId: currentSettings.selectedPaletteId,
+      numericSettings: currentSettings.numericSettings,
     };
   }
 

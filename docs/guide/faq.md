@@ -10,7 +10,7 @@ No. ProtSpace is designed for biologists and researchers - you only need protein
 
 ### Is my data uploaded to a server?
 
-No. Everything runs in your browser — your data never leaves your computer. Even persisted data (dataset files and settings) is stored locally in the browser. See [Data & Settings Persistence](/explore/importing-data#data-settings-persistence) for details.
+No. Everything runs in your browser — your data never leaves your computer. ProtSpace stores your last imported dataset locally in your browser's OPFS storage, and it stores per-dataset settings locally in browser storage. See [Data & Settings Persistence](/explore/importing-data#data-settings-persistence) for details.
 
 ### Which file formats are supported?
 
@@ -48,6 +48,16 @@ Yes. Add columns when generating the bundle. See [Data Format](/guide/data-forma
 ### How do I include 3D structures?
 
 Structures load automatically from AlphaFold if your protein IDs are UniProt accessions.
+
+### Why can't ProtSpace save my dataset for automatic reloads?
+
+ProtSpace uses the Origin Private File System (OPFS) to remember the last dataset you imported across page reloads. If automatic reload is unavailable, the most common reasons are:
+
+- You are using private/incognito browsing mode
+- Browser storage is restricted by browser settings or extensions
+- Your browser does not support OPFS
+
+Your dataset still loads and works normally for the current session. You only need to import it again after reloading the page. For the best experience, use a recent browser in a normal non-private window.
 
 ## Visualization
 

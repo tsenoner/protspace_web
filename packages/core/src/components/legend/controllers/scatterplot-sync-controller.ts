@@ -1,5 +1,7 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { ScatterplotData, OtherItem } from '../types';
+import type { NumericAnnotationDisplaySettingsMap } from '@protspace/utils';
+import type { LegendSortMode } from '../types';
 import {
   isScatterplotElement,
   supportsHiddenValues,
@@ -30,6 +32,9 @@ export interface ScatterplotSyncCallbacks {
   getLegendItems: () => LegendItem[];
   getEffectiveIncludeShapes: () => boolean;
   getOtherConcreteValues: () => string[];
+  getNumericAnnotationSettings?: () => NumericAnnotationDisplaySettingsMap;
+  getAnnotationSortModes?: () => Record<string, LegendSortMode>;
+  getNumericManualOrderIds?: () => Record<string, string[]>;
 }
 
 /**
@@ -135,6 +140,15 @@ export class ScatterplotSyncController implements ReactiveController {
     this._scatterplotElement.useShapes = this.callbacks.getEffectiveIncludeShapes();
   }
 
+  syncNumericAnnotationSettings(): void {
+    if (!this._scatterplotElement) return;
+    this._scatterplotElement.numericAnnotationSettings =
+      this.callbacks.getNumericAnnotationSettings?.() ?? {};
+    this._scatterplotElement.annotationSortModes = this.callbacks.getAnnotationSortModes?.() ?? {};
+    this._scatterplotElement.numericManualOrderIdsByAnnotation =
+      this.callbacks.getNumericManualOrderIds?.() ?? {};
+  }
+
   /**
    * Update scatterplot config
    */
@@ -227,8 +241,19 @@ export class ScatterplotSyncController implements ReactiveController {
 
     this._scatterplotElement = element;
     element.addEventListener(LEGEND_EVENTS.DATA_CHANGE, this._boundHandleDataChange);
+    const escapedSelector =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(this.scatterplotSelector)
+        : this.scatterplotSelector.replace(/["\\]/g, '\\$&');
 
-    this._controlBarElement = document.querySelector('protspace-control-bar');
+    const root = this.host.getRootNode();
+    const queryRoot = root instanceof ShadowRoot || root instanceof Document ? root : document;
+    const matchingControlBar = queryRoot.querySelector(
+      `protspace-control-bar[scatterplot-selector="${escapedSelector}"]`,
+    );
+    const controlBars = Array.from(queryRoot.querySelectorAll('protspace-control-bar'));
+    this._controlBarElement =
+      matchingControlBar ?? (controlBars.length === 1 ? controlBars[0] : null);
     if (this._controlBarElement) {
       this._controlBarElement.addEventListener(
         LEGEND_EVENTS.ANNOTATION_CHANGE,
@@ -297,11 +322,10 @@ export class ScatterplotSyncController implements ReactiveController {
     const { data } = customEvent.detail;
 
     if (data && this._scatterplotElement) {
-      const currentData = this._scatterplotElement.getCurrentData();
       const selectedAnnotation = this._scatterplotElement.selectedAnnotation;
 
-      if (currentData && selectedAnnotation) {
-        this.callbacks.onDataChange(currentData, selectedAnnotation);
+      if (selectedAnnotation) {
+        this.callbacks.onDataChange(data, selectedAnnotation);
       }
     }
   }
@@ -320,6 +344,7 @@ export class ScatterplotSyncController implements ReactiveController {
 
     if (!currentData || !selectedAnnotation) return;
 
+    this.syncNumericAnnotationSettings();
     this.callbacks.onDataChange(currentData, selectedAnnotation);
   }
 

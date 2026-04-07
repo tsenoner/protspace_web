@@ -2,6 +2,18 @@
 
 ProtSpace provides four web components for building protein embedding visualizations.
 
+## Host-Consumed Message Events
+
+Several components emit semantic warning/error events for the host app to interpret.
+
+Shared fields:
+
+- `message`
+- `severity`
+- `source`
+- optional `context`
+- optional `originalError`
+
 ## Components
 
 | Component                             | Tag                            | Purpose                         |
@@ -17,23 +29,25 @@ The main visualization component.
 
 ### Attributes
 
-| Attribute          | Type    | Default | Description            |
-| ------------------ | ------- | ------- | ---------------------- |
-| `show-grid`        | boolean | false   | Show grid lines        |
-| `enable-zoom`      | boolean | false   | Enable scroll zoom     |
-| `enable-pan`       | boolean | false   | Enable drag panning    |
-| `enable-selection` | boolean | false   | Enable point selection |
-| `point-size`       | number  | 5       | Point radius in pixels |
-| `point-opacity`    | number  | 0.8     | Point opacity (0-1)    |
+| Attribute          | Type    | Default       | Description                                |
+| ------------------ | ------- | ------------- | ------------------------------------------ |
+| `show-grid`        | boolean | false         | Show grid lines                            |
+| `enable-zoom`      | boolean | false         | Enable scroll zoom                         |
+| `enable-pan`       | boolean | false         | Enable drag panning                        |
+| `enable-selection` | boolean | false         | Enable point selection                     |
+| `selection-tool`   | string  | `'rectangle'` | Selection tool: `'rectangle'` or `'lasso'` |
+| `point-size`       | number  | 5             | Point radius in pixels                     |
+| `point-opacity`    | number  | 0.8           | Point opacity (0-1)                        |
 
 ### Properties
 
-| Property                  | Type              | Description                    |
-| ------------------------- | ----------------- | ------------------------------ |
-| `data`                    | VisualizationData | The loaded dataset             |
-| `selectedProjectionIndex` | number            | Current projection index       |
-| `selectedAnnotation`      | string            | Current coloring annotation    |
-| `selectedProteins`        | string[]          | Currently selected protein IDs |
+| Property                  | Type                       | Description                    |
+| ------------------------- | -------------------------- | ------------------------------ |
+| `data`                    | VisualizationData          | The loaded dataset             |
+| `selectedProjectionIndex` | number                     | Current projection index       |
+| `selectedAnnotation`      | string                     | Current coloring annotation    |
+| `selectionTool`           | `'rectangle'` \| `'lasso'` | Current selection tool         |
+| `selectedProteins`        | string[]                   | Currently selected protein IDs |
 
 ### Methods
 
@@ -85,14 +99,14 @@ Category filtering and color mapping with automatic settings persistence.
 
 ### Events
 
-| Event                        | Detail                             | Description                           |
-| ---------------------------- | ---------------------------------- | ------------------------------------- |
-| `legend-item-click`          | { value, action }                  | Item clicked (toggle/isolate/extract) |
-| `legend-zorder-change`       | { zOrderMapping }                  | Drawing order changed                 |
-| `legend-colormapping-change` | { colorMapping, shapeMapping }     | Color/shape assignments changed       |
-| `legend-customize`           | void                               | Settings dialog opened                |
-| `legend-download`            | void                               | Download requested                    |
-| `legend-error`               | { message, source, originalError } | Error occurred                        |
+| Event                        | Detail                                                  | Description                           |
+| ---------------------------- | ------------------------------------------------------- | ------------------------------------- |
+| `legend-item-click`          | { value, action }                                       | Item clicked (toggle/isolate/extract) |
+| `legend-zorder-change`       | { zOrderMapping }                                       | Drawing order changed                 |
+| `legend-colormapping-change` | { colorMapping, shapeMapping }                          | Color/shape assignments changed       |
+| `legend-customize`           | void                                                    | Settings dialog opened                |
+| `legend-download`            | void                                                    | Download requested                    |
+| `legend-error`               | { message, severity, source, context?, originalError? } | Host-consumed error event             |
 
 ### Persistence
 
@@ -107,15 +121,15 @@ User customizations (visibility, colors, ordering, settings) are automatically s
   show-counts
   max-visible-values="15"
 ></protspace-legend>
+```
 
-<script>
-  const legend = document.querySelector('protspace-legend');
+```javascript
+const legend = document.querySelector('protspace-legend');
 
-  // Listen for z-order changes
-  legend.addEventListener('legend-zorder-change', (e) => {
-    console.log('Z-order:', e.detail.zOrderMapping);
-  });
-</script>
+// Listen for z-order changes
+legend.addEventListener('legend-zorder-change', (e) => {
+  console.log('Z-order:', e.detail.zOrderMapping);
+});
 ```
 
 ## Control Bar
@@ -135,12 +149,14 @@ Projection and annotation selection controls.
 
 ### Events
 
-| Event               | Detail                | Description        |
-| ------------------- | --------------------- | ------------------ |
-| `projection-change` | { projection, index } | Projection changed |
-| `annotation-change` | { annotation }        | Annotation changed |
-| `search`            | { query, results }    | Search performed   |
-| `export-request`    | { format }            | Export requested   |
+| Event                             | Detail                                 | Description                                                |
+| --------------------------------- | -------------------------------------- | ---------------------------------------------------------- |
+| `projection-change`               | { projection, index }                  | Projection changed                                         |
+| `annotation-change`               | { annotation }                         | Annotation changed                                         |
+| `search`                          | { query, results }                     | Search performed                                           |
+| `export`                          | { type, ...options }                   | Export requested                                           |
+| `selection-tool-change`           | { selectionTool }                      | Selection tool changed (rectangle/lasso)                   |
+| `selection-disabled-notification` | { message, severity, source, context } | Host-consumed warning when selection mode is auto-disabled |
 
 ### Example
 
@@ -177,11 +193,11 @@ Projection and annotation selection controls.
 
 ### Events
 
-| Event             | Detail        | Description      |
-| ----------------- | ------------- | ---------------- |
-| `structure-load`  | { proteinId } | Structure loaded |
-| `structure-error` | { error }     | Load error       |
-| `structure-close` | -             | Viewer closed    |
+| Event             | Detail                                                 | Description                           |
+| ----------------- | ------------------------------------------------------ | ------------------------------------- |
+| `structure-load`  | { proteinId, status, data? }                           | Lifecycle event for loading or loaded |
+| `structure-error` | { message, severity, source, context, originalError? } | Host-consumed error event             |
+| `structure-close` | { proteinId }                                          | Viewer closed                         |
 
 ### Example
 
@@ -194,6 +210,19 @@ Projection and annotation selection controls.
   title="Protein Structure"
 ></protspace-structure-viewer>
 ```
+
+## Data Loader
+
+`.parquet` and `.parquetbundle` loading component used by the `/explore` app and embedding flows.
+
+### Events
+
+| Event                   | Detail                                                 | Description                 |
+| ----------------------- | ------------------------------------------------------ | --------------------------- |
+| `data-loading-start`    | void                                                   | Load started                |
+| `data-loading-progress` | { current, total, percentage }                         | Incremental progress update |
+| `data-loaded`           | { data, settings, source, file? }                      | Dataset loaded successfully |
+| `data-error`            | { message, severity, source, context, originalError? } | Host-consumed error event   |
 
 ## Data Loading Utilities
 
@@ -282,4 +311,5 @@ const plot = document.getElementById('plot') as ProtspaceScatterplot;
 ## Next Steps
 
 - [Embedding Components](/developers/embedding) - Integration patterns
+- [Messaging Conventions](/developers/messaging) - Host ownership model
 - [Contributing](/developers/contributing) - Development guide

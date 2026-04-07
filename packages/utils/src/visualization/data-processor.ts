@@ -1,6 +1,7 @@
 import type { VisualizationData, PlotDataPoint } from '../types.js';
 import { toInternalValue } from './shapes.js';
 import * as d3 from 'd3';
+import { getNumericBinLabelMap } from './numeric-binning.js';
 
 export class DataProcessor {
   static processVisualizationData(
@@ -19,11 +20,16 @@ export class DataProcessor {
 
       // Map annotation values for this protein
       const annotationValues: Record<string, string[]> = {};
+      const annotationDisplayValues: Record<string, string[]> = {};
+      const numericAnnotationValues: Record<string, number | null> = {};
       const annotationScores: Record<string, (number[] | null)[]> = {};
       const annotationEvidence: Record<string, (string | null)[]> = {};
       Object.keys(data.annotations).forEach((annotationKey) => {
+        const annotation = data.annotations[annotationKey];
         const annotationRows = data.annotation_data?.[annotationKey];
         const annotationIndicesData = annotationRows ? annotationRows[index] : undefined;
+        const numericValue = data.numeric_annotation_data?.[annotationKey]?.[index] ?? null;
+        const numericLabelMap = getNumericBinLabelMap(annotation);
 
         // Handle array/single/undefined cases
         const annotationIndices: unknown[] = Array.isArray(annotationIndicesData)
@@ -32,11 +38,15 @@ export class DataProcessor {
             ? []
             : [annotationIndicesData];
 
-        annotationValues[annotationKey] = Array.isArray(data.annotations[annotationKey].values)
+        annotationValues[annotationKey] = Array.isArray(annotation.values)
           ? annotationIndices
               .filter((i): i is number => typeof i === 'number' && Number.isFinite(i))
-              .map((i) => toInternalValue(data.annotations[annotationKey].values[i]))
+              .map((i) => toInternalValue(annotation.values[i]))
           : [];
+        annotationDisplayValues[annotationKey] = annotationValues[annotationKey].map(
+          (value) => numericLabelMap.get(value) ?? value,
+        );
+        numericAnnotationValues[annotationKey] = numericValue;
 
         // Map annotation scores if available
         const scoresForAnnotation = data.annotation_scores?.[annotationKey]?.[index];
@@ -59,6 +69,8 @@ export class DataProcessor {
         x: xVal,
         y: yVal,
         annotationValues,
+        annotationDisplayValues,
+        numericAnnotationValues,
         annotationScores,
         annotationEvidence,
         originalIndex: index,

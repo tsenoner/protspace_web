@@ -8,6 +8,9 @@ export interface ExportableData {
       values: (string | null)[];
       colors: string[];
       shapes: string[];
+      numericMetadata?: {
+        bins?: Array<{ id: string; label: string }>;
+      };
     }
   >;
   annotation_data: Record<string, number[][]>;

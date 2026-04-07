@@ -22,6 +22,9 @@
   "include": [],
   "references": [
     {
+      "path": "./app"
+    },
+    {
       "path": "./packages/core"
     },
     {

@@ -1,4 +1,4 @@
-import type { DataLoader, ProtspaceScatterplot } from '@protspace/core';
+import type { DataErrorEventDetail, DataLoader, ProtspaceScatterplot } from '@protspace/core';
 
 type Args = {
   plotElement: ProtspaceScatterplot;
@@ -168,8 +168,8 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
     args.dataLoader.addEventListener(
       'data-error',
       (event: Event) => {
-        const detail = (event as CustomEvent<{ error?: unknown }>).detail;
-        reject(new Error(String(detail?.error ?? 'unknown error')));
+        const detail = (event as CustomEvent<DataErrorEventDetail>).detail;
+        reject(new Error(String(detail?.message ?? 'unknown error')));
       },
       { once: true },
     );
@@ -192,12 +192,12 @@ async function loadDataset(args: Args, datasetId: string, timeoutMs: number): Pr
   await waitUntil(() => !document.getElementById('progressive-loading'), timeoutMs);
 }
 
-export async function maybeRunWebglPerfSuite(args: Args): Promise<void> {
+export async function maybeRunWebglPerfSuite(args: Args): Promise<boolean> {
   const params = new URLSearchParams(window.location.search);
-  if (params.get('webglPerf') !== '1') return;
+  if (params.get('webglPerf') !== '1') return false;
 
   const g = globalThis as PerfSuiteGlobalState;
-  if (g.__protspaceWebglPerfSuiteInFlight || g.__protspaceWebglPerfSuiteConsumed) return;
+  if (g.__protspaceWebglPerfSuiteInFlight || g.__protspaceWebglPerfSuiteConsumed) return true;
   g.__protspaceWebglPerfSuiteInFlight = true;
   showPerfOverlay();
 
@@ -241,4 +241,6 @@ export async function maybeRunWebglPerfSuite(args: Args): Promise<void> {
     if (success) g.__protspaceWebglPerfSuiteConsumed = true;
     hidePerfOverlay();
   }
+
+  return true;
 }

@@ -15,6 +15,7 @@ import { parquetWriteBuffer } from 'hyparquet-writer';
 import type { VisualizationData, BundleSettings } from '../types';
 import { BUNDLE_DELIMITER_BYTES } from './constants';
 import { bigIntReplacer } from './bigint-utils';
+import { isNumericAnnotation } from '../visualization/numeric-binning.js';
 
 /** Column data format for parquetWriteBuffer */
 interface ColumnData {
@@ -38,6 +39,16 @@ function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
 
   // Add annotation columns
   for (const [annotationName, annotation] of Object.entries(data.annotations)) {
+    if (isNumericAnnotation(annotation)) {
+      const values = data.numeric_annotation_data?.[annotationName] ?? [];
+      columnData.push({
+        name: annotationName,
+        data: values,
+        type: 'DOUBLE',
+      });
+      continue;
+    }
+
     const annotationIndices = data.annotation_data[annotationName];
     if (!annotationIndices) continue;
 

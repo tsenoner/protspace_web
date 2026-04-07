@@ -1,6 +1,6 @@
 import { NEUTRAL_VALUE_COLOR } from './config';
 import type { PlotDataPoint, VisualizationData } from '@protspace/utils';
-import { normalizeShapeName, toInternalValue } from '@protspace/utils';
+import { isNumericAnnotation, normalizeShapeName, toInternalValue } from '@protspace/utils';
 
 export interface StyleConfig {
   selectedProteinIds: string[];
@@ -50,6 +50,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     data && styleConfig.selectedAnnotation
       ? data.annotations[styleConfig.selectedAnnotation]
       : undefined;
+  const isNumeric = isNumericAnnotation(annotation);
   const valueToColor = new Map<string, string>();
   const valueToShape = new Map<string, string>();
 
@@ -108,6 +109,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
 
   const getPointShape = (point: PlotDataPoint): string => {
     if (!data || !styleConfig.selectedAnnotation) return 'circle';
+    if (isNumeric) return 'circle';
 
     const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
 
@@ -152,13 +154,12 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     return [...new Set(colors)];
   };
 
-  const getOpacity = (point: PlotDataPoint): number => {
-    const annotationValue = point.annotationValues[styleConfig.selectedAnnotation];
-
-    if (!allHidden && annotationValue) {
-      if (annotationValue.every((f) => hiddenKeysSet.has(toInternalValue(f)))) return 0;
-    }
-
+  /**
+   * Compute the "base" opacity for a point, ignoring the hidden-annotation filter.
+   * Used by getDepth so that depth (and thus sort order) is stable across
+   * visibility toggles — only the alpha channel changes, not the draw order.
+   */
+  const getBaseOpacity = (point: PlotDataPoint): number => {
     const isSelected = selectedIdsSet.has(point.id);
     const isHighlighted = highlightedIdsSet.has(point.id);
     const hasSelection = styleConfig.selectedProteinIds.length > 0;
@@ -172,6 +173,16 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     return styleConfig.opacities.base;
   };
 
+  const getOpacity = (point: PlotDataPoint): number => {
+    const annotationValue = point.annotationValues[styleConfig.selectedAnnotation];
+
+    if (!allHidden && annotationValue) {
+      if (annotationValue.every((f) => hiddenKeysSet.has(toInternalValue(f)))) return 0;
+    }
+
+    return getBaseOpacity(point);
+  };
+
   // Precompute normalization for z-order mapping so getDepth is cheap.
   const zMap = styleConfig.zOrderMapping ?? null;
   const zMax =
@@ -182,11 +193,16 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
 
   /**
    * Depth used by WebGL depth test:
-   * - Primary: opacity (more opaque wins)
+   * - Primary: base opacity (more opaque wins), ignoring hidden state
    * - Secondary: legend z-order (lower rank wins when opacity ties)
+   *
+   * Uses getBaseOpacity (not getOpacity) so that hiding/showing annotation
+   * values does not change the depth sort order. This allows visibility
+   * toggles to use the fast color-only update path instead of a full
+   * buffer rebuild + O(N log N) re-sort.
    */
   const getDepth = (point: PlotDataPoint): number => {
-    const opacity = getOpacity(point);
+    const opacity = getBaseOpacity(point);
     // Base depth in [0,1]: higher opacity -> smaller depth -> wins with LESS
     let depth = 1 - Math.min(1, Math.max(0, opacity));
 

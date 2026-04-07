@@ -37,7 +37,7 @@ pnpm dev          # App + docs
 pnpm dev:app      # App only
 pnpm dev:docs     # Docs only (localhost:5174)
 
-# Before committing (runs all checks)
+# Before committing (matches the installed Git hook, including docs validation)
 pnpm precommit
 ```
 
@@ -139,12 +139,17 @@ pnpm clean        # Clean build artifacts
 **Code quality checks:**
 
 ```bash
-pnpm precommit    # Run all checks (recommended before pushing)
+pnpm precommit    # Mirror the installed pre-commit hook, including docs validation
 
-# Or individually:
+# The exact hook path is `pnpm precommit`. Use these as targeted spot checks when you do not need the full hook:
+pnpm quality      # Run the shared static-quality gate (types + Knip)
 pnpm format       # Auto-format with Prettier
 pnpm lint:fix     # Auto-fix linting issues with ESLint
 pnpm type-check   # Validate TypeScript compilation
+pnpm knip         # Find unused files, exports, and imports
+pnpm knip:dependencies  # Validate dependency declarations
+pnpm test:ci      # Run the CI test suite locally
+pnpm docs:build   # Verify the documentation build
 ```
 
 ### Code Quality Standards
@@ -166,6 +171,12 @@ pnpm type-check   # Validate TypeScript compilation
 - Write JSDoc comments for public APIs and exported functions
 - Keep functions focused and maintainable
 - Follow existing patterns in the codebase
+
+### Messaging Consistency
+
+- Prefer `app/src/lib/notify.ts` for app-level transient notifications.
+- Avoid new browser `alert()` calls in runtime code.
+- Update docs and tests in the same PR when user-facing messaging or event contracts change.
 
 **Configuration files:**
 
@@ -190,8 +201,9 @@ pnpm type-check   # Validate TypeScript compilation
 ### Testing
 
 ```bash
-pnpm test         # Run all tests
-pnpm test:watch   # Run tests in watch mode (if available)
+pnpm test         # Run tests in watch mode
+pnpm test:ci      # Run the non-watch CI test suite
+pnpm test:e2e     # Run Playwright browser coverage
 ```
 
 ## Documentation
@@ -214,11 +226,12 @@ pnpm docs:images   # Generate all documentation images (screenshots, animations,
 - Update README.md for significant features
 - Use clear, concise language
 - Ensure accessibility for new users
+- Keep the messaging model in `docs/developers/messaging.md` aligned with runtime behavior
 
 ## Pull Request Process
 
 1. **Ensure all checks pass:**
-   - Run `pnpm precommit` locally
+   - Run `pnpm precommit` locally (same checks as the Git hook)
    - Verify CI checks are green
    - Resolve any failing tests
 

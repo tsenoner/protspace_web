@@ -8,6 +8,7 @@ import type {
   PersistedExportOptions,
   LegendSortMode,
   PublicationFigureLayoutId,
+  NumericBinningStrategy,
 } from '../types';
 
 /**
@@ -20,6 +21,12 @@ const VALID_SORT_MODES: LegendSortMode[] = [
   'alpha-desc',
   'manual',
   'manual-reverse',
+];
+
+const VALID_NUMERIC_BINNING_STRATEGIES: NumericBinningStrategy[] = [
+  'linear',
+  'quantile',
+  'logarithmic',
 ];
 
 /**
@@ -72,6 +79,24 @@ export function isValidLegendSettings(obj: unknown): obj is LegendPersistedSetti
   const categories = s.categories as Record<string, unknown>;
   for (const key of Object.keys(categories)) {
     if (!isValidPersistedCategoryData(categories[key])) {
+      return false;
+    }
+  }
+
+  if (s.numericSettings !== undefined) {
+    if (typeof s.numericSettings !== 'object' || s.numericSettings === null) return false;
+    const numericSettings = s.numericSettings as Record<string, unknown>;
+    if (
+      typeof numericSettings.signature !== 'string' ||
+      (numericSettings.topologySignature !== undefined &&
+        typeof numericSettings.topologySignature !== 'string') ||
+      (numericSettings.reverseGradient !== undefined &&
+        typeof numericSettings.reverseGradient !== 'boolean') ||
+      (numericSettings.manualOrderIds !== undefined &&
+        (!Array.isArray(numericSettings.manualOrderIds) ||
+          !numericSettings.manualOrderIds.every((value) => typeof value === 'string'))) ||
+      !VALID_NUMERIC_BINNING_STRATEGIES.includes(numericSettings.strategy as NumericBinningStrategy)
+    ) {
       return false;
     }
   }
@@ -199,6 +224,104 @@ export function isValidBundleSettings(obj: unknown): obj is BundleSettings | Leg
   return isNormalizedBundleSettings(obj) || isLegacyBundleSettings(obj);
 }
 
+function sanitizeLegendSettingsEntry(obj: unknown): LegendPersistedSettings | null {
+  if (typeof obj !== 'object' || obj === null) return null;
+
+  const s = obj as Record<string, unknown>;
+  if (typeof s.maxVisibleValues !== 'number') return null;
+  if (typeof s.includeShapes !== 'boolean') return null;
+  if (typeof s.shapeSize !== 'number') return null;
+  if (!isValidSortMode(s.sortMode)) return null;
+  if (typeof s.enableDuplicateStackUI !== 'boolean') return null;
+  if (!Array.isArray(s.hiddenValues) || !s.hiddenValues.every((v) => typeof v === 'string')) {
+    return null;
+  }
+  if (typeof s.categories !== 'object' || s.categories === null || Array.isArray(s.categories)) {
+    return null;
+  }
+
+  const categories: Record<string, PersistedCategoryData> = {};
+  for (const [key, value] of Object.entries(s.categories as Record<string, unknown>)) {
+    if (!isValidPersistedCategoryData(value)) {
+      return null;
+    }
+    categories[key] = value;
+  }
+
+  let numericSettings: LegendPersistedSettings['numericSettings'];
+  if (
+    s.numericSettings !== undefined &&
+    typeof s.numericSettings === 'object' &&
+    s.numericSettings
+  ) {
+    const candidate = s.numericSettings as Record<string, unknown>;
+    if (
+      typeof candidate.signature === 'string' &&
+      VALID_NUMERIC_BINNING_STRATEGIES.includes(candidate.strategy as NumericBinningStrategy) &&
+      (candidate.topologySignature === undefined ||
+        typeof candidate.topologySignature === 'string') &&
+      (candidate.reverseGradient === undefined || typeof candidate.reverseGradient === 'boolean') &&
+      (candidate.manualOrderIds === undefined ||
+        (Array.isArray(candidate.manualOrderIds) &&
+          candidate.manualOrderIds.every((value) => typeof value === 'string')))
+    ) {
+      numericSettings = {
+        strategy: candidate.strategy as NumericBinningStrategy,
+        signature: candidate.signature,
+        topologySignature:
+          typeof candidate.topologySignature === 'string' ? candidate.topologySignature : undefined,
+        reverseGradient:
+          typeof candidate.reverseGradient === 'boolean' ? candidate.reverseGradient : undefined,
+        manualOrderIds: Array.isArray(candidate.manualOrderIds)
+          ? candidate.manualOrderIds
+          : undefined,
+      };
+    }
+  }
+
+  return {
+    maxVisibleValues: s.maxVisibleValues,
+    includeShapes: s.includeShapes,
+    shapeSize: s.shapeSize,
+    sortMode: s.sortMode,
+    hiddenValues: s.hiddenValues,
+    categories,
+    enableDuplicateStackUI: s.enableDuplicateStackUI,
+    selectedPaletteId: typeof s.selectedPaletteId === 'string' ? s.selectedPaletteId : 'kellys',
+    numericSettings,
+  };
+}
+
+function sanitizeLegendSettingsMap(obj: unknown): LegendSettingsMap | null {
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
+    return null;
+  }
+
+  const result: LegendSettingsMap = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    const sanitized = sanitizeLegendSettingsEntry(value);
+    if (sanitized) {
+      result[key] = sanitized;
+    }
+  }
+
+  return result;
+}
+
+function sanitizeExportOptionsMap(obj: unknown): ExportOptionsMap | null {
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
+    return null;
+  }
+
+  const result: ExportOptionsMap = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (isValidPersistedExportOptions(value)) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 /**
  * Normalize bundle settings to the current format.
  */
@@ -212,6 +335,20 @@ export function normalizeBundleSettings(obj: unknown): BundleSettings | null {
       legendSettings: obj,
       exportOptions: {},
     };
+  }
+
+  if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
+    const settings = obj as Record<string, unknown>;
+    const sanitizedLegendSettings =
+      sanitizeLegendSettingsMap(settings.legendSettings) ?? sanitizeLegendSettingsMap(obj);
+    const sanitizedExportOptions = sanitizeExportOptionsMap(settings.exportOptions) ?? {};
+
+    if (sanitizedLegendSettings) {
+      return {
+        legendSettings: sanitizedLegendSettings,
+        exportOptions: sanitizedExportOptions,
+      };
+    }
   }
 
   return null;

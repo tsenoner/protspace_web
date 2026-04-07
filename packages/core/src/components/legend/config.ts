@@ -33,8 +33,6 @@ export const LEGEND_STYLES = {
   legendDisplaySize: 16,
 } as const;
 
-export const FIRST_NUMBER_SORT_ANNOTATIONS = new Set<string>(['length_fixed', 'length_quantile']);
-
 // Re-export legend utilities from utils package
 export { LEGEND_VALUES, toDisplayValue, toInternalValue, SHAPE_PATH_GENERATORS };
 

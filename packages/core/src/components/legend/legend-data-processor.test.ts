@@ -248,6 +248,56 @@ describe('legend-data-processor', () => {
       expect(result.topItems[2][0]).toBe(LEGEND_VALUES.NA_VALUE);
     });
 
+    it('sorts numeric interval labels by lower bound in alpha-asc mode', () => {
+      const freq = new Map<string, number>([
+        ['10 - <20', 5],
+        ['2 - <5', 10],
+        ['5 - <10', 8],
+      ]);
+      const numericOrderValues = new Map<string, number>([
+        ['10 - <20', 10],
+        ['2 - <5', 2],
+        ['5 - <10', 5],
+      ]);
+
+      const result = LegendDataProcessor.sortAndLimitItems(
+        freq,
+        10,
+        false,
+        'alpha-asc',
+        new Map(),
+        new Set(),
+        numericOrderValues,
+      );
+
+      expect(result.topItems.map(([value]) => value)).toEqual(['2 - <5', '5 - <10', '10 - <20']);
+    });
+
+    it('sorts numeric interval labels by lower bound in alpha-desc mode', () => {
+      const freq = new Map<string, number>([
+        ['10 - <20', 5],
+        ['2 - <5', 10],
+        ['5 - <10', 8],
+      ]);
+      const numericOrderValues = new Map<string, number>([
+        ['10 - <20', 10],
+        ['2 - <5', 2],
+        ['5 - <10', 5],
+      ]);
+
+      const result = LegendDataProcessor.sortAndLimitItems(
+        freq,
+        10,
+        false,
+        'alpha-desc',
+        new Map(),
+        new Set(),
+        numericOrderValues,
+      );
+
+      expect(result.topItems.map(([value]) => value)).toEqual(['10 - <20', '5 - <10', '2 - <5']);
+    });
+
     it('uses visibleValues to prioritize items and expands when maxVisibleValues allows', () => {
       const freq = new Map<string, number>([
         ['a', 10],
@@ -287,6 +337,8 @@ describe('legend-data-processor', () => {
         'size-desc',
         new Map(),
         visibleValues,
+        new Map(),
+        true,
         'b', // pendingExtract
       );
       expect(result.topItems.map(([v]) => v)).toContain('b');
@@ -306,6 +358,8 @@ describe('legend-data-processor', () => {
         'size-desc',
         new Map(),
         visibleValues,
+        new Map(),
+        true,
         undefined,
         'b', // pendingMerge
       );
@@ -325,6 +379,8 @@ describe('legend-data-processor', () => {
         'size-desc',
         new Map(),
         visibleValues,
+        new Map(),
+        true,
         LEGEND_VALUES.NA_VALUE, // Extract N/A
       );
       expect(result.topItems.map(([v]) => v)).toContain(LEGEND_VALUES.NA_VALUE);
@@ -343,6 +399,8 @@ describe('legend-data-processor', () => {
         'size-desc',
         new Map(),
         visibleValues,
+        new Map(),
+        true,
         undefined,
         LEGEND_VALUES.NA_VALUE, // Merge N/A back
       );
@@ -402,7 +460,7 @@ describe('legend-data-processor', () => {
         ['category1', 10],
         ['category2', 5],
       ];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, false, [], false);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, [], false);
       expect(items).toHaveLength(2);
       expect(items[0].value).toBe('category1');
       expect(items[0].count).toBe(10);
@@ -413,14 +471,14 @@ describe('legend-data-processor', () => {
 
     it('adds Other item when otherCount > 0', () => {
       const topItems: Array<[string, number]> = [['category1', 10]];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, false, [], false);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, [], false);
       expect(items.some((i) => i.value === 'Other')).toBe(true);
     });
 
-    it('does not add Other item in isolation mode', () => {
+    it('sets correct count on Other item', () => {
       const topItems: Array<[string, number]> = [['category1', 10]];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, true, [], false);
-      expect(items.some((i) => i.value === 'Other')).toBe(false);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 5, [], false);
+      expect(items.find((i) => i.value === 'Other')?.count).toBe(5);
     });
 
     it('preserves existing z-order in manual mode', () => {
@@ -443,7 +501,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'manual',
@@ -472,7 +529,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'size-desc',
@@ -512,7 +568,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'manual-reverse',
@@ -528,7 +583,7 @@ describe('legend-data-processor', () => {
         ['category1', 10],
         ['category2', 5],
       ];
-      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, false, [], true);
+      const items = LegendDataProcessor.createLegendItems(ctx, topItems, 0, [], true);
       const shapes = new Set(items.map((i) => i.shape));
       expect(shapes.size).toBeGreaterThan(1);
     });
@@ -546,7 +601,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -576,7 +630,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'size-desc',
@@ -595,7 +648,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -621,7 +673,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'size-desc',
@@ -644,7 +695,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         true,
         'size-desc',
@@ -669,7 +719,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -696,7 +745,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'size-desc',
@@ -722,7 +770,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         true, // shapesEnabled = true
         'size-desc',
@@ -752,7 +799,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         existing,
         false,
         'size-desc',
@@ -771,7 +817,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -798,7 +843,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -830,7 +874,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false,
         'size-desc',
@@ -860,7 +903,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         true, // shapesEnabled
         'size-desc',
@@ -888,7 +930,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         true, // shapesEnabled
         'size-desc',
@@ -915,7 +956,6 @@ describe('legend-data-processor', () => {
         ctx,
         topItems,
         0,
-        false,
         [],
         false, // shapesEnabled = false
         'size-desc',
@@ -1011,6 +1051,59 @@ describe('legend-data-processor', () => {
       );
       // Only p1 and p3 are in isolation, both have value 'a'
       expect(result.legendItems.find((i) => i.value === 'a')?.count).toBe(2);
+    });
+
+    it('retains known numeric values with zero counts when the current view is empty', () => {
+      const result = LegendDataProcessor.processLegendItems(
+        ctx,
+        'length',
+        [],
+        [],
+        10,
+        false,
+        [],
+        [],
+        'alpha-asc',
+        false,
+        {},
+        new Set(),
+        new Map([
+          ['0 - <10', 0],
+          ['10 - 20', 10],
+        ]),
+        false,
+        undefined,
+        undefined,
+        ['0 - <10', '10 - 20'],
+      );
+
+      expect(result.legendItems).toEqual([
+        expect.objectContaining({ value: '0 - <10', count: 0 }),
+        expect.objectContaining({ value: '10 - 20', count: 0 }),
+      ]);
+      expect(result.otherItems).toEqual([]);
+    });
+
+    it('preserves Other category during isolation mode', () => {
+      // 7 unique values but maxVisibleValues=3 → 4 overflow into Other
+      const values = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+      const proteinIds = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'];
+      const result = LegendDataProcessor.processLegendItems(
+        ctx,
+        'annotation1',
+        values,
+        proteinIds,
+        3,
+        true,
+        [proteinIds], // all proteins in isolation history
+        [],
+        'size-desc',
+        false,
+      );
+      // Should still have Other with the 4 overflow items
+      expect(result.legendItems.some((i) => i.value === 'Other')).toBe(true);
+      expect(result.legendItems.find((i) => i.value === 'Other')?.count).toBe(4);
+      expect(result.otherItems.length).toBe(4);
     });
 
     it('preserves existing z-order across processing in manual mode', () => {
@@ -1138,6 +1231,8 @@ describe('legend-data-processor', () => {
         false,
         {},
         visibleValues,
+        new Map(),
+        true,
         'b', // pendingExtract
       );
       const legendValues = result.legendItems.map((i) => i.value);
@@ -1161,6 +1256,8 @@ describe('legend-data-processor', () => {
         false,
         {},
         visibleValues,
+        new Map(),
+        true,
         undefined,
         'b', // pendingMerge
       );
@@ -1234,6 +1331,147 @@ describe('legend-data-processor', () => {
       expect(legendValues).toContain('a');
       expect(legendValues).toContain('b');
       // Should include next highest frequency items from "Other"
+    });
+
+    it('restores legend correctly after exiting isolation', () => {
+      // Setup: 5 categories, maxVisibleValues=3 → a, b, c visible + Other(d, e)
+      const values = ['a', 'a', 'a', 'b', 'b', 'c', 'd', 'e'];
+      const proteinIds = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
+      const preIsolationVisibleValues = new Set(['a', 'b', 'c']);
+
+      // Step 1: Enter isolation (select p1='a' and p7='d')
+      const isolated = LegendDataProcessor.processLegendItems(
+        ctx,
+        'annotation1',
+        values,
+        proteinIds,
+        3,
+        true,
+        [['p1', 'p7']],
+        [],
+        'size-desc',
+        false,
+        {},
+        preIsolationVisibleValues,
+      );
+      // During isolation: 'a' visible, 'd' stays in Other
+      expect(isolated.legendItems.filter((i) => i.value !== 'Other').map((i) => i.value)).toContain(
+        'a',
+      );
+      expect(
+        isolated.legendItems.filter((i) => i.value !== 'Other').map((i) => i.value),
+      ).not.toContain('d');
+
+      // Step 2: Exit isolation — use isolation-period legend items as existing
+      const visibleAfterIsolation = new Set(
+        isolated.legendItems.filter((i) => i.value !== 'Other').map((i) => i.value),
+      );
+      const restored = LegendDataProcessor.processLegendItems(
+        ctx,
+        'annotation1',
+        values,
+        proteinIds,
+        3,
+        false, // isolation off
+        [],
+        isolated.legendItems,
+        'size-desc',
+        false,
+        {},
+        visibleAfterIsolation,
+      );
+      // Should restore to pre-isolation state: a, b, c + Other(d, e)
+      const restoredValues = restored.legendItems
+        .filter((i) => i.value !== 'Other')
+        .map((i) => i.value);
+      expect(restoredValues).toContain('a');
+      expect(restoredValues).toContain('b');
+      expect(restoredValues).toContain('c');
+      expect(restoredValues).not.toContain('d');
+      expect(restoredValues).not.toContain('e');
+      expect(restored.legendItems.some((i) => i.value === 'Other')).toBe(true);
+    });
+
+    it('preserves pre-isolation visible values across stacked isolation', () => {
+      // Setup: 5 categories, maxVisibleValues=3 → a, b, c visible + Other(d, e)
+      const values = ['a', 'a', 'a', 'b', 'b', 'c', 'd', 'e'];
+      const proteinIds = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
+      const preIsolationVisibleValues = new Set(['a', 'b', 'c']);
+
+      // Step 1: First isolation (select p1='a', p4='b', p7='d')
+      const firstIsolation = LegendDataProcessor.processLegendItems(
+        ctx,
+        'annotation1',
+        values,
+        proteinIds,
+        3,
+        true,
+        [['p1', 'p4', 'p7']],
+        [],
+        'size-desc',
+        false,
+        {},
+        preIsolationVisibleValues,
+      );
+      // 'd' should NOT be promoted from Other
+      expect(
+        firstIsolation.legendItems.filter((i) => i.value !== 'Other').map((i) => i.value),
+      ).not.toContain('d');
+
+      // Step 2: Second isolation (stacked — narrow to p1='a' only)
+      // Crucially, we still use the ORIGINAL pre-isolation visible values
+      const secondIsolation = LegendDataProcessor.processLegendItems(
+        ctx,
+        'annotation1',
+        values,
+        proteinIds,
+        3,
+        true,
+        [['p1', 'p4', 'p7'], ['p1']],
+        firstIsolation.legendItems,
+        'size-desc',
+        false,
+        {},
+        preIsolationVisibleValues, // same pre-isolation values throughout
+      );
+      // Still no promotion from Other
+      const secondValues = secondIsolation.legendItems
+        .filter((i) => i.value !== 'Other')
+        .map((i) => i.value);
+      expect(secondValues).toContain('a');
+      expect(secondValues).not.toContain('d');
+    });
+
+    it('handles isolation when all isolated proteins are from Other', () => {
+      // Setup: a(3), b(2), c(1) visible + Other(d, e)
+      const values = ['a', 'a', 'a', 'b', 'b', 'c', 'd', 'e'];
+      const proteinIds = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
+      const preIsolationVisibleValues = new Set(['a', 'b', 'c']);
+
+      // Isolate only proteins from Other: p7='d', p8='e'
+      const result = LegendDataProcessor.processLegendItems(
+        ctx,
+        'annotation1',
+        values,
+        proteinIds,
+        3,
+        true,
+        [['p7', 'p8']],
+        [],
+        'size-desc',
+        false,
+        {},
+        preIsolationVisibleValues,
+      );
+      // Neither d nor e should be promoted — they should stay in Other
+      const visibleValues = result.legendItems
+        .filter((i) => i.value !== 'Other')
+        .map((i) => i.value);
+      expect(visibleValues).not.toContain('d');
+      expect(visibleValues).not.toContain('e');
+      // Other should contain both d and e
+      expect(result.otherItems.map((oi) => oi.value)).toContain('d');
+      expect(result.otherItems.map((oi) => oi.value)).toContain('e');
     });
 
     it('contracts categories when maxVisibleValues decreases', () => {

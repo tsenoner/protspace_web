@@ -14,7 +14,7 @@
 import { tokens } from '../../styles/tokens';
 import { buttonMixin, inputMixin, dropdownMixin, iconMixin } from '../../styles/mixins';
 import { layoutStyles } from './styles/layout';
-import { filterStyles } from './styles/filter';
+import { queryBuilderStyles } from './query-builder.styles';
 import { exportStyles } from './styles/export';
 import { responsiveStyles } from './styles/responsive';
 
@@ -29,7 +29,7 @@ export const controlBarStyles = [
   dropdownMixin,
   iconMixin,
   layoutStyles,
-  filterStyles,
+  queryBuilderStyles,
   exportStyles,
   responsiveStyles,
 ];

@@ -142,40 +142,9 @@ export function getSelectionDisabledMessage(reason: string, dataSize: number): s
   return 'Selection mode disabled';
 }
 
-export function areFilterConfigsEqual(
-  config1: Record<string, FilterConfig>,
-  config2: Record<string, FilterConfig>,
-): boolean {
-  const keys1 = Object.keys(config1).sort();
-  const keys2 = Object.keys(config2).sort();
-
-  if (keys1.length !== keys2.length) return false;
-  if (keys1.join(',') !== keys2.join(',')) return false;
-
-  for (const key of keys1) {
-    const cfg1 = config1[key];
-    const cfg2 = config2[key];
-
-    if (cfg1.enabled !== cfg2.enabled) return false;
-    if (JSON.stringify(cfg1.values.sort()) !== JSON.stringify(cfg2.values.sort())) return false;
-  }
-
-  return true;
-}
-
-export function initializeFilterConfig(
-  annotations: string[],
-  existingConfig: Record<string, FilterConfig>,
-): Record<string, FilterConfig> {
-  const nextConfig: Record<string, FilterConfig> = { ...existingConfig };
-  annotations.forEach((annotation) => {
-    if (!nextConfig[annotation]) {
-      nextConfig[annotation] = { enabled: false, values: [] };
-    }
-  });
-  return nextConfig;
-}
-
+/**
+ * Toggle protein selection (add or remove)
+ */
 export function toggleProteinSelection(proteinId: string, currentSelection: string[]): string[] {
   const currentSet = new Set(currentSelection);
   if (currentSet.has(proteinId)) {
@@ -193,12 +162,4 @@ export function mergeProteinSelections(
   const merged = new Set(currentSelection);
   newSelections.forEach((id) => merged.add(id));
   return Array.from(merged);
-}
-
-export function validateAnnotationValues(
-  values: (string | null)[],
-  availableValues: (string | null)[],
-): (string | null)[] {
-  const availableSet = new Set(availableValues);
-  return values.filter((v) => availableSet.has(v));
 }

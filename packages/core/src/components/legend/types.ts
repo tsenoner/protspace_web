@@ -1,3 +1,5 @@
+import type { LegendErrorEventDetail, LegendErrorSource } from './legend.events';
+
 /**
  * A legend item representing a category.
  * N/A items use LEGEND_VALUES.NA_VALUE ('__NA__') as their value.
@@ -5,6 +7,7 @@
 export interface LegendItem {
   /** Category value. N/A items use '__NA__', "Other" uses 'Other' */
   value: string;
+  displayValue?: string;
   color: string;
   shape: string;
   count: number;
@@ -24,14 +27,44 @@ export interface OtherItem {
 
 export interface ScatterplotData {
   protein_ids: string[];
-  annotations: Record<string, { values: (string | null)[] }>;
+  annotations: Record<
+    string,
+    {
+      kind?: 'categorical' | 'numeric';
+      sourceKind?: 'categorical' | 'numeric';
+      values: (string | null)[];
+      colors?: string[];
+      shapes?: string[];
+      numericMetadata?: LegendAnnotationData['numericMetadata'];
+    }
+  >;
   annotation_data: Record<string, (number | number[])[]>;
+  numeric_annotation_data?: Record<string, (number | null)[]>;
   projections?: Array<{ name: string }>;
 }
 
 export interface LegendAnnotationData {
   name: string;
   values: (string | null)[];
+  colors?: string[];
+  shapes?: string[];
+  kind?: 'categorical' | 'numeric';
+  sourceKind?: 'categorical' | 'numeric';
+  numericMetadata?: {
+    strategy: 'linear' | 'quantile' | 'logarithmic';
+    binCount: number;
+    signature: string;
+    topologySignature: string;
+    logSupported: boolean;
+    bins: Array<{
+      id: string;
+      label: string;
+      lowerBound: number;
+      upperBound: number;
+      count: number;
+      colorPosition?: number;
+    }>;
+  };
 }
 
 // Note: IScatterplotElement in scatterplot-interface.ts is the canonical interface
@@ -44,16 +77,13 @@ export interface LegendAnnotationData {
 /** Item action types for legend events */
 export type ItemAction = 'toggle' | 'isolate' | 'extract';
 
-/** Detail for legend-error event */
-export interface LegendErrorEventDetail {
-  message: string;
-  source: 'data-processing' | 'persistence' | 'scatterplot-sync' | 'rendering';
-  originalError?: Error;
+export interface LegendDataInput {
+  annotations?: ScatterplotData['annotations'];
+  protein_ids?: string[];
+  numeric_annotation_data?: ScatterplotData['numeric_annotation_data'];
 }
 
-export interface LegendDataInput {
-  annotations?: Record<string, { values: (string | null)[]; colors?: string[]; shapes?: string[] }>;
-}
+export type { LegendErrorEventDetail, LegendErrorSource };
 
 // Internal re-exports from @protspace/utils for legend component implementation
 // External consumers should import directly from @protspace/utils

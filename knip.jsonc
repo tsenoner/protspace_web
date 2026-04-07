@@ -1,19 +1,33 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "$schema": "https://unpkg.com/knip@5/schema-jsonc.json",
+  "treatConfigHintsAsErrors": true,
   "workspaces": {
     ".": {
-      "entry": ["scripts/**/*.ts"],
-      "project": ["scripts/**/*.ts"],
+      // Perf Playwright config is plugin-discovered; only keep the docs config
+      // explicit because Knip does not infer `docs/.vitepress/*`.
+      "entry": [
+        "scripts/**/*.ts",
+        "docs/.vitepress/config.mts",
+      ],
+      "project": [
+        "config/**/*.ts",
+        "scripts/**/*.ts",
+        "perf/**/*.ts",
+        "docs/.vitepress/**/*.{ts,mts}",
+      ],
     },
     "packages/core": {
       "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"],
     },
     "packages/utils": {
+      // `src/index.ts` is plugin-discovered; duplicating it trips config-hint errors.
       "project": ["src/**/*.ts"],
     },
     "app": {
-      "project": ["src/**/*.{ts,tsx}"],
+      // Keep the runtime graph rooted from App and layer Playwright specs on top.
+      "entry": ["src/App.tsx", "tests/**/*.spec.ts"],
+      "project": ["src/**/*.{ts,tsx}", "tests/**/*.ts"],
       "ignore": [
         "src/custom-elements.d.ts",
         // shadcn/ui components export complete sets by convention
@@ -21,6 +35,5 @@
       ],
     },
   },
-  "ignoreWorkspaces": ["docs"],
   "ignoreExportsUsedInFile": false,
 }

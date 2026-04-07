@@ -1,7 +1,32 @@
+export type AnnotationKind = 'categorical' | 'numeric';
+
+export type NumericBinningStrategy = 'linear' | 'quantile' | 'logarithmic';
+
+export interface NumericBinDefinition {
+  id: string;
+  label: string;
+  lowerBound: number;
+  upperBound: number;
+  count: number;
+  colorPosition?: number;
+}
+
+export interface NumericAnnotationMetadata {
+  strategy: NumericBinningStrategy;
+  binCount: number;
+  signature: string;
+  topologySignature: string;
+  logSupported: boolean;
+  bins: NumericBinDefinition[];
+}
+
 export interface Annotation {
+  kind: AnnotationKind;
   values: (string | null)[];
   colors: string[];
   shapes: string[];
+  sourceKind?: AnnotationKind;
+  numericMetadata?: NumericAnnotationMetadata;
 }
 
 export interface Projection {
@@ -16,6 +41,7 @@ export interface VisualizationData {
   projections: Projection[];
   annotations: Record<string, Annotation>;
   annotation_data: Record<string, number[][]>;
+  numeric_annotation_data?: Record<string, (number | null)[]>;
   annotation_scores?: Record<string, (number[] | null)[][]>;
   annotation_evidence?: Record<string, (string | null)[][]>;
 }
@@ -26,6 +52,8 @@ export interface PlotDataPoint {
   y: number;
   z?: number;
   annotationValues: Record<string, string[]>;
+  annotationDisplayValues?: Record<string, string[]>;
+  numericAnnotationValues?: Record<string, number | null>;
   annotationScores?: Record<string, (number[] | null)[]>;
   annotationEvidence?: Record<string, (string | null)[]>;
   originalIndex: number;
@@ -85,6 +113,13 @@ export interface LegendPersistedSettings {
   categories: Record<string, PersistedCategoryData>;
   enableDuplicateStackUI: boolean;
   selectedPaletteId: string;
+  numericSettings?: {
+    strategy: NumericBinningStrategy;
+    signature: string;
+    topologySignature?: string;
+    manualOrderIds?: string[];
+    reverseGradient?: boolean;
+  };
 }
 
 export type PublicationFigureLayoutId =

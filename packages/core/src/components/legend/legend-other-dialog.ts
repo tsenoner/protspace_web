@@ -14,6 +14,7 @@ interface OtherDialogState {
  */
 interface OtherDialogCallbacks {
   onExtract: (value: string) => void;
+  onExtractAll: () => void;
   onClose: () => void;
   onOverlayMouseDown: (e: MouseEvent) => void;
   onOverlayMouseUp: () => void;
@@ -43,7 +44,15 @@ function renderOtherItem(item: OtherItem, callbacks: OtherDialogCallbacks): Temp
  */
 export function renderCloseIcon(): TemplateResult {
   return html`
-    <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg
+      width="24"
+      height="24"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden="true"
+      focusable="false"
+    >
       <path
         stroke-linecap="round"
         stroke-linejoin="round"
@@ -99,8 +108,14 @@ export function renderOtherDialog(
         </div>
 
         <div class="modal-footer">
-          <button class="btn-secondary modal-close-button" @click=${callbacks.onClose}>
-            Close
+          <button
+            class="btn-danger extract-all-button"
+            @click=${callbacks.onExtractAll}
+            title="Undo through Settings > Legend > Max legend items"
+            aria-label="Extract all"
+            ?disabled=${state.otherItems.length === 0}
+          >
+            Extract all
           </button>
         </div>
       </div>

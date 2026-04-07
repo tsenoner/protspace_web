@@ -22,7 +22,7 @@ The control bar contains:
 1. **Projection dropdown** - Switch between PCA, UMAP, t-SNE
 2. **Annotation dropdown** - Color points by annotation
 3. **Search box** - Find proteins by ID
-4. **Select button** - Box selection mode
+4. **Select button** - Rectangle or lasso selection mode
 5. **Clear button** - Clear selection
 6. **Isolate button** - Hide unselected proteins
 7. **Filter button** - Filter by annotation values

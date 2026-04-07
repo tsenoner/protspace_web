@@ -1,8 +1,19 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import * as d3 from 'd3';
-import type { VisualizationData, PlotDataPoint, ScatterplotConfig } from '@protspace/utils';
-import { DataProcessor } from '@protspace/utils';
+import type {
+  VisualizationData,
+  PlotDataPoint,
+  ScatterplotConfig,
+  NumericAnnotationDisplaySettingsMap,
+} from '@protspace/utils';
+import {
+  DataProcessor,
+  getNumericBinLabelMap,
+  materializeVisualizationData,
+  toInternalValue,
+} from '@protspace/utils';
+import type { LegendSortMode } from '../legend/types';
 import { scatterplotStyles } from './scatter-plot.styles';
 import './projection-metadata';
 import './protspace-tips';
@@ -51,9 +62,16 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Array }) highlightedProteinIds: string[] = [];
   @property({ type: Array }) selectedProteinIds: string[] = [];
   @property({ type: Boolean }) selectionMode = false;
+  @property({ type: String, attribute: 'selection-tool' })
+  selectionTool: 'rectangle' | 'lasso' = 'rectangle';
   @property({ type: Array }) hiddenAnnotationValues: string[] = [];
   @property({ type: Array }) otherAnnotationValues: string[] = [];
   @property({ type: Boolean }) useShapes: boolean = false;
+  @property({ type: Object }) numericAnnotationSettings: NumericAnnotationDisplaySettingsMap = {};
+  @property({ type: Object }) annotationSortModes: Record<string, LegendSortMode> = {};
+  @property({ type: Object }) numericManualOrderIdsByAnnotation: Record<string, string[]> = {};
+  @property({ type: Array }) filteredProteinIds: string[] = [];
+  @property({ type: Boolean, attribute: 'filters-active' }) filtersActive = false;
   @property({ type: Object }) config: Partial<ScatterplotConfig> = {};
   @property({ type: Boolean, attribute: 'show-tour-button' }) showTourButton = false;
 
@@ -72,6 +90,15 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _colorMapping: Record<string, string> | null = null;
   @state() private _shapeMapping: Record<string, string> | null = null;
   @state() private _canvasKey = 0;
+  @state() private _numericRecomputeState: {
+    running: boolean;
+    annotation: string | null;
+    startedAt: number | null;
+  } = {
+    running: false,
+    annotation: null,
+    startedAt: null,
+  };
 
   // Queries
   @query('canvas') private _canvas?: HTMLCanvasElement;
@@ -87,6 +114,11 @@ export class ProtspaceScatterplot extends LitElement {
   private _brushGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _overlayGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
   private _brush: d3.BrushBehavior<unknown> | null = null;
+  private _isBrushing = false;
+  private _lassoVertices: Array<[number, number]> = [];
+  private _lassoPath: SVGPathElement | null = null;
+  private _isLassoing = false;
+  private _lassoRafId: number | null = null;
   private _webglRenderer: WebGLRenderer | null = null;
   private _zoomRafId: number | null = null;
   private _styleSig: string | null = null;
@@ -131,6 +163,14 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _webglRenderPerf = new WebglRenderPerfRunner(this);
 
+  // Track data reference to detect projection-only changes (same data object, different projection index).
+  private _lastDataRef: VisualizationData | null = null;
+  private _lastMaterializedSource: VisualizationData | null = null;
+  private _lastMaterializedNumericValues: Array<number | null> | null = null;
+  private _materializedDataCacheKey: string | null = null;
+  private _materializedDataCache: VisualizationData | null = null;
+  private _numericRecomputeJobId = 0;
+
   // Computed properties with caching
   private get _scales(): ScalePair | null {
     const config = this._mergedConfig;
@@ -169,6 +209,50 @@ export class ProtspaceScatterplot extends LitElement {
   private _invalidateScalesCache() {
     this._cachedScales = null;
     this._scalesCacheDeps = null;
+  }
+
+  private _getMaterializedData(): VisualizationData | null {
+    if (!this.data) return null;
+
+    const selectedNumericValues = this.selectedAnnotation
+      ? this.data.numeric_annotation_data?.[this.selectedAnnotation]
+      : undefined;
+    const selectedNumericSettings = this.selectedAnnotation
+      ? this.numericAnnotationSettings?.[this.selectedAnnotation]
+      : undefined;
+
+    const cacheKey = JSON.stringify({
+      dataRef: this.data.protein_ids.length,
+      selectedAnnotation: this.selectedAnnotation,
+      selectedNumericValuesLength: selectedNumericValues?.length ?? 0,
+      numericAnnotationSettings: selectedNumericSettings ?? null,
+      annotationKeys: Object.keys(this.data.annotations),
+    });
+
+    if (
+      this._lastMaterializedSource === this.data &&
+      this._lastMaterializedNumericValues === (selectedNumericValues ?? null) &&
+      this._materializedDataCacheKey === cacheKey &&
+      this._materializedDataCache
+    ) {
+      return this._materializedDataCache;
+    }
+
+    this._materializedDataCache = materializeVisualizationData(
+      this.data,
+      this.numericAnnotationSettings,
+      10,
+      this.selectedAnnotation,
+    );
+    this._lastMaterializedSource = this.data;
+    this._lastMaterializedNumericValues = selectedNumericValues ?? null;
+    this._materializedDataCacheKey = cacheKey;
+    return this._materializedDataCache;
+  }
+
+  private _getVisibleProteinIdsSet(): Set<string> | null {
+    if (!this.filtersActive) return null;
+    return new Set(this.filteredProteinIds);
   }
 
   constructor() {
@@ -216,6 +300,12 @@ export class ProtspaceScatterplot extends LitElement {
     this._cancelDuplicateStackCompute();
     this._clearDuplicateBadgesCanvas();
     this._webglRenderer?.destroy();
+    if (this._brush) {
+      this._brush.on('start', null).on('end', null);
+      this._brush = null;
+      this._isBrushing = false;
+    }
+    this._cleanupLasso();
 
     super.disconnectedCallback();
     this.removeEventListener('legend-zorder-change', this._handleZOrderChange);
@@ -322,8 +412,18 @@ export class ProtspaceScatterplot extends LitElement {
       }
     }
 
+    const numericSettingsChangedOnly =
+      changedProperties.has('numericAnnotationSettings') &&
+      !changedProperties.has('data') &&
+      !changedProperties.has('filteredProteinIds') &&
+      !changedProperties.has('filtersActive') &&
+      !changedProperties.has('selectedProjectionIndex') &&
+      !changedProperties.has('projectionPlane');
+
     if (
       changedProperties.has('data') ||
+      changedProperties.has('filteredProteinIds') ||
+      changedProperties.has('filtersActive') ||
       changedProperties.has('selectedProjectionIndex') ||
       changedProperties.has('projectionPlane')
     ) {
@@ -340,15 +440,23 @@ export class ProtspaceScatterplot extends LitElement {
       }
 
       // Dispatch data-change event for auto-sync with control bar and other components
-      if (changedProperties.has('data') && this.data) {
+      if (
+        (changedProperties.has('data') ||
+          changedProperties.has('filteredProteinIds') ||
+          changedProperties.has('filtersActive')) &&
+        this.data
+      ) {
         this.dispatchEvent(
           new CustomEvent('data-change', {
-            detail: { data: this.data },
+            detail: { data: this.getCurrentData() ?? this._getMaterializedData() ?? this.data },
             bubbles: true,
             composed: true,
           }),
         );
       }
+    }
+    if (numericSettingsChangedOnly && this.data) {
+      this._scheduleNumericAnnotationRefresh();
     }
     if (changedProperties.has('config')) {
       const prev = this._mergedConfig;
@@ -373,18 +481,30 @@ export class ProtspaceScatterplot extends LitElement {
     ) {
       this._scheduleQuadtreeRebuild();
       this._webglRenderer?.invalidateStyleCache();
-      // Visibility might change (points hidden/shown), so we must rebuild position buffer
-      // to keep colors and positions in sync in the dense arrays
-      this._webglRenderer?.invalidatePositionCache();
       this._updateStyleSignature();
       this._webglRenderer?.setStyleSignature(this._styleSig);
+
+      // Position/sort rebuild only when annotation or "Other" category changes
+      // (affects colors, shapes, z-order). Visibility toggles only change alpha
+      // values — hidden points stay in GPU arrays with alpha=0, preserving sort
+      // order and enabling the fast color-only update path.
+      if (
+        changedProperties.has('selectedAnnotation') ||
+        changedProperties.has('otherAnnotationValues')
+      ) {
+        this._webglRenderer?.invalidatePositionCache();
+      }
     }
-    if (changedProperties.has('selectionMode')) {
+    if (
+      changedProperties.has('selectionMode') ||
+      (changedProperties.has('selectionTool') && this.selectionMode)
+    ) {
       this._updateSelectionMode();
     }
     // Refresh cached style getters when any relevant input changes
     if (
       changedProperties.has('data') ||
+      changedProperties.has('numericAnnotationSettings') ||
       changedProperties.has('selectedAnnotation') ||
       changedProperties.has('hiddenAnnotationValues') ||
       changedProperties.has('otherAnnotationValues') ||
@@ -393,25 +513,7 @@ export class ProtspaceScatterplot extends LitElement {
       changedProperties.has('config') ||
       changedProperties.has('useShapes')
     ) {
-      this._styleGettersCache = createStyleGetters(this.data, {
-        selectedProteinIds: this.selectedProteinIds,
-        highlightedProteinIds: this.highlightedProteinIds,
-        selectedAnnotation: this.selectedAnnotation,
-        hiddenAnnotationValues: this.hiddenAnnotationValues,
-        otherAnnotationValues: this.otherAnnotationValues,
-        useShapes: this.useShapes,
-        zOrderMapping: this._zOrderMapping,
-        colorMapping: this._colorMapping,
-        shapeMapping: this._shapeMapping,
-        sizes: {
-          base: this._mergedConfig.pointSize,
-        },
-        opacities: {
-          base: this._mergedConfig.baseOpacity,
-          selected: this._mergedConfig.selectedOpacity,
-          faded: this._mergedConfig.fadedOpacity,
-        },
-      });
+      this._styleGettersCache = this._buildStyleGetters();
     }
     if (
       changedProperties.has('selectedProteinIds') ||
@@ -460,21 +562,247 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _processData() {
-    const dataToUse = this.data;
+    const dataToUse = this._getCurrentDisplayData();
     if (!dataToUse) return;
-    this._plotData = DataProcessor.processVisualizationData(
-      dataToUse,
-      this.selectedProjectionIndex,
-      this._isolationMode,
-      this._isolationHistory,
-      this.projectionPlane,
-    );
+
+    // Detect whether only the projection changed (same data reference, not in isolation mode).
+    // In this case we take the fast path: update coordinates in-place
+    // instead of rebuilding all PlotDataPoint objects with annotation data (~700MB for 500k proteins).
+    const onlyProjectionChanged =
+      this._plotData.length > 0 && this._lastDataRef === dataToUse && !this._isolationMode;
+
+    if (onlyProjectionChanged) {
+      // Fast path: update coordinates in-place from the new projection data.
+      // No new object allocation — just overwrite x/y/z on existing PlotDataPoints.
+      this._updatePlotDataCoordinates(dataToUse);
+    } else {
+      // Release old data references before allocating the new dataset.
+      // Without this, old and new arrays coexist in memory during processing
+      // (e.g. 100K + 570K points), which can cause OOM on constrained devices.
+      this._plotData = [];
+      this._visiblePlotData = [];
+      this._quadtreeIndex.clear();
+      this._webglRenderer?.releaseDataReferences();
+
+      this._plotData = DataProcessor.processVisualizationData(
+        dataToUse,
+        this.selectedProjectionIndex,
+        this._isolationMode,
+        this._isolationHistory,
+        this.projectionPlane,
+      );
+    }
+
+    this._lastDataRef = dataToUse;
 
     // z-order is resolved in WebGL depth (see style getters), so we avoid sorting 500k+ points on CPU.
 
     // Invalidate scales cache when plot data changes
     this._invalidateScalesCache();
     this._invalidateVirtualizationCache();
+  }
+
+  private _refreshSelectedAnnotationValues(dataToUse: VisualizationData) {
+    const annotationName = this.selectedAnnotation;
+    const annotation = dataToUse.annotations[annotationName];
+    const annotationRows = dataToUse.annotation_data?.[annotationName];
+
+    if (!annotation || !annotationRows) {
+      this._processData();
+      return;
+    }
+
+    const numericLabelMap = getNumericBinLabelMap(annotation);
+
+    for (const point of this._plotData) {
+      const annotationIndicesData = annotationRows[point.originalIndex];
+      const annotationIndices: unknown[] = Array.isArray(annotationIndicesData)
+        ? annotationIndicesData
+        : annotationIndicesData == null
+          ? []
+          : [annotationIndicesData];
+
+      point.annotationValues[annotationName] = annotationIndices
+        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+        .map((value) => toInternalValue(annotation.values[value]));
+      if (point.annotationDisplayValues) {
+        point.annotationDisplayValues[annotationName] = point.annotationValues[annotationName].map(
+          (value) => numericLabelMap.get(value) ?? value,
+        );
+      }
+    }
+
+    this._plotData = [...this._plotData];
+    this._lastDataRef = dataToUse;
+    this._invalidateVirtualizationCache();
+  }
+
+  private _scheduleNumericAnnotationRefresh() {
+    if (!this.data) return;
+
+    const jobId = ++this._numericRecomputeJobId;
+    this._numericRecomputeState = {
+      running: true,
+      annotation: this.selectedAnnotation,
+      startedAt: performance.now(),
+    };
+    this.dispatchEvent(
+      new CustomEvent('numeric-recompute-start', {
+        detail: { annotation: this.selectedAnnotation },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    this.requestUpdate();
+
+    requestAnimationFrame(() => {
+      if (jobId !== this._numericRecomputeJobId) return;
+
+      const materializedData = this._getMaterializedData();
+      if (!materializedData) {
+        this._numericRecomputeState = { running: false, annotation: null, startedAt: null };
+        return;
+      }
+
+      const displayData = this._getCurrentDisplayData() ?? materializedData;
+
+      if (this._plotData.length > 0) {
+        this._refreshSelectedAnnotationValues(displayData);
+      } else {
+        this._processData();
+      }
+
+      this._scheduleQuadtreeRebuild();
+      this._webglRenderer?.invalidateStyleCache();
+      this._updateStyleSignature();
+      this._webglRenderer?.setStyleSignature(this._styleSig);
+      this._renderPlot();
+      this._updateSelectionOverlays();
+
+      const currentData = this.getCurrentData() ?? displayData ?? materializedData ?? this.data;
+      if (currentData) {
+        this.dispatchEvent(
+          new CustomEvent('data-change', {
+            detail: { data: currentData },
+            bubbles: true,
+            composed: true,
+          }),
+        );
+      }
+
+      this.dispatchEvent(
+        new CustomEvent('numeric-recompute-end', {
+          detail: {
+            annotation: this.selectedAnnotation,
+            durationMs:
+              this._numericRecomputeState.startedAt == null
+                ? 0
+                : performance.now() - this._numericRecomputeState.startedAt,
+          },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+      this._numericRecomputeState = { running: false, annotation: null, startedAt: null };
+      this.requestUpdate();
+    });
+  }
+
+  private _getCurrentDisplayData(options?: {
+    includeFilteredProteinIds?: boolean;
+  }): VisualizationData | null {
+    const materializedData = this._getMaterializedData();
+    if (!materializedData) return null;
+
+    const visibleProteinIds =
+      options?.includeFilteredProteinIds === false ? null : this._getVisibleProteinIdsSet();
+    if (!visibleProteinIds) {
+      return materializedData;
+    }
+
+    const keptIndices: number[] = [];
+    materializedData.protein_ids.forEach((proteinId, index) => {
+      if (visibleProteinIds.has(proteinId)) {
+        keptIndices.push(index);
+      }
+    });
+
+    return {
+      ...materializedData,
+      protein_ids: keptIndices.map((index) => materializedData.protein_ids[index]),
+      projections: materializedData.projections.map((projection) => ({
+        ...projection,
+        data: keptIndices.map((index) => projection.data[index]),
+      })),
+      annotation_data: Object.fromEntries(
+        Object.entries(materializedData.annotation_data).map(([annotationName, rows]) => [
+          annotationName,
+          keptIndices.map((index) => rows[index]),
+        ]),
+      ),
+      numeric_annotation_data: materializedData.numeric_annotation_data
+        ? Object.fromEntries(
+            Object.entries(materializedData.numeric_annotation_data).map(
+              ([annotationName, values]) => [
+                annotationName,
+                keptIndices.map((index) => values[index]),
+              ],
+            ),
+          )
+        : undefined,
+      annotation_scores: materializedData.annotation_scores
+        ? Object.fromEntries(
+            Object.entries(materializedData.annotation_scores).map(([annotationName, rows]) => [
+              annotationName,
+              keptIndices.map((index) => rows[index]),
+            ]),
+          )
+        : undefined,
+      annotation_evidence: materializedData.annotation_evidence
+        ? Object.fromEntries(
+            Object.entries(materializedData.annotation_evidence).map(([annotationName, rows]) => [
+              annotationName,
+              keptIndices.map((index) => rows[index]),
+            ]),
+          )
+        : undefined,
+    };
+  }
+
+  /**
+   * Update PlotDataPoint coordinates in-place from a new projection.
+   * Reads directly from VisualizationData.projections — no intermediate allocation.
+   * This avoids the ~700MB memory spike from rebuilding the full PlotDataPoint array.
+   */
+  private _updatePlotDataCoordinates(data: VisualizationData) {
+    const projection = data.projections[this.selectedProjectionIndex];
+    if (!projection) return;
+
+    for (let i = 0; i < this._plotData.length; i++) {
+      const point = this._plotData[i];
+      const coords = (projection.data[point.originalIndex] ?? [0, 0]) as
+        | [number, number]
+        | [number, number, number];
+
+      let xVal = coords[0];
+      let yVal = coords[1];
+
+      if (coords.length === 3) {
+        point.z = coords[2];
+        if (this.projectionPlane === 'xz') {
+          yVal = coords[2];
+        } else if (this.projectionPlane === 'yz') {
+          xVal = coords[1];
+          yVal = coords[2];
+        }
+      }
+
+      point.x = xVal;
+      point.y = yVal;
+    }
+
+    // New array reference so Lit detects the change
+    this._plotData = [...this._plotData];
   }
 
   private _buildQuadtree() {
@@ -551,8 +879,24 @@ export class ProtspaceScatterplot extends LitElement {
             this._updateSelectionOverlays({ duplicateImmediate: false });
           });
         }
+        // Keep brush extent in sync with the viewport when scroll-zooming in selection mode.
+        // Skip if a brush gesture is in progress — re-applying the brush resets D3's drag state.
+        if (
+          this.selectionMode &&
+          this.selectionTool === 'rectangle' &&
+          this._brush &&
+          !this._isBrushing
+        ) {
+          this._updateBrushExtent();
+        }
       });
     this._svgSelection.call(this._zoom);
+    this._setupDblClickHandlers();
+  }
+
+  /** Disable D3's built-in double-click zoom and attach our own reset handler. */
+  private _setupDblClickHandlers() {
+    if (!this._svgSelection) return;
     this._svgSelection.on('dblclick.zoom', null);
     this._svgSelection.on('dblclick.reset', (event: MouseEvent) => {
       event.preventDefault();
@@ -678,64 +1022,197 @@ export class ProtspaceScatterplot extends LitElement {
   private _updateSelectionMode() {
     if (!this._svgSelection || !this._brushGroup || !this._scales) return;
 
-    // Clear existing brush
+    // Clean up both selection tools
     this._brushGroup.selectAll('*').remove();
+    this._cleanupLasso();
+    this._brush = null;
+    this._isBrushing = false;
 
     if (this.selectionMode) {
-      // Disable zoom
-      if (this._zoom) {
-        this._svgSelection.on('.zoom', null);
+      // Keep scroll-wheel zoom active but disable drag-to-pan (drag = selection)
+      if (this._zoom && this._svgSelection) {
+        this._svgSelection
+          .on('mousedown.zoom', null)
+          .on('touchstart.zoom', null)
+          .on('touchmove.zoom', null)
+          .on('touchend.zoom', null);
       }
 
-      // Create brush
-      const config = this._mergedConfig;
-      this._brush = d3
-        .brush()
-        // Keep the UX simple: no resize handles, just drag a rectangle.
-        .handleSize(0)
-        .extent([
-          [config.margin.left, config.margin.top],
-          [config.width - config.margin.right, config.height - config.margin.bottom],
-        ])
-        .on('end', (event) => this._handleBrushEnd(event));
-
-      this._brushGroup.call(this._brush);
+      if (this.selectionTool === 'lasso') {
+        this._setupLasso();
+      } else {
+        this._setupBrush();
+      }
     } else {
       // Re-enable zoom
       if (this._zoom) {
         this._svgSelection.call(this._zoom);
-        this._svgSelection.on('dblclick.zoom', null);
-        this._svgSelection.on('dblclick.reset', (event: MouseEvent) => {
-          event.preventDefault();
-          this.resetZoom();
-        });
+        this._setupDblClickHandlers();
       }
-      this._brush = null;
     }
   }
 
+  private _setupBrush() {
+    if (!this._svgSelection || !this._brushGroup) return;
+
+    this._brush = d3
+      .brush()
+      .handleSize(0)
+      .on('start', () => {
+        this._isBrushing = true;
+      })
+      .on('end', (event) => {
+        this._isBrushing = false;
+        this._handleBrushEnd(event);
+      });
+
+    this._updateBrushExtent();
+  }
+
+  /** Recompute the brush extent from the current zoom transform and re-apply. */
+  private _updateBrushExtent() {
+    if (!this._brush || !this._brushGroup) return;
+
+    const config = this._mergedConfig;
+    const t = this._transform;
+    const vx0 = t.invertX(0);
+    const vy0 = t.invertY(0);
+    const vx1 = t.invertX(config.width);
+    const vy1 = t.invertY(config.height);
+
+    this._brush.extent([
+      [Math.min(vx0, vx1), Math.min(vy0, vy1)],
+      [Math.max(vx0, vx1), Math.max(vy0, vy1)],
+    ]);
+
+    this._brushGroup.call(this._brush);
+  }
+
+  // ── Lasso selection ──────────────────────────────────────────────
+
+  private _setupLasso() {
+    if (!this._svgSelection) return;
+
+    this._svgSelection
+      .on('pointerdown.lasso', (event: PointerEvent) => this._handleLassoStart(event))
+      .on('pointermove.lasso', (event: PointerEvent) => this._handleLassoMove(event))
+      .on('pointerup.lasso', (event: PointerEvent) => this._handleLassoEnd(event));
+  }
+
+  private _cleanupLasso() {
+    if (this._svgSelection) {
+      this._svgSelection.on('pointerdown.lasso', null);
+      this._svgSelection.on('pointermove.lasso', null);
+      this._svgSelection.on('pointerup.lasso', null);
+    }
+    if (this._lassoRafId !== null) {
+      cancelAnimationFrame(this._lassoRafId);
+      this._lassoRafId = null;
+    }
+    this._lassoPath?.remove();
+    this._lassoPath = null;
+    this._lassoVertices = [];
+    this._isLassoing = false;
+  }
+
+  /** Convert a pointer event to local (untransformed) SVG coordinates. */
+  private _pointerToLocal(event: PointerEvent): [number, number] {
+    const [svgX, svgY] = d3.pointer(event);
+    const localX = (svgX - this._transform.x) / this._transform.k;
+    const localY = (svgY - this._transform.y) / this._transform.k;
+    return [localX, localY];
+  }
+
+  private _handleLassoStart(event: PointerEvent) {
+    if (event.button !== 0) return; // left click only
+    event.preventDefault();
+
+    this._isLassoing = true;
+    this._lassoVertices = [this._pointerToLocal(event)];
+
+    // Create the SVG path in the brush group (same coordinate space as the brush)
+    if (this._brushGroup) {
+      this._lassoPath = this._brushGroup.append('path').attr('class', 'lasso-path').node();
+    }
+
+    // Capture pointer for reliable tracking even if cursor leaves the SVG
+    (event.target as Element)?.setPointerCapture?.(event.pointerId);
+  }
+
+  private _handleLassoMove(event: PointerEvent) {
+    if (!this._isLassoing || !this._lassoPath) return;
+    event.preventDefault();
+
+    this._lassoVertices.push(this._pointerToLocal(event));
+
+    // Throttle SVG path updates to animation frames
+    if (this._lassoRafId === null) {
+      this._lassoRafId = requestAnimationFrame(() => {
+        this._lassoRafId = null;
+        if (!this._lassoPath || this._lassoVertices.length < 2) return;
+
+        const d = this._lassoVertices
+          .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x},${y}`)
+          .join(' ');
+        this._lassoPath.setAttribute('d', d);
+      });
+    }
+  }
+
+  private _handleLassoEnd(event: PointerEvent) {
+    if (!this._isLassoing) return;
+    event.preventDefault();
+    this._isLassoing = false;
+
+    (event.target as Element)?.releasePointerCapture?.(event.pointerId);
+
+    // Need at least 3 vertices to form a polygon
+    if (this._lassoVertices.length < 3) {
+      this._clearLassoVisual();
+      return;
+    }
+
+    // Close the path visually
+    if (this._lassoPath) {
+      const d = this._lassoPath.getAttribute('d') ?? '';
+      this._lassoPath.setAttribute('d', d + ' Z');
+    }
+
+    const candidates = this._quadtreeIndex.queryByPolygon(this._lassoVertices);
+    const selectedIds = candidates.filter((d) => this._getOpacity(d) > 0).map((d) => d.id);
+    this._commitSelection(selectedIds, () => this._clearLassoVisual());
+  }
+
+  private _clearLassoVisual() {
+    if (this._lassoPath) {
+      this._lassoPath.remove();
+      this._lassoPath = null;
+    }
+    this._lassoVertices = [];
+  }
+
   private _handleBrushEnd(event: d3.D3BrushEvent<unknown>) {
-    if (!event.selection || !this._scales) return;
+    if (!event.selection) return;
 
     const [[x0, y0], [x1, y1]] = event.selection as [[number, number], [number, number]];
-    const selectedIds: string[] = [];
-
-    this._plotData.forEach((d) => {
-      if (this._getOpacity(d) === 0) return;
-      const pointX = this._scales!.x(d.x);
-      const pointY = this._scales!.y(d.y);
-
-      if (pointX >= x0 && pointX <= x1 && pointY >= y0 && pointY <= y1) {
-        selectedIds.push(d.id);
+    const candidates = this._quadtreeIndex.queryByPixels(x0, y0, x1, y1);
+    const selectedIds = candidates.filter((d) => this._getOpacity(d) > 0).map((d) => d.id);
+    this._commitSelection(selectedIds, () => {
+      if (this._brush && this._brushGroup) {
+        this._brushGroup.call(this._brush.move, null);
       }
     });
+  }
 
+  /**
+   * Shared selection commit logic for both brush and lasso.
+   * Updates selectedProteinIds, dispatches the event, and schedules visual cleanup.
+   */
+  private _commitSelection(selectedIds: string[], clearVisual: () => void) {
     if (selectedIds.length > 0) {
-      // Batch the updates for better performance
       requestAnimationFrame(() => {
         this.selectedProteinIds = [...selectedIds];
 
-        // Dispatch brush selection event instead of individual protein-click events
         this.dispatchEvent(
           new CustomEvent('brush-selection', {
             detail: {
@@ -747,19 +1224,12 @@ export class ProtspaceScatterplot extends LitElement {
           }),
         );
 
-        this.requestUpdate(); // Force re-render for highlighting
+        this.requestUpdate();
+        requestAnimationFrame(clearVisual);
       });
+    } else {
+      clearVisual();
     }
-
-    // Clear brush selection
-    setTimeout(() => {
-      if (this._brush && this._brushGroup) {
-        this._brushGroup.call(this._brush.move, null);
-      }
-      if (this._zoom && this._svgSelection && !this.selectionMode) {
-        this._svgSelection.call(this._zoom);
-      }
-    }, 100);
   }
 
   private _renderPlot() {
@@ -1281,27 +1751,37 @@ export class ProtspaceScatterplot extends LitElement {
     return getters.getStrokeWidth(point);
   }
 
+  /** Build style getters for the current data and visual state. */
+  private _buildStyleGetters(): ReturnType<typeof createStyleGetters> {
+    const styleData =
+      this._getCurrentDisplayData({ includeFilteredProteinIds: false }) ??
+      this._getMaterializedData() ??
+      this.data;
+
+    return createStyleGetters(styleData, {
+      selectedProteinIds: this.selectedProteinIds,
+      highlightedProteinIds: this.highlightedProteinIds,
+      selectedAnnotation: this.selectedAnnotation,
+      hiddenAnnotationValues: this.hiddenAnnotationValues,
+      otherAnnotationValues: this.otherAnnotationValues,
+      useShapes: this.useShapes,
+      zOrderMapping: this._zOrderMapping,
+      colorMapping: this._colorMapping,
+      shapeMapping: this._shapeMapping,
+      sizes: {
+        base: this._mergedConfig.pointSize,
+      },
+      opacities: {
+        base: this._mergedConfig.baseOpacity,
+        selected: this._mergedConfig.selectedOpacity,
+        faded: this._mergedConfig.fadedOpacity,
+      },
+    });
+  }
+
   private _getStyleGetters() {
     if (!this._styleGettersCache) {
-      this._styleGettersCache = createStyleGetters(this.data, {
-        selectedProteinIds: this.selectedProteinIds,
-        highlightedProteinIds: this.highlightedProteinIds,
-        selectedAnnotation: this.selectedAnnotation,
-        hiddenAnnotationValues: this.hiddenAnnotationValues,
-        otherAnnotationValues: this.otherAnnotationValues,
-        useShapes: this.useShapes,
-        zOrderMapping: this._zOrderMapping,
-        colorMapping: this._colorMapping,
-        shapeMapping: this._shapeMapping,
-        sizes: {
-          base: this._mergedConfig.pointSize,
-        },
-        opacities: {
-          base: this._mergedConfig.baseOpacity,
-          selected: this._mergedConfig.selectedOpacity,
-          faded: this._mergedConfig.fadedOpacity,
-        },
-      });
+      this._styleGettersCache = this._buildStyleGetters();
     }
     return this._styleGettersCache;
   }
@@ -1320,12 +1800,13 @@ export class ProtspaceScatterplot extends LitElement {
   private _handleMouseOver(event: MouseEvent, point: PlotDataPoint) {
     const { x, y } = this._getLocalPointerPosition(event);
     this._tooltipData = { x, y, protein: point };
+    const pointForEvent = this._createDisplayPoint(point);
 
     if (this._hoveredProteinId !== point.id) {
       this._hoveredProteinId = point.id;
       this.dispatchEvent(
         new CustomEvent('protein-hover', {
-          detail: { proteinId: point.id, point },
+          detail: { proteinId: point.id, point: pointForEvent },
           bubbles: true,
         }),
       );
@@ -1333,11 +1814,12 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _handleClick(event: MouseEvent, point: PlotDataPoint) {
+    const pointForEvent = this._createDisplayPoint(point);
     this.dispatchEvent(
       new CustomEvent('protein-click', {
         detail: {
           proteinId: point.id,
-          point,
+          point: pointForEvent,
           modifierKeys: {
             ctrl: event.ctrlKey,
             meta: event.metaKey,
@@ -1349,6 +1831,15 @@ export class ProtspaceScatterplot extends LitElement {
         composed: true,
       }),
     );
+  }
+
+  private _createDisplayPoint(point: PlotDataPoint): PlotDataPoint {
+    return point.annotationDisplayValues
+      ? {
+          ...point,
+          annotationValues: point.annotationDisplayValues,
+        }
+      : point;
   }
 
   /**
@@ -1603,7 +2094,11 @@ export class ProtspaceScatterplot extends LitElement {
                 class="mode-indicator"
                 style="z-index: 10; display: flex; flex-direction: column; gap: 4px;"
               >
-                ${this.selectionMode ? html`<div>Selection Mode</div>` : ''}
+                ${this.selectionMode
+                  ? html`<div>
+                      Selection Mode (${this.selectionTool === 'lasso' ? 'Lasso' : 'Rectangle'})
+                    </div>`
+                  : ''}
                 ${this.selectedProteinIds.length > 0
                   ? html`<div style="font-size: 11px; opacity: 0.8;">
                       ${this.selectedProteinIds.length} proteins selected
@@ -1614,6 +2109,13 @@ export class ProtspaceScatterplot extends LitElement {
           : ''}
         ${this._isolationMode
           ? html` <div class="isolation-indicator">${this._plotData.length} points</div> `
+          : ''}
+        ${this._numericRecomputeState.running
+          ? html`
+              <div class="isolation-indicator" style="left: auto; right: 0.5rem;">
+                Recalculating bins for ${this._numericRecomputeState.annotation ?? 'annotation'}...
+              </div>
+            `
           : ''}
       </div>
     `;
@@ -1708,10 +2210,19 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
-  resetIsolation() {
+  /** Clear isolation state without reprocessing. Use before loading new data. */
+  clearIsolationState(): void {
     this._isolationHistory = [];
     this._isolationMode = false;
+  }
+
+  resetIsolation() {
+    this.clearIsolationState();
     this.selectedProteinIds = [];
+
+    // Invalidate data ref so _processData takes the full rebuild path
+    // instead of the fast coordinate-only path (which would keep the filtered subset)
+    this._lastDataRef = null;
 
     // Process data and update rendering
     this._processData();
@@ -1767,37 +2278,66 @@ export class ProtspaceScatterplot extends LitElement {
     return this._isolationMode;
   }
 
-  getCurrentData(): VisualizationData | null {
-    if (!this.data) return null;
+  getCurrentData(options?: { includeFilteredProteinIds?: boolean }): VisualizationData | null {
+    const currentDisplayData = this._getCurrentDisplayData(options);
+    if (!currentDisplayData) return null;
 
     // If we're in isolation mode, return filtered data based on current plot data
     if (this._isolationMode && this._plotData.length > 0) {
       const currentProteinIds = this._plotData.map((point) => point.id);
       const currentProteinIdsSet = new Set(currentProteinIds);
+      const keptIndices: number[] = [];
+      currentDisplayData.protein_ids.forEach((proteinId, index) => {
+        if (currentProteinIdsSet.has(proteinId)) {
+          keptIndices.push(index);
+        }
+      });
 
       // Filter annotation data to match current protein IDs
       const filteredAnnotationData: { [key: string]: number[][] } = {};
+      const filteredNumericAnnotationData: { [key: string]: (number | null)[] } = {};
 
-      for (const [annotationName, annotationValues] of Object.entries(this.data.annotation_data)) {
+      for (const [annotationName, annotationValues] of Object.entries(
+        currentDisplayData.annotation_data,
+      )) {
         filteredAnnotationData[annotationName] = [];
 
         // Map original indices to current indices
-        this.data.protein_ids.forEach((proteinId, originalIndex) => {
+        currentDisplayData.protein_ids.forEach((proteinId, originalIndex) => {
           if (currentProteinIdsSet.has(proteinId)) {
             filteredAnnotationData[annotationName].push(annotationValues[originalIndex]);
           }
         });
       }
 
+      for (const [annotationName, annotationValues] of Object.entries(
+        currentDisplayData.numeric_annotation_data ?? {},
+      )) {
+        filteredNumericAnnotationData[annotationName] = [];
+        currentDisplayData.protein_ids.forEach((proteinId, originalIndex) => {
+          if (currentProteinIdsSet.has(proteinId)) {
+            filteredNumericAnnotationData[annotationName].push(annotationValues[originalIndex]);
+          }
+        });
+      }
+
       return {
-        ...this.data,
+        ...currentDisplayData,
         protein_ids: currentProteinIds,
         annotation_data: filteredAnnotationData,
-        projections: this.data.projections, // Keep original projections
+        numeric_annotation_data: filteredNumericAnnotationData,
+        projections: currentDisplayData.projections.map((projection) => ({
+          ...projection,
+          data: keptIndices.map((index) => projection.data[index]),
+        })),
       };
     }
 
-    return this.data;
+    return currentDisplayData;
+  }
+
+  getMaterializedData(): VisualizationData | null {
+    return this._getMaterializedData();
   }
 
   /**

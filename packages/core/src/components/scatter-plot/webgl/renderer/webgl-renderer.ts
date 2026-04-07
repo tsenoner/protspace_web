@@ -90,28 +90,52 @@ const float SQRT3 = 1.73205080757;
 
 void main() {
   vec2 coord = gl_PointCoord * 2.0 - 1.0;
-  bool discard_fragment = false;
 
-  // Shape rendering (0=circle, 1=square, 2=diamond, 3=triangle-up, 4=triangle-down, 5=plus)
+  // Compute signed edge distance for each shape.
+  // Positive = inside, zero = on boundary, negative = outside.
+  // This single computation drives both anti-aliasing and the outline effect.
+  float edgeDist;
+
   if (v_shape < 0.5) { // Circle
-    discard_fragment = dot(coord, coord) > 1.0;
+    edgeDist = 1.0 - length(coord);
   } else if (v_shape < 1.5) { // Square
-    discard_fragment = abs(coord.x) > 1.0 || abs(coord.y) > 1.0;
+    edgeDist = 1.0 - max(abs(coord.x), abs(coord.y));
   } else if (v_shape < 2.5) { // Diamond
     // Match d3.symbolDiamond proportions (same mapping as D3's "tan30" constant, i.e. sqrt(1/3))
-    discard_fragment = abs(coord.x) * SQRT3 + abs(coord.y) > 1.0;
+    edgeDist = 1.0 - (abs(coord.x) * SQRT3 + abs(coord.y));
   } else if (v_shape < 3.5) { // Triangle Up
-    discard_fragment = abs(coord.x) * SQRT3 > 1.0 + coord.y;
+    // Inside region: abs(x)*SQRT3 <= 1 + y, clipped to point quad [-1,1]^2.
+    float eSides = (1.0 + coord.y - abs(coord.x) * SQRT3) / 2.0;
+    float eBottom = 1.0 - coord.y;
+    float eLR = 1.0 - abs(coord.x);
+    edgeDist = min(eSides, min(eBottom, eLR));
   } else if (v_shape < 4.5) { // Triangle Down
-    discard_fragment = abs(coord.x) * SQRT3 > 1.0 - coord.y;
-  } else { // Plus
+    // Inside region: abs(x)*SQRT3 <= 1 - y, clipped to point quad [-1,1]^2.
+    float eSides = (1.0 - coord.y - abs(coord.x) * SQRT3) / 2.0;
+    float eTop = 1.0 + coord.y;
+    float eLR = 1.0 - abs(coord.x);
+    edgeDist = min(eSides, min(eTop, eLR));
+  } else { // Plus — SDF as union of vertical and horizontal arms
     float thickness = 0.35;
-    bool inVertical = abs(coord.x) < thickness;
-    bool inHorizontal = abs(coord.y) < thickness;
-    discard_fragment = !(inVertical || inHorizontal);
+    // SDF for vertical arm (half-extents: thickness x 1.0)
+    vec2 dV = abs(coord) - vec2(thickness, 1.0);
+    float sdfV = length(max(dV, 0.0)) + min(max(dV.x, dV.y), 0.0);
+    // SDF for horizontal arm (half-extents: 1.0 x thickness)
+    vec2 dH = abs(coord) - vec2(1.0, thickness);
+    float sdfH = length(max(dH, 0.0)) + min(max(dH.x, dH.y), 0.0);
+    // Union of both arms; negate so positive = inside
+    edgeDist = -min(sdfV, sdfH);
   }
 
-  if (discard_fragment) discard;
+  // Anti-aliased shape edge: smooth alpha over ~1 screen pixel using
+  // screen-space derivatives of the distance field.
+  float aa = fwidth(edgeDist);
+  float shapeAlpha = smoothstep(0.0, aa, edgeDist);
+  if (shapeAlpha < 0.001) discard;
+
+  // Early-out for hidden points (alpha=0). These remain in GPU arrays to
+  // preserve sort order across visibility toggles, avoiding costly re-sorts.
+  if (v_color.a < 0.001) discard;
 
   vec3 finalColor = v_color.rgb;
 
@@ -136,61 +160,14 @@ void main() {
     finalColor = pow(max(texColor.rgb, vec3(0.0)), vec3(u_gamma));
   }
 
-  // Apply a cheap "outline" effect by darkening near the edge of each shape.
-  // (This is distinct from the SVG renderer's true stroke color/width.)
-  //
-  // NOTE: Users expect "non-circle" shapes to also have a border similar to circles.
-  // We implement a simple per-shape edge-distance metric and darken near the edge.
-  // This is not a true stroke color/width pipeline; it's an inexpensive outline effect.
-  float strokeWidth = 0.15;
-  float edgeDist = 1e6; // larger = far from edge
-
-  if (v_shape < 0.5) { // Circle
-    float dist = length(coord);
-    edgeDist = 1.0 - dist;
-  } else if (v_shape < 1.5) { // Square
-    edgeDist = 1.0 - max(abs(coord.x), abs(coord.y));
-  } else if (v_shape < 2.5) { // Diamond
-    edgeDist = 1.0 - (abs(coord.x) * SQRT3 + abs(coord.y));
-  } else if (v_shape < 3.5) { // Triangle Up
-    // Inside region: abs(x)*SQRT3 <= 1 + y, clipped to point quad [-1,1]^2.
-    // Triangle apex at (0, -1), slanted sides meet point sprite at (±1, sqrt(3)-1).
-    // Perpendicular distance to slanted edge (normalized by edge length factor 2).
-    float eSides = (1.0 + coord.y - abs(coord.x) * SQRT3) / 2.0;
-    float eBottom = 1.0 - coord.y;  // distance to y = 1 (point sprite bottom)
-    float eLR = 1.0 - abs(coord.x); // distance to x = ±1 (point sprite sides)
-    edgeDist = min(eSides, min(eBottom, eLR));
-  } else if (v_shape < 4.5) { // Triangle Down
-    // Inside region: abs(x)*SQRT3 <= 1 - y, clipped to point quad [-1,1]^2.
-    // Triangle apex at (0, 1), slanted sides meet point sprite at (±1, -(sqrt(3)-1)).
-    // Perpendicular distance to slanted edge (normalized by edge length factor 2).
-    float eSides = (1.0 - coord.y - abs(coord.x) * SQRT3) / 2.0;
-    float eTop = 1.0 + coord.y;     // distance to y = -1 (point sprite top)
-    float eLR = 1.0 - abs(coord.x); // distance to x = ±1 (point sprite sides)
-    edgeDist = min(eSides, min(eTop, eLR));
-  } else { // Plus
-    float thickness = 0.35;
-    bool inVertical = abs(coord.x) < thickness;
-    bool inHorizontal = abs(coord.y) < thickness;
-    // For each rectangle arm, edge distance is min distance to its 4 edges.
-    float edgeV = 1e6;
-    float edgeH = 1e6;
-    if (inVertical) {
-      edgeV = min(thickness - abs(coord.x), 1.0 - abs(coord.y));
-    }
-    if (inHorizontal) {
-      edgeH = min(thickness - abs(coord.y), 1.0 - abs(coord.x));
-    }
-    edgeDist = min(edgeV, edgeH);
-  }
-
   // Darken near the edge to mimic a border/outline.
-  // Clamp to avoid NaNs if something goes slightly negative due to precision.
-  if (max(edgeDist, 0.0) < strokeWidth) {
+  // Skip for faded points (low alpha) where the darkening is disproportionately visible.
+  float strokeWidth = 0.15;
+  if (v_color.a > 0.5 && max(edgeDist, 0.0) < strokeWidth) {
     finalColor = finalColor * 0.5;
   }
 
-  float finalAlpha = v_color.a;
+  float finalAlpha = v_color.a * shapeAlpha;
   fragColor = vec4(finalColor * finalAlpha, finalAlpha);
 }`;
 const GAMMA_VERTEX_SHADER = `#version 300 es
@@ -293,11 +270,17 @@ export class WebGLRenderer {
   // Store last rendered points for off-screen export rendering
   private lastRenderedPoints: PlotDataPoint[] | null = null;
 
+  // Cached sorted point order from last full rebuild. Used by the color-only
+  // update path so it iterates points in the same order as the position buffer.
+  private sortedPoints: PlotDataPoint[] = [];
+
+  // Selection-aware two-pass rendering
+  private selectionActive = false;
+  private selectedStartIndex = 0;
+
   // Caching
   private lastDataSignature: string | null = null;
   private lastStyleSignature: string | null = null;
-
-  private selectionActive = false;
 
   // Track rendered point IDs for hover detection
   private trackRenderedPointIds = false;
@@ -372,9 +355,7 @@ export class WebGLRenderer {
   }
 
   setSelectionActive(active: boolean) {
-    if (this.selectionActive !== active) {
-      this.selectionActive = active;
-    }
+    this.selectionActive = active;
   }
 
   /**
@@ -413,6 +394,15 @@ export class WebGLRenderer {
 
   invalidatePositionCache() {
     this.positionsDirty = true;
+  }
+
+  /**
+   * Release references to PlotDataPoint arrays so GC can reclaim old data
+   * before a new dataset is allocated. Call before processing a new dataset.
+   */
+  releaseDataReferences() {
+    this.lastRenderedPoints = null;
+    this.sortedPoints = [];
   }
 
   resize(width: number, height: number) {
@@ -629,12 +619,6 @@ export class WebGLRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    if (this.selectionActive) {
-      gl.disable(gl.BLEND);
-    } else {
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    }
     this.renderPoints(transform);
 
     // Pass 2: Gamma correction to canvas
@@ -685,13 +669,6 @@ export class WebGLRenderer {
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    if (this.selectionActive) {
-      gl.disable(gl.BLEND);
-    } else {
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    }
 
     this.renderPoints(transform);
   }
@@ -1477,6 +1454,7 @@ export class WebGLRenderer {
     this.lastDataSignature = null;
     this.lastStyleSignature = null;
     this.renderedPointIds.clear();
+    this.sortedPoints = [];
   }
 
   private initializePointShaders(gl: WebGL2RenderingContext): boolean {
@@ -1603,7 +1581,31 @@ export class WebGLRenderer {
     gl.uniform1i(this.pointUniformLocations.labelColors, 1);
 
     gl.bindVertexArray(this.pointVao);
-    gl.drawArrays(gl.POINTS, 0, this.currentPointCount);
+
+    if (this.selectionActive && this.selectedStartIndex < this.currentPointCount) {
+      // Two-pass rendering:
+      // Pass 1 — Unselected points (blend OFF): flat fading, no density accumulation.
+      // The subtle MSAA edge artifact at low alpha is imperceptible.
+      gl.disable(gl.BLEND);
+      if (this.selectedStartIndex > 0) {
+        gl.drawArrays(gl.POINTS, 0, this.selectedStartIndex);
+      }
+
+      // Pass 2 — Selected points (blend ON): correct MSAA anti-aliasing on opaque points.
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.drawArrays(
+        gl.POINTS,
+        this.selectedStartIndex,
+        this.currentPointCount - this.selectedStartIndex,
+      );
+    } else {
+      // No selection — single pass with blend (density visible, original behavior)
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.drawArrays(gl.POINTS, 0, this.currentPointCount);
+    }
+
     gl.bindVertexArray(null);
   }
 
@@ -1696,7 +1698,9 @@ export class WebGLRenderer {
       for (let i = 0; i < points.length && staged.length < maxPoints; i++) {
         const point = points[i];
         const opacity = this.style.getOpacity(point);
-        if (opacity === 0) continue;
+        // Include hidden points (opacity=0) in the buffer with alpha=0.
+        // This preserves sort order across visibility toggles, enabling the
+        // fast color-only update path instead of a full rebuild + re-sort.
         const depth = this.style.getDepth(point);
         staged.push({ point, opacity, depth });
       }
@@ -1705,10 +1709,22 @@ export class WebGLRenderer {
       // NOTE: `getDepth` is defined such that smaller depth is "closer" (wins in LESS mode).
       staged.sort((a, b) => b.depth - a.depth);
 
+      // Find where selected points start (opacity ≈ 1.0, contiguous at the end after sort).
+      // Used for two-pass rendering: unselected without blend, selected with blend.
+      if (this.selectionActive) {
+        const idx = staged.findIndex((s) => s.opacity >= 0.99);
+        this.selectedStartIndex = idx === -1 ? staged.length : idx;
+      } else {
+        this.selectedStartIndex = staged.length;
+      }
+
+      // Cache sorted point order for the color-only update path
+      this.sortedPoints = staged.map((s) => s.point);
+
       for (let s = 0; s < staged.length; s++) {
         const { point, opacity, depth } = staged[s];
 
-        if (this.trackRenderedPointIds) {
+        if (this.trackRenderedPointIds && opacity > 0) {
           this.renderedPointIds.add(point.id);
         }
 
@@ -1750,13 +1766,14 @@ export class WebGLRenderer {
         idx++;
       }
     } else if (updateStyles) {
-      // Color-only update: no reordering needed, just update color/shape buffers
-      for (let i = 0; i < points.length && idx < maxPoints; i++) {
-        const point = points[i];
+      // Color-only update: no reordering needed, just update color/shape buffers.
+      // Iterate sortedPoints to match the buffer order from the last full rebuild.
+      const source = this.sortedPoints;
+      for (let i = 0; i < source.length && idx < maxPoints; i++) {
+        const point = source[i];
         const opacity = this.style.getOpacity(point);
-        if (opacity === 0) continue;
 
-        if (this.trackRenderedPointIds) {
+        if (this.trackRenderedPointIds && opacity > 0) {
           this.renderedPointIds.add(point.id);
         }
 
@@ -1793,14 +1810,17 @@ export class WebGLRenderer {
         idx++;
       }
     } else {
-      // No reordering and no style updates: only update positions if needed
-      for (let i = 0; i < points.length && idx < maxPoints; i++) {
-        const point = points[i];
-        const opacity = this.style.getOpacity(point);
-        if (opacity === 0) continue;
+      // No reordering and no style updates: only update positions if needed.
+      // Iterate sortedPoints to match the buffer order from the last full rebuild.
+      const source = this.sortedPoints;
+      for (let i = 0; i < source.length && idx < maxPoints; i++) {
+        const point = source[i];
 
         if (this.trackRenderedPointIds) {
-          this.renderedPointIds.add(point.id);
+          const opacity = this.style.getOpacity(point);
+          if (opacity > 0) {
+            this.renderedPointIds.add(point.id);
+          }
         }
 
         if (updatePositions) {

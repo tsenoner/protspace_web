@@ -3,8 +3,6 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -52,10 +50,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test
+      - name: Run quality checks
+        run: pnpm quality
+
+      - name: Run test suite
         run: pnpm test:ci
 
-      - name: Build packages and app
+      - name: Run build
         run: pnpm build
 
       - name: Build documentation

@@ -59,6 +59,8 @@ describe('PersistenceController', () => {
       onSettingsLoaded: vi.fn(),
       getLegendItems: vi.fn().mockReturnValue([]),
       getHiddenValues: vi.fn().mockReturnValue([]),
+      shouldPersistCategories: vi.fn().mockReturnValue(true),
+      shouldPersistCategoryEncodings: vi.fn().mockReturnValue(true),
       getCurrentSettings: vi.fn().mockReturnValue({
         maxVisibleValues: 10,
         includeShapes: false,
@@ -166,6 +168,29 @@ describe('PersistenceController', () => {
       expect(controller.settingsLoaded).toBe(true);
       expect(controller.pendingCategories).toEqual(savedSettings.categories);
     });
+
+    it('ignores persisted categories when category state should not be restored', () => {
+      const savedSettings = {
+        maxVisibleValues: 15,
+        includeShapes: true,
+        shapeSize: 20,
+        sortMode: 'alpha-asc' as const,
+        hiddenValues: ['hidden1'],
+        categories: {
+          cat1: { zOrder: 0, color: '#000', shape: 'circle' },
+        },
+        enableDuplicateStackUI: true,
+      };
+
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedAnnotation('annotation1');
+      mockCallbacks.shouldPersistCategories = vi.fn().mockReturnValue(false);
+      vi.mocked(getStorageItem).mockReturnValue(savedSettings);
+
+      controller.loadSettings();
+
+      expect(controller.pendingCategories).toEqual({});
+    });
   });
 
   describe('saveSettings', () => {
@@ -209,6 +234,79 @@ describe('PersistenceController', () => {
         enableDuplicateStackUI: true,
         selectedPaletteId: 'kellys',
       });
+    });
+
+    it('omits persisted colors and shapes when category encodings are derived', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedAnnotation('annotation1');
+
+      mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
+        { value: 'cat1', zOrder: 0, color: '#f00', shape: 'circle' },
+        { value: 'cat2', zOrder: 1, color: '#0f0', shape: 'square' },
+      ]);
+      mockCallbacks.shouldPersistCategoryEncodings = vi.fn().mockReturnValue(false);
+      mockCallbacks.getCurrentSettings = vi.fn().mockReturnValue({
+        maxVisibleValues: 5,
+        includeShapes: false,
+        shapeSize: 20,
+        sortMode: 'alpha-asc' as const,
+        enableDuplicateStackUI: false,
+        selectedPaletteId: 'viridis',
+        numericSettings: {
+          strategy: 'linear',
+          signature: 'numeric-signature',
+          topologySignature: 'numeric-topology',
+          reverseGradient: false,
+        },
+      });
+
+      controller.saveSettings();
+
+      expect(setStorageItem).toHaveBeenCalledWith('legend_hash_protein1_annotation1', {
+        maxVisibleValues: 5,
+        includeShapes: false,
+        shapeSize: 20,
+        sortMode: 'alpha-asc',
+        hiddenValues: [],
+        categories: {
+          cat1: { zOrder: 0, color: '', shape: '' },
+          cat2: { zOrder: 1, color: '', shape: '' },
+        },
+        enableDuplicateStackUI: false,
+        selectedPaletteId: 'viridis',
+        numericSettings: {
+          strategy: 'linear',
+          signature: 'numeric-signature',
+          topologySignature: 'numeric-topology',
+          reverseGradient: false,
+        },
+      });
+    });
+
+    it('omits persisted categories entirely when category state is derived', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedAnnotation('annotation1');
+
+      mockCallbacks.shouldPersistCategories = vi.fn().mockReturnValue(false);
+      mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
+        { value: 'cat1', zOrder: 0, color: '#f00', shape: 'circle' },
+        { value: LEGEND_VALUES.NA_VALUE, zOrder: 1, color: '#888', shape: 'circle' },
+      ]);
+
+      controller.saveSettings();
+
+      expect(setStorageItem).toHaveBeenCalledWith('legend_hash_protein1_annotation1', {
+        maxVisibleValues: 10,
+        includeShapes: false,
+        shapeSize: 16,
+        sortMode: 'size-desc',
+        hiddenValues: [],
+        categories: {},
+        enableDuplicateStackUI: false,
+        selectedPaletteId: 'kellys',
+        numericSettings: undefined,
+      });
+      expect(controller.pendingCategories).toEqual({});
     });
   });
 

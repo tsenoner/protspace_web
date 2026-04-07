@@ -4,17 +4,18 @@ The scatterplot is the main visualization area where proteins appear as points. 
 
 ## Quick Reference
 
-| Action              | How                                  |
-| ------------------- | ------------------------------------ |
-| Zoom in/out         | Mouse wheel or pinch gesture         |
-| Pan                 | Click + drag on background           |
-| Reset view          | Double-click on background           |
-| Select one          | Click a point                        |
-| Add to selection    | **⌘/Ctrl** + click another point     |
-| Box select          | Click **Select** button, then drag   |
-| Clear selection     | Press **Escape** or click **Clear**  |
-| Exit selection mode | Press **Escape** (when no selection) |
-| Focus search        | **⌘/Ctrl + K**                       |
+| Action              | How                                      |
+| ------------------- | ---------------------------------------- |
+| Zoom in/out         | Mouse wheel or pinch gesture             |
+| Pan                 | Click + drag on background               |
+| Reset view          | Double-click on background               |
+| Select one          | Click a point                            |
+| Add to selection    | **⌘/Ctrl** + click another point         |
+| Box select          | Click **Select**, then drag a rectangle  |
+| Lasso select        | Switch to lasso tool, then draw freeform |
+| Clear selection     | Press **Escape** or click **Clear**      |
+| Exit selection mode | Press **Escape** (when no selection)     |
+| Focus search        | **⌘/Ctrl + K**                           |
 
 ## Navigation
 
@@ -42,8 +43,17 @@ The scatterplot is the main visualization area where proteins appear as points. 
 2. Drag to draw a rectangle
 3. All proteins inside are selected
 
+### Lasso Selection
+
+1. Click **Select** to enter selection mode
+2. Click the **lasso** icon in the tool picker that appears
+3. Click and drag to draw a freeform outline around proteins
+4. Release to select all enclosed proteins
+
+The lasso requires at least 3 points to form a valid selection area. Switch back to the **rectangle** icon at any time.
+
 ::: tip Additive Mode
-When the **Select** button is active, all selections (clicks and box drags) are additive. Without it, each new selection replaces the previous one.
+When the **Select** button is active, all selections (clicks, box drags, and lasso draws) are additive. Without it, each new selection replaces the previous one.
 :::
 
 ### Clearing

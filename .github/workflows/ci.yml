@@ -2,7 +2,7 @@ name: CI - Code Quality
 
 on:
   push:
-    branches: [main, feat/**]
+    branches: ['**']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -40,23 +40,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Format check
-        run: pnpm format:check
+      - name: Run quality checks
+        run: pnpm quality:ci
 
-      - name: Lint
-        run: pnpm lint
-
-      - name: Type check
-        run: pnpm type-check
-
-      - name: Check for unused code
-        run: pnpm knip
-
-      - name: Build
-        run: pnpm build
-
-      - name: Test
+      - name: Run test suite
         run: pnpm test:ci
+
+      - name: Run build
+        run: pnpm build
 
   build-docs:
     name: Build Documentation

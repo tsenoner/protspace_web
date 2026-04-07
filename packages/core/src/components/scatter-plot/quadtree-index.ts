@@ -56,6 +56,10 @@ export class QuadtreeIndex {
     return !!this.qt;
   }
 
+  clear() {
+    this.qt = null;
+  }
+
   queryByPixels(minX: number, minY: number, maxX: number, maxY: number): PlotDataPoint[] {
     if (!this.qt) {
       return [];
@@ -78,4 +82,62 @@ export class QuadtreeIndex {
 
     return results;
   }
+
+  queryByPolygon(vertices: ReadonlyArray<[number, number]>): PlotDataPoint[] {
+    if (!this.qt || vertices.length < 3) return [];
+
+    // Compute AABB of polygon for fast quadtree pruning
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of vertices) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+
+    const results: PlotDataPoint[] = [];
+    this.qt.visit((node, x0, y0, x1, y1) => {
+      // Prune quadtree nodes outside the polygon's bounding box
+      if (x0 > maxX || x1 < minX || y0 > maxY || y1 < minY) return true;
+      if (!node.length) {
+        let leaf: d3.QuadtreeLeaf<IndexedPoint> | undefined = node as d3.QuadtreeLeaf<IndexedPoint>;
+        while (leaf) {
+          const ip = leaf.data;
+          if (
+            ip.px >= minX &&
+            ip.px <= maxX &&
+            ip.py >= minY &&
+            ip.py <= maxY &&
+            pointInPolygon(ip.px, ip.py, vertices)
+          ) {
+            results.push(ip.point);
+          }
+          leaf = leaf.next as d3.QuadtreeLeaf<IndexedPoint> | undefined;
+        }
+      }
+      return false;
+    });
+
+    return results;
+  }
+}
+
+/** Ray-casting point-in-polygon test. */
+export function pointInPolygon(
+  px: number,
+  py: number,
+  vertices: ReadonlyArray<[number, number]>,
+): boolean {
+  let inside = false;
+  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+    const [xi, yi] = vertices[i];
+    const [xj, yj] = vertices[j];
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }
