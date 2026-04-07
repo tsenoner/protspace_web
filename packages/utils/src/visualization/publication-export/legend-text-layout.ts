@@ -1,60 +1,87 @@
 export interface WrappedLabel {
-  lines: [string] | [string, string];
+  lines: string[];
   truncated: boolean;
 }
 
 const ELLIPSIS = '…';
+const LINE_HEIGHT = 1;
 
-function truncateWithEllipsis(ctx: CanvasRenderingContext2D, s: string, maxW: number): string {
-  if (ctx.measureText(s).width <= maxW) return s;
-  let lo = 0;
-  let hi = s.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    const t = s.slice(0, mid) + ELLIPSIS;
-    if (ctx.measureText(t).width <= maxW) lo = mid;
-    else hi = mid - 1;
-  }
-  return s.slice(0, lo) + ELLIPSIS;
+async function loadPretext() {
+  return import('@chenglou/pretext');
 }
 
-export function wrapLabelToTwoLines(
-  ctx: CanvasRenderingContext2D,
+function truncateLineToWidth(
   text: string,
   maxWidthPx: number,
-): WrappedLabel {
-  if (ctx.measureText(text).width <= maxWidthPx) {
+  measureWidth: (s: string) => number,
+): string {
+  if (measureWidth(text) <= maxWidthPx) return text;
+  const ellipsisWidth = measureWidth(ELLIPSIS);
+  const budget = maxWidthPx - ellipsisWidth;
+  let lo = 0;
+  let hi = [...text].length;
+  const chars = [...text];
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (measureWidth(chars.slice(0, mid).join('')) <= budget) lo = mid;
+    else hi = mid - 1;
+  }
+  return chars.slice(0, lo).join('') + ELLIPSIS;
+}
+
+export async function wrapLabelToTwoLines(
+  text: string,
+  font: string,
+  maxWidthPx: number,
+): Promise<WrappedLabel> {
+  const pretext = await loadPretext();
+  const prepared = pretext.prepareWithSegments(text, font);
+
+  const result = pretext.layoutWithLines(prepared, maxWidthPx, LINE_HEIGHT);
+  const allLines = result.lines;
+
+  if (allLines.length === 0) {
     return { lines: [text], truncated: false };
   }
 
-  const words = text.split(/\s+/);
-  let line1 = '';
-  for (let i = 0; i < words.length; i++) {
-    const next = line1 ? `${line1} ${words[i]}` : words[i];
-    if (ctx.measureText(next).width <= maxWidthPx) line1 = next;
-    else break;
-  }
-  if (!line1) {
-    return { lines: [truncateWithEllipsis(ctx, text, maxWidthPx)], truncated: true };
+  const measureWidth = (s: string): number => {
+    const p = pretext.prepareWithSegments(s, font);
+    let w = 0;
+    pretext.walkLineRanges(p, Infinity, (line) => {
+      w = line.width;
+    });
+    return w;
+  };
+
+  if (allLines.length === 1) {
+    const line = allLines[0];
+    if (line.width <= maxWidthPx) {
+      return { lines: [line.text], truncated: false };
+    }
+    return {
+      lines: [truncateLineToWidth(line.text, maxWidthPx, measureWidth)],
+      truncated: true,
+    };
   }
 
-  const rest = text.slice(line1.length).trim();
-  let line2 = '';
-  for (const w of rest.split(/\s+/)) {
-    const next = line2 ? `${line2} ${w}` : w;
-    if (ctx.measureText(next).width <= maxWidthPx) line2 = next;
-    else break;
-  }
-  if (!line2) {
-    line2 = truncateWithEllipsis(ctx, rest, maxWidthPx);
-    return { lines: [line1, line2], truncated: true };
+  const line1 = allLines[0].text;
+
+  if (allLines.length === 2) {
+    const line2 = allLines[1];
+    if (line2.width <= maxWidthPx) {
+      return { lines: [line1, line2.text], truncated: false };
+    }
+    return {
+      lines: [line1, truncateLineToWidth(line2.text, maxWidthPx, measureWidth)],
+      truncated: true,
+    };
   }
 
-  const remainder = rest.slice(line2.length).trim();
-  if (remainder) {
-    const budget = maxWidthPx - ctx.measureText(ELLIPSIS).width;
-    line2 = truncateWithEllipsis(ctx, line2, budget) + ELLIPSIS;
-    return { lines: [line1, line2], truncated: true };
-  }
-  return { lines: [line1, line2], truncated: false };
+  const rawLine2 = allLines[1].text.trimEnd();
+  const ellipsisWidth = measureWidth(ELLIPSIS);
+  const line2 = truncateLineToWidth(rawLine2, maxWidthPx - ellipsisWidth, measureWidth) + ELLIPSIS;
+  return {
+    lines: [line1, line2],
+    truncated: true,
+  };
 }
