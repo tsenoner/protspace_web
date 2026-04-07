@@ -1,38 +1,61 @@
-export type FigurePresetId = 'one_column' | 'two_column' | 'full_page';
-export type LegendPlacement = 'right' | 'below';
+export type FigureLayoutId =
+  | 'one_column_below'
+  | 'two_column_right'
+  | 'two_column_below'
+  | 'full_page_top';
 
-export interface FigurePreset {
-  id: FigurePresetId;
+export type LegendPlacement = 'top' | 'right' | 'below';
+
+export interface LegendGrid {
+  placement: LegendPlacement;
+  columns: number;
+}
+
+export interface FigureLayout {
+  id: FigureLayoutId;
   widthMm: number;
   heightMm: number;
   paddingMm: number;
-  legendBandMm: { right: number; below: number };
+  legendBandMm: number;
   scatterAspect: number;
+  legend: LegendGrid;
 }
 
-export const FIGURE_PRESETS: Record<FigurePresetId, FigurePreset> = {
-  one_column: {
-    id: 'one_column',
+export const FIGURE_LAYOUTS: Record<FigureLayoutId, FigureLayout> = {
+  one_column_below: {
+    id: 'one_column_below',
     widthMm: 88,
     heightMm: 70,
     paddingMm: 2,
-    legendBandMm: { right: 38, below: 20 },
+    legendBandMm: 20,
     scatterAspect: 4 / 3,
+    legend: { placement: 'below', columns: 2 },
   },
-  two_column: {
-    id: 'two_column',
+  two_column_right: {
+    id: 'two_column_right',
     widthMm: 178,
     heightMm: 95,
     paddingMm: 2.5,
-    legendBandMm: { right: 44, below: 26 },
+    legendBandMm: 44,
     scatterAspect: 4 / 3,
+    legend: { placement: 'right', columns: 1 },
   },
-  full_page: {
-    id: 'full_page',
+  two_column_below: {
+    id: 'two_column_below',
+    widthMm: 178,
+    heightMm: 95,
+    paddingMm: 2.5,
+    legendBandMm: 26,
+    scatterAspect: 4 / 3,
+    legend: { placement: 'below', columns: 3 },
+  },
+  full_page_top: {
+    id: 'full_page_top',
     widthMm: 180,
-    heightMm: 140,
+    heightMm: 250,
     paddingMm: 3,
-    legendBandMm: { right: 50, below: 32 },
-    scatterAspect: 16 / 10,
+    legendBandMm: 38,
+    scatterAspect: 4 / 3,
+    legend: { placement: 'top', columns: 3 },
   },
 };
