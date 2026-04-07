@@ -1,5 +1,5 @@
 import { validateCanvasDimensions } from '../canvas-limits';
-import { FIGURE_PRESETS, type FigurePresetId, type LegendPlacement } from './presets';
+import { FIGURE_LAYOUTS, type FigureLayoutId } from './presets';
 import { computePublicationLayout } from './layout';
 import { PRINT_DPI_DEFAULT, mmToPx } from './typography';
 import { captureScatterForLayout, type ScatterplotCaptureFn } from './scatter-capture';
@@ -10,8 +10,7 @@ import { downloadPng } from './png-output';
 import { downloadPublicationPdf } from './pdf-output';
 
 export interface PublicationExportRequest {
-  presetId: FigurePresetId;
-  legendPlacement: LegendPlacement;
+  layoutId: FigureLayoutId;
   format: 'png' | 'pdf';
   dpi?: number;
   backgroundColor?: string;
@@ -21,9 +20,9 @@ export interface PublicationExportRequest {
 }
 
 export async function exportPublicationFigure(req: PublicationExportRequest): Promise<void> {
-  const preset = FIGURE_PRESETS[req.presetId];
+  const layoutDef = FIGURE_LAYOUTS[req.layoutId];
   const dpi = req.dpi ?? PRINT_DPI_DEFAULT;
-  const layout = computePublicationLayout(preset, req.legendPlacement);
+  const layout = computePublicationLayout(layoutDef);
   const bg = req.backgroundColor ?? '#ffffff';
 
   const figW = Math.round(mmToPx(layout.figureMm.width, dpi));
@@ -35,23 +34,26 @@ export async function exportPublicationFigure(req: PublicationExportRequest): Pr
 
   const scatterCanvas = captureScatterForLayout(layout.scatterMm, dpi, req.scatterCapture, bg);
 
-  const finalCanvas = composePublicationFigureRaster({
+  const finalCanvas = await composePublicationFigureRaster({
     layout,
     scatterCanvas,
     legendDrawer: (ctx, rect) =>
       drawPublicationLegend(ctx, rect, req.legendModel, {
         dpi,
-        presetId: req.presetId,
-        legendPlacement: req.legendPlacement,
+        layoutId: req.layoutId,
       }),
     dpi,
     backgroundColor: bg,
   });
 
-  const name = req.fileNameBase ?? `protspace_${req.presetId}_${req.legendPlacement}`;
+  const name = req.fileNameBase ?? `protspace_${req.layoutId}`;
+  const fileNameWithLayout = req.fileNameBase
+    ? `${req.fileNameBase}_${req.layoutId}`
+    : name;
+
   if (req.format === 'png') {
-    downloadPng(finalCanvas, `${name}.png`);
+    downloadPng(finalCanvas, `${fileNameWithLayout}.png`);
   } else {
-    await downloadPublicationPdf(finalCanvas, layout, `${name}.pdf`);
+    await downloadPublicationPdf(finalCanvas, layout, `${fileNameWithLayout}.pdf`);
   }
 }

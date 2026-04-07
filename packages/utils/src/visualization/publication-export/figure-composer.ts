@@ -4,13 +4,13 @@ import type { PxRect } from './pixel-rect';
 import { mmRectToPx, rectToDrawImageArgs } from './pixel-rect';
 import { mmToPx } from './typography';
 
-export function composePublicationFigureRaster(options: {
+export async function composePublicationFigureRaster(options: {
   layout: PublicationLayout;
   scatterCanvas: HTMLCanvasElement;
-  legendDrawer: (ctx: CanvasRenderingContext2D, rect: PxRect) => void;
+  legendDrawer: (ctx: CanvasRenderingContext2D, rect: PxRect) => void | Promise<void>;
   dpi: number;
   backgroundColor: string;
-}): HTMLCanvasElement {
+}): Promise<HTMLCanvasElement> {
   const { layout, scatterCanvas, legendDrawer, dpi, backgroundColor } = options;
   const W = Math.round(mmToPx(layout.figureMm.width, dpi));
   const H = Math.round(mmToPx(layout.figureMm.height, dpi));
@@ -42,7 +42,7 @@ export function composePublicationFigureRaster(options: {
   ctx.beginPath();
   ctx.rect(legendPx.x, legendPx.y, legendPx.width, legendPx.height);
   ctx.clip();
-  legendDrawer(ctx, legendPx);
+  await legendDrawer(ctx, legendPx);
   ctx.restore();
 
   return canvas;
