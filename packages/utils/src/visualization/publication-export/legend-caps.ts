@@ -1,14 +1,12 @@
-import type { FigurePresetId, LegendPlacement } from './presets';
+import type { FigureLayoutId } from './presets';
 
-export const MAX_LEGEND_ITEMS: Record<FigurePresetId, Record<LegendPlacement, number>> = {
-  one_column: { right: 10, below: 6 },
-  two_column: { right: 18, below: 10 },
-  full_page: { right: 28, below: 16 },
+export const MAX_LEGEND_ITEMS: Record<FigureLayoutId, number> = {
+  one_column_below: 8,
+  two_column_right: 18,
+  two_column_below: 18,
+  full_page_top: 36,
 };
 
-export function maxLegendItemsForLayout(
-  presetId: FigurePresetId,
-  placement: LegendPlacement,
-): number {
-  return MAX_LEGEND_ITEMS[presetId][placement];
+export function maxLegendItemsForLayout(layoutId: FigureLayoutId): number {
+  return MAX_LEGEND_ITEMS[layoutId];
 }
