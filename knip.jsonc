@@ -11,6 +11,7 @@
     },
     "packages/utils": {
       "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@chenglou/pretext"],
     },
     "app": {
       "project": ["src/**/*.{ts,tsx}"],

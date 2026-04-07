@@ -27,6 +27,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@chenglou/pretext": "^0.0.4",
     "d3": "^7.9.0",
     "hyparquet-writer": "^0.7.0",
     "jspdf": "^3.0.1"
