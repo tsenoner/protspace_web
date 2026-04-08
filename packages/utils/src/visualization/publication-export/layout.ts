@@ -76,10 +76,26 @@ export function computePublicationLayout(layout: FigureLayout): PublicationLayou
       placed = placeLegendRight(innerX, innerY, innerW, innerH, scatterAspect, legendBandMm);
       break;
     case 'below':
-      placed = placeLegendVertical(innerX, innerY, innerW, innerH, scatterAspect, legendBandMm, false);
+      placed = placeLegendVertical(
+        innerX,
+        innerY,
+        innerW,
+        innerH,
+        scatterAspect,
+        legendBandMm,
+        false,
+      );
       break;
     case 'top':
-      placed = placeLegendVertical(innerX, innerY, innerW, innerH, scatterAspect, legendBandMm, true);
+      placed = placeLegendVertical(
+        innerX,
+        innerY,
+        innerW,
+        innerH,
+        scatterAspect,
+        legendBandMm,
+        true,
+      );
       break;
   }
 

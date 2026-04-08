@@ -40,7 +40,9 @@ beforeAll(() => {
     lineTo: vi.fn(),
     closePath: vi.fn(),
   };
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(mockCtx as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+    mockCtx as unknown as CanvasRenderingContext2D,
+  );
 });
 
 function makeRow(i: number, label = `Item ${i}`): PublicationLegendRow {

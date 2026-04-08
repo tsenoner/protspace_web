@@ -47,9 +47,7 @@ export async function exportPublicationFigure(req: PublicationExportRequest): Pr
   });
 
   const name = req.fileNameBase ?? `protspace_${req.layoutId}`;
-  const fileNameWithLayout = req.fileNameBase
-    ? `${req.fileNameBase}_${req.layoutId}`
-    : name;
+  const fileNameWithLayout = req.fileNameBase ? `${req.fileNameBase}_${req.layoutId}` : name;
 
   if (req.format === 'png') {
     downloadPng(finalCanvas, `${fileNameWithLayout}.png`);

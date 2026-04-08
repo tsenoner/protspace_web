@@ -1,13 +1,12 @@
 import type { PersistedExportOptions, PublicationFigureLayoutId } from '@protspace/utils';
-import type { ProtspaceData } from './types';
 
 export const EXPORT_DEFAULTS = {
   FORMAT: 'png' as const,
   LAYOUT_ID: 'two_column_below' as PublicationFigureLayoutId,
   LEGACY_IMAGE_WIDTH: 2048,
   LEGACY_IMAGE_HEIGHT: 1024,
-  LEGACY_LEGEND_WIDTH_PERCENT: 25,
-  LEGACY_LEGEND_FONT_SIZE_PX: 24,
+  LEGACY_LEGEND_WIDTH_PERCENT: 20,
+  LEGACY_LEGEND_FONT_SIZE_PX: 15,
 };
 
 export function createDefaultExportOptions(): PersistedExportOptions {
@@ -56,79 +55,6 @@ export function getProjectionPlane(
   currentPlane: 'xy' | 'xz' | 'yz',
 ): 'xy' | 'xz' | 'yz' {
   return is3D ? currentPlane : 'xy';
-}
-
-export interface FilterConfig {
-  enabled: boolean;
-  values: (string | null)[];
-}
-
-export interface ActiveFilter {
-  annotation: string;
-  values: (string | null)[];
-}
-
-export function getActiveFilters(filterConfig: Record<string, FilterConfig>): ActiveFilter[] {
-  return Object.entries(filterConfig)
-    .filter(([, cfg]) => cfg.enabled && Array.isArray(cfg.values) && cfg.values.length > 0)
-    .map(([annotation, cfg]) => ({
-      annotation,
-      values: cfg.values,
-    }));
-}
-
-export function doesProteinMatchFilters(
-  proteinIndex: number,
-  activeFilters: ActiveFilter[],
-  data: ProtspaceData,
-): boolean {
-  for (const { annotation, values } of activeFilters) {
-    const annotationIdxData = data.annotation_data?.[annotation];
-    const valuesArr = data.annotations?.[annotation]?.values;
-
-    if (!annotationIdxData || !valuesArr) {
-      return false;
-    }
-
-    const annotationValue = Array.isArray(annotationIdxData[proteinIndex])
-      ? (annotationIdxData[proteinIndex] as number[])[0]
-      : (annotationIdxData as number[])[proteinIndex];
-
-    const v =
-      annotationValue != null && annotationValue >= 0 && annotationValue < valuesArr.length
-        ? valuesArr[annotationValue]
-        : null;
-
-    if (!values.some((allowed) => allowed === v)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-export function applyFiltersToData(data: ProtspaceData, activeFilters: ActiveFilter[]): number[] {
-  const numProteins = Array.isArray(data.protein_ids) ? data.protein_ids.length : 0;
-  const indices: number[] = new Array(numProteins);
-
-  for (let i = 0; i < numProteins; i++) {
-    const isMatch = doesProteinMatchFilters(i, activeFilters, data);
-    indices[i] = isMatch ? 0 : 1;
-  }
-
-  return indices;
-}
-
-export function createCustomAnnotation(): {
-  values: string[];
-  colors: string[];
-  shapes: string[];
-} {
-  return {
-    values: ['Filtered Proteins', 'Other Proteins'],
-    colors: ['#00A35A', '#9AA0A6'],
-    shapes: ['circle', 'circle'],
-  };
 }
 
 export function shouldDisableSelection(dataSize: number): boolean {

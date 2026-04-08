@@ -6,7 +6,7 @@ import type {
   PersistedExportOptions,
   PublicationFigureLayoutId,
 } from '@protspace/utils';
-import { LEGEND_VALUES, maxLegendItemsForLayout } from '@protspace/utils';
+import { maxLegendItemsForLayout } from '@protspace/utils';
 import type {
   DataChangeDetail,
   ProtspaceData,
@@ -513,7 +513,6 @@ export class ProtspaceControlBar extends LitElement {
     this._applyUserExportSettingsChange(() => {
       this._applyPersistedExportSettings(createDefaultExportOptions());
     });
-    this.exportIncludeLegend = EXPORT_DEFAULTS.INCLUDE_LEGEND;
   }
 
   private _visibleLegendExportItemCount(): number {

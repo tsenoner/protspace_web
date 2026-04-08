@@ -21,12 +21,12 @@ Click **Export** in the control bar to see available options:
 
 Publication export uses **fixed sizes in millimeters** and **300 DPI** raster output for the scatter panel (via native WebGL capture). The **Layout** selector offers four options:
 
-| Layout | Dimensions | Legend |
-|--------|-----------|--------|
-| **One column (legend below)** | 88×70 mm | Below scatter, 2 sub-columns |
-| **Two column (legend right)** | 178×95 mm | Right of scatter, single column |
-| **Two column (legend below)** | 178×95 mm | Below scatter, 3 sub-columns |
-| **Full page (legend top)** | 180×250 mm | Above scatter, 3 sub-columns |
+| Layout                        | Dimensions | Legend                          |
+| ----------------------------- | ---------- | ------------------------------- |
+| **One column (legend below)** | 88×70 mm   | Below scatter, 2 sub-columns    |
+| **Two column (legend right)** | 178×95 mm  | Right of scatter, single column |
+| **Two column (legend below)** | 178×95 mm  | Below scatter, 3 sub-columns    |
+| **Full page (legend top)**    | 180×250 mm | Above scatter, 3 sub-columns    |
 
 Legend categories fill columns **top-to-bottom** (column-major), then continue into the next column. Long labels wrap to two lines and truncate with `…` if needed. When more categories exist than the layout can fit, a `+ N more categories` line appears below the legend grid; for the complete list, export Protein IDs or use the Parquet export instead.
 

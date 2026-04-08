@@ -15,8 +15,8 @@ beforeAll(() => {
 });
 
 const FONT = '500 14px Arial, sans-serif';
-const WIDE = 600;   // px — fits anything short on one line
-const NARROW = 80;  // px — forces wraps and ellipsis
+const WIDE = 600; // px — fits anything short on one line
+const NARROW = 80; // px — forces wraps and ellipsis
 
 describe('wrapLabelToTwoLines', () => {
   it('returns one line when text fits', async () => {

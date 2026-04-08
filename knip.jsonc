@@ -33,6 +33,9 @@
         // shadcn/ui components export complete sets by convention
         "src/components/ui/**",
       ],
+      // Disable Playwright plugin: its config uses import.meta.url which is undefined
+      // in knip's loader. Specs are already rooted via the entry glob above.
+      "playwright": false,
     },
   },
   "ignoreExportsUsedInFile": false,
