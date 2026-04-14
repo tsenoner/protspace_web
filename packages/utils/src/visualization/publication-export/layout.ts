@@ -76,6 +76,15 @@ export function computePublicationLayout(
 
   let placed: { scatterMm: MmRect; legendMm: MmRect };
   switch (legend.placement) {
+    case 'none': {
+      const derivedInnerH = innerW / scatterAspect;
+      const figureH = derivedInnerH + 2 * paddingMm;
+      return {
+        figureMm: { width: widthMm, height: figureH },
+        scatterMm: { x: innerX, y: innerY, width: innerW, height: derivedInnerH },
+        legendMm: { x: 0, y: 0, width: 0, height: 0 },
+      };
+    }
     case 'right':
       placed = placeLegendRight(innerX, innerY, innerW, innerH, scatterAspect, legendBandMm);
       break;
