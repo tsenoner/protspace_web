@@ -109,6 +109,9 @@ const PUBLICATION_LAYOUT_IDS: PublicationFigureLayoutId[] = [
   'two_column_right',
   'two_column_below',
   'full_page_top',
+  'one_column_scatter_only',
+  'two_column_scatter_only',
+  'full_page_scatter_only',
 ];
 
 function isOptionalPublicationLayoutId(value: unknown): boolean {

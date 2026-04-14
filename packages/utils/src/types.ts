@@ -126,7 +126,10 @@ export type PublicationFigureLayoutId =
   | 'one_column_below'
   | 'two_column_right'
   | 'two_column_below'
-  | 'full_page_top';
+  | 'full_page_top'
+  | 'one_column_scatter_only'
+  | 'two_column_scatter_only'
+  | 'full_page_scatter_only';
 
 export interface PersistedExportOptions {
   imageWidth: number;
