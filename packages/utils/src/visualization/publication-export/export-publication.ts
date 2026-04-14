@@ -14,6 +14,7 @@ export interface PublicationExportRequest {
   format: 'png' | 'pdf';
   dpi?: number;
   backgroundColor?: string;
+  viewportAspect?: number;
   scatterCapture: ScatterplotCaptureFn;
   legendModel: PublicationLegendModel;
   fileNameBase?: string;
@@ -22,7 +23,7 @@ export interface PublicationExportRequest {
 export async function exportPublicationFigure(req: PublicationExportRequest): Promise<void> {
   const layoutDef = FIGURE_LAYOUTS[req.layoutId];
   const dpi = req.dpi ?? PRINT_DPI_DEFAULT;
-  const layout = computePublicationLayout(layoutDef);
+  const layout = computePublicationLayout(layoutDef, req.viewportAspect);
   const bg = req.backgroundColor ?? '#ffffff';
 
   const figW = Math.round(mmToPx(layout.figureMm.width, dpi));

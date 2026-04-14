@@ -63,8 +63,12 @@ function placeLegendVertical(
   };
 }
 
-export function computePublicationLayout(layout: FigureLayout): PublicationLayout {
-  const { widthMm, heightMm, paddingMm, legendBandMm, scatterAspect, legend } = layout;
+export function computePublicationLayout(
+  layout: FigureLayout,
+  viewportAspect?: number,
+): PublicationLayout {
+  const { widthMm, heightMm, paddingMm, legendBandMm, legend } = layout;
+  const scatterAspect = viewportAspect ?? layout.scatterAspect;
   const innerX = paddingMm;
   const innerY = paddingMm;
   const innerW = widthMm - 2 * paddingMm;

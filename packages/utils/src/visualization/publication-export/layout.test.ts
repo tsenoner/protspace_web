@@ -60,6 +60,23 @@ describe('computePublicationLayout', () => {
     assertInvariants(id);
   });
 
+  it('respects viewportAspect over preset scatterAspect', () => {
+    const layout = FIGURE_LAYOUTS.two_column_below;
+    const viewportAspect = 16 / 9;
+    const computed = computePublicationLayout(layout, viewportAspect);
+    const { scatterMm } = computed;
+    expect(scatterMm.width / scatterMm.height).toBeCloseTo(viewportAspect, 5);
+  });
+
+  it('falls back to preset scatterAspect when viewportAspect is absent', () => {
+    const layout = FIGURE_LAYOUTS.two_column_below;
+    const computed = computePublicationLayout(layout);
+    expect(computed.scatterMm.width / computed.scatterMm.height).toBeCloseTo(
+      layout.scatterAspect,
+      5,
+    );
+  });
+
   it('matches frozen snapshot for two_column_right', () => {
     const c = computePublicationLayout(FIGURE_LAYOUTS.two_column_right);
     expect(c).toEqual({
