@@ -4,6 +4,16 @@ import { sliceLegendItemsForLayout } from './legend-slice';
 import type { PublicationLegendModel, PublicationLegendRow } from './legend-model';
 import { wrapLabelToTwoLines } from './legend-text-layout';
 import { legendBodyPt, mmToPx, ptToPx } from './typography';
+import {
+  CELL_GAP_RATIO,
+  COUNT_COLOR,
+  COUNT_FONT_WEIGHT,
+  COUNT_SIZE_RATIO,
+  LABEL_GAP_RATIO,
+  LINE_HEIGHT_RATIO,
+  SYMBOL_PAD_RATIO,
+  SYMBOL_TO_BODY_RATIO,
+} from './publication-style';
 import type { PxRect } from './pixel-rect';
 
 export const EXPORT_FONT_FAMILY =
@@ -21,6 +31,7 @@ interface PaintCellContext {
   cellH: number;
   lineHeight: number;
   bodyPx: number;
+  countBodyPx: number;
   symbolSize: number;
   symbolPad: number;
   labelGap: number;
@@ -72,8 +83,10 @@ async function paintCell(
   const cellX = gridLeft + col * cellW;
   const cellY = gridTop + row * cellH;
 
+  const activeTop = cellY + cellH * (CELL_GAP_RATIO / 2);
+
   const cx = cellX + c.symbolPad + c.symbolSize / 2;
-  const cy = cellY + cellH / 2;
+  const cy = activeTop + c.lineHeight / 2;
   drawSymbol(ctx, item.shape, item.color, cx, cy, c.symbolSize, c.includeShapes);
 
   ctx.font = `500 ${c.bodyPx}px ${EXPORT_FONT_FAMILY}`;
@@ -84,17 +97,19 @@ async function paintCell(
   const labelX = cellX + c.symbolPad + c.symbolSize + c.labelGap;
   const wrapped = await wrapLabelToTwoLines(item.displayLabel, ctx.font, c.labelMaxWidth);
 
+  const activeH = cellH * (1 - CELL_GAP_RATIO);
+  const textBlockH = wrapped.lines.length === 1 ? c.lineHeight : c.lineHeight * 2;
+  const labelTop = activeTop + (activeH - textBlockH) / 2;
+
   ctx.save();
-  const labelTopOffset =
-    (cellH - (wrapped.lines.length === 1 ? c.lineHeight : c.lineHeight * 2)) / 2;
-  ctx.translate(labelX, cellY + labelTopOffset);
-  ctx.scale(0.9, 1);
+  ctx.translate(labelX, labelTop);
   for (let li = 0; li < wrapped.lines.length; li += 1) {
     ctx.fillText(wrapped.lines[li], 0, li * c.lineHeight);
   }
   ctx.restore();
 
-  ctx.fillStyle = '#4b5563';
+  ctx.font = `${COUNT_FONT_WEIGHT} ${c.countBodyPx}px ${EXPORT_FONT_FAMILY}`;
+  ctx.fillStyle = COUNT_COLOR;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(item.count), cellX + cellW - c.symbolPad, cy);
@@ -146,13 +161,16 @@ export async function drawPublicationLegend(
   const titleText = wrappedTitle.lines[0] ?? '';
   ctx.fillText(titleText, gridLeft, titleY);
 
-  const lineHeight = bodyPx * 1.15;
-  const symbolSize = bodyPx * 1.15;
-  const symbolPad = bodyPx * 0.35;
-  const labelGap = bodyPx * 0.45;
+  const lineHeight = bodyPx * LINE_HEIGHT_RATIO;
+  const symbolSize = bodyPx * SYMBOL_TO_BODY_RATIO;
+  const symbolPad = bodyPx * SYMBOL_PAD_RATIO;
+  const labelGap = bodyPx * LABEL_GAP_RATIO;
+  const countBodyPx = Math.round(bodyPx * COUNT_SIZE_RATIO);
+
   const countProbe = '0000000';
-  ctx.font = `500 ${bodyPx}px ${EXPORT_FONT_FAMILY}`;
+  ctx.font = `${COUNT_FONT_WEIGHT} ${countBodyPx}px ${EXPORT_FONT_FAMILY}`;
   const countColW = ctx.measureText(countProbe).width + bodyPx * 0.35;
+
   const labelMaxWidth = Math.max(
     1,
     cellW - symbolPad - symbolSize - labelGap - countColW - symbolPad,
@@ -168,6 +186,7 @@ export async function drawPublicationLegend(
     cellH,
     lineHeight,
     bodyPx,
+    countBodyPx,
     symbolSize,
     symbolPad,
     labelGap,
