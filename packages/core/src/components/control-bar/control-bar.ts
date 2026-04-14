@@ -1023,6 +1023,15 @@ export class ProtspaceControlBar extends LitElement {
                                     Two column (legend below)
                                   </option>
                                   <option value="full_page_top">Full page (legend top)</option>
+                                  <option value="one_column_scatter_only">
+                                    One column (scatter only)
+                                  </option>
+                                  <option value="two_column_scatter_only">
+                                    Two column (scatter only)
+                                  </option>
+                                  <option value="full_page_scatter_only">
+                                    Full page (scatter only)
+                                  </option>
                                 </select>
                               </div>
                               ${this._legendExceedsPublicationCap()
