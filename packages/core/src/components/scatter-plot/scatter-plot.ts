@@ -2340,6 +2340,14 @@ export class ProtspaceScatterplot extends LitElement {
     return this._getMaterializedData();
   }
 
+  public get plotAreaAspect(): number | undefined {
+    const { width, height, margin } = this._mergedConfig;
+    const pw = width - margin.left - margin.right;
+    const ph = height - margin.top - margin.bottom;
+    if (pw > 0 && ph > 0) return pw / ph;
+    return undefined;
+  }
+
   /**
    * Capture the scatterplot at a specific resolution for high-quality export.
    * Renders directly to an off-screen WebGL canvas without affecting the display.

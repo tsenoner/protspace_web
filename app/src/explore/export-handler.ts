@@ -84,10 +84,7 @@ export function createExportHandler({
           selectionIds,
         );
         const fileNameBase = generateProtspaceExportBasename(plotElement);
-        const viewportAspect =
-          plotElement.clientWidth > 0 && plotElement.clientHeight > 0
-            ? plotElement.clientWidth / plotElement.clientHeight
-            : undefined;
+        const viewportAspect = plotElement.plotAreaAspect;
 
         await exportPublicationFigure({
           layoutId,
