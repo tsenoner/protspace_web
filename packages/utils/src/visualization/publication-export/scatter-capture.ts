@@ -4,6 +4,7 @@ import { mmToPx } from './typography';
 
 export interface ScatterCaptureOptions {
   backgroundColor: string;
+  desaturateUnselected?: boolean;
 }
 
 export type ScatterplotCaptureFn = (
@@ -16,7 +17,7 @@ export interface ScatterplotCaptureElement extends HTMLElement {
   captureAtResolution?: (
     width: number,
     height: number,
-    options?: { dpr?: number; backgroundColor?: string },
+    options?: { dpr?: number; backgroundColor?: string; desaturateUnselected?: boolean },
   ) => HTMLCanvasElement;
 }
 
@@ -41,7 +42,7 @@ export function captureScatterForLayout(
   if (!validation.isValid) {
     throw new Error(validation.reason ?? 'Export dimensions exceed browser limits');
   }
-  return capture(width, height, { backgroundColor });
+  return capture(width, height, { backgroundColor, desaturateUnselected: true });
 }
 
 export function createScatterCaptureFromElement(
@@ -49,7 +50,11 @@ export function createScatterCaptureFromElement(
 ): ScatterplotCaptureFn {
   return (w, h, opts) => {
     if (typeof el.captureAtResolution === 'function') {
-      return el.captureAtResolution(w, h, { dpr: 1, backgroundColor: opts.backgroundColor });
+      return el.captureAtResolution(w, h, {
+        dpr: 1,
+        backgroundColor: opts.backgroundColor,
+        desaturateUnselected: opts.desaturateUnselected,
+      });
     }
     throw new Error(
       'Scatterplot does not support captureAtResolution; publication export requires native WebGL capture.',

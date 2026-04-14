@@ -2356,7 +2356,7 @@ export class ProtspaceScatterplot extends LitElement {
   public captureAtResolution(
     width: number,
     height: number,
-    options: { dpr?: number; backgroundColor?: string } = {},
+    options: { dpr?: number; backgroundColor?: string; desaturateUnselected?: boolean } = {},
   ): HTMLCanvasElement {
     if (!this._webglRenderer) {
       throw new Error('WebGL renderer not initialized');
@@ -2366,10 +2366,11 @@ export class ProtspaceScatterplot extends LitElement {
       throw new Error('Width and height must be positive numbers');
     }
 
-    const { dpr = 1, backgroundColor = '#ffffff' } = options;
+    const { dpr = 1, backgroundColor = '#ffffff', desaturateUnselected = false } = options;
+    const desatFactor = desaturateUnselected ? 0.75 : 0;
 
     // Capture WebGL content using native off-screen rendering
-    const webglCanvas = this._webglRenderer.renderToCanvas(width, height, dpr);
+    const webglCanvas = this._webglRenderer.renderToCanvas(width, height, dpr, desatFactor);
 
     // Composite with badges canvas if present
     const badgesCanvas = this._badgesCanvas;
