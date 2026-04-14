@@ -84,6 +84,11 @@ export function createExportHandler({
           selectionIds,
         );
         const fileNameBase = generateProtspaceExportBasename(plotElement);
+        const viewportAspect =
+          plotElement.clientWidth > 0 && plotElement.clientHeight > 0
+            ? plotElement.clientWidth / plotElement.clientHeight
+            : undefined;
+
         await exportPublicationFigure({
           layoutId,
           format: type,
@@ -91,6 +96,7 @@ export function createExportHandler({
           scatterCapture: createScatterCaptureFromElement(plotElement),
           legendModel,
           fileNameBase,
+          viewportAspect,
         });
       }
     } catch (error) {
