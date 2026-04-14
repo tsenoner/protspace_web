@@ -1,5 +1,16 @@
 export type { FigureLayoutId, LegendPlacement, LegendGrid, FigureLayout } from './presets';
 export { FIGURE_LAYOUTS } from './presets';
+export {
+  SYMBOL_TO_BODY_RATIO,
+  SYMBOL_PAD_RATIO,
+  LABEL_GAP_RATIO,
+  CELL_GAP_RATIO,
+  LINE_HEIGHT_RATIO,
+  COUNT_SIZE_RATIO,
+  COUNT_FONT_WEIGHT,
+  COUNT_COLOR,
+  PUBLICATION_DESAT_FACTOR,
+} from './publication-style';
 export { MAX_LEGEND_ITEMS, maxLegendItemsForLayout } from './legend-caps';
 export { sliceLegendItemsForLayout, type SlicedLegend } from './legend-slice';
 export type { MmRect, PublicationLayout } from './layout';
