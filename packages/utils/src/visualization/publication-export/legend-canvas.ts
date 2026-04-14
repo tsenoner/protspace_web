@@ -5,6 +5,7 @@ import type { PublicationLegendModel, PublicationLegendRow } from './legend-mode
 import { wrapLabelToTwoLines } from './legend-text-layout';
 import { legendBodyPt, mmToPx, ptToPx } from './typography';
 import {
+  BODY_FONT_SCALE,
   CELL_GAP_RATIO,
   COUNT_COLOR,
   COUNT_FONT_WEIGHT,
@@ -136,7 +137,7 @@ export async function drawPublicationLegend(
   const displayedRows = visible.length + (hasFooter ? 1 : 0);
   const bodyPt = legendBodyPt(innerHmm, displayedRows, HEADER_BODY_MM);
   const headerPt = Math.min(10, bodyPt + 1);
-  const bodyPx = ptToPx(bodyPt, dpi);
+  const bodyPx = ptToPx(bodyPt, dpi) * BODY_FONT_SCALE;
   const headerPx = ptToPx(headerPt, dpi);
 
   const titleY = rect.y + paddingPx + headerPx / 2;
