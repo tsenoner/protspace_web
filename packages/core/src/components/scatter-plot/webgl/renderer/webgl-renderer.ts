@@ -82,6 +82,7 @@ uniform sampler2D u_labelColors;
 uniform vec2 u_labelTextureSize;
 uniform int u_maxLabels;
 uniform float u_gamma;
+uniform float u_desatFactor;
 
 out vec4 fragColor;
 
@@ -165,6 +166,11 @@ void main() {
   float strokeWidth = 0.15;
   if (v_color.a > 0.5 && max(edgeDist, 0.0) < strokeWidth) {
     finalColor = finalColor * 0.5;
+  }
+
+  if (u_desatFactor > 0.001 && v_color.a < 0.5) {
+    float luma = dot(finalColor, vec3(0.299, 0.587, 0.114));
+    finalColor = mix(finalColor, vec3(luma), u_desatFactor);
   }
 
   float finalAlpha = v_color.a * shapeAlpha;
@@ -712,7 +718,12 @@ export class WebGLRenderer {
    * @param dpr Device pixel ratio to use (defaults to 1 for max resolution control)
    * @returns 2D canvas containing the rendered frame
    */
-  public renderToCanvas(width: number, height: number, dpr: number = 1): HTMLCanvasElement {
+  public renderToCanvas(
+    width: number,
+    height: number,
+    dpr: number = 1,
+    desatFactor: number = 0,
+  ): HTMLCanvasElement {
     // Validate dimensions
     const physicalWidth = Math.floor(width * dpr);
     const physicalHeight = Math.floor(height * dpr);
@@ -760,7 +771,15 @@ export class WebGLRenderer {
 
     try {
       // Initialize WebGL state for the off-screen context
-      this.initializeOffscreenContext(gl, physicalWidth, physicalHeight, points, exportScales, dpr);
+      this.initializeOffscreenContext(
+        gl,
+        physicalWidth,
+        physicalHeight,
+        points,
+        exportScales,
+        dpr,
+        desatFactor,
+      );
 
       // Copy WebGL canvas to 2D canvas for safe export
       const outputCanvas = document.createElement('canvas');
@@ -854,6 +873,7 @@ export class WebGLRenderer {
     points: PlotDataPoint[],
     scales: ScalePair,
     dpr: number,
+    desatFactor: number = 0,
   ): void {
     // Calculate size scale factor based on export vs display dimensions
     const config = this.getConfig();
@@ -900,6 +920,7 @@ export class WebGLRenderer {
       labelColors: gl.getUniformLocation(pointProgram, 'u_labelColors'),
       labelTextureSize: gl.getUniformLocation(pointProgram, 'u_labelTextureSize'),
       maxLabels: gl.getUniformLocation(pointProgram, 'u_maxLabels'),
+      desatFactor: gl.getUniformLocation(pointProgram, 'u_desatFactor'),
     };
 
     // Prepare point data using existing CPU arrays (reuse from main renderer)
@@ -1032,6 +1053,7 @@ export class WebGLRenderer {
         height,
         dpr,
         gamma,
+        desatFactor,
         exportTransform,
         labelColorTexture,
         labelColorData.length,
@@ -1067,6 +1089,7 @@ export class WebGLRenderer {
         height,
         dpr,
         gamma,
+        desatFactor,
         exportTransform,
         labelColorTexture,
         labelColorData.length,
@@ -1247,11 +1270,13 @@ export class WebGLRenderer {
       labelColors: WebGLUniformLocation | null;
       labelTextureSize: WebGLUniformLocation | null;
       maxLabels: WebGLUniformLocation | null;
+      desatFactor: WebGLUniformLocation | null;
     },
     width: number,
     height: number,
     dpr: number,
     gamma: number,
+    desatFactor: number,
     transform: d3.ZoomTransform,
     labelColorTexture: WebGLTexture | null,
     labelColorDataLength: number,
@@ -1263,6 +1288,7 @@ export class WebGLRenderer {
     gl.uniform3f(uniforms.transform, transform.x, transform.y, transform.k);
     gl.uniform1f(uniforms.dpr, dpr);
     gl.uniform1f(uniforms.gamma, gamma);
+    gl.uniform1f(uniforms.desatFactor, desatFactor);
     gl.uniform1i(uniforms.maxLabels, MAX_LABELS);
     gl.uniform2f(
       uniforms.labelTextureSize,
