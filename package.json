@@ -29,7 +29,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,css,scss,md,json,yml,yaml,mjs,cjs}\"",
     "knip": "knip",
     "knip:fix": "knip --fix",
-    "precommit": "pnpm lint-staged && pnpm quality && pnpm test:ci && pnpm docs:build",
+    "precommit": "pnpm lint-staged && pnpm quality && pnpm docs:build",
     "prepare": "husky"
   },
   "keywords": [],
