@@ -87,7 +87,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(result.annotation_data.length).toBeUndefined();
   });
 
-  it('falls back to categorical when every value is null, undefined, or empty', () => {
+  it('falls back to empty categorical rows when every value is null, undefined, or empty', async () => {
     const result = convertParquetToVisualizationData([
       { identifier: 'P1', x: 0, y: 0, length: null, family: 'A' },
       { identifier: 'P2', x: 1, y: 1, length: undefined, family: 'B' },
@@ -98,6 +98,39 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(result.annotations.length.numericType).toBeUndefined();
     expect(result.numeric_annotation_data?.length).toBeUndefined();
     expect(result.annotation_data.length).toBeDefined();
+    expect(result.annotation_data.length).toEqual([[], [], []]);
+
+    const bundleResult = convertParquetToVisualizationData(
+      [
+        { projection_name: 'UMAP', identifier: 'P1', x: 0, y: 0, length: null },
+        { projection_name: 'UMAP', identifier: 'P2', x: 1, y: 1, length: undefined },
+        { projection_name: 'UMAP', identifier: 'P3', x: 2, y: 2, length: '   ' },
+      ],
+      [{ projection_name: 'UMAP', dimensions: 2 }],
+    );
+
+    expect(bundleResult.annotations.length.kind).toBe('categorical');
+    expect(bundleResult.numeric_annotation_data?.length).toBeUndefined();
+    expect(bundleResult.annotation_data.length).toEqual([[], [], []]);
+
+    const optimizedRows = Array.from({ length: 10000 }, (_, index) => {
+      const proteinIndex = index % 3;
+      const values = [null, undefined, '   '];
+      return {
+        projection_name: 'UMAP',
+        identifier: `P${proteinIndex + 1}`,
+        x: index,
+        y: index,
+        length: values[proteinIndex],
+      };
+    });
+    const optimizedResult = await convertParquetToVisualizationDataOptimized(optimizedRows, [
+      { projection_name: 'UMAP', dimensions: 2 },
+    ]);
+
+    expect(optimizedResult.annotations.length.kind).toBe('categorical');
+    expect(optimizedResult.numeric_annotation_data?.length).toBeUndefined();
+    expect(optimizedResult.annotation_data.length).toEqual([[], [], []]);
   });
 
   it('falls back to categorical for nonnumeric and special numeric strings', () => {

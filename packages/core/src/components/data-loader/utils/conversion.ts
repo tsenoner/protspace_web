@@ -71,7 +71,7 @@ function parseNumericAnnotationValue(rawValue: unknown): number | null {
   return null;
 }
 
-function inferAnnotationType(values: unknown[]): AnnotationInferenceResult {
+function inferAnnotationType(values: Iterable<unknown>): AnnotationInferenceResult {
   const numericValues: (number | null)[] = [];
   let sawNumericValue = false;
   let sawNonIntegerValue = false;
@@ -108,6 +108,12 @@ function inferAnnotationType(values: unknown[]): AnnotationInferenceResult {
   }
 
   return { inferredType: sawNonIntegerValue ? 'float' : 'int', numericValues };
+}
+
+function* valuesForColumn(rows: Rows, column: string): Iterable<unknown> {
+  for (const row of rows) {
+    yield row[column];
+  }
 }
 
 function createNumericAnnotation(numericType: 'int' | 'float'): Annotation {
@@ -182,6 +188,15 @@ export const parseAnnotationValue = (
   const label = trimmed.substring(0, lastPipe).trim();
   return { label, scores, evidence: null };
 };
+
+function splitCategoricalAnnotationValues(rawValue: unknown): string[] {
+  if (rawValue == null) return [];
+
+  const stringValue = String(rawValue);
+  if (stringValue.trim() === '') return [];
+
+  return stringValue.split(';').filter((value) => value.trim() !== '');
+}
 
 /**
  * Parses the info_json field and returns its contents as sanitized metadata fields.
@@ -371,7 +386,7 @@ function convertBundleFormatData(
   }
 
   for (const annotationCol of annotationColumns) {
-    const inference = inferAnnotationType(baseProjectionData.map((row) => row[annotationCol]));
+    const inference = inferAnnotationType(valuesForColumn(baseProjectionData, annotationCol));
     if (inference.inferredType !== 'string') {
       numeric_annotation_data[annotationCol] = uniqueProteinIds.map((proteinId) => {
         const row = baseRowsByProteinId.get(proteinId);
@@ -392,16 +407,15 @@ function convertBundleFormatData(
 
     for (const row of baseProjectionData) {
       const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-      const rawValue = row[annotationCol];
+      const rawValues = splitCategoricalAnnotationValues(row[annotationCol]);
 
-      if (rawValue == null) {
+      if (rawValues.length === 0) {
         annotationMap.set(proteinId, []);
         annotationScoreMap.set(proteinId, []);
         annotationEvidenceMap.set(proteinId, []);
         continue;
       }
 
-      const rawValues = String(rawValue).split(';');
       const labels: string[] = [];
       const scores: (number[] | null)[] = [];
       const evidences: (string | null)[] = [];
@@ -600,17 +614,16 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
   const annotation_evidence: Record<string, (string | null)[][]> = {};
 
   for (const annotationCol of annotationColumns) {
-    const inference = inferAnnotationType(rows.map((row) => row[annotationCol]));
+    const inference = inferAnnotationType(valuesForColumn(rows, annotationCol));
     if (inference.inferredType !== 'string') {
       annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
       numeric_annotation_data[annotationCol] = inference.numericValues;
       continue;
     }
 
-    const rawValues: string[][] = rows.map((row) => {
-      const v = row[annotationCol];
-      return v == null ? [] : String(v).split(';');
-    });
+    const rawValues: string[][] = rows.map((row) =>
+      splitCategoricalAnnotationValues(row[annotationCol]),
+    );
 
     let columnHasScores = false;
     let columnHasEvidence = false;
@@ -840,7 +853,7 @@ async function extractAnnotationsOptimized(
   for (let colIdx = 0; colIdx < annotationColumns.length; colIdx++) {
     const annotationCol = annotationColumns[colIdx];
 
-    const inference = inferAnnotationType(rows.map((row) => row[annotationCol]));
+    const inference = inferAnnotationType(valuesForColumn(rows, annotationCol));
     if (inference.inferredType !== 'string') {
       const numericValues: (number | null)[] = new Array(numProteins).fill(null);
 
@@ -852,13 +865,7 @@ async function extractAnnotationsOptimized(
           const idx = idToIndex.get(proteinId);
           if (idx === undefined) continue;
 
-          const rawValue = row[annotationCol];
-          if (rawValue == null) {
-            numericValues[idx] = null;
-            continue;
-          }
-
-          numericValues[idx] = parseNumericAnnotationValue(rawValue);
+          numericValues[idx] = inference.numericValues[r];
         }
         await fastYield();
       }
@@ -876,10 +883,7 @@ async function extractAnnotationsOptimized(
     for (let i = 0; i < rows.length; i += chunkSize) {
       const end = Math.min(i + chunkSize, rows.length);
       for (let r = i; r < end; r++) {
-        const rawValue = rows[r][annotationCol];
-        if (rawValue == null) continue;
-
-        const rawValues = String(rawValue).split(';');
+        const rawValues = splitCategoricalAnnotationValues(rows[r][annotationCol]);
         for (const raw of rawValues) {
           const parsed = parseAnnotationValue(raw);
           valueCountMap.set(parsed.label, (valueCountMap.get(parsed.label) || 0) + 1);
@@ -914,10 +918,9 @@ async function extractAnnotationsOptimized(
         const idx = idToIndex.get(proteinId);
         if (idx === undefined) continue;
 
-        const rawValue = row[annotationCol];
-        if (rawValue == null) continue;
+        const rawValues = splitCategoricalAnnotationValues(row[annotationCol]);
+        if (rawValues.length === 0) continue;
 
-        const rawValues = String(rawValue).split(';');
         const indices: number[] = [];
         const scores: (number[] | null)[] | null = scoresArray ? [] : null;
         const evidences: (string | null)[] | null = evidenceArray ? [] : null;
