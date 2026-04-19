@@ -169,6 +169,7 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
   it('renders numeric-dependent controls when pending type override is numeric', () => {
     const el = createLegend();
     configureOpenSettingsDialog(el, 'numeric', DEFAULT_NUMERIC_PALETTE_ID);
+    el._dialogSettings.annotationSortModes = { score: 'alpha-asc' };
     const container = document.createElement('div');
 
     render(el._renderSettingsDialog(), container);
@@ -183,6 +184,36 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
       container.querySelector<HTMLInputElement>('input[aria-describedby="include-shapes-note"]')
         ?.disabled,
     ).toBe(true);
+  });
+
+  it('normalizes pending shape and sort state when changing override to numeric', () => {
+    const el = createLegend();
+    configureOpenSettingsDialog(el, 'string');
+    el._dialogSettings.annotationSortModes = { score: 'size-desc' };
+    const container = document.createElement('div');
+
+    render(el._renderSettingsDialog(), container);
+    const select = container.querySelector('#annotation-type-override') as HTMLSelectElement;
+
+    select.value = 'numeric';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(el._dialogSettings.annotationTypeOverride).toBe('numeric');
+    expect(el._dialogSettings.includeShapes).toBe(false);
+    expect(el._dialogSettings.annotationSortModes.score).toBe('alpha-asc');
+
+    render(el._renderSettingsDialog(), container);
+    const includeShapesInput = container.querySelector<HTMLInputElement>(
+      'input[aria-describedby="include-shapes-note"]',
+    );
+    const checkedSortLabels = [
+      ...container.querySelectorAll<HTMLInputElement>('input[name="sort-type-score"]:checked'),
+    ].map((input) => input.closest('label')?.textContent?.trim());
+
+    expect(includeShapesInput?.disabled).toBe(true);
+    expect(includeShapesInput?.checked).toBe(false);
+    expect(checkedSortLabels).toEqual(['By numeric value']);
+    expect(container.textContent).not.toContain('By category size');
   });
 
   it('normalizes palette changes using the pending type override', () => {
@@ -203,6 +234,7 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
     el._handleSettingsSave();
 
     expect(el.includeShapes).toBe(false);
+    expect(el._annotationSortModes.score).toBe('alpha-asc');
     expect(el._selectedPaletteId).toBe(DEFAULT_NUMERIC_PALETTE_ID);
     expect(el._annotationTypeOverridesByAnnotation.score).toBe('numeric');
     expect(el._numericSettingsByAnnotation.score).toMatchObject({

@@ -1459,6 +1459,13 @@ export class ProtspaceLegend extends LitElement {
       (annotationName === this.selectedAnnotation ? this.annotationData : undefined);
     const isNumeric = isNumericAnnotation(annotation);
 
+    return this._normalizeSortModeForEffectiveType(sortMode, isNumeric);
+  }
+
+  private _normalizeSortModeForEffectiveType(
+    sortMode: LegendSortMode | undefined,
+    isNumeric: boolean,
+  ): LegendSortMode {
     if (isNumeric) {
       if (
         sortMode === 'alpha-asc' ||
@@ -1804,6 +1811,13 @@ export class ProtspaceLegend extends LitElement {
     const nextSelectedPaletteId = isNumericAnnotation
       ? normalizeNumericPaletteId(this._dialogSettings.selectedPaletteId)
       : this._normalizeCategoricalPaletteId(this._dialogSettings.selectedPaletteId);
+    const nextAnnotationSortModes = {
+      ...this._dialogSettings.annotationSortModes,
+      [this.selectedAnnotation]: this._normalizeSortModeForEffectiveType(
+        this._dialogSettings.annotationSortModes[this.selectedAnnotation],
+        isNumericAnnotation,
+      ),
+    };
     const shapesSettingChanged = this.includeShapes !== nextIncludeShapes;
 
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
@@ -1813,8 +1827,8 @@ export class ProtspaceLegend extends LitElement {
       ...this._annotationTypeOverridesByAnnotation,
       [this.selectedAnnotation]: this._dialogSettings.annotationTypeOverride,
     };
-    this._annotationSortModes = this._dialogSettings.annotationSortModes;
-    if (!this._dialogSettings.annotationSortModes[this.selectedAnnotation]?.startsWith('manual')) {
+    this._annotationSortModes = nextAnnotationSortModes;
+    if (!nextAnnotationSortModes[this.selectedAnnotation]?.startsWith('manual')) {
       this._keyboardDragValue = null;
     }
     this._selectedPaletteId = nextSelectedPaletteId;
@@ -2146,13 +2160,27 @@ export class ProtspaceLegend extends LitElement {
     if (!this._showSettingsDialog) return html``;
 
     // Initialize sort mode for current annotation if needed
+    const initializedSortModes = initializeAnnotationSortMode(
+      this._dialogSettings.annotationSortModes,
+      this.selectedAnnotation,
+      this._annotationSortModes,
+    );
+    const isNumericAnnotation = this._isEffectivelyNumericAnnotation(
+      this._dialogSettings.annotationTypeOverride,
+    );
+    const annotationSortModes = this.selectedAnnotation
+      ? {
+          ...initializedSortModes,
+          [this.selectedAnnotation]: this._normalizeSortModeForEffectiveType(
+            initializedSortModes[this.selectedAnnotation],
+            isNumericAnnotation,
+          ),
+        }
+      : initializedSortModes;
     this._dialogSettings = {
       ...this._dialogSettings,
-      annotationSortModes: initializeAnnotationSortMode(
-        this._dialogSettings.annotationSortModes,
-        this.selectedAnnotation,
-        this._annotationSortModes,
-      ),
+      includeShapes: isNumericAnnotation ? false : this._dialogSettings.includeShapes,
+      annotationSortModes,
     };
 
     const state: SettingsDialogState = {
@@ -2164,9 +2192,7 @@ export class ProtspaceLegend extends LitElement {
       annotationTypeOverride: this._dialogSettings.annotationTypeOverride,
       annotationSortModes: this._dialogSettings.annotationSortModes,
       isMultilabelAnnotation: this._isMultilabelAnnotation(),
-      isNumericAnnotation: this._isEffectivelyNumericAnnotation(
-        this._dialogSettings.annotationTypeOverride,
-      ),
+      isNumericAnnotation,
       selectedNumericStrategy: this._dialogSettings.numericStrategy,
       reverseGradient: this._dialogSettings.reverseGradient,
       logBinningAvailable: this.annotationData.numericMetadata?.logSupported ?? true,
@@ -2192,6 +2218,16 @@ export class ProtspaceLegend extends LitElement {
         this._dialogSettings = {
           ...this._dialogSettings,
           annotationTypeOverride: value,
+          includeShapes: isNumericAnnotation ? false : this._dialogSettings.includeShapes,
+          annotationSortModes: this.selectedAnnotation
+            ? {
+                ...this._dialogSettings.annotationSortModes,
+                [this.selectedAnnotation]: this._normalizeSortModeForEffectiveType(
+                  this._dialogSettings.annotationSortModes[this.selectedAnnotation],
+                  isNumericAnnotation,
+                ),
+              }
+            : this._dialogSettings.annotationSortModes,
           selectedPaletteId: isNumericAnnotation
             ? normalizeNumericPaletteId(this._dialogSettings.selectedPaletteId)
             : this._normalizeCategoricalPaletteId(this._dialogSettings.selectedPaletteId),
