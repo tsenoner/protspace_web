@@ -1109,10 +1109,16 @@ export class ProtspaceLegend extends LitElement {
     return isNumericAnnotation(this.annotationData);
   }
 
+  private _isSourceNumericAnnotation(): boolean {
+    const sourceAnnotation =
+      this._scatterplotController.scatterplot?.data?.annotations?.[this.selectedAnnotation];
+    return isNumericAnnotation(sourceAnnotation) || this._isNumericAnnotation();
+  }
+
   private _isEffectivelyNumericAnnotation(override?: AnnotationTypeOverride): boolean {
     if (override === 'numeric') return true;
     if (override === 'string') return false;
-    return this._isNumericAnnotation();
+    return this._isSourceNumericAnnotation();
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -1986,12 +1992,14 @@ export class ProtspaceLegend extends LitElement {
     this.maxVisibleValues = LEGEND_DEFAULTS.maxVisibleValues;
     this.includeShapes = LEGEND_DEFAULTS.includeShapes;
     this.shapeSize = LEGEND_DEFAULTS.symbolSize;
-    this._selectedPaletteId = this._isNumericAnnotation() ? DEFAULT_NUMERIC_PALETTE_ID : 'kellys';
+    const isNumericAnnotation = this._isEffectivelyNumericAnnotation('auto');
+
+    this._selectedPaletteId = isNumericAnnotation ? DEFAULT_NUMERIC_PALETTE_ID : 'kellys';
     this._annotationTypeOverridesByAnnotation = {
       ...this._annotationTypeOverridesByAnnotation,
       [this.selectedAnnotation]: 'auto',
     };
-    if (this._isNumericAnnotation()) {
+    if (isNumericAnnotation) {
       this._numericSettingsByAnnotation = {
         ...this._numericSettingsByAnnotation,
         [this.selectedAnnotation]: {
@@ -2006,7 +2014,7 @@ export class ProtspaceLegend extends LitElement {
 
     this._annotationSortModes = {
       ...this._annotationSortModes,
-      [this.selectedAnnotation]: this._isNumericAnnotation()
+      [this.selectedAnnotation]: isNumericAnnotation
         ? 'alpha-asc'
         : getDefaultSortMode(this.selectedAnnotation),
     };

@@ -34,9 +34,17 @@ type LegendTestElement = HTMLElement & {
   _renderSettingsDialog: () => unknown;
   _handlePaletteChange: (paletteId: string) => void;
   _handleSettingsSave: () => void;
+  _handleSettingsReset: () => void;
   _applyPersistedSettings: (settings: LegendPersistedSettings) => void;
   _updateLegendItems: () => void;
   _dispatchLegendStateChange: () => void;
+  _scatterplotController: {
+    scatterplot: {
+      data?: {
+        annotations?: Record<string, { kind?: 'categorical' | 'numeric'; values: string[] }>;
+      };
+    } | null;
+  };
   _selectedPaletteId: string;
   _annotationSortModes: Record<string, LegendSortMode>;
   _annotationTypeOverridesByAnnotation: Record<string, AnnotationTypeOverride>;
@@ -169,6 +177,19 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
     };
   }
 
+  function setSourceAnnotationKind(el: LegendTestElement, kind: 'categorical' | 'numeric'): void {
+    Object.defineProperty(el._scatterplotController, 'scatterplot', {
+      configurable: true,
+      value: {
+        data: {
+          annotations: {
+            score: { kind, values: [] },
+          },
+        },
+      },
+    });
+  }
+
   it('renders numeric-dependent controls when pending type override is numeric', () => {
     const el = createLegend();
     configureOpenSettingsDialog(el, 'numeric', DEFAULT_NUMERIC_PALETTE_ID);
@@ -242,6 +263,51 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
     expect(el._annotationTypeOverridesByAnnotation.score).toBe('numeric');
     expect(el._numericSettingsByAnnotation.score).toMatchObject({
       binCount: 5,
+      strategy: 'linear',
+      paletteId: DEFAULT_NUMERIC_PALETTE_ID,
+      reverseGradient: false,
+    });
+  });
+
+  it('saves auto as numeric when the source annotation is numeric after a string override', () => {
+    const el = createLegend();
+    configureOpenSettingsDialog(el, 'auto');
+    el.annotationData = { name: 'score', values: ['1', '2'] };
+    setSourceAnnotationKind(el, 'numeric');
+    el._updateLegendItems = vi.fn();
+    el._dispatchLegendStateChange = vi.fn();
+
+    el._handleSettingsSave();
+
+    expect(el.includeShapes).toBe(false);
+    expect(el._annotationSortModes.score).toBe('alpha-asc');
+    expect(el._selectedPaletteId).toBe(DEFAULT_NUMERIC_PALETTE_ID);
+    expect(el._annotationTypeOverridesByAnnotation.score).toBe('auto');
+    expect(el._numericSettingsByAnnotation.score).toMatchObject({
+      binCount: 5,
+      strategy: 'linear',
+      paletteId: DEFAULT_NUMERIC_PALETTE_ID,
+      reverseGradient: false,
+    });
+  });
+
+  it('resets to numeric defaults when the source annotation is numeric after a string override', () => {
+    const el = createLegend();
+    el.selectedAnnotation = 'score';
+    el.annotationData = { name: 'score', values: ['1', '2'] };
+    el._annotationTypeOverridesByAnnotation = { score: 'string' };
+    el._selectedPaletteId = 'kellys';
+    el._updateLegendItems = vi.fn();
+    setSourceAnnotationKind(el, 'numeric');
+
+    el._handleSettingsReset();
+
+    expect(el.includeShapes).toBe(false);
+    expect(el._annotationTypeOverridesByAnnotation.score).toBe('auto');
+    expect(el._annotationSortModes.score).toBe('alpha-asc');
+    expect(el._selectedPaletteId).toBe(DEFAULT_NUMERIC_PALETTE_ID);
+    expect(el._numericSettingsByAnnotation.score).toMatchObject({
+      binCount: 10,
       strategy: 'linear',
       paletteId: DEFAULT_NUMERIC_PALETTE_ID,
       reverseGradient: false,
