@@ -12,6 +12,7 @@ import {
   materializeNumericAnnotation,
   normalizeNumericPaletteId,
   resolveNumericAnnotationDisplaySettings,
+  type AnnotationTypeOverride,
   type NumericBinningStrategy,
   type NumericAnnotationDisplaySettingsMap,
 } from '@protspace/utils';
@@ -143,6 +144,8 @@ export class ProtspaceLegend extends LitElement {
   @state() private _colorPickerPosition: { x: number; y: number } | null = null;
   @state() private _showShapePicker = false;
   @state() private _selectedPaletteId = 'kellys';
+  @state() private _annotationTypeOverridesByAnnotation: Record<string, AnnotationTypeOverride> =
+    {};
   @state() private _numericSettingsByAnnotation: NumericAnnotationDisplaySettingsMap = {};
   @state() private _numericManualOrderIdsByAnnotation: Record<string, string[]> = {};
   @state() private _keyboardDragValue: string | null = null;
@@ -231,6 +234,8 @@ export class ProtspaceLegend extends LitElement {
       sortMode: this._annotationSortModes[this.selectedAnnotation] ?? 'size-desc',
       enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
       selectedPaletteId: this._selectedPaletteId,
+      annotationTypeOverride:
+        this._annotationTypeOverridesByAnnotation[this.selectedAnnotation] ?? 'auto',
       numericSettings: this._isNumericAnnotation()
         ? {
             strategy:
@@ -953,6 +958,7 @@ export class ProtspaceLegend extends LitElement {
     this._showOtherDialog = false;
     this._colorPickerItem = null;
     this._selectedPaletteId = 'kellys';
+    this._annotationTypeOverridesByAnnotation = {};
     this._numericSettingsByAnnotation = {};
     this._numericManualOrderIdsByAnnotation = {};
     this._clearKeyboardReorderState();
@@ -1342,6 +1348,10 @@ export class ProtspaceLegend extends LitElement {
       this.shapeSize = settings.shapeSize;
       this._hiddenValues = hasMatchingNumericTopology ? settings.hiddenValues : [];
       this._selectedPaletteId = resolvedPaletteId;
+      this._annotationTypeOverridesByAnnotation = {
+        ...this._annotationTypeOverridesByAnnotation,
+        [this.selectedAnnotation]: settings.annotationTypeOverride ?? 'auto',
+      };
       if (isNumericAnnotation) {
         this._persistenceController.clearPendingCategories();
       }
@@ -1921,6 +1931,10 @@ export class ProtspaceLegend extends LitElement {
     this.includeShapes = LEGEND_DEFAULTS.includeShapes;
     this.shapeSize = LEGEND_DEFAULTS.symbolSize;
     this._selectedPaletteId = this._isNumericAnnotation() ? DEFAULT_NUMERIC_PALETTE_ID : 'kellys';
+    this._annotationTypeOverridesByAnnotation = {
+      ...this._annotationTypeOverridesByAnnotation,
+      [this.selectedAnnotation]: 'auto',
+    };
     if (this._isNumericAnnotation()) {
       this._numericSettingsByAnnotation = {
         ...this._numericSettingsByAnnotation,

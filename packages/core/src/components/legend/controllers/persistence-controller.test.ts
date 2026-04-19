@@ -170,6 +170,30 @@ describe('PersistenceController', () => {
       expect(controller.pendingCategories).toEqual(savedSettings.categories);
     });
 
+    it('loads a persisted valid annotation type override unchanged', () => {
+      const savedSettings = {
+        maxVisibleValues: 15,
+        includeShapes: true,
+        shapeSize: 20,
+        sortMode: 'alpha-asc' as const,
+        hiddenValues: [],
+        categories: {},
+        enableDuplicateStackUI: true,
+        annotationTypeOverride: 'numeric' as const,
+      };
+
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedAnnotation('annotation1');
+      vi.mocked(getStorageItem).mockReturnValue(savedSettings);
+
+      controller.loadSettings();
+
+      expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith({
+        ...savedSettings,
+        selectedPaletteId: 'kellys',
+      });
+    });
+
     it('ignores persisted categories when category state should not be restored', () => {
       const savedSettings = {
         maxVisibleValues: 15,
