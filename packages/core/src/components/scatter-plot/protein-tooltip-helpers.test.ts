@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { LEGEND_VALUES } from '@protspace/utils';
+import { formatRawNumericTooltipValue } from './protein-tooltip';
 import {
   filterAnnotationValues,
   getAnnotationHeaderType,
@@ -145,5 +146,15 @@ describe('getAnnotationHeaderType', () => {
 
   it('returns "evidence" when at least one entry has evidence among nulls', () => {
     expect(getAnnotationHeaderType([null, null], [null, 'IDA'])).toBe('evidence');
+  });
+});
+
+describe('formatRawNumericTooltipValue', () => {
+  it('formats int raw values without grouping or decimals', () => {
+    expect(formatRawNumericTooltipValue(1200.75, 'int')).toBe('1200');
+  });
+
+  it('formats float raw values with grouping and decimals', () => {
+    expect(formatRawNumericTooltipValue(2500.25, 'float')).toBe('2,500.25');
   });
 });

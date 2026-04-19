@@ -60,6 +60,7 @@ export interface PlotDataPoint {
   annotationValues: Record<string, string[]>;
   annotationDisplayValues?: Record<string, string[]>;
   numericAnnotationValues?: Record<string, number | null>;
+  numericAnnotationTypes?: Record<string, NumericAnnotationType>;
   annotationScores?: Record<string, (number[] | null)[]>;
   annotationEvidence?: Record<string, (string | null)[]>;
   originalIndex: number;

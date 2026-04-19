@@ -3,6 +3,7 @@ import type {
   Annotation,
   NumericBinningStrategy,
   NumericBinDefinition,
+  NumericAnnotationType,
   NumericAnnotationMetadata,
   LegendPersistedSettings,
   VisualizationData,
@@ -162,14 +163,16 @@ function createSummary(
   return summary;
 }
 
-function formatNumericValue(value: number): string {
+const FLOAT_LABEL_FORMATTER = new Intl.NumberFormat('en-US', {
+  useGrouping: true,
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 6,
+});
+
+function formatNumericValue(value: number, numericType: NumericAnnotationType): string {
   if (!Number.isFinite(value)) return String(value);
-  if (Number.isInteger(value)) return String(value);
-  const abs = Math.abs(value);
-  if (abs >= 1000 || (abs > 0 && abs < 0.001)) {
-    return Number(value.toPrecision(4)).toString();
-  }
-  return Number(value.toFixed(4)).toString();
+  if (numericType === 'int') return String(Math.trunc(value));
+  return FLOAT_LABEL_FORMATTER.format(value);
 }
 
 function serializeNumericValue(value: number): string {
@@ -177,16 +180,19 @@ function serializeNumericValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toPrecision(17);
 }
 
-function formatNumericValueWithPrecision(value: number, precision: number): string {
+function formatNumericValueWithPrecision(
+  value: number,
+  precision: number,
+  numericType: NumericAnnotationType,
+): string {
   if (!Number.isFinite(value)) return String(value);
-  if (Number.isInteger(value)) return String(value);
+  if (numericType === 'int') return String(Math.trunc(value));
 
-  const abs = Math.abs(value);
-  if (abs >= 1000 || (abs > 0 && abs < 0.001)) {
-    return Number(value.toPrecision(precision)).toString();
-  }
-
-  return Number(value.toPrecision(precision)).toString();
+  return new Intl.NumberFormat('en-US', {
+    useGrouping: true,
+    minimumFractionDigits: 1,
+    maximumFractionDigits: Math.min(20, precision),
+  }).format(value);
 }
 
 function createNumericBinId(
@@ -304,25 +310,21 @@ function assignBinIndex(value: number, edges: number[]): number {
 
 function createObservedBinLabels(
   observedRanges: ObservedBinRange[],
-  summary: NumericSummary,
   exactBounds: Array<{ lowerBound: number; upperBound: number }>,
+  numericType: NumericAnnotationType,
 ): string[] {
-  if (summary.allIntegers) {
-    return observedRanges.map(({ min, max }) =>
-      formatRangeLabel(min, max, (value) => String(value)),
-    );
-  }
-
   const formatWith = (formatter: (value: number) => string) =>
     observedRanges.map(({ min, max }) => formatRangeLabel(min, max, formatter));
 
-  const defaultLabels = formatWith(formatNumericValue);
+  const defaultLabels = formatWith((value) => formatNumericValue(value, numericType));
   if (new Set(defaultLabels).size === defaultLabels.length) {
     return defaultLabels;
   }
 
   for (const precision of [6, 8, 10, 12, 14, 16]) {
-    const labels = formatWith((value) => formatNumericValueWithPrecision(value, precision));
+    const labels = formatWith((value) =>
+      formatNumericValueWithPrecision(value, precision, numericType),
+    );
     if (new Set(labels).size === labels.length) {
       return labels;
     }
@@ -558,6 +560,7 @@ function createBinColors(
 export function materializeNumericAnnotation(
   values: Array<number | null | undefined>,
   settings: NumericAnnotationDisplaySettings,
+  numericType: NumericAnnotationType = 'float',
 ): {
   annotation: Annotation;
   annotationData: number[][];
@@ -581,9 +584,11 @@ export function materializeNumericAnnotation(
         colors: [],
         shapes: [],
         sourceKind: 'numeric',
+        numericType,
         numericMetadata: {
           strategy: effectiveSettings.strategy,
           binCount: 0,
+          numericType,
           signature: createSignature(effectiveSettings, []),
           topologySignature: emptyTopologySignature,
           logSupported: summary.logSupported,
@@ -627,15 +632,19 @@ export function materializeNumericAnnotation(
   );
   const labels = createObservedBinLabels(
     realizedRanges,
-    summary,
     realizedBounds.map((bin) => ({
       lowerBound: bin.lowerBound,
       upperBound: bin.upperBound,
     })),
+    numericType,
   );
   const bins: NumericBinDefinition[] = realizedBounds.map((bin, index) => ({
     ...bin,
-    label: labels[index] ?? formatRangeLabel(bin.lowerBound, bin.upperBound, formatNumericValue),
+    label:
+      labels[index] ??
+      formatRangeLabel(bin.lowerBound, bin.upperBound, (value) =>
+        formatNumericValue(value, numericType),
+      ),
   }));
   const shapes = Array.from({ length: bins.length }, () => 'circle');
   const originalToRealizedIndex = new Map<number, number>();
@@ -669,6 +678,7 @@ export function materializeNumericAnnotation(
   const numericMetadata: NumericAnnotationMetadata = {
     strategy: effectiveSettings.strategy,
     binCount: bins.length,
+    numericType,
     signature: createSignature(effectiveSettings, binsWithColorPositions),
     topologySignature,
     logSupported: summary.logSupported,
@@ -682,6 +692,7 @@ export function materializeNumericAnnotation(
       colors,
       shapes,
       sourceKind: 'numeric',
+      numericType,
       numericMetadata,
     },
     annotationData,
@@ -722,6 +733,7 @@ export function materializeVisualizationData(
     const materialized = materializeNumericAnnotation(
       numericValues,
       getNumericAnnotationSettings(settingsMap, annotationName, defaultBinCount),
+      annotation.numericType ?? annotation.numericMetadata?.numericType ?? 'float',
     );
 
     annotations[annotationName] = materialized.annotation;

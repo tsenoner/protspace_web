@@ -8,11 +8,15 @@ import type { VisualizationData } from '../types';
 
 describe('numeric-binning', () => {
   it('creates linear bins with distribution-aware gradient colors', () => {
-    const result = materializeNumericAnnotation([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], {
-      binCount: 5,
-      strategy: 'linear',
-      paletteId: 'viridis',
-    });
+    const result = materializeNumericAnnotation(
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      {
+        binCount: 5,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'int',
+    );
 
     expect(result.annotation.sourceKind).toBe('numeric');
     expect(result.annotation.numericMetadata?.strategy).toBe('linear');
@@ -55,7 +59,7 @@ describe('numeric-binning', () => {
         },
       ],
       annotations: {
-        length: { kind: 'numeric', values: [], colors: [], shapes: [] },
+        length: { kind: 'numeric', numericType: 'int', values: [], colors: [], shapes: [] },
       },
       annotation_data: {},
       numeric_annotation_data: {
@@ -87,6 +91,87 @@ describe('numeric-binning', () => {
       2, 2, 2,
     ]);
     expect(materialized.annotation_data.length).toEqual([[0], [0], [1], [1], [2], [2]]);
+  });
+
+  it('formats int labels without grouping or decimals and preserves numeric type metadata', () => {
+    const result = materializeNumericAnnotation(
+      [1200, 2500, 3900],
+      {
+        binCount: 3,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'int',
+    );
+
+    expect(result.annotation.numericType).toBe('int');
+    expect(result.annotation.numericMetadata?.numericType).toBe('int');
+    expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual([
+      '1200',
+      '2500',
+      '3900',
+    ]);
+  });
+
+  it('formats float labels with grouping and decimals and preserves numeric type metadata', () => {
+    const result = materializeNumericAnnotation(
+      [1200.5, 2500.25, 3900.75],
+      {
+        binCount: 3,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'float',
+    );
+
+    expect(result.annotation.numericType).toBe('float');
+    expect(result.annotation.numericMetadata?.numericType).toBe('float');
+    expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual([
+      '1,200.5',
+      '2,500.25',
+      '3,900.75',
+    ]);
+  });
+
+  it('carries annotation numericType into materialized annotation metadata', () => {
+    const data: VisualizationData = {
+      protein_ids: ['P1', 'P2', 'P3'],
+      projections: [
+        {
+          name: 'UMAP',
+          data: [
+            [0, 0],
+            [1, 1],
+            [2, 2],
+          ],
+        },
+      ],
+      annotations: {
+        abundance: {
+          kind: 'numeric',
+          numericType: 'int',
+          values: [],
+          colors: [],
+          shapes: [],
+        },
+      },
+      annotation_data: {},
+      numeric_annotation_data: {
+        abundance: [1200, 2500, 3900],
+      },
+    };
+
+    const materialized = materializeVisualizationData(
+      data,
+      { abundance: { binCount: 3, strategy: 'linear', paletteId: 'viridis' } },
+      10,
+    );
+
+    expect(materialized.annotations.abundance.numericType).toBe('int');
+    expect(materialized.annotations.abundance.numericMetadata?.numericType).toBe('int');
+    expect(
+      materialized.annotations.abundance.numericMetadata?.bins.map((bin) => bin.label),
+    ).toEqual(['1200', '2500', '3900']);
   });
 
   it('can materialize only the requested numeric annotations without touching others', () => {
@@ -146,11 +231,15 @@ describe('numeric-binning', () => {
   });
 
   it('creates logarithmic bins when all values are positive', () => {
-    const result = materializeNumericAnnotation([1, 10, 100, 1000], {
-      binCount: 4,
-      strategy: 'logarithmic',
-      paletteId: 'viridis',
-    });
+    const result = materializeNumericAnnotation(
+      [1, 10, 100, 1000],
+      {
+        binCount: 4,
+        strategy: 'logarithmic',
+        paletteId: 'viridis',
+      },
+      'int',
+    );
 
     expect(result.annotation.numericMetadata?.strategy).toBe('logarithmic');
     expect(result.annotation.values).toEqual(
@@ -262,11 +351,15 @@ describe('numeric-binning', () => {
   });
 
   it('assigns shared linear boundaries to the upper bin while keeping the final bin inclusive', () => {
-    const result = materializeNumericAnnotation([0, 5, 10], {
-      binCount: 2,
-      strategy: 'linear',
-      paletteId: 'viridis',
-    });
+    const result = materializeNumericAnnotation(
+      [0, 5, 10],
+      {
+        binCount: 2,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'int',
+    );
 
     expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual([
       '0',

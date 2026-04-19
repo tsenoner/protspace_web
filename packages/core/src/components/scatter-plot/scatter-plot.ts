@@ -220,11 +220,19 @@ export class ProtspaceScatterplot extends LitElement {
     const selectedNumericSettings = this.selectedAnnotation
       ? this.numericAnnotationSettings?.[this.selectedAnnotation]
       : undefined;
+    const selectedNumericAnnotation = this.selectedAnnotation
+      ? this.data.annotations[this.selectedAnnotation]
+      : undefined;
+    const selectedNumericType =
+      selectedNumericAnnotation?.numericType ??
+      selectedNumericAnnotation?.numericMetadata?.numericType ??
+      null;
 
     const cacheKey = JSON.stringify({
       dataRef: this.data.protein_ids.length,
       selectedAnnotation: this.selectedAnnotation,
       selectedNumericValuesLength: selectedNumericValues?.length ?? 0,
+      selectedNumericType,
       numericAnnotationSettings: selectedNumericSettings ?? null,
       annotationKeys: Object.keys(this.data.annotations),
     });
