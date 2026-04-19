@@ -1,5 +1,5 @@
 import type { ScatterplotData } from './types';
-import type { NumericAnnotationDisplaySettingsMap } from '@protspace/utils';
+import type { AnnotationTypeOverride, NumericAnnotationDisplaySettingsMap } from '@protspace/utils';
 import type { LegendSortMode } from './types';
 
 /**
@@ -18,6 +18,7 @@ export interface IScatterplotElement extends Element {
   otherAnnotationValues: string[];
   useShapes: boolean;
   numericAnnotationSettings?: NumericAnnotationDisplaySettingsMap;
+  annotationTypeOverrides?: Record<string, AnnotationTypeOverride>;
   annotationSortModes?: Record<string, LegendSortMode>;
   numericManualOrderIdsByAnnotation?: Record<string, string[]>;
 

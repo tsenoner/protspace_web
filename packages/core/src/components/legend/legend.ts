@@ -217,6 +217,7 @@ export class ProtspaceLegend extends LitElement {
     getEffectiveIncludeShapes: () => this._effectiveIncludeShapes,
     getOtherConcreteValues: () => computeOtherConcreteValues(this._otherItems),
     getNumericAnnotationSettings: () => this._numericSettingsByAnnotation,
+    getAnnotationTypeOverrides: () => this._annotationTypeOverridesByAnnotation,
     getAnnotationSortModes: () => this._annotationSortModes,
     getNumericManualOrderIds: () => this._numericManualOrderIdsByAnnotation,
   });

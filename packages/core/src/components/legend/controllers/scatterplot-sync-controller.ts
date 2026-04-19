@@ -1,6 +1,6 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { ScatterplotData, OtherItem } from '../types';
-import type { NumericAnnotationDisplaySettingsMap } from '@protspace/utils';
+import type { AnnotationTypeOverride, NumericAnnotationDisplaySettingsMap } from '@protspace/utils';
 import type { LegendSortMode } from '../types';
 import {
   isScatterplotElement,
@@ -33,6 +33,7 @@ export interface ScatterplotSyncCallbacks {
   getEffectiveIncludeShapes: () => boolean;
   getOtherConcreteValues: () => string[];
   getNumericAnnotationSettings?: () => NumericAnnotationDisplaySettingsMap;
+  getAnnotationTypeOverrides?: () => Record<string, AnnotationTypeOverride>;
   getAnnotationSortModes?: () => Record<string, LegendSortMode>;
   getNumericManualOrderIds?: () => Record<string, string[]>;
 }
@@ -144,6 +145,8 @@ export class ScatterplotSyncController implements ReactiveController {
     if (!this._scatterplotElement) return;
     this._scatterplotElement.numericAnnotationSettings =
       this.callbacks.getNumericAnnotationSettings?.() ?? {};
+    this._scatterplotElement.annotationTypeOverrides =
+      this.callbacks.getAnnotationTypeOverrides?.() ?? {};
     this._scatterplotElement.annotationSortModes = this.callbacks.getAnnotationSortModes?.() ?? {};
     this._scatterplotElement.numericManualOrderIdsByAnnotation =
       this.callbacks.getNumericManualOrderIds?.() ?? {};
