@@ -16,6 +16,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     ]);
 
     expect(result.annotations.length.kind).toBe('numeric');
+    expect(result.annotations.length.numericType).toBe('int');
     expect(result.numeric_annotation_data?.length).toEqual([100, 200, null]);
     expect(result.annotation_data.length).toBeUndefined();
     expect(result.annotations.family.kind).toBe('categorical');
@@ -33,105 +34,97 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(result.numeric_annotation_data?.score).toBeUndefined();
   });
 
-  it('keeps numeric-looking string labels categorical', () => {
+  it('detects integer strings as int numeric annotations', () => {
     const result = convertParquetToVisualizationData([
       { identifier: 'P1', x: 0, y: 0, cluster_id: '101', family: 'A' },
       { identifier: 'P2', x: 1, y: 1, cluster_id: '203', family: 'B' },
       { identifier: 'P3', x: 2, y: 2, cluster_id: '101', family: 'A' },
     ]);
 
-    expect(result.annotations.cluster_id.kind).toBe('categorical');
-    expect(result.numeric_annotation_data?.cluster_id).toBeUndefined();
-    expect(result.annotation_data.cluster_id).toEqual([[0], [1], [0]]);
+    expect(result.annotations.cluster_id.kind).toBe('numeric');
+    expect(result.annotations.cluster_id.numericType).toBe('int');
+    expect(result.numeric_annotation_data?.cluster_id).toEqual([101, 203, 101]);
+    expect(result.annotation_data.cluster_id).toBeUndefined();
   });
 
-  it('keeps sparse integer-like string columns categorical', () => {
-    const result = convertParquetToVisualizationData([
-      { identifier: 'P1', x: 0, y: 0, length: '101', family: 'A' },
-      { identifier: 'P2', x: 1, y: 1, length: '203', family: 'B' },
-      { identifier: 'P3', x: 2, y: 2, length: '305', family: 'A' },
-      { identifier: 'P4', x: 3, y: 3, length: '407', family: 'B' },
-      { identifier: 'P5', x: 4, y: 4, length: '509', family: 'A' },
-      { identifier: 'P6', x: 5, y: 5, length: '611', family: 'B' },
-      { identifier: 'P7', x: 6, y: 6, length: '713', family: 'A' },
-      { identifier: 'P8', x: 7, y: 7, length: '815', family: 'B' },
-      { identifier: 'P9', x: 8, y: 8, length: null, family: 'A' },
-    ]);
-
-    expect(result.annotations.length.kind).toBe('categorical');
-    expect(result.numeric_annotation_data?.length).toBeUndefined();
-    expect(result.annotation_data.length).toBeDefined();
-  });
-
-  it('keeps small dense integer-like string columns categorical', () => {
-    const result = convertParquetToVisualizationData([
-      { identifier: 'P1', x: 0, y: 0, length: '1', family: 'A' },
-      { identifier: 'P2', x: 1, y: 1, length: '2', family: 'B' },
-      { identifier: 'P3', x: 2, y: 2, length: '3', family: 'A' },
-    ]);
-
-    expect(result.annotations.length.kind).toBe('categorical');
-    expect(result.numeric_annotation_data?.length).toBeUndefined();
-    expect(result.annotation_data.length).toEqual([[0], [1], [2]]);
-  });
-
-  it('keeps sparse fractional string labels categorical', () => {
-    const result = convertParquetToVisualizationData([
-      { identifier: 'P1', x: 0, y: 0, length: '1.0', family: 'A' },
-      { identifier: 'P2', x: 1, y: 1, length: '2.0', family: 'B' },
-      { identifier: 'P3', x: 2, y: 2, length: '5.0', family: 'A' },
-    ]);
-
-    expect(result.annotations.length.kind).toBe('categorical');
-    expect(result.numeric_annotation_data?.length).toBeUndefined();
-    expect(result.annotation_data.length).toEqual([[0], [1], [2]]);
-  });
-
-  it('detects dense integer-like string columns as numeric', () => {
-    const result = convertParquetToVisualizationData([
-      { identifier: 'P1', x: 0, y: 0, length: '101', family: 'A' },
-      { identifier: 'P2', x: 1, y: 1, length: '102', family: 'B' },
-      { identifier: 'P3', x: 2, y: 2, length: '103', family: 'A' },
-      { identifier: 'P4', x: 3, y: 3, length: '104', family: 'B' },
-      { identifier: 'P5', x: 4, y: 4, length: '105', family: 'A' },
-      { identifier: 'P6', x: 5, y: 5, length: '106', family: 'B' },
-      { identifier: 'P7', x: 6, y: 6, length: '107', family: 'A' },
-      { identifier: 'P8', x: 7, y: 7, length: '108', family: 'B' },
-      { identifier: 'P9', x: 8, y: 8, length: null, family: 'A' },
-    ]);
-
-    expect(result.annotations.length.kind).toBe('numeric');
-    expect(result.numeric_annotation_data?.length).toEqual([
-      101,
-      102,
-      103,
-      104,
-      105,
-      106,
-      107,
-      108,
-      null,
-    ]);
-    expect(result.annotation_data.length).toBeUndefined();
-  });
-
-  it('detects sufficiently varied fractional string columns as numeric', () => {
+  it('detects fractional strings as float numeric annotations', () => {
     const result = convertParquetToVisualizationData([
       { identifier: 'P1', x: 0, y: 0, length: '1.1', family: 'A' },
       { identifier: 'P2', x: 1, y: 1, length: '2.2', family: 'B' },
       { identifier: 'P3', x: 2, y: 2, length: '3.3', family: 'A' },
-      { identifier: 'P4', x: 3, y: 3, length: '4.4', family: 'B' },
-      { identifier: 'P5', x: 4, y: 4, length: '5.5', family: 'A' },
-      { identifier: 'P6', x: 5, y: 5, length: '6.6', family: 'B' },
-      { identifier: 'P7', x: 6, y: 6, length: '7.7', family: 'A' },
-      { identifier: 'P8', x: 7, y: 7, length: '8.8', family: 'B' },
     ]);
 
     expect(result.annotations.length.kind).toBe('numeric');
-    expect(result.numeric_annotation_data?.length).toEqual([
-      1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8,
-    ]);
+    expect(result.annotations.length.numericType).toBe('float');
+    expect(result.numeric_annotation_data?.length).toEqual([1.1, 2.2, 3.3]);
     expect(result.annotation_data.length).toBeUndefined();
+  });
+
+  it('detects mixed integer and fractional values as float numeric annotations', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, length: '1', family: 'A' },
+      { identifier: 'P2', x: 1, y: 1, length: 2, family: 'B' },
+      { identifier: 'P3', x: 2, y: 2, length: '3.5', family: 'A' },
+    ]);
+
+    expect(result.annotations.length.kind).toBe('numeric');
+    expect(result.annotations.length.numericType).toBe('float');
+    expect(result.numeric_annotation_data?.length).toEqual([1, 2, 3.5]);
+    expect(result.annotation_data.length).toBeUndefined();
+  });
+
+  it('ignores null, undefined, and trimmed empty strings during inference', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, length: null, family: 'A' },
+      { identifier: 'P2', x: 1, y: 1, length: undefined, family: 'B' },
+      { identifier: 'P3', x: 2, y: 2, length: '   ', family: 'A' },
+      { identifier: 'P4', x: 3, y: 3, length: '4', family: 'B' },
+    ]);
+
+    expect(result.annotations.length.kind).toBe('numeric');
+    expect(result.annotations.length.numericType).toBe('int');
+    expect(result.numeric_annotation_data?.length).toEqual([null, null, null, 4]);
+    expect(result.annotation_data.length).toBeUndefined();
+  });
+
+  it('falls back to categorical when every value is null, undefined, or empty', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, length: null, family: 'A' },
+      { identifier: 'P2', x: 1, y: 1, length: undefined, family: 'B' },
+      { identifier: 'P3', x: 2, y: 2, length: '   ', family: 'A' },
+    ]);
+
+    expect(result.annotations.length.kind).toBe('categorical');
+    expect(result.annotations.length.numericType).toBeUndefined();
+    expect(result.numeric_annotation_data?.length).toBeUndefined();
+    expect(result.annotation_data.length).toBeDefined();
+  });
+
+  it('falls back to categorical for nonnumeric and special numeric strings', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, length: '1', family: 'A' },
+      { identifier: 'P2', x: 1, y: 1, length: 'NaN', family: 'B' },
+      { identifier: 'P3', x: 2, y: 2, length: 'Infinity', family: 'A' },
+    ]);
+
+    expect(result.annotations.length.kind).toBe('categorical');
+    expect(result.annotations.length.numericType).toBeUndefined();
+    expect(result.numeric_annotation_data?.length).toBeUndefined();
+    expect(result.annotation_data.length).toBeDefined();
+  });
+
+  it('falls back to categorical for semicolon and pipe-delimited strings', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, semicolon_values: '1;2', pipe_values: '1|2' },
+      { identifier: 'P2', x: 1, y: 1, semicolon_values: '3', pipe_values: '4' },
+    ]);
+
+    expect(result.annotations.semicolon_values.kind).toBe('categorical');
+    expect(result.annotations.pipe_values.kind).toBe('categorical');
+    expect(result.numeric_annotation_data?.semicolon_values).toBeUndefined();
+    expect(result.numeric_annotation_data?.pipe_values).toBeUndefined();
+    expect(result.annotation_data.semicolon_values).toBeDefined();
+    expect(result.annotation_data.pipe_values).toBeDefined();
   });
 
   it('detects raw numeric annotations in bundle-format rows', () => {
@@ -145,6 +138,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     );
 
     expect(result.annotations.length.kind).toBe('numeric');
+    expect(result.annotations.length.numericType).toBe('int');
     expect(result.numeric_annotation_data?.length).toEqual([100, 200, null]);
     expect(result.annotation_data.length).toBeUndefined();
     expect(result.annotations.family.kind).toBe('categorical');
@@ -166,6 +160,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     ]);
 
     expect(result.annotations.length.kind).toBe('numeric');
+    expect(result.annotations.length.numericType).toBe('int');
     expect(result.numeric_annotation_data?.length?.[0]).toBe(1);
     expect(result.numeric_annotation_data?.length?.[10000]).toBe(10001);
     expect(result.annotation_data.length).toBeUndefined();
@@ -187,6 +182,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     const result = convertParquetToVisualizationData(rows, projectionsMetadata ?? undefined);
 
     expect(result.annotations.length.kind).toBe('numeric');
+    expect(result.annotations.length.numericType).toBe('int');
     expect(result.numeric_annotation_data?.length?.some((value) => typeof value === 'number')).toBe(
       true,
     );

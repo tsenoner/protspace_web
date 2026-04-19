@@ -40,9 +40,13 @@ const METADATA_EXCLUDED_KEYS = new Set(['projection_name', 'name', 'info_json'])
 
 /** Match GO/ECO evidence codes: 2–5 uppercase letters OR ECO:NNNNNNN */
 const EVIDENCE_CODE_RE = /^(?:[A-Z]{2,5}|ECO:\d+)$/;
-const STRING_NUMERIC_DENSITY_THRESHOLD = 0.1;
-const STRING_NUMERIC_MIN_DISTINCT_VALUES = 8;
-const MAX_STRING_NUMERIC_DENSITY_DECIMALS = 6;
+
+type InferredAnnotationType = 'int' | 'float' | 'string';
+
+interface AnnotationInferenceResult {
+  inferredType: InferredAnnotationType;
+  numericValues: (number | null)[];
+}
 
 function parseNumericAnnotationValue(rawValue: unknown): number | null {
   if (typeof rawValue === 'number') {
@@ -67,94 +71,49 @@ function parseNumericAnnotationValue(rawValue: unknown): number | null {
   return null;
 }
 
-function countNumericStringDecimalPlaces(rawValue: string): number {
-  const trimmed = rawValue.trim().toLowerCase();
-  if (!trimmed) {
-    return 0;
-  }
-
-  const scientificMatch = trimmed.match(/^[-+]?\d+(?:\.(\d+))?[e]([-+]?\d+)$/);
-  if (scientificMatch) {
-    const fractionalDigits = scientificMatch[1]?.length ?? 0;
-    const exponent = Number(scientificMatch[2]);
-    return Number.isFinite(exponent) ? Math.max(0, fractionalDigits - exponent) : 0;
-  }
-
-  const decimalIndex = trimmed.indexOf('.');
-  return decimalIndex === -1 ? 0 : trimmed.length - decimalIndex - 1;
-}
-
-function isScalarNumericAnnotationColumn(values: unknown[]): boolean {
+function inferAnnotationType(values: unknown[]): AnnotationInferenceResult {
+  const numericValues: (number | null)[] = [];
   let sawNumericValue = false;
-  let sawTypedNumericValue = false;
-  let sawStringValue = false;
-  const distinctNumericStringValues = new Set<number>();
-  let maxStringDecimalPlaces = 0;
+  let sawNonIntegerValue = false;
 
   for (const rawValue of values) {
     if (rawValue == null) {
+      numericValues.push(null);
       continue;
     }
 
     if (typeof rawValue === 'string') {
       const trimmed = rawValue.trim();
       if (trimmed === '') {
+        numericValues.push(null);
         continue;
       }
-      sawStringValue = true;
     }
 
     const parsed = parseNumericAnnotationValue(rawValue);
-    if (parsed == null) {
-      return false;
-    }
+    numericValues.push(parsed);
 
-    if (typeof rawValue === 'string') {
-      distinctNumericStringValues.add(parsed);
-      maxStringDecimalPlaces = Math.max(
-        maxStringDecimalPlaces,
-        countNumericStringDecimalPlaces(rawValue),
-      );
-    } else {
-      sawTypedNumericValue = true;
+    if (parsed == null) {
+      return { inferredType: 'string', numericValues };
     }
 
     sawNumericValue = true;
+    if (!Number.isInteger(parsed)) {
+      sawNonIntegerValue = true;
+    }
   }
 
   if (!sawNumericValue) {
-    return false;
+    return { inferredType: 'string', numericValues };
   }
 
-  if (!sawStringValue) {
-    return true;
-  }
-
-  if (sawTypedNumericValue) {
-    return true;
-  }
-
-  if (distinctNumericStringValues.size < STRING_NUMERIC_MIN_DISTINCT_VALUES) {
-    return false;
-  }
-
-  const scale = 10 ** Math.min(maxStringDecimalPlaces, MAX_STRING_NUMERIC_DENSITY_DECIMALS);
-  const sortedValues = [...distinctNumericStringValues]
-    .map((value) => Math.round(value * scale))
-    .sort((left, right) => left - right);
-  const minValue = sortedValues[0];
-  const maxValue = sortedValues[sortedValues.length - 1];
-  const rangeWidth = maxValue - minValue + 1;
-  const density = rangeWidth > 0 ? sortedValues.length / rangeWidth : 1;
-
-  // Keep sparse numeric-looking string columns categorical by default so
-  // code-style identifiers do not flip to numeric only because cardinality grows.
-  return density >= STRING_NUMERIC_DENSITY_THRESHOLD;
+  return { inferredType: sawNonIntegerValue ? 'float' : 'int', numericValues };
 }
 
-function createNumericAnnotation(): Annotation {
+function createNumericAnnotation(numericType: 'int' | 'float'): Annotation {
   return {
     kind: 'numeric',
+    numericType,
     values: [],
     colors: [],
     shapes: [],
@@ -412,14 +371,15 @@ function convertBundleFormatData(
   }
 
   for (const annotationCol of annotationColumns) {
-    if (isScalarNumericAnnotationColumn(baseProjectionData.map((row) => row[annotationCol]))) {
+    const inference = inferAnnotationType(baseProjectionData.map((row) => row[annotationCol]));
+    if (inference.inferredType !== 'string') {
       numeric_annotation_data[annotationCol] = uniqueProteinIds.map((proteinId) => {
         const row = baseRowsByProteinId.get(proteinId);
         const rawValue = row?.[annotationCol];
         if (rawValue == null) return null;
         return parseNumericAnnotationValue(rawValue);
       });
-      annotations[annotationCol] = createNumericAnnotation();
+      annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
       continue;
     }
 
@@ -640,15 +600,10 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
   const annotation_evidence: Record<string, (string | null)[][]> = {};
 
   for (const annotationCol of annotationColumns) {
-    if (isScalarNumericAnnotationColumn(rows.map((row) => row[annotationCol]))) {
-      const numericValues = rows.map((row) => {
-        const rawValue = row[annotationCol];
-        if (rawValue == null) return null;
-        return parseNumericAnnotationValue(rawValue);
-      });
-
-      annotations[annotationCol] = createNumericAnnotation();
-      numeric_annotation_data[annotationCol] = numericValues;
+    const inference = inferAnnotationType(rows.map((row) => row[annotationCol]));
+    if (inference.inferredType !== 'string') {
+      annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
+      numeric_annotation_data[annotationCol] = inference.numericValues;
       continue;
     }
 
@@ -885,7 +840,8 @@ async function extractAnnotationsOptimized(
   for (let colIdx = 0; colIdx < annotationColumns.length; colIdx++) {
     const annotationCol = annotationColumns[colIdx];
 
-    if (isScalarNumericAnnotationColumn(rows.map((row) => row[annotationCol]))) {
+    const inference = inferAnnotationType(rows.map((row) => row[annotationCol]));
+    if (inference.inferredType !== 'string') {
       const numericValues: (number | null)[] = new Array(numProteins).fill(null);
 
       for (let i = 0; i < rows.length; i += chunkSize) {
@@ -907,7 +863,7 @@ async function extractAnnotationsOptimized(
         await fastYield();
       }
 
-      annotations[annotationCol] = createNumericAnnotation();
+      annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
       numeric_annotation_data[annotationCol] = numericValues;
       continue;
     }
