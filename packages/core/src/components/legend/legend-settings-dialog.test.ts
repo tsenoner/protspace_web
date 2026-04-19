@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'lit';
 import { renderSettingsDialog, type SettingsDialogCallbacks } from './legend-settings-dialog';
-import type { LegendSortMode } from './types';
+import type { LegendPersistedSettings, LegendSortMode } from './types';
 import {
   DEFAULT_NUMERIC_PALETTE_ID,
   type AnnotationTypeOverride,
@@ -34,9 +34,11 @@ type LegendTestElement = HTMLElement & {
   _renderSettingsDialog: () => unknown;
   _handlePaletteChange: (paletteId: string) => void;
   _handleSettingsSave: () => void;
+  _applyPersistedSettings: (settings: LegendPersistedSettings) => void;
   _updateLegendItems: () => void;
   _dispatchLegendStateChange: () => void;
   _selectedPaletteId: string;
+  _annotationSortModes: Record<string, LegendSortMode>;
   _annotationTypeOverridesByAnnotation: Record<string, AnnotationTypeOverride>;
   _numericSettingsByAnnotation: Record<
     string,
@@ -50,6 +52,7 @@ type LegendTestElement = HTMLElement & {
   _persistenceController: {
     callbacks: {
       getCurrentSettings: () => {
+        sortMode: LegendSortMode;
         annotationTypeOverride?: AnnotationTypeOverride;
         numericSettings?: {
           strategy: NumericBinningStrategy;
@@ -268,5 +271,39 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
       reverseGradient: true,
       manualOrderIds: undefined,
     });
+  });
+
+  it('normalizes persisted sort mode when stored type override is numeric', () => {
+    const el = createLegend();
+    el.selectedAnnotation = 'score';
+    el.annotationData = { name: 'score', values: ['1', '2'] };
+    el._annotationTypeOverridesByAnnotation = { score: 'numeric' };
+    el._annotationSortModes = { score: 'size-desc' };
+
+    const settings = el._persistenceController.callbacks.getCurrentSettings();
+
+    expect(settings.annotationTypeOverride).toBe('numeric');
+    expect(settings.sortMode).toBe('alpha-asc');
+  });
+
+  it('normalizes loaded sort mode using the persisted numeric override', () => {
+    const el = createLegend();
+    el.selectedAnnotation = 'score';
+    el.annotationData = { name: 'score', values: ['1', '2'] };
+
+    el._applyPersistedSettings({
+      maxVisibleValues: 5,
+      includeShapes: true,
+      shapeSize: 12,
+      sortMode: 'size-desc',
+      hiddenValues: [],
+      categories: {},
+      enableDuplicateStackUI: false,
+      selectedPaletteId: DEFAULT_NUMERIC_PALETTE_ID,
+      annotationTypeOverride: 'numeric',
+    });
+
+    expect(el._annotationTypeOverridesByAnnotation.score).toBe('numeric');
+    expect(el._annotationSortModes.score).toBe('alpha-asc');
   });
 });

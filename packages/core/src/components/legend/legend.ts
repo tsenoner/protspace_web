@@ -244,7 +244,10 @@ export class ProtspaceLegend extends LitElement {
         maxVisibleValues: this.maxVisibleValues,
         includeShapes: this.includeShapes,
         shapeSize: this.shapeSize,
-        sortMode: this._annotationSortModes[this.selectedAnnotation] ?? 'size-desc',
+        sortMode: this._normalizeSortModeForEffectiveType(
+          this._annotationSortModes[this.selectedAnnotation],
+          isNumericAnnotation,
+        ),
         enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
         selectedPaletteId: isNumericAnnotation
           ? normalizeNumericPaletteId(this._selectedPaletteId)
@@ -1400,9 +1403,9 @@ export class ProtspaceLegend extends LitElement {
 
       this._annotationSortModes = {
         ...this._annotationSortModes,
-        [this.selectedAnnotation]: this._normalizeSortModeForAnnotation(
-          this.selectedAnnotation,
+        [this.selectedAnnotation]: this._normalizeSortModeForEffectiveType(
           settings.sortMode,
+          isNumericAnnotation,
         ),
       };
 
