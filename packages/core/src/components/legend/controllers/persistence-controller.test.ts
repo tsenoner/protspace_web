@@ -164,6 +164,7 @@ describe('PersistenceController', () => {
       expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith({
         ...savedSettings,
         selectedPaletteId: 'kellys',
+        annotationTypeOverride: 'auto',
       });
       expect(controller.settingsLoaded).toBe(true);
       expect(controller.pendingCategories).toEqual(savedSettings.categories);
@@ -216,6 +217,7 @@ describe('PersistenceController', () => {
         sortMode: 'alpha-asc' as const,
         enableDuplicateStackUI: true,
         selectedPaletteId: 'kellys',
+        annotationTypeOverride: 'numeric' as const,
       });
 
       controller.saveSettings();
@@ -233,6 +235,7 @@ describe('PersistenceController', () => {
         },
         enableDuplicateStackUI: true,
         selectedPaletteId: 'kellys',
+        annotationTypeOverride: 'numeric',
       });
     });
 
@@ -686,6 +689,7 @@ describe('PersistenceController', () => {
           sortMode: 'alpha-asc' as const,
           enableDuplicateStackUI: true,
           selectedPaletteId: 'kellys',
+          annotationTypeOverride: 'numeric' as const,
         });
 
         const settings = controller.getCurrentSettingsForExport();
@@ -694,6 +698,7 @@ describe('PersistenceController', () => {
         expect(settings.includeShapes).toBe(true);
         expect(settings.sortMode).toBe('alpha-asc');
         expect(settings.hiddenValues).toEqual(['hidden1']);
+        expect(settings.annotationTypeOverride).toBe('numeric');
         expect(settings.categories).toEqual({
           cat1: { zOrder: 0, color: '#f00', shape: 'circle' },
           cat2: { zOrder: 1, color: '#0f0', shape: 'square' },

@@ -26,6 +26,7 @@ export interface PersistenceCallbacks {
     sortMode: LegendSortMode;
     enableDuplicateStackUI: boolean;
     selectedPaletteId: string;
+    annotationTypeOverride?: LegendPersistedSettings['annotationTypeOverride'];
     numericSettings?: LegendPersistedSettings['numericSettings'];
   };
 }
@@ -117,6 +118,7 @@ export class PersistenceController
       categories,
       enableDuplicateStackUI: currentSettings.enableDuplicateStackUI,
       selectedPaletteId: currentSettings.selectedPaletteId,
+      annotationTypeOverride: currentSettings.annotationTypeOverride,
       numericSettings: currentSettings.numericSettings,
     };
 
@@ -166,6 +168,7 @@ export class PersistenceController
       categories: this._buildCategoriesFromItems(),
       enableDuplicateStackUI: currentSettings.enableDuplicateStackUI,
       selectedPaletteId: currentSettings.selectedPaletteId,
+      annotationTypeOverride: currentSettings.annotationTypeOverride,
       numericSettings: currentSettings.numericSettings,
     };
   }

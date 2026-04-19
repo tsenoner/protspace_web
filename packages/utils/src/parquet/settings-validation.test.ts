@@ -197,5 +197,36 @@ describe('settings-validation', () => {
         exportOptions: {},
       });
     });
+
+    it('preserves valid annotation type overrides', () => {
+      const normalized = normalizeBundleSettings({
+        legendSettings: {
+          score: {
+            ...createValidLegendSettings(),
+            annotationTypeOverride: 'numeric',
+          },
+        },
+        exportOptions: {},
+      });
+
+      expect(normalized?.legendSettings.score.annotationTypeOverride).toBe('numeric');
+    });
+
+    it('drops invalid annotation type overrides while preserving settings', () => {
+      const normalized = normalizeBundleSettings({
+        legendSettings: {
+          score: {
+            ...createValidLegendSettings(),
+            annotationTypeOverride: 'number',
+          },
+        },
+        exportOptions: {},
+      });
+
+      expect(normalized?.legendSettings.score.annotationTypeOverride).toBeUndefined();
+      expect(normalized?.legendSettings.score.maxVisibleValues).toBe(
+        createValidLegendSettings().maxVisibleValues,
+      );
+    });
   });
 });
