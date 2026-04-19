@@ -143,13 +143,27 @@ export class ScatterplotSyncController implements ReactiveController {
 
   syncNumericAnnotationSettings(): void {
     if (!this._scatterplotElement) return;
-    this._scatterplotElement.numericAnnotationSettings =
-      this.callbacks.getNumericAnnotationSettings?.() ?? {};
-    this._scatterplotElement.annotationTypeOverrides =
-      this.callbacks.getAnnotationTypeOverrides?.() ?? {};
-    this._scatterplotElement.annotationSortModes = this.callbacks.getAnnotationSortModes?.() ?? {};
-    this._scatterplotElement.numericManualOrderIdsByAnnotation =
-      this.callbacks.getNumericManualOrderIds?.() ?? {};
+    const numericAnnotationSettings = this.callbacks.getNumericAnnotationSettings?.() ?? {};
+    const annotationTypeOverrides = this.callbacks.getAnnotationTypeOverrides?.() ?? {};
+    const annotationSortModes = this.callbacks.getAnnotationSortModes?.() ?? {};
+    const numericManualOrderIdsByAnnotation = this.callbacks.getNumericManualOrderIds?.() ?? {};
+
+    if (this._scatterplotElement.numericAnnotationSettings !== numericAnnotationSettings) {
+      this._scatterplotElement.numericAnnotationSettings = numericAnnotationSettings;
+    }
+    if (this._scatterplotElement.annotationTypeOverrides !== annotationTypeOverrides) {
+      this._scatterplotElement.annotationTypeOverrides = annotationTypeOverrides;
+    }
+    if (this._scatterplotElement.annotationSortModes !== annotationSortModes) {
+      this._scatterplotElement.annotationSortModes = annotationSortModes;
+    }
+    if (
+      this._scatterplotElement.numericManualOrderIdsByAnnotation !==
+      numericManualOrderIdsByAnnotation
+    ) {
+      this._scatterplotElement.numericManualOrderIdsByAnnotation =
+        numericManualOrderIdsByAnnotation;
+    }
   }
 
   /**
@@ -159,6 +173,9 @@ export class ScatterplotSyncController implements ReactiveController {
     if (!this._scatterplotElement || !supportsConfig(this._scatterplotElement)) return;
 
     const currentConfig = this._scatterplotElement.config || {};
+    const hasChanges = Object.entries(updates).some(([key, value]) => currentConfig[key] !== value);
+    if (!hasChanges) return;
+
     this._scatterplotElement.config = { ...currentConfig, ...updates };
   }
 

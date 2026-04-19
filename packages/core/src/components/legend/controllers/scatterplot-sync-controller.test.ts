@@ -313,6 +313,48 @@ describe('ScatterplotSyncController', () => {
 
       expect(mockScatterplot.config).toEqual({ a: 1, b: 3, c: 4 });
     });
+
+    it('preserves config identity for no-op updates', () => {
+      mockScatterplot.config = { pointSize: 100 };
+      const previousConfig = mockScatterplot.config;
+
+      controller.updateConfig({ pointSize: 100 });
+
+      expect(mockScatterplot.config).toBe(previousConfig);
+    });
+  });
+
+  describe('syncNumericAnnotationSettings', () => {
+    beforeEach(() => {
+      document.body.appendChild(mockScatterplot as unknown as Node);
+      controller = new ScatterplotSyncController(mockHost, mockCallbacks);
+      controller.hostConnected();
+    });
+
+    it('preserves scatterplot property identities when numeric settings are unchanged', () => {
+      const numericAnnotationSettings = {};
+      const annotationTypeOverrides = { score: 'string' as const };
+      const annotationSortModes = { score: 'size-desc' as const };
+      const numericManualOrderIdsByAnnotation = {};
+      mockCallbacks.getNumericAnnotationSettings = vi
+        .fn()
+        .mockReturnValue(numericAnnotationSettings);
+      mockCallbacks.getAnnotationTypeOverrides = vi.fn().mockReturnValue(annotationTypeOverrides);
+      mockCallbacks.getAnnotationSortModes = vi.fn().mockReturnValue(annotationSortModes);
+      mockCallbacks.getNumericManualOrderIds = vi
+        .fn()
+        .mockReturnValue(numericManualOrderIdsByAnnotation);
+
+      controller.syncNumericAnnotationSettings();
+      controller.syncNumericAnnotationSettings();
+
+      expect(mockScatterplot.numericAnnotationSettings).toBe(numericAnnotationSettings);
+      expect(mockScatterplot.annotationTypeOverrides).toBe(annotationTypeOverrides);
+      expect(mockScatterplot.annotationSortModes).toBe(annotationSortModes);
+      expect(mockScatterplot.numericManualOrderIdsByAnnotation).toBe(
+        numericManualOrderIdsByAnnotation,
+      );
+    });
   });
 
   describe('dispatchZOrderChange', () => {

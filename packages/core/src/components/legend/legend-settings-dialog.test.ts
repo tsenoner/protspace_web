@@ -16,9 +16,16 @@ import './legend';
 
 type LegendTestElement = HTMLElement & {
   selectedAnnotation: string;
+  data?: {
+    annotations?: Record<string, { kind?: 'categorical' | 'numeric'; values: string[] }>;
+    protein_ids?: string[];
+    numeric_annotation_data?: Record<string, Array<number | null>>;
+  };
+  proteinIds: string[];
   annotationData: { name: string; values: string[] };
   maxVisibleValues: number;
   includeShapes: boolean;
+  updated: (changedProperties: Map<string, unknown>) => void;
   _showSettingsDialog: boolean;
   _dialogSettings: {
     maxVisibleValues: number;
@@ -36,14 +43,19 @@ type LegendTestElement = HTMLElement & {
   _handleSettingsSave: () => void;
   _handleSettingsReset: () => void;
   _applyPersistedSettings: (settings: LegendPersistedSettings) => void;
+  _syncNumericSettingsFromPersistence: () => void;
   _updateLegendItems: () => void;
   _dispatchLegendStateChange: () => void;
   _scatterplotController: {
     scatterplot: {
       data?: {
+        protein_ids?: string[];
         annotations?: Record<string, { kind?: 'categorical' | 'numeric'; values: string[] }>;
+        numeric_annotation_data?: Record<string, Array<number | null>>;
       };
+      dispatchEvent?: (event: Event) => boolean;
     } | null;
+    syncNumericAnnotationSettings: () => void;
   };
   _selectedPaletteId: string;
   _annotationSortModes: Record<string, LegendSortMode>;
@@ -58,6 +70,7 @@ type LegendTestElement = HTMLElement & {
     }
   >;
   _persistenceController: {
+    updateDatasetHash: (data: unknown) => boolean;
     callbacks: {
       getCurrentSettings: () => {
         sortMode: LegendSortMode;
@@ -70,6 +83,7 @@ type LegendTestElement = HTMLElement & {
       };
     };
   };
+  getAllPersistedSettings: () => Record<string, LegendPersistedSettings>;
 };
 
 function renderSettingsDialogToContainer(overrides = {}) {
@@ -371,5 +385,139 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
 
     expect(el._annotationTypeOverridesByAnnotation.score).toBe('numeric');
     expect(el._annotationSortModes.score).toBe('alpha-asc');
+  });
+
+  it('keeps override map identity when reapplying the same persisted override', () => {
+    const el = createLegend();
+    el.selectedAnnotation = 'score';
+    el.annotationData = { name: 'score', values: ['1', '2'] };
+    el._annotationTypeOverridesByAnnotation = { score: 'string' };
+    const previousOverrides = el._annotationTypeOverridesByAnnotation;
+
+    el._applyPersistedSettings({
+      maxVisibleValues: 5,
+      includeShapes: true,
+      shapeSize: 12,
+      sortMode: 'size-desc',
+      hiddenValues: [],
+      categories: {},
+      enableDuplicateStackUI: false,
+      selectedPaletteId: 'kellys',
+      annotationTypeOverride: 'string',
+    });
+
+    expect(el._annotationTypeOverridesByAnnotation).toBe(previousOverrides);
+  });
+
+  it('hashes source scatterplot data instead of the materialized override view', () => {
+    const el = createLegend();
+    el.selectedAnnotation = 'score';
+    el.proteinIds = ['p1', 'p2'];
+    el.data = {
+      protein_ids: ['p1', 'p2'],
+      annotations: {
+        score: { kind: 'categorical', values: ['1', '2'] },
+      },
+    };
+    Object.defineProperty(el._scatterplotController, 'scatterplot', {
+      configurable: true,
+      value: {
+        data: {
+          protein_ids: ['p1', 'p2'],
+          annotations: {
+            score: { kind: 'numeric', values: [] },
+          },
+          numeric_annotation_data: {
+            score: [1, 2],
+          },
+        },
+      },
+    });
+    const updateDatasetHash = vi
+      .spyOn(el._persistenceController, 'updateDatasetHash')
+      .mockReturnValue(false);
+
+    el.updated(new Map([['data', null]]));
+
+    expect(updateDatasetHash).toHaveBeenCalledWith({
+      protein_ids: ['p1', 'p2'],
+      annotations: {
+        score: { kind: 'numeric', values: [] },
+      },
+      numeric_annotation_data: {
+        score: [1, 2],
+      },
+    });
+  });
+
+  it('falls back to legend data when scatterplot source data is stale', () => {
+    const el = createLegend();
+    el.selectedAnnotation = 'score';
+    el.proteinIds = ['p1', 'p2'];
+    el.data = {
+      protein_ids: ['p1', 'p2'],
+      annotations: {
+        score: { kind: 'categorical', values: ['1', '2'] },
+      },
+    };
+    Object.defineProperty(el._scatterplotController, 'scatterplot', {
+      configurable: true,
+      value: {
+        data: {
+          protein_ids: ['old-p1', 'old-p2'],
+          annotations: {
+            score: { kind: 'numeric', values: [] },
+          },
+          numeric_annotation_data: {
+            score: [1, 2],
+          },
+        },
+      },
+    });
+    const updateDatasetHash = vi
+      .spyOn(el._persistenceController, 'updateDatasetHash')
+      .mockReturnValue(false);
+
+    el.updated(new Map([['data', null]]));
+
+    expect(updateDatasetHash).toHaveBeenCalledWith({
+      protein_ids: ['p1', 'p2'],
+      annotations: {
+        score: { kind: 'categorical', values: ['1', '2'] },
+      },
+      numeric_annotation_data: undefined,
+    });
+  });
+
+  it('does not manually redispatch data-change while syncing numeric settings', () => {
+    const el = createLegend();
+    el.data = {
+      protein_ids: ['p1', 'p2'],
+      annotations: {
+        score: { kind: 'numeric', values: [] },
+      },
+      numeric_annotation_data: {
+        score: [1, 2],
+      },
+    };
+    el._numericSettingsByAnnotation = {};
+    el.getAllPersistedSettings = vi.fn().mockReturnValue({});
+    const dispatchEvent = vi.fn().mockReturnValue(true);
+    Object.defineProperty(el._scatterplotController, 'scatterplot', {
+      configurable: true,
+      value: {
+        data: el.data,
+        dispatchEvent,
+      },
+    });
+    const syncNumericAnnotationSettings = vi.spyOn(
+      el._scatterplotController,
+      'syncNumericAnnotationSettings',
+    );
+
+    el._syncNumericSettingsFromPersistence();
+
+    expect(syncNumericAnnotationSettings).toHaveBeenCalled();
+    expect(dispatchEvent).not.toHaveBeenCalled();
   });
 });

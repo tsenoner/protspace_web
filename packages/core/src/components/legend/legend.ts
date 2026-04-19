@@ -392,18 +392,6 @@ export class ProtspaceLegend extends LitElement {
     if (didChange) {
       this._numericSettingsByAnnotation = nextNumericSettings;
       this._scatterplotController.syncNumericAnnotationSettings();
-      const scatterplot = this._scatterplotController.scatterplot;
-      const currentData =
-        scatterplot?.getCurrentData?.() ?? scatterplot?.getMaterializedData?.() ?? null;
-      if (scatterplot && currentData) {
-        scatterplot.dispatchEvent(
-          new CustomEvent('data-change', {
-            detail: { data: currentData },
-            bubbles: true,
-            composed: true,
-          }),
-        );
-      }
     }
   }
 
@@ -819,13 +807,21 @@ export class ProtspaceLegend extends LitElement {
       this.proteinIds.length > 0 &&
       !this.isolationMode
     ) {
-      const unfilteredData = this._scatterplotController.scatterplot?.getCurrentData?.({
-        includeFilteredProteinIds: false,
-      }) ?? {
-        protein_ids: this.proteinIds,
-        annotations: this.data?.annotations,
-        numeric_annotation_data: this.data?.numeric_annotation_data,
-      };
+      const sourceData = this._scatterplotController.scatterplot?.data;
+      const sourceDataMatchesCurrentLegend =
+        sourceData?.protein_ids !== undefined &&
+        this._hasSameProteinIds(sourceData.protein_ids, this.proteinIds);
+      const unfilteredData = sourceDataMatchesCurrentLegend
+        ? {
+            protein_ids: sourceData.protein_ids,
+            annotations: sourceData.annotations,
+            numeric_annotation_data: sourceData.numeric_annotation_data,
+          }
+        : {
+            protein_ids: this.proteinIds,
+            annotations: this.data?.annotations,
+            numeric_annotation_data: this.data?.numeric_annotation_data,
+          };
 
       this._persistenceController.updateDatasetHash({
         protein_ids: unfilteredData.protein_ids,
@@ -1121,6 +1117,28 @@ export class ProtspaceLegend extends LitElement {
     return this._isSourceNumericAnnotation();
   }
 
+  private _hasSameProteinIds(left: readonly string[], right: readonly string[]): boolean {
+    if (left === right) return true;
+    if (left.length !== right.length) return false;
+
+    return left.every((proteinId, index) => proteinId === right[index]);
+  }
+
+  private _setAnnotationTypeOverride(
+    annotation: string,
+    override: AnnotationTypeOverride,
+  ): boolean {
+    if (this._annotationTypeOverridesByAnnotation[annotation] === override) {
+      return false;
+    }
+
+    this._annotationTypeOverridesByAnnotation = {
+      ...this._annotationTypeOverridesByAnnotation,
+      [annotation]: override,
+    };
+    return true;
+  }
+
   // ─────────────────────────────────────────────────────────────────
   // Legend Item Processing
   // ─────────────────────────────────────────────────────────────────
@@ -1383,10 +1401,7 @@ export class ProtspaceLegend extends LitElement {
       this.shapeSize = settings.shapeSize;
       this._hiddenValues = hasMatchingNumericTopology ? settings.hiddenValues : [];
       this._selectedPaletteId = resolvedPaletteId;
-      this._annotationTypeOverridesByAnnotation = {
-        ...this._annotationTypeOverridesByAnnotation,
-        [this.selectedAnnotation]: annotationTypeOverride,
-      };
+      this._setAnnotationTypeOverride(this.selectedAnnotation, annotationTypeOverride);
       if (isNumericAnnotation) {
         this._persistenceController.clearPendingCategories();
       }
@@ -1832,10 +1847,10 @@ export class ProtspaceLegend extends LitElement {
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
     this.includeShapes = nextIncludeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
-    this._annotationTypeOverridesByAnnotation = {
-      ...this._annotationTypeOverridesByAnnotation,
-      [this.selectedAnnotation]: this._dialogSettings.annotationTypeOverride,
-    };
+    this._setAnnotationTypeOverride(
+      this.selectedAnnotation,
+      this._dialogSettings.annotationTypeOverride,
+    );
     this._annotationSortModes = nextAnnotationSortModes;
     if (!nextAnnotationSortModes[this.selectedAnnotation]?.startsWith('manual')) {
       this._keyboardDragValue = null;
@@ -1995,10 +2010,7 @@ export class ProtspaceLegend extends LitElement {
     const isNumericAnnotation = this._isEffectivelyNumericAnnotation('auto');
 
     this._selectedPaletteId = isNumericAnnotation ? DEFAULT_NUMERIC_PALETTE_ID : 'kellys';
-    this._annotationTypeOverridesByAnnotation = {
-      ...this._annotationTypeOverridesByAnnotation,
-      [this.selectedAnnotation]: 'auto',
-    };
+    this._setAnnotationTypeOverride(this.selectedAnnotation, 'auto');
     if (isNumericAnnotation) {
       this._numericSettingsByAnnotation = {
         ...this._numericSettingsByAnnotation,
