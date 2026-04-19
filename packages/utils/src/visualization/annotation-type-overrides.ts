@@ -117,6 +117,30 @@ function categoricalRowsToRawValues(
   return rawValues;
 }
 
+function hasMeaningfulScores(scores: (number[] | null)[][] | undefined): boolean {
+  return (
+    scores?.some((row) => row.some((score) => Array.isArray(score) && score.length > 0)) ?? false
+  );
+}
+
+function hasMeaningfulEvidence(evidence: (string | null)[][] | undefined): boolean {
+  return (
+    evidence?.some((row) =>
+      row.some((value) => typeof value === 'string' && value.trim().length > 0),
+    ) ?? false
+  );
+}
+
+function hasMeaningfulScoreOrEvidenceMetadata(
+  data: VisualizationData,
+  annotationName: string,
+): boolean {
+  return (
+    hasMeaningfulScores(data.annotation_scores?.[annotationName]) ||
+    hasMeaningfulEvidence(data.annotation_evidence?.[annotationName])
+  );
+}
+
 export function applyAnnotationTypeOverrides(
   data: VisualizationData,
   overrides: Record<string, AnnotationTypeOverride | undefined>,
@@ -128,6 +152,8 @@ export function applyAnnotationTypeOverrides(
     numeric_annotation_data: data.numeric_annotation_data
       ? { ...data.numeric_annotation_data }
       : {},
+    annotation_scores: data.annotation_scores ? { ...data.annotation_scores } : undefined,
+    annotation_evidence: data.annotation_evidence ? { ...data.annotation_evidence } : undefined,
   };
   const errors: AnnotationTypeOverrideError[] = [];
 
@@ -148,6 +174,14 @@ export function applyAnnotationTypeOverrides(
     }
 
     if (override === 'numeric' && annotation.kind !== 'numeric') {
+      if (hasMeaningfulScoreOrEvidenceMetadata(data, annotationName)) {
+        errors.push({
+          annotation: annotationName,
+          message: `Cannot treat ${annotationName} as numeric because it has score or evidence metadata.`,
+        });
+        continue;
+      }
+
       const rawValues = categoricalRowsToRawValues(data, annotationName);
       const inferred = rawValues ? inferNumericValues(rawValues) : null;
       if (!inferred) {
@@ -161,11 +195,19 @@ export function applyAnnotationTypeOverrides(
       next.annotations[annotationName] = createNumericAnnotation(inferred.numericType);
       next.numeric_annotation_data![annotationName] = inferred.values;
       delete next.annotation_data[annotationName];
+      delete next.annotation_scores?.[annotationName];
+      delete next.annotation_evidence?.[annotationName];
     }
   }
 
   if (next.numeric_annotation_data && Object.keys(next.numeric_annotation_data).length === 0) {
     delete next.numeric_annotation_data;
+  }
+  if (next.annotation_scores && Object.keys(next.annotation_scores).length === 0) {
+    delete next.annotation_scores;
+  }
+  if (next.annotation_evidence && Object.keys(next.annotation_evidence).length === 0) {
+    delete next.annotation_evidence;
   }
 
   return { data: next, errors };

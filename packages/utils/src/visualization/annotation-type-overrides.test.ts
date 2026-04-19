@@ -68,6 +68,52 @@ describe('applyAnnotationTypeOverrides', () => {
     expect(result.data.annotation_data.family).toEqual([[0], [1], [0]]);
   });
 
+  it('rejects numeric override when a numeric-looking categorical annotation has score metadata', () => {
+    const input = createData();
+    input.annotation_scores = {
+      score: [[[0.5]], [[0.7]], []],
+    };
+    input.annotation_evidence = {
+      score: [['score source'], [null], []],
+    };
+
+    const result = applyAnnotationTypeOverrides(input, { score: 'numeric' });
+
+    expect(result.errors).toEqual([
+      {
+        annotation: 'score',
+        message: 'Cannot treat score as numeric because it has score or evidence metadata.',
+      },
+    ]);
+    expect(result.data.annotations.score).toBe(input.annotations.score);
+    expect(result.data.annotation_data.score).toBe(input.annotation_data.score);
+    expect(result.data.numeric_annotation_data?.score).toBeUndefined();
+    expect(result.data.annotation_scores?.score).toBe(input.annotation_scores.score);
+    expect(result.data.annotation_evidence?.score).toBe(input.annotation_evidence.score);
+  });
+
+  it('removes stale score and evidence metadata when categorical values convert to numeric', () => {
+    const input = createData();
+    input.annotation_scores = {
+      score: [[null], [null], []],
+      family: [[[0.5]], [[0.7]], [[0.9]]],
+    };
+    input.annotation_evidence = {
+      score: [[null], [null], []],
+      family: [['family source'], ['family source'], ['family source']],
+    };
+
+    const result = applyAnnotationTypeOverrides(input, { score: 'numeric' });
+
+    expect(result.errors).toEqual([]);
+    expect(result.data.annotations.score.kind).toBe('numeric');
+    expect(result.data.numeric_annotation_data?.score).toEqual([1.5, 2.5, null]);
+    expect(result.data.annotation_scores?.score).toBeUndefined();
+    expect(result.data.annotation_evidence?.score).toBeUndefined();
+    expect(result.data.annotation_scores?.family).toBe(input.annotation_scores.family);
+    expect(result.data.annotation_evidence?.family).toBe(input.annotation_evidence.family);
+  });
+
   it('converts a numeric annotation to categorical strings', () => {
     const result = applyAnnotationTypeOverrides(createData(), { length: 'string' });
 
