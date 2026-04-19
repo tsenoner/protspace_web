@@ -169,6 +169,7 @@ export class ProtspaceLegend extends LitElement {
     includeShapes: boolean;
     shapeSize: number;
     enableDuplicateStackUI: boolean;
+    annotationTypeOverride: AnnotationTypeOverride;
     annotationSortModes: Record<string, LegendSortMode>;
     selectedPaletteId: string;
     numericStrategy: NumericBinningStrategy;
@@ -178,6 +179,7 @@ export class ProtspaceLegend extends LitElement {
     includeShapes: LEGEND_DEFAULTS.includeShapes,
     shapeSize: LEGEND_DEFAULTS.symbolSize,
     enableDuplicateStackUI: false,
+    annotationTypeOverride: 'auto',
     annotationSortModes: {},
     selectedPaletteId: 'kellys',
     numericStrategy: DEFAULT_NUMERIC_STRATEGY,
@@ -1719,6 +1721,8 @@ export class ProtspaceLegend extends LitElement {
       maxVisibleValues: this.maxVisibleValues,
       includeShapes: this.includeShapes,
       shapeSize: this.shapeSize,
+      annotationTypeOverride:
+        this._annotationTypeOverridesByAnnotation[this.selectedAnnotation] ?? 'auto',
       annotationSortModes: this._annotationSortModes,
       enableDuplicateStackUI: Boolean(
         scatterplot &&
@@ -1775,6 +1779,10 @@ export class ProtspaceLegend extends LitElement {
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
     this.includeShapes = this._dialogSettings.includeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
+    this._annotationTypeOverridesByAnnotation = {
+      ...this._annotationTypeOverridesByAnnotation,
+      [this.selectedAnnotation]: this._dialogSettings.annotationTypeOverride,
+    };
     this._annotationSortModes = this._dialogSettings.annotationSortModes;
     if (!this._dialogSettings.annotationSortModes[this.selectedAnnotation]?.startsWith('manual')) {
       this._keyboardDragValue = null;
@@ -2121,6 +2129,7 @@ export class ProtspaceLegend extends LitElement {
       includeShapes: this._dialogSettings.includeShapes,
       enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
       selectedAnnotation: this.selectedAnnotation,
+      annotationTypeOverride: this._dialogSettings.annotationTypeOverride,
       annotationSortModes: this._dialogSettings.annotationSortModes,
       isMultilabelAnnotation: this._isMultilabelAnnotation(),
       isNumericAnnotation: this._isNumericAnnotation(),
@@ -2143,6 +2152,9 @@ export class ProtspaceLegend extends LitElement {
       },
       onEnableDuplicateStackUIChange: (v) => {
         this._dialogSettings = { ...this._dialogSettings, enableDuplicateStackUI: v };
+      },
+      onAnnotationTypeOverrideChange: (value) => {
+        this._dialogSettings = { ...this._dialogSettings, annotationTypeOverride: value };
       },
       onSortModeChange: (annotation, mode) => {
         this._clearKeyboardReorderState();
