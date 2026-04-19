@@ -7,6 +7,18 @@ import {
 } from './conversion';
 import { extractRowsFromParquetBundle } from './bundle';
 
+async function loadFixtureVisualizationData(fixtureName: string) {
+  const filePath = resolve(__dirname, '../../../../../../app/tests/fixtures', fixtureName);
+  const fileBuffer = readFileSync(filePath);
+  const arrayBuffer = fileBuffer.buffer.slice(
+    fileBuffer.byteOffset,
+    fileBuffer.byteOffset + fileBuffer.byteLength,
+  );
+
+  const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(arrayBuffer);
+  return convertParquetToVisualizationData(rows, projectionsMetadata ?? undefined);
+}
+
 describe('convertParquetToVisualizationData numeric annotations', () => {
   it('detects scalar numeric annotations and preserves raw values', () => {
     const result = convertParquetToVisualizationData([
@@ -200,19 +212,80 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(result.protein_ids).toHaveLength(10001);
   });
 
-  it('detects length as numeric in the raw phosphatase fixture', async () => {
-    const filePath = resolve(
-      __dirname,
-      '../../../../../../app/tests/fixtures/phosphatase_no_binning.parquetbundle',
-    );
-    const fileBuffer = readFileSync(filePath);
-    const arrayBuffer = fileBuffer.buffer.slice(
-      fileBuffer.byteOffset,
-      fileBuffer.byteOffset + fileBuffer.byteLength,
-    );
+  it('classifies all annotated data_custom edge cases deterministically', async () => {
+    const result = await loadFixtureVisualizationData('data_custom.parquetbundle');
+    const expectedIntAnnotations = [
+      'num_sequential',
+      'num_negative_mixed',
+      'num_8_distinct_dense',
+      'num_zero_padded',
+      'num_all_negative',
+      'cat_5_distinct_int',
+      'cat_7_distinct_int',
+      'cat_binary_01',
+      'cat_sparse_int',
+      'cat_all_same_number',
+      'cat_large_ints',
+      'edge_all_zeros',
+      'edge_density_boundary',
+      'edge_density_below',
+    ];
+    const expectedFloatAnnotations = [
+      'num_random_float',
+      'num_mixed_int_float',
+      'num_narrow_float',
+      'cat_high_precision_float',
+      'cat_wide_range_float',
+      'edge_single_float',
+    ];
+    const expectedStringAnnotations = [
+      'cat_mixed_str_num',
+      'cat_numbers_with_units',
+      'cat_percentages',
+      'cat_comma_thousands',
+      'cat_pipe_delimited',
+      'cat_semicolon_delimited',
+      'cat_nan_inf_strings',
+      'cat_with_nan_strings',
+      'edge_all_nan',
+      'edge_few_nan_many_numbers',
+    ];
 
-    const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(arrayBuffer);
-    const result = convertParquetToVisualizationData(rows, projectionsMetadata ?? undefined);
+    for (const columnName of expectedIntAnnotations) {
+      const annotation = result.annotations[columnName];
+
+      expect(annotation).toBeDefined();
+      expect(annotation.kind).toBe('numeric');
+      expect(annotation.numericType).toBe('int');
+      expect(result.numeric_annotation_data).toBeDefined();
+      expect(result.numeric_annotation_data?.[columnName]).toBeDefined();
+      expect(result.annotation_data[columnName]).toBeUndefined();
+    }
+
+    for (const columnName of expectedFloatAnnotations) {
+      const annotation = result.annotations[columnName];
+
+      expect(annotation).toBeDefined();
+      expect(annotation.kind).toBe('numeric');
+      expect(annotation.numericType).toBe('float');
+      expect(result.numeric_annotation_data).toBeDefined();
+      expect(result.numeric_annotation_data?.[columnName]).toBeDefined();
+      expect(result.annotation_data[columnName]).toBeUndefined();
+    }
+
+    for (const columnName of expectedStringAnnotations) {
+      const annotation = result.annotations[columnName];
+
+      expect(annotation).toBeDefined();
+      expect(annotation.kind).toBe('categorical');
+      expect(annotation.numericType).toBeUndefined();
+      expect(result.numeric_annotation_data?.[columnName]).toBeUndefined();
+      expect(result.annotation_data[columnName]).toBeDefined();
+    }
+  });
+
+  it('detects length as numeric in the raw phosphatase fixture', async () => {
+    const result = await loadFixtureVisualizationData('phosphatase_no_binning.parquetbundle');
 
     expect(result.annotations.length.kind).toBe('numeric');
     expect(result.annotations.length.numericType).toBe('int');
