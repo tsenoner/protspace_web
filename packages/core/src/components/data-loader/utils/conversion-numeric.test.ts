@@ -250,6 +250,13 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
       'edge_all_nan',
       'edge_few_nan_many_numbers',
     ];
+    const expectedAnnotationNames = [
+      ...expectedIntAnnotations,
+      ...expectedFloatAnnotations,
+      ...expectedStringAnnotations,
+    ].sort();
+
+    expect(Object.keys(result.annotations).sort()).toEqual(expectedAnnotationNames);
 
     for (const columnName of expectedIntAnnotations) {
       const annotation = result.annotations[columnName];
@@ -259,6 +266,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
       expect(annotation.numericType).toBe('int');
       expect(result.numeric_annotation_data).toBeDefined();
       expect(result.numeric_annotation_data?.[columnName]).toBeDefined();
+      expect(result.numeric_annotation_data?.[columnName]).toHaveLength(result.protein_ids.length);
       expect(result.annotation_data[columnName]).toBeUndefined();
     }
 
@@ -270,8 +278,16 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
       expect(annotation.numericType).toBe('float');
       expect(result.numeric_annotation_data).toBeDefined();
       expect(result.numeric_annotation_data?.[columnName]).toBeDefined();
+      expect(result.numeric_annotation_data?.[columnName]).toHaveLength(result.protein_ids.length);
       expect(result.annotation_data[columnName]).toBeUndefined();
     }
+
+    expect(result.numeric_annotation_data?.num_sequential?.slice(0, 8)).toEqual([
+      1, 2, 714, 3, 4, 1321, 1322, 1323,
+    ]);
+    expect(result.numeric_annotation_data?.num_random_float?.[0]).toBeCloseTo(63.94);
+    expect(result.numeric_annotation_data?.num_random_float?.[1]).toBeCloseTo(2.5);
+    expect(result.numeric_annotation_data?.num_random_float?.[2]).toBeCloseTo(50.05);
 
     for (const columnName of expectedStringAnnotations) {
       const annotation = result.annotations[columnName];
