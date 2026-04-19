@@ -35,12 +35,20 @@ const RAW_FLOAT_VALUE_FORMATTER = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 6,
 });
 
+function shouldUseTinyFloatFormat(value: number): boolean {
+  const abs = Math.abs(value);
+  return abs > 0 && abs < 0.001;
+}
+
 export function formatRawNumericTooltipValue(
   value: number,
   numericType: NumericAnnotationType = 'float',
 ): string {
   if (!Number.isFinite(value)) return String(value);
   if (numericType === 'int') return String(Math.trunc(value));
+  if (shouldUseTinyFloatFormat(value)) {
+    return Number(value.toPrecision(6)).toString();
+  }
   return RAW_FLOAT_VALUE_FORMATTER.format(value);
 }
 

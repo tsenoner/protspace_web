@@ -157,4 +157,12 @@ describe('formatRawNumericTooltipValue', () => {
   it('formats float raw values with grouping and decimals', () => {
     expect(formatRawNumericTooltipValue(2500.25, 'float')).toBe('2,500.25');
   });
+
+  it('preserves meaningful precision for tiny positive float raw values', () => {
+    expect(formatRawNumericTooltipValue(1.2e-7, 'float')).toBe('1.2e-7');
+  });
+
+  it('preserves meaningful precision for tiny negative float raw values', () => {
+    expect(formatRawNumericTooltipValue(-1.2e-7, 'float')).toBe('-1.2e-7');
+  });
 });

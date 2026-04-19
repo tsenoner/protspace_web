@@ -133,6 +133,51 @@ describe('numeric-binning', () => {
     ]);
   });
 
+  it('preserves meaningful precision for tiny float labels', () => {
+    const result = materializeNumericAnnotation(
+      [-1.2e-7, 1.2e-7],
+      {
+        binCount: 2,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'float',
+    );
+
+    expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual([
+      '-1.2e-7',
+      '1.2e-7',
+    ]);
+  });
+
+  it('infers int labels for omitted numeric subtype when all values are integers', () => {
+    const result = materializeNumericAnnotation([1, 2], {
+      binCount: 1,
+      strategy: 'linear',
+      paletteId: 'viridis',
+    });
+
+    expect(result.annotation.numericType).toBe('int');
+    expect(result.annotation.numericMetadata?.numericType).toBe('int');
+    expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual(['1 - 2']);
+  });
+
+  it('honors explicit float subtype for integer-valued float annotations', () => {
+    const result = materializeNumericAnnotation(
+      [1, 2],
+      {
+        binCount: 1,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'float',
+    );
+
+    expect(result.annotation.numericType).toBe('float');
+    expect(result.annotation.numericMetadata?.numericType).toBe('float');
+    expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual(['1.0 - 2.0']);
+  });
+
   it('carries annotation numericType into materialized annotation metadata', () => {
     const data: VisualizationData = {
       protein_ids: ['P1', 'P2', 'P3'],

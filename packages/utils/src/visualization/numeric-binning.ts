@@ -169,10 +169,22 @@ const FLOAT_LABEL_FORMATTER = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 6,
 });
 
+function shouldUseTinyFloatFormat(value: number): boolean {
+  const abs = Math.abs(value);
+  return abs > 0 && abs < 0.001;
+}
+
+function formatFloatValue(value: number): string {
+  if (shouldUseTinyFloatFormat(value)) {
+    return Number(value.toPrecision(6)).toString();
+  }
+  return FLOAT_LABEL_FORMATTER.format(value);
+}
+
 function formatNumericValue(value: number, numericType: NumericAnnotationType): string {
   if (!Number.isFinite(value)) return String(value);
   if (numericType === 'int') return String(Math.trunc(value));
-  return FLOAT_LABEL_FORMATTER.format(value);
+  return formatFloatValue(value);
 }
 
 function serializeNumericValue(value: number): string {
@@ -187,6 +199,9 @@ function formatNumericValueWithPrecision(
 ): string {
   if (!Number.isFinite(value)) return String(value);
   if (numericType === 'int') return String(Math.trunc(value));
+  if (shouldUseTinyFloatFormat(value)) {
+    return Number(value.toPrecision(6)).toString();
+  }
 
   return new Intl.NumberFormat('en-US', {
     useGrouping: true,
@@ -560,7 +575,7 @@ function createBinColors(
 export function materializeNumericAnnotation(
   values: Array<number | null | undefined>,
   settings: NumericAnnotationDisplaySettings,
-  numericType: NumericAnnotationType = 'float',
+  numericType?: NumericAnnotationType,
 ): {
   annotation: Annotation;
   annotationData: number[][];
@@ -568,6 +583,7 @@ export function materializeNumericAnnotation(
   const summary = createSummary(values, {
     includeSortedValues: settings.strategy === 'quantile',
   });
+  const resolvedNumericType = numericType ?? (summary.allIntegers ? 'int' : 'float');
   const effectiveSettings = {
     ...settings,
     strategy: resolveEffectiveStrategy(settings.strategy, summary),
@@ -584,11 +600,11 @@ export function materializeNumericAnnotation(
         colors: [],
         shapes: [],
         sourceKind: 'numeric',
-        numericType,
+        numericType: resolvedNumericType,
         numericMetadata: {
           strategy: effectiveSettings.strategy,
           binCount: 0,
-          numericType,
+          numericType: resolvedNumericType,
           signature: createSignature(effectiveSettings, []),
           topologySignature: emptyTopologySignature,
           logSupported: summary.logSupported,
@@ -636,14 +652,14 @@ export function materializeNumericAnnotation(
       lowerBound: bin.lowerBound,
       upperBound: bin.upperBound,
     })),
-    numericType,
+    resolvedNumericType,
   );
   const bins: NumericBinDefinition[] = realizedBounds.map((bin, index) => ({
     ...bin,
     label:
       labels[index] ??
       formatRangeLabel(bin.lowerBound, bin.upperBound, (value) =>
-        formatNumericValue(value, numericType),
+        formatNumericValue(value, resolvedNumericType),
       ),
   }));
   const shapes = Array.from({ length: bins.length }, () => 'circle');
@@ -678,7 +694,7 @@ export function materializeNumericAnnotation(
   const numericMetadata: NumericAnnotationMetadata = {
     strategy: effectiveSettings.strategy,
     binCount: bins.length,
-    numericType,
+    numericType: resolvedNumericType,
     signature: createSignature(effectiveSettings, binsWithColorPositions),
     topologySignature,
     logSupported: summary.logSupported,
@@ -692,7 +708,7 @@ export function materializeNumericAnnotation(
       colors,
       shapes,
       sourceKind: 'numeric',
-      numericType,
+      numericType: resolvedNumericType,
       numericMetadata,
     },
     annotationData,
@@ -733,7 +749,7 @@ export function materializeVisualizationData(
     const materialized = materializeNumericAnnotation(
       numericValues,
       getNumericAnnotationSettings(settingsMap, annotationName, defaultBinCount),
-      annotation.numericType ?? annotation.numericMetadata?.numericType ?? 'float',
+      annotation.numericType ?? annotation.numericMetadata?.numericType,
     );
 
     annotations[annotationName] = materialized.annotation;
