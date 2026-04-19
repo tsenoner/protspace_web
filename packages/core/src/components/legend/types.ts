@@ -32,6 +32,7 @@ export interface ScatterplotData {
     {
       kind?: 'categorical' | 'numeric';
       sourceKind?: 'categorical' | 'numeric';
+      numericType?: 'int' | 'float';
       values: (string | null)[];
       colors?: string[];
       shapes?: string[];
@@ -50,9 +51,11 @@ export interface LegendAnnotationData {
   shapes?: string[];
   kind?: 'categorical' | 'numeric';
   sourceKind?: 'categorical' | 'numeric';
+  numericType?: 'int' | 'float';
   numericMetadata?: {
     strategy: 'linear' | 'quantile' | 'logarithmic';
     binCount: number;
+    numericType?: 'int' | 'float';
     signature: string;
     topologySignature: string;
     logSupported: boolean;

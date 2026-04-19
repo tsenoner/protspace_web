@@ -1,5 +1,9 @@
 export type AnnotationKind = 'categorical' | 'numeric';
 
+export type NumericAnnotationType = 'int' | 'float';
+
+export type AnnotationTypeOverride = 'auto' | 'string' | 'numeric';
+
 export type NumericBinningStrategy = 'linear' | 'quantile' | 'logarithmic';
 
 export interface NumericBinDefinition {
@@ -14,6 +18,7 @@ export interface NumericBinDefinition {
 export interface NumericAnnotationMetadata {
   strategy: NumericBinningStrategy;
   binCount: number;
+  numericType?: NumericAnnotationType;
   signature: string;
   topologySignature: string;
   logSupported: boolean;
@@ -26,6 +31,7 @@ export interface Annotation {
   colors: string[];
   shapes: string[];
   sourceKind?: AnnotationKind;
+  numericType?: NumericAnnotationType;
   numericMetadata?: NumericAnnotationMetadata;
 }
 
@@ -109,6 +115,7 @@ export interface LegendPersistedSettings {
   includeShapes: boolean;
   shapeSize: number;
   sortMode: LegendSortMode;
+  annotationTypeOverride?: AnnotationTypeOverride;
   hiddenValues: string[];
   categories: Record<string, PersistedCategoryData>;
   enableDuplicateStackUI: boolean;
