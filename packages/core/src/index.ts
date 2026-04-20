@@ -43,3 +43,7 @@ export type {
   AnnotationSnapshot,
   ContextMenuAction,
 } from './components/scatter-plot/annotation-types';
+
+// Context menu component and types
+export { ProtspaceContextMenu, resolveMenuItems } from './components/scatter-plot/context-menu';
+export type { MenuItem } from './components/scatter-plot/context-menu';
