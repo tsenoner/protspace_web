@@ -29,7 +29,13 @@ import {
 } from './webgl-render-perf';
 import './context-menu';
 import './indicator-layer';
-import type { Indicator, ContextMenuAction } from './annotation-types';
+import './inset-tool';
+import type {
+  Indicator,
+  ContextMenuAction,
+  Inset as InsetType,
+  InsetStep,
+} from './annotation-types';
 import { resolveMenuItems, type MenuItem } from './context-menu';
 
 // Visualization is only needed for viewport culling on very large datasets.
@@ -79,6 +85,8 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Object }) config: Partial<ScatterplotConfig> = {};
   @property({ type: Boolean, attribute: 'show-tour-button' }) showTourButton = false;
   @property({ type: Array }) indicators: Indicator[] = [];
+  @property({ type: Array }) insets: InsetType[] = [];
+  @property({ type: String, attribute: 'inset-step' }) insetStep: InsetStep = 'idle';
   @state() private _contextMenuOpen = false;
   @state() private _contextMenuX = 0;
   @state() private _contextMenuY = 0;
@@ -2170,6 +2178,11 @@ export class ProtspaceScatterplot extends LitElement {
           @context-menu-action="${this._handleContextMenuAction}"
           @context-menu-close="${this._handleContextMenuClose}"
         ></protspace-context-menu>
+        <protspace-inset-tool
+          .step="${this.insetStep}"
+          .insets="${this.insets}"
+          .containerSize="${{ width: this.clientWidth, height: this.clientHeight }}"
+        ></protspace-inset-tool>
       </div>
     `;
   }

@@ -182,6 +182,13 @@ const scatterplotStylesCore = css`
     position: absolute;
     z-index: 200;
   }
+
+  protspace-inset-tool {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+  }
 `;
 
 export const scatterplotStyles = [tokens, overlayMixins, scatterplotStylesCore];

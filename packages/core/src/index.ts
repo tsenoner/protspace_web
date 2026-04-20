@@ -54,3 +54,6 @@ export {
   computeArrowScreenPosition,
 } from './components/scatter-plot/indicator-layer';
 export type { ArrowScreenPosition } from './components/scatter-plot/indicator-layer';
+
+// Inset tool component and utilities
+export { ProtspaceInsetTool, computeConnectorLines } from './components/scatter-plot/inset-tool';
