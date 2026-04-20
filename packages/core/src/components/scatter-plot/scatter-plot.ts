@@ -2,14 +2,12 @@ import { LitElement, html } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import * as d3 from 'd3';
 import type {
-  AnnotationTypeOverride,
   VisualizationData,
   PlotDataPoint,
   ScatterplotConfig,
   NumericAnnotationDisplaySettingsMap,
 } from '@protspace/utils';
 import {
-  applyAnnotationTypeOverrides,
   DataProcessor,
   getNumericBinLabelMap,
   materializeVisualizationData,
@@ -69,7 +67,6 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Array }) hiddenAnnotationValues: string[] = [];
   @property({ type: Array }) otherAnnotationValues: string[] = [];
   @property({ type: Boolean }) useShapes: boolean = false;
-  @property({ type: Object }) annotationTypeOverrides: Record<string, AnnotationTypeOverride> = {};
   @property({ type: Object }) numericAnnotationSettings: NumericAnnotationDisplaySettingsMap = {};
   @property({ type: Object }) annotationSortModes: Record<string, LegendSortMode> = {};
   @property({ type: Object }) numericManualOrderIdsByAnnotation: Record<string, string[]> = {};
@@ -172,7 +169,6 @@ export class ProtspaceScatterplot extends LitElement {
   private _lastMaterializedNumericValues: Array<number | null> | null = null;
   private _materializedDataCacheKey: string | null = null;
   private _materializedDataCache: VisualizationData | null = null;
-  private _lastAnnotationTypeOverrideErrorSignature: string | null = null;
   private _numericRecomputeJobId = 0;
 
   // Computed properties with caching
@@ -218,24 +214,7 @@ export class ProtspaceScatterplot extends LitElement {
   private _getMaterializedData(): VisualizationData | null {
     if (!this.data) return null;
 
-    const overrideResult = applyAnnotationTypeOverrides(this.data, this.annotationTypeOverrides);
-    const overrideErrorSignature =
-      overrideResult.errors.length > 0 ? JSON.stringify(overrideResult.errors) : null;
-    if (overrideErrorSignature !== this._lastAnnotationTypeOverrideErrorSignature) {
-      for (const error of overrideResult.errors) {
-        console.warn(`[protspace-scatterplot] ${error.message}`);
-        this.dispatchEvent(
-          new CustomEvent('annotation-type-override-error', {
-            detail: error,
-            bubbles: true,
-            composed: true,
-          }),
-        );
-      }
-      this._lastAnnotationTypeOverrideErrorSignature = overrideErrorSignature;
-    }
-
-    const sourceData = overrideResult.data;
+    const sourceData = this.data;
     const selectedNumericValues = this.selectedAnnotation
       ? sourceData.numeric_annotation_data?.[this.selectedAnnotation]
       : undefined;
@@ -260,7 +239,6 @@ export class ProtspaceScatterplot extends LitElement {
       selectedNumericType,
       numericAnnotationSettings: selectedNumericSettings ?? null,
       annotationKeys: Object.keys(sourceData.annotations),
-      annotationTypeOverrides: this.annotationTypeOverrides,
     });
 
     if (
@@ -449,7 +427,6 @@ export class ProtspaceScatterplot extends LitElement {
     const numericSettingsChangedOnly =
       changedProperties.has('numericAnnotationSettings') &&
       !changedProperties.has('data') &&
-      !changedProperties.has('annotationTypeOverrides') &&
       !changedProperties.has('filteredProteinIds') &&
       !changedProperties.has('filtersActive') &&
       !changedProperties.has('selectedProjectionIndex') &&
@@ -457,7 +434,6 @@ export class ProtspaceScatterplot extends LitElement {
 
     if (
       changedProperties.has('data') ||
-      changedProperties.has('annotationTypeOverrides') ||
       changedProperties.has('filteredProteinIds') ||
       changedProperties.has('filtersActive') ||
       changedProperties.has('selectedProjectionIndex') ||
@@ -478,7 +454,6 @@ export class ProtspaceScatterplot extends LitElement {
       // Dispatch data-change event for auto-sync with control bar and other components
       if (
         (changedProperties.has('data') ||
-          changedProperties.has('annotationTypeOverrides') ||
           changedProperties.has('filteredProteinIds') ||
           changedProperties.has('filtersActive')) &&
         this.data
@@ -541,7 +516,6 @@ export class ProtspaceScatterplot extends LitElement {
     // Refresh cached style getters when any relevant input changes
     if (
       changedProperties.has('data') ||
-      changedProperties.has('annotationTypeOverrides') ||
       changedProperties.has('numericAnnotationSettings') ||
       changedProperties.has('selectedAnnotation') ||
       changedProperties.has('hiddenAnnotationValues') ||

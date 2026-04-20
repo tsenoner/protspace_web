@@ -12,7 +12,6 @@ import {
   materializeNumericAnnotation,
   normalizeNumericPaletteId,
   resolveNumericAnnotationDisplaySettings,
-  type AnnotationTypeOverride,
   type NumericBinningStrategy,
   type NumericAnnotationDisplaySettingsMap,
 } from '@protspace/utils';
@@ -144,8 +143,6 @@ export class ProtspaceLegend extends LitElement {
   @state() private _colorPickerPosition: { x: number; y: number } | null = null;
   @state() private _showShapePicker = false;
   @state() private _selectedPaletteId = 'kellys';
-  @state() private _annotationTypeOverridesByAnnotation: Record<string, AnnotationTypeOverride> =
-    {};
   @state() private _numericSettingsByAnnotation: NumericAnnotationDisplaySettingsMap = {};
   @state() private _numericManualOrderIdsByAnnotation: Record<string, string[]> = {};
   @state() private _keyboardDragValue: string | null = null;
@@ -169,7 +166,6 @@ export class ProtspaceLegend extends LitElement {
     includeShapes: boolean;
     shapeSize: number;
     enableDuplicateStackUI: boolean;
-    annotationTypeOverride: AnnotationTypeOverride;
     annotationSortModes: Record<string, LegendSortMode>;
     selectedPaletteId: string;
     numericStrategy: NumericBinningStrategy;
@@ -179,7 +175,6 @@ export class ProtspaceLegend extends LitElement {
     includeShapes: LEGEND_DEFAULTS.includeShapes,
     shapeSize: LEGEND_DEFAULTS.symbolSize,
     enableDuplicateStackUI: false,
-    annotationTypeOverride: 'auto',
     annotationSortModes: {},
     selectedPaletteId: 'kellys',
     numericStrategy: DEFAULT_NUMERIC_STRATEGY,
@@ -219,7 +214,6 @@ export class ProtspaceLegend extends LitElement {
     getEffectiveIncludeShapes: () => this._effectiveIncludeShapes,
     getOtherConcreteValues: () => computeOtherConcreteValues(this._otherItems),
     getNumericAnnotationSettings: () => this._numericSettingsByAnnotation,
-    getAnnotationTypeOverrides: () => this._annotationTypeOverridesByAnnotation,
     getAnnotationSortModes: () => this._annotationSortModes,
     getNumericManualOrderIds: () => this._numericManualOrderIdsByAnnotation,
   });
@@ -228,18 +222,10 @@ export class ProtspaceLegend extends LitElement {
     onSettingsLoaded: (settings) => this._applyPersistedSettings(settings),
     getLegendItems: () => this._legendItems,
     getHiddenValues: () => this._hiddenValues,
-    shouldPersistCategories: () =>
-      !this._isEffectivelyNumericAnnotation(
-        this._annotationTypeOverridesByAnnotation[this.selectedAnnotation],
-      ),
-    shouldPersistCategoryEncodings: () =>
-      !this._isEffectivelyNumericAnnotation(
-        this._annotationTypeOverridesByAnnotation[this.selectedAnnotation],
-      ),
+    shouldPersistCategories: () => !this._isCurrentAnnotationNumeric(),
+    shouldPersistCategoryEncodings: () => !this._isCurrentAnnotationNumeric(),
     getCurrentSettings: () => {
-      const annotationTypeOverride =
-        this._annotationTypeOverridesByAnnotation[this.selectedAnnotation] ?? 'auto';
-      const isNumericAnnotation = this._isEffectivelyNumericAnnotation(annotationTypeOverride);
+      const isNumericAnnotation = this._isCurrentAnnotationNumeric();
       return {
         maxVisibleValues: this.maxVisibleValues,
         includeShapes: this.includeShapes,
@@ -252,7 +238,6 @@ export class ProtspaceLegend extends LitElement {
         selectedPaletteId: isNumericAnnotation
           ? normalizeNumericPaletteId(this._selectedPaletteId)
           : this._normalizeCategoricalPaletteId(this._selectedPaletteId),
-        annotationTypeOverride,
         numericSettings: isNumericAnnotation
           ? {
               strategy:
@@ -644,10 +629,7 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private get _effectiveIncludeShapes(): boolean {
-    return this._isMultilabelAnnotation() ||
-      this._isEffectivelyNumericAnnotation(
-        this._annotationTypeOverridesByAnnotation[this.selectedAnnotation],
-      )
+    return this._isMultilabelAnnotation() || this._isCurrentAnnotationNumeric()
       ? false
       : this.includeShapes;
   }
@@ -976,7 +958,6 @@ export class ProtspaceLegend extends LitElement {
     this._showOtherDialog = false;
     this._colorPickerItem = null;
     this._selectedPaletteId = 'kellys';
-    this._annotationTypeOverridesByAnnotation = {};
     this._numericSettingsByAnnotation = {};
     this._numericManualOrderIdsByAnnotation = {};
     this._clearKeyboardReorderState();
@@ -1105,16 +1086,10 @@ export class ProtspaceLegend extends LitElement {
     return isNumericAnnotation(this.annotationData);
   }
 
-  private _isSourceNumericAnnotation(): boolean {
+  private _isCurrentAnnotationNumeric(): boolean {
     const sourceAnnotation =
       this._scatterplotController.scatterplot?.data?.annotations?.[this.selectedAnnotation];
     return isNumericAnnotation(sourceAnnotation) || this._isNumericAnnotation();
-  }
-
-  private _isEffectivelyNumericAnnotation(override?: AnnotationTypeOverride): boolean {
-    if (override === 'numeric') return true;
-    if (override === 'string') return false;
-    return this._isSourceNumericAnnotation();
   }
 
   private _hasSameProteinIds(left: readonly string[], right: readonly string[]): boolean {
@@ -1122,21 +1097,6 @@ export class ProtspaceLegend extends LitElement {
     if (left.length !== right.length) return false;
 
     return left.every((proteinId, index) => proteinId === right[index]);
-  }
-
-  private _setAnnotationTypeOverride(
-    annotation: string,
-    override: AnnotationTypeOverride,
-  ): boolean {
-    if (this._annotationTypeOverridesByAnnotation[annotation] === override) {
-      return false;
-    }
-
-    this._annotationTypeOverridesByAnnotation = {
-      ...this._annotationTypeOverridesByAnnotation,
-      [annotation]: override,
-    };
-    return true;
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -1357,8 +1317,7 @@ export class ProtspaceLegend extends LitElement {
 
   private _applyPersistedSettings(settings: LegendPersistedSettings): void {
     try {
-      const annotationTypeOverride = settings.annotationTypeOverride ?? 'auto';
-      const isNumericAnnotation = this._isEffectivelyNumericAnnotation(annotationTypeOverride);
+      const isNumericAnnotation = this._isCurrentAnnotationNumeric();
       const { settings: resolvedNumericSettings } = resolveNumericAnnotationDisplaySettings({
         persistedSettings: settings,
         liveSettings: this._numericSettingsByAnnotation[this.selectedAnnotation],
@@ -1401,7 +1360,6 @@ export class ProtspaceLegend extends LitElement {
       this.shapeSize = settings.shapeSize;
       this._hiddenValues = hasMatchingNumericTopology ? settings.hiddenValues : [];
       this._selectedPaletteId = resolvedPaletteId;
-      this._setAnnotationTypeOverride(this.selectedAnnotation, annotationTypeOverride);
       if (isNumericAnnotation) {
         this._persistenceController.clearPendingCategories();
       }
@@ -1767,9 +1725,7 @@ export class ProtspaceLegend extends LitElement {
     this._clearKeyboardReorderState();
     const scatterplot = this._scatterplotController.scatterplot;
     const numericSettings = this._numericSettingsByAnnotation[this.selectedAnnotation];
-    const annotationTypeOverride =
-      this._annotationTypeOverridesByAnnotation[this.selectedAnnotation] ?? 'auto';
-    const isNumericAnnotation = this._isEffectivelyNumericAnnotation(annotationTypeOverride);
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
     const selectedPaletteId = isNumericAnnotation
       ? normalizeNumericPaletteId(numericSettings?.paletteId ?? DEFAULT_NUMERIC_PALETTE_ID)
       : this._normalizeCategoricalPaletteId(this._selectedPaletteId);
@@ -1777,7 +1733,6 @@ export class ProtspaceLegend extends LitElement {
       maxVisibleValues: this.maxVisibleValues,
       includeShapes: this.includeShapes,
       shapeSize: this.shapeSize,
-      annotationTypeOverride,
       annotationSortModes: this._annotationSortModes,
       enableDuplicateStackUI: Boolean(
         scatterplot &&
@@ -1828,9 +1783,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handleSettingsSave(): void {
-    const isNumericAnnotation = this._isEffectivelyNumericAnnotation(
-      this._dialogSettings.annotationTypeOverride,
-    );
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
     const nextIncludeShapes = isNumericAnnotation ? false : this._dialogSettings.includeShapes;
     const nextSelectedPaletteId = isNumericAnnotation
       ? normalizeNumericPaletteId(this._dialogSettings.selectedPaletteId)
@@ -1847,10 +1800,6 @@ export class ProtspaceLegend extends LitElement {
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
     this.includeShapes = nextIncludeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
-    this._setAnnotationTypeOverride(
-      this.selectedAnnotation,
-      this._dialogSettings.annotationTypeOverride,
-    );
     this._annotationSortModes = nextAnnotationSortModes;
     if (!nextAnnotationSortModes[this.selectedAnnotation]?.startsWith('manual')) {
       this._keyboardDragValue = null;
@@ -1948,9 +1897,7 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handlePaletteChange(paletteId: string): void {
-    const isNumericAnnotation = this._isEffectivelyNumericAnnotation(
-      this._dialogSettings.annotationTypeOverride,
-    );
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
     this._dialogSettings = {
       ...this._dialogSettings,
       selectedPaletteId: isNumericAnnotation
@@ -2007,10 +1954,9 @@ export class ProtspaceLegend extends LitElement {
     this.maxVisibleValues = LEGEND_DEFAULTS.maxVisibleValues;
     this.includeShapes = LEGEND_DEFAULTS.includeShapes;
     this.shapeSize = LEGEND_DEFAULTS.symbolSize;
-    const isNumericAnnotation = this._isEffectivelyNumericAnnotation('auto');
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
 
     this._selectedPaletteId = isNumericAnnotation ? DEFAULT_NUMERIC_PALETTE_ID : 'kellys';
-    this._setAnnotationTypeOverride(this.selectedAnnotation, 'auto');
     if (isNumericAnnotation) {
       this._numericSettingsByAnnotation = {
         ...this._numericSettingsByAnnotation,
@@ -2079,9 +2025,7 @@ export class ProtspaceLegend extends LitElement {
 
   private _syncLegendColorsToPersistence(): void {
     const categories: Record<string, PersistedCategoryData> = {};
-    const persistVisualEncodings = !this._isEffectivelyNumericAnnotation(
-      this._annotationTypeOverridesByAnnotation[this.selectedAnnotation],
-    );
+    const persistVisualEncodings = !this._isCurrentAnnotationNumeric();
     this._legendItems.forEach((item) => {
       if (item.value !== LEGEND_VALUES.OTHER) {
         categories[item.value] = {
@@ -2188,9 +2132,7 @@ export class ProtspaceLegend extends LitElement {
       this.selectedAnnotation,
       this._annotationSortModes,
     );
-    const isNumericAnnotation = this._isEffectivelyNumericAnnotation(
-      this._dialogSettings.annotationTypeOverride,
-    );
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
     const annotationSortModes = this.selectedAnnotation
       ? {
           ...initializedSortModes,
@@ -2212,7 +2154,6 @@ export class ProtspaceLegend extends LitElement {
       includeShapes: this._dialogSettings.includeShapes,
       enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
       selectedAnnotation: this.selectedAnnotation,
-      annotationTypeOverride: this._dialogSettings.annotationTypeOverride,
       annotationSortModes: this._dialogSettings.annotationSortModes,
       isMultilabelAnnotation: this._isMultilabelAnnotation(),
       isNumericAnnotation,
@@ -2235,26 +2176,6 @@ export class ProtspaceLegend extends LitElement {
       },
       onEnableDuplicateStackUIChange: (v) => {
         this._dialogSettings = { ...this._dialogSettings, enableDuplicateStackUI: v };
-      },
-      onAnnotationTypeOverrideChange: (value) => {
-        const isNumericAnnotation = this._isEffectivelyNumericAnnotation(value);
-        this._dialogSettings = {
-          ...this._dialogSettings,
-          annotationTypeOverride: value,
-          includeShapes: isNumericAnnotation ? false : this._dialogSettings.includeShapes,
-          annotationSortModes: this.selectedAnnotation
-            ? {
-                ...this._dialogSettings.annotationSortModes,
-                [this.selectedAnnotation]: this._normalizeSortModeForEffectiveType(
-                  this._dialogSettings.annotationSortModes[this.selectedAnnotation],
-                  isNumericAnnotation,
-                ),
-              }
-            : this._dialogSettings.annotationSortModes,
-          selectedPaletteId: isNumericAnnotation
-            ? normalizeNumericPaletteId(this._dialogSettings.selectedPaletteId)
-            : this._normalizeCategoricalPaletteId(this._dialogSettings.selectedPaletteId),
-        };
       },
       onSortModeChange: (annotation, mode) => {
         this._clearKeyboardReorderState();

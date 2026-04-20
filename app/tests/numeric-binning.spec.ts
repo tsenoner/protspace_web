@@ -850,7 +850,7 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
   ]);
   expect(initialDialog.logDisabled).toBe(false);
   const initialPreview = await readNumericPreview(page);
-  expect(initialPreview.ariaLabel).toBe('Viridis continuous gradient preview');
+  expect(initialPreview.ariaLabel).toBe('Cividis continuous gradient preview');
   expect(initialPreview.caption).toBe('');
   expect(initialPreview.scaleLabels).toEqual(['Low', 'High']);
   expect((await readNumericPreview(page)).options).toContainEqual({
@@ -875,7 +875,7 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
   expect(state.strategy).toBe('linear');
   expect(state.binCount).toBeGreaterThan(0);
   expect(state.binCount).toBeLessThanOrEqual(10);
-  expect(state.colors[0]).toBe('#440154');
+  expect(state.colors[0]).toBe('#00224E');
 
   await openLegendSettings(page);
   await updateLegendSettings(page, {

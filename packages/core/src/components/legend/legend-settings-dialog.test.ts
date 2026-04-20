@@ -5,11 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from 'lit';
 import { renderSettingsDialog, type SettingsDialogCallbacks } from './legend-settings-dialog';
 import type { LegendPersistedSettings, LegendSortMode } from './types';
-import {
-  DEFAULT_NUMERIC_PALETTE_ID,
-  type AnnotationTypeOverride,
-  type NumericBinningStrategy,
-} from '@protspace/utils';
+import { DEFAULT_NUMERIC_PALETTE_ID, type NumericBinningStrategy } from '@protspace/utils';
 
 // Import the component to register the custom element for integration coverage.
 import './legend';
@@ -22,7 +18,7 @@ type LegendTestElement = HTMLElement & {
     numeric_annotation_data?: Record<string, Array<number | null>>;
   };
   proteinIds: string[];
-  annotationData: { name: string; values: string[] };
+  annotationData: { name: string; values: string[]; kind?: 'categorical' | 'numeric' };
   maxVisibleValues: number;
   includeShapes: boolean;
   updated: (changedProperties: Map<string, unknown>) => void;
@@ -32,7 +28,6 @@ type LegendTestElement = HTMLElement & {
     includeShapes: boolean;
     shapeSize: number;
     enableDuplicateStackUI: boolean;
-    annotationTypeOverride: AnnotationTypeOverride;
     annotationSortModes: Record<string, LegendSortMode>;
     selectedPaletteId: string;
     numericStrategy: NumericBinningStrategy;
@@ -59,7 +54,6 @@ type LegendTestElement = HTMLElement & {
   };
   _selectedPaletteId: string;
   _annotationSortModes: Record<string, LegendSortMode>;
-  _annotationTypeOverridesByAnnotation: Record<string, AnnotationTypeOverride>;
   _numericSettingsByAnnotation: Record<
     string,
     {
@@ -74,7 +68,6 @@ type LegendTestElement = HTMLElement & {
     callbacks: {
       getCurrentSettings: () => {
         sortMode: LegendSortMode;
-        annotationTypeOverride?: AnnotationTypeOverride;
         numericSettings?: {
           strategy: NumericBinningStrategy;
           reverseGradient?: boolean;
@@ -96,7 +89,6 @@ function renderSettingsDialogToContainer(overrides = {}) {
     onPaletteChange: vi.fn(),
     onNumericStrategyChange: vi.fn<(strategy: NumericBinningStrategy) => void>(),
     onReverseGradientChange: vi.fn(),
-    onAnnotationTypeOverrideChange: vi.fn<(value: AnnotationTypeOverride) => void>(),
     onSave: vi.fn(),
     onClose: vi.fn(),
     onReset: vi.fn(),
@@ -115,7 +107,6 @@ function renderSettingsDialogToContainer(overrides = {}) {
         enableDuplicateStackUI: false,
         selectedAnnotation: 'score',
         annotationSortModes: {},
-        annotationTypeOverride: 'numeric',
         isMultilabelAnnotation: false,
         isNumericAnnotation: true,
         selectedNumericStrategy: 'linear',
@@ -134,56 +125,33 @@ function renderSettingsDialogToContainer(overrides = {}) {
 }
 
 describe('renderSettingsDialog', () => {
-  it('renders annotation type override controls before display settings', () => {
+  it('does not render manual annotation type override controls', () => {
     const { container } = renderSettingsDialogToContainer();
     const select = container.querySelector('#annotation-type-override') as HTMLSelectElement | null;
 
-    expect(select).not.toBeNull();
-    expect(select?.value).toBe('numeric');
-    expect(
-      [...select!.options].map((option) => [option.textContent?.trim(), option.value]),
-    ).toEqual([
-      ['Auto', 'auto'],
-      ['String', 'string'],
-      ['Numeric', 'numeric'],
-    ]);
+    expect(select).toBeNull();
 
     const sections = [...container.querySelectorAll('.settings-section-title')].map((section) =>
       section.textContent?.trim(),
     );
-    expect(sections.indexOf('Annotation type')).toBeLessThan(sections.indexOf('Display'));
-  });
-
-  it('notifies when annotation type override changes', () => {
-    const { container, callbacks } = renderSettingsDialogToContainer();
-    const select = container.querySelector('#annotation-type-override') as HTMLSelectElement;
-
-    select.value = 'string';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-
-    expect(callbacks.onAnnotationTypeOverrideChange).toHaveBeenCalledWith('string');
+    expect(sections).not.toContain('Annotation type');
   });
 });
 
-describe('ProtspaceLegend settings dialog type override integration', () => {
+describe('ProtspaceLegend settings dialog numeric inference integration', () => {
   function createLegend(): LegendTestElement {
     return document.createElement('protspace-legend') as LegendTestElement;
   }
 
-  function configureOpenSettingsDialog(
-    el: LegendTestElement,
-    annotationTypeOverride: AnnotationTypeOverride,
-    selectedPaletteId = 'kellys',
-  ) {
+  function configureOpenSettingsDialog(el: LegendTestElement, selectedPaletteId = 'kellys') {
     el.selectedAnnotation = 'score';
-    el.annotationData = { name: 'score', values: ['1', '2'] };
+    el.annotationData = { name: 'score', values: ['1', '2'], kind: 'numeric' };
     el._showSettingsDialog = true;
     el._dialogSettings = {
       maxVisibleValues: 5,
       includeShapes: true,
       shapeSize: 12,
       enableDuplicateStackUI: false,
-      annotationTypeOverride,
       annotationSortModes: {},
       selectedPaletteId,
       numericStrategy: 'linear',
@@ -204,9 +172,9 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
     });
   }
 
-  it('renders numeric-dependent controls when pending type override is numeric', () => {
+  it('renders numeric-dependent controls for inferred numeric annotations', () => {
     const el = createLegend();
-    configureOpenSettingsDialog(el, 'numeric', DEFAULT_NUMERIC_PALETTE_ID);
+    configureOpenSettingsDialog(el, DEFAULT_NUMERIC_PALETTE_ID);
     el._dialogSettings.annotationSortModes = { score: 'alpha-asc' };
     const container = document.createElement('div');
 
@@ -224,48 +192,18 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
     ).toBe(true);
   });
 
-  it('normalizes pending shape and sort state when changing override to numeric', () => {
+  it('normalizes palette changes using the inferred numeric annotation type', () => {
     const el = createLegend();
-    configureOpenSettingsDialog(el, 'string');
-    el._dialogSettings.annotationSortModes = { score: 'size-desc' };
-    const container = document.createElement('div');
-
-    render(el._renderSettingsDialog(), container);
-    const select = container.querySelector('#annotation-type-override') as HTMLSelectElement;
-
-    select.value = 'numeric';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-
-    expect(el._dialogSettings.annotationTypeOverride).toBe('numeric');
-    expect(el._dialogSettings.includeShapes).toBe(false);
-    expect(el._dialogSettings.annotationSortModes.score).toBe('alpha-asc');
-
-    render(el._renderSettingsDialog(), container);
-    const includeShapesInput = container.querySelector<HTMLInputElement>(
-      'input[aria-describedby="include-shapes-note"]',
-    );
-    const checkedSortLabels = [
-      ...container.querySelectorAll<HTMLInputElement>('input[name="sort-type-score"]:checked'),
-    ].map((input) => input.closest('label')?.textContent?.trim());
-
-    expect(includeShapesInput?.disabled).toBe(true);
-    expect(includeShapesInput?.checked).toBe(false);
-    expect(checkedSortLabels).toEqual(['By numeric value']);
-    expect(container.textContent).not.toContain('By category size');
-  });
-
-  it('normalizes palette changes using the pending type override', () => {
-    const el = createLegend();
-    configureOpenSettingsDialog(el, 'numeric');
+    configureOpenSettingsDialog(el);
 
     el._handlePaletteChange('kellys');
 
     expect(el._dialogSettings.selectedPaletteId).toBe(DEFAULT_NUMERIC_PALETTE_ID);
   });
 
-  it('saves numeric-only settings using the pending type override', () => {
+  it('saves numeric-only settings for inferred numeric annotations', () => {
     const el = createLegend();
-    configureOpenSettingsDialog(el, 'numeric');
+    configureOpenSettingsDialog(el);
     el._updateLegendItems = vi.fn();
     el._dispatchLegendStateChange = vi.fn();
 
@@ -274,7 +212,6 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
     expect(el.includeShapes).toBe(false);
     expect(el._annotationSortModes.score).toBe('alpha-asc');
     expect(el._selectedPaletteId).toBe(DEFAULT_NUMERIC_PALETTE_ID);
-    expect(el._annotationTypeOverridesByAnnotation.score).toBe('numeric');
     expect(el._numericSettingsByAnnotation.score).toMatchObject({
       binCount: 5,
       strategy: 'linear',
@@ -283,33 +220,10 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
     });
   });
 
-  it('saves auto as numeric when the source annotation is numeric after a string override', () => {
-    const el = createLegend();
-    configureOpenSettingsDialog(el, 'auto');
-    el.annotationData = { name: 'score', values: ['1', '2'] };
-    setSourceAnnotationKind(el, 'numeric');
-    el._updateLegendItems = vi.fn();
-    el._dispatchLegendStateChange = vi.fn();
-
-    el._handleSettingsSave();
-
-    expect(el.includeShapes).toBe(false);
-    expect(el._annotationSortModes.score).toBe('alpha-asc');
-    expect(el._selectedPaletteId).toBe(DEFAULT_NUMERIC_PALETTE_ID);
-    expect(el._annotationTypeOverridesByAnnotation.score).toBe('auto');
-    expect(el._numericSettingsByAnnotation.score).toMatchObject({
-      binCount: 5,
-      strategy: 'linear',
-      paletteId: DEFAULT_NUMERIC_PALETTE_ID,
-      reverseGradient: false,
-    });
-  });
-
-  it('resets to numeric defaults when the source annotation is numeric after a string override', () => {
+  it('resets to numeric defaults when the source annotation is numeric', () => {
     const el = createLegend();
     el.selectedAnnotation = 'score';
-    el.annotationData = { name: 'score', values: ['1', '2'] };
-    el._annotationTypeOverridesByAnnotation = { score: 'string' };
+    el.annotationData = { name: 'score', values: ['1', '2'], kind: 'numeric' };
     el._selectedPaletteId = 'kellys';
     el._updateLegendItems = vi.fn();
     setSourceAnnotationKind(el, 'numeric');
@@ -317,7 +231,6 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
     el._handleSettingsReset();
 
     expect(el.includeShapes).toBe(false);
-    expect(el._annotationTypeOverridesByAnnotation.score).toBe('auto');
     expect(el._annotationSortModes.score).toBe('alpha-asc');
     expect(el._selectedPaletteId).toBe(DEFAULT_NUMERIC_PALETTE_ID);
     expect(el._numericSettingsByAnnotation.score).toMatchObject({
@@ -328,12 +241,11 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
     });
   });
 
-  it('emits numeric settings when stored type override is numeric', () => {
+  it('emits numeric settings when the selected annotation is numeric', () => {
     const el = createLegend();
     el.selectedAnnotation = 'score';
-    el.annotationData = { name: 'score', values: ['1', '2'] };
+    el.annotationData = { name: 'score', values: ['1', '2'], kind: 'numeric' };
     el.maxVisibleValues = 7;
-    el._annotationTypeOverridesByAnnotation = { score: 'numeric' };
     el._numericSettingsByAnnotation = {
       score: {
         binCount: 7,
@@ -345,7 +257,6 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
 
     const settings = el._persistenceController.callbacks.getCurrentSettings();
 
-    expect(settings.annotationTypeOverride).toBe('numeric');
     expect(settings.numericSettings).toMatchObject({
       strategy: 'quantile',
       reverseGradient: true,
@@ -353,23 +264,21 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
     });
   });
 
-  it('normalizes persisted sort mode when stored type override is numeric', () => {
+  it('normalizes persisted sort mode when the selected annotation is numeric', () => {
     const el = createLegend();
     el.selectedAnnotation = 'score';
-    el.annotationData = { name: 'score', values: ['1', '2'] };
-    el._annotationTypeOverridesByAnnotation = { score: 'numeric' };
+    el.annotationData = { name: 'score', values: ['1', '2'], kind: 'numeric' };
     el._annotationSortModes = { score: 'size-desc' };
 
     const settings = el._persistenceController.callbacks.getCurrentSettings();
 
-    expect(settings.annotationTypeOverride).toBe('numeric');
     expect(settings.sortMode).toBe('alpha-asc');
   });
 
-  it('normalizes loaded sort mode using the persisted numeric override', () => {
+  it('ignores legacy persisted annotation type overrides and uses inferred numeric type', () => {
     const el = createLegend();
     el.selectedAnnotation = 'score';
-    el.annotationData = { name: 'score', values: ['1', '2'] };
+    el.annotationData = { name: 'score', values: ['1', '2'], kind: 'numeric' };
 
     el._applyPersistedSettings({
       maxVisibleValues: 5,
@@ -380,33 +289,11 @@ describe('ProtspaceLegend settings dialog type override integration', () => {
       categories: {},
       enableDuplicateStackUI: false,
       selectedPaletteId: DEFAULT_NUMERIC_PALETTE_ID,
-      annotationTypeOverride: 'numeric',
-    });
-
-    expect(el._annotationTypeOverridesByAnnotation.score).toBe('numeric');
-    expect(el._annotationSortModes.score).toBe('alpha-asc');
-  });
-
-  it('keeps override map identity when reapplying the same persisted override', () => {
-    const el = createLegend();
-    el.selectedAnnotation = 'score';
-    el.annotationData = { name: 'score', values: ['1', '2'] };
-    el._annotationTypeOverridesByAnnotation = { score: 'string' };
-    const previousOverrides = el._annotationTypeOverridesByAnnotation;
-
-    el._applyPersistedSettings({
-      maxVisibleValues: 5,
-      includeShapes: true,
-      shapeSize: 12,
-      sortMode: 'size-desc',
-      hiddenValues: [],
-      categories: {},
-      enableDuplicateStackUI: false,
-      selectedPaletteId: 'kellys',
       annotationTypeOverride: 'string',
-    });
+    } as LegendPersistedSettings & { annotationTypeOverride: string });
 
-    expect(el._annotationTypeOverridesByAnnotation).toBe(previousOverrides);
+    expect(el.includeShapes).toBe(false);
+    expect(el._annotationSortModes.score).toBe('alpha-asc');
   });
 
   it('hashes source scatterplot data instead of the materialized override view', () => {

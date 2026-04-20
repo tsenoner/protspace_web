@@ -3,7 +3,6 @@ export * from './visualization/shapes';
 export * from './visualization/data-processor';
 export * from './visualization/color-scheme';
 export * from './visualization/numeric-binning';
-export * from './visualization/annotation-type-overrides';
 export * from './visualization/scales';
 export * from './visualization/export-utils';
 export * from './structure/structure-service';

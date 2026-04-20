@@ -8,7 +8,6 @@ import {
   createColorSchemeLinearGradient,
   COLOR_SCHEME_INFO,
   getColorSchemeInfo,
-  type AnnotationTypeOverride,
   type NumericBinningStrategy,
 } from '@protspace/utils';
 
@@ -21,7 +20,6 @@ export interface SettingsDialogState {
   includeShapes: boolean;
   enableDuplicateStackUI: boolean;
   selectedAnnotation: string;
-  annotationTypeOverride: AnnotationTypeOverride;
   annotationSortModes: Record<string, LegendSortMode>;
   isMultilabelAnnotation: boolean;
   isNumericAnnotation: boolean;
@@ -40,7 +38,6 @@ export interface SettingsDialogCallbacks {
   onShapeSizeChange: (value: number) => void;
   onIncludeShapesChange: (checked: boolean) => void;
   onEnableDuplicateStackUIChange: (checked: boolean) => void;
-  onAnnotationTypeOverrideChange: (value: AnnotationTypeOverride) => void;
   onSortModeChange: (annotation: string, mode: LegendSortMode) => void;
   onPaletteChange: (paletteId: string) => void;
   onNumericStrategyChange: (strategy: NumericBinningStrategy) => void;
@@ -95,43 +92,6 @@ function renderFieldCard(
 
 function renderFieldHint(hint?: string): TemplateResult {
   return hint ? html`<div class="settings-note">${hint}</div>` : html`${nothing}`;
-}
-
-function renderAnnotationTypeSection(
-  state: SettingsDialogState,
-  callbacks: SettingsDialogCallbacks,
-): TemplateResult {
-  return renderSection(
-    'Annotation type',
-    renderFieldCard(
-      'Type mode',
-      html`
-        <select
-          id="annotation-type-override"
-          class="legend-form-control"
-          .value=${state.annotationTypeOverride}
-          @change=${(e: Event) =>
-            callbacks.onAnnotationTypeOverrideChange(
-              (e.target as HTMLSelectElement).value as AnnotationTypeOverride,
-            )}
-        >
-          <option value="auto" .selected=${state.annotationTypeOverride === 'auto'}>Auto</option>
-          <option value="string" .selected=${state.annotationTypeOverride === 'string'}>
-            String
-          </option>
-          <option value="numeric" .selected=${state.annotationTypeOverride === 'numeric'}>
-            Numeric
-          </option>
-        </select>
-        <div class="settings-note settings-note--compact">
-          Auto infers from values. String keeps categories; Numeric bins values and uses a gradient.
-        </div>
-      `,
-      undefined,
-      '',
-      'annotation-type-override',
-    ),
-  );
 }
 
 /**
@@ -596,7 +556,6 @@ export function renderSettingsDialog(
         ${renderDialogHeader(`Legend settings: ${state.selectedAnnotation}`, callbacks.onClose)}
 
         <div class="other-items-list">
-          ${renderAnnotationTypeSection(state, callbacks)}
           ${renderSection(
             'Display',
             html`

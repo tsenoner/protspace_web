@@ -198,7 +198,7 @@ describe('settings-validation', () => {
       });
     });
 
-    it('preserves valid annotation type overrides', () => {
+    it('drops legacy annotation type overrides while preserving settings', () => {
       const normalized = normalizeBundleSettings({
         legendSettings: {
           score: {
@@ -209,21 +209,7 @@ describe('settings-validation', () => {
         exportOptions: {},
       });
 
-      expect(normalized?.legendSettings.score.annotationTypeOverride).toBe('numeric');
-    });
-
-    it('drops invalid annotation type overrides while preserving settings', () => {
-      const normalized = normalizeBundleSettings({
-        legendSettings: {
-          score: {
-            ...createValidLegendSettings(),
-            annotationTypeOverride: 'number',
-          },
-        },
-        exportOptions: {},
-      });
-
-      expect(normalized?.legendSettings.score.annotationTypeOverride).toBeUndefined();
+      expect('annotationTypeOverride' in (normalized?.legendSettings.score ?? {})).toBe(false);
       expect(normalized?.legendSettings.score.maxVisibleValues).toBe(
         createValidLegendSettings().maxVisibleValues,
       );

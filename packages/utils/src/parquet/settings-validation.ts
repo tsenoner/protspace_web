@@ -1,5 +1,4 @@
 import type {
-  AnnotationTypeOverride,
   BundleSettings,
   ExportOptionsMap,
   LegacyBundleSettings,
@@ -29,8 +28,6 @@ const VALID_NUMERIC_BINNING_STRATEGIES: NumericBinningStrategy[] = [
   'logarithmic',
 ];
 
-const VALID_ANNOTATION_TYPE_OVERRIDES: AnnotationTypeOverride[] = ['auto', 'string', 'numeric'];
-
 /**
  * Validates that a value is a valid PersistedCategoryData object.
  */
@@ -47,13 +44,6 @@ export function isValidPersistedCategoryData(obj: unknown): obj is PersistedCate
  */
 export function isValidSortMode(value: unknown): value is LegendSortMode {
   return typeof value === 'string' && VALID_SORT_MODES.includes(value as LegendSortMode);
-}
-
-function isValidAnnotationTypeOverride(value: unknown): value is AnnotationTypeOverride {
-  return (
-    typeof value === 'string' &&
-    VALID_ANNOTATION_TYPE_OVERRIDES.includes(value as AnnotationTypeOverride)
-  );
 }
 
 /**
@@ -75,12 +65,6 @@ export function isValidLegendSettings(obj: unknown): obj is LegendPersistedSetti
   if (typeof s.shapeSize !== 'number') return false;
   if (!isValidSortMode(s.sortMode)) return false;
   if (typeof s.enableDuplicateStackUI !== 'boolean') return false;
-  if (
-    s.annotationTypeOverride !== undefined &&
-    !isValidAnnotationTypeOverride(s.annotationTypeOverride)
-  ) {
-    return false;
-  }
 
   // Check hiddenValues is an array of strings
   if (!Array.isArray(s.hiddenValues)) return false;
@@ -253,16 +237,11 @@ function sanitizeLegendSettingsEntry(obj: unknown): LegendPersistedSettings | nu
     }
   }
 
-  const annotationTypeOverride = isValidAnnotationTypeOverride(s.annotationTypeOverride)
-    ? s.annotationTypeOverride
-    : undefined;
-
   return {
     maxVisibleValues: s.maxVisibleValues,
     includeShapes: s.includeShapes,
     shapeSize: s.shapeSize,
     sortMode: s.sortMode,
-    annotationTypeOverride,
     hiddenValues: s.hiddenValues,
     categories,
     enableDuplicateStackUI: s.enableDuplicateStackUI,
@@ -306,12 +285,15 @@ function sanitizeExportOptionsMap(obj: unknown): ExportOptionsMap | null {
  */
 export function normalizeBundleSettings(obj: unknown): BundleSettings | null {
   if (isNormalizedBundleSettings(obj)) {
-    return obj;
+    return {
+      legendSettings: sanitizeLegendSettingsMap(obj.legendSettings) ?? obj.legendSettings,
+      exportOptions: sanitizeExportOptionsMap(obj.exportOptions) ?? obj.exportOptions,
+    };
   }
 
   if (isLegacyBundleSettings(obj)) {
     return {
-      legendSettings: obj,
+      legendSettings: sanitizeLegendSettingsMap(obj) ?? obj,
       exportOptions: {},
     };
   }

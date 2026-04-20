@@ -163,7 +163,6 @@ describe('round-trip with real data files', () => {
           categories: {},
           enableDuplicateStackUI: false,
           selectedPaletteId: 'cividis',
-          annotationTypeOverride: 'numeric' as const,
           numericSettings: {
             strategy: 'logarithmic' as const,
             signature: 'abc12345',

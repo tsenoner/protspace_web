@@ -2,8 +2,6 @@ export type AnnotationKind = 'categorical' | 'numeric';
 
 export type NumericAnnotationType = 'int' | 'float';
 
-export type AnnotationTypeOverride = 'auto' | 'string' | 'numeric';
-
 export type NumericBinningStrategy = 'linear' | 'quantile' | 'logarithmic';
 
 export interface NumericBinDefinition {
@@ -116,7 +114,6 @@ export interface LegendPersistedSettings {
   includeShapes: boolean;
   shapeSize: number;
   sortMode: LegendSortMode;
-  annotationTypeOverride?: AnnotationTypeOverride;
   hiddenValues: string[];
   categories: Record<string, PersistedCategoryData>;
   enableDuplicateStackUI: boolean;

@@ -164,34 +164,9 @@ describe('PersistenceController', () => {
       expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith({
         ...savedSettings,
         selectedPaletteId: 'kellys',
-        annotationTypeOverride: 'auto',
       });
       expect(controller.settingsLoaded).toBe(true);
       expect(controller.pendingCategories).toEqual(savedSettings.categories);
-    });
-
-    it('loads a persisted valid annotation type override unchanged', () => {
-      const savedSettings = {
-        maxVisibleValues: 15,
-        includeShapes: true,
-        shapeSize: 20,
-        sortMode: 'alpha-asc' as const,
-        hiddenValues: [],
-        categories: {},
-        enableDuplicateStackUI: true,
-        annotationTypeOverride: 'numeric' as const,
-      };
-
-      controller.updateDatasetHash(['protein1']);
-      controller.updateSelectedAnnotation('annotation1');
-      vi.mocked(getStorageItem).mockReturnValue(savedSettings);
-
-      controller.loadSettings();
-
-      expect(mockCallbacks.onSettingsLoaded).toHaveBeenCalledWith({
-        ...savedSettings,
-        selectedPaletteId: 'kellys',
-      });
     });
 
     it('ignores persisted categories when category state should not be restored', () => {
@@ -241,7 +216,6 @@ describe('PersistenceController', () => {
         sortMode: 'alpha-asc' as const,
         enableDuplicateStackUI: true,
         selectedPaletteId: 'kellys',
-        annotationTypeOverride: 'numeric' as const,
       });
 
       controller.saveSettings();
@@ -259,7 +233,6 @@ describe('PersistenceController', () => {
         },
         enableDuplicateStackUI: true,
         selectedPaletteId: 'kellys',
-        annotationTypeOverride: 'numeric',
       });
     });
 
@@ -713,7 +686,6 @@ describe('PersistenceController', () => {
           sortMode: 'alpha-asc' as const,
           enableDuplicateStackUI: true,
           selectedPaletteId: 'kellys',
-          annotationTypeOverride: 'numeric' as const,
         });
 
         const settings = controller.getCurrentSettingsForExport();
@@ -722,7 +694,6 @@ describe('PersistenceController', () => {
         expect(settings.includeShapes).toBe(true);
         expect(settings.sortMode).toBe('alpha-asc');
         expect(settings.hiddenValues).toEqual(['hidden1']);
-        expect(settings.annotationTypeOverride).toBe('numeric');
         expect(settings.categories).toEqual({
           cat1: { zOrder: 0, color: '#f00', shape: 'circle' },
           cat2: { zOrder: 1, color: '#0f0', shape: 'square' },
@@ -741,6 +712,49 @@ describe('PersistenceController', () => {
           cat1: { zOrder: 0, color: '#f00', shape: 'circle' },
         });
         expect(settings.categories['Other']).toBeUndefined();
+      });
+
+      it('strips legacy annotation type overrides from stored annotations during export', () => {
+        controller.updateDatasetHash(['protein1']);
+        controller.updateSelectedAnnotation('selected');
+        mockCallbacks.getCurrentSettings = vi.fn().mockReturnValue({
+          maxVisibleValues: 10,
+          includeShapes: false,
+          shapeSize: 16,
+          sortMode: 'size-desc' as const,
+          enableDuplicateStackUI: false,
+          selectedPaletteId: 'kellys',
+        });
+        vi.mocked(getStorageItem).mockImplementation((key: string) =>
+          key === 'legend_hash_protein1_other'
+            ? {
+                maxVisibleValues: 5,
+                includeShapes: false,
+                shapeSize: 20,
+                sortMode: 'alpha-asc' as const,
+                hiddenValues: [],
+                categories: {},
+                enableDuplicateStackUI: false,
+                selectedPaletteId: 'cividis',
+                annotationTypeOverride: 'numeric',
+              }
+            : {},
+        );
+
+        const settings = controller.getAllSettingsForExport(['selected', 'other']);
+
+        expect(settings.other).toEqual({
+          maxVisibleValues: 5,
+          includeShapes: false,
+          shapeSize: 20,
+          sortMode: 'alpha-asc',
+          hiddenValues: [],
+          categories: {},
+          enableDuplicateStackUI: false,
+          selectedPaletteId: 'cividis',
+          numericSettings: undefined,
+        });
+        expect('annotationTypeOverride' in settings.other).toBe(false);
       });
     });
   });

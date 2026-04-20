@@ -333,13 +333,11 @@ describe('ScatterplotSyncController', () => {
 
     it('preserves scatterplot property identities when numeric settings are unchanged', () => {
       const numericAnnotationSettings = {};
-      const annotationTypeOverrides = { score: 'string' as const };
       const annotationSortModes = { score: 'size-desc' as const };
       const numericManualOrderIdsByAnnotation = {};
       mockCallbacks.getNumericAnnotationSettings = vi
         .fn()
         .mockReturnValue(numericAnnotationSettings);
-      mockCallbacks.getAnnotationTypeOverrides = vi.fn().mockReturnValue(annotationTypeOverrides);
       mockCallbacks.getAnnotationSortModes = vi.fn().mockReturnValue(annotationSortModes);
       mockCallbacks.getNumericManualOrderIds = vi
         .fn()
@@ -349,7 +347,6 @@ describe('ScatterplotSyncController', () => {
       controller.syncNumericAnnotationSettings();
 
       expect(mockScatterplot.numericAnnotationSettings).toBe(numericAnnotationSettings);
-      expect(mockScatterplot.annotationTypeOverrides).toBe(annotationTypeOverrides);
       expect(mockScatterplot.annotationSortModes).toBe(annotationSortModes);
       expect(mockScatterplot.numericManualOrderIdsByAnnotation).toBe(
         numericManualOrderIdsByAnnotation,
