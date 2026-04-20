@@ -27,6 +27,10 @@ import {
   type PerfDatasetInfo,
   type RenderWebGLTrigger,
 } from './webgl-render-perf';
+import './context-menu';
+import './indicator-layer';
+import type { Indicator, ContextMenuAction } from './annotation-types';
+import { resolveMenuItems, type MenuItem } from './context-menu';
 
 // Visualization is only needed for viewport culling on very large datasets.
 // For <= MAX_POINTS_DIRECT_RENDER we can render the full set once and then pan/zoom via uniforms
@@ -74,6 +78,11 @@ export class ProtspaceScatterplot extends LitElement {
   @property({ type: Boolean, attribute: 'filters-active' }) filtersActive = false;
   @property({ type: Object }) config: Partial<ScatterplotConfig> = {};
   @property({ type: Boolean, attribute: 'show-tour-button' }) showTourButton = false;
+  @property({ type: Array }) indicators: Indicator[] = [];
+  @state() private _contextMenuOpen = false;
+  @state() private _contextMenuX = 0;
+  @state() private _contextMenuY = 0;
+  @state() private _contextMenuItems: MenuItem[] = [];
 
   // State
   @state() private _plotData: PlotDataPoint[] = [];
@@ -1975,6 +1984,36 @@ export class ProtspaceScatterplot extends LitElement {
     this._clearHoverState();
   }
 
+  private _handleContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    const hit = this.hitTest(e.clientX, e.clientY);
+    const hasAccession = hit
+      ? /^[A-Z][0-9][A-Z0-9]{3}[0-9]|^[A-Z]{2}_\d+/.test(hit.proteinId)
+      : false;
+    this._contextMenuItems = resolveMenuItems(
+      hit ? { proteinId: hit.proteinId, hasAccession, dataCoords: hit.dataCoords } : null,
+    );
+    const rect = this.getBoundingClientRect();
+    this._contextMenuX = e.clientX - rect.left;
+    this._contextMenuY = e.clientY - rect.top;
+    this._contextMenuOpen = true;
+  }
+
+  private _handleContextMenuAction(e: CustomEvent<ContextMenuAction>) {
+    const action = e.detail;
+    this.dispatchEvent(
+      new CustomEvent('context-menu-action', {
+        detail: action,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private _handleContextMenuClose() {
+    this._contextMenuOpen = false;
+  }
+
   private _clearHoverState(): void {
     if (this._tooltipData) {
       this._tooltipData = null;
@@ -2042,7 +2081,7 @@ export class ProtspaceScatterplot extends LitElement {
     const useAltCanvas = this._canvasKey % 2 === 1;
 
     return html`
-      <div class="container">
+      <div class="container" @contextmenu="${this._handleContextMenu}">
         <!-- Canvas for high-performance rendering (always visible for better performance) -->
         ${useAltCanvas
           ? html`<canvas
@@ -2117,6 +2156,20 @@ export class ProtspaceScatterplot extends LitElement {
               </div>
             `
           : ''}
+        <protspace-indicator-layer
+          .indicators="${this.indicators}"
+          .transform="${this._transform}"
+          .scaleX="${this._scales?.x ?? null}"
+          .scaleY="${this._scales?.y ?? null}"
+        ></protspace-indicator-layer>
+        <protspace-context-menu
+          .x="${this._contextMenuX}"
+          .y="${this._contextMenuY}"
+          .open="${this._contextMenuOpen}"
+          .items="${this._contextMenuItems}"
+          @context-menu-action="${this._handleContextMenuAction}"
+          @context-menu-close="${this._handleContextMenuClose}"
+        ></protspace-context-menu>
       </div>
     `;
   }
@@ -2346,6 +2399,28 @@ export class ProtspaceScatterplot extends LitElement {
     const ph = height - margin.top - margin.bottom;
     if (pw > 0 && ph > 0) return pw / ph;
     return undefined;
+  }
+
+  /**
+   * Public hit-test: resolve which point (if any) is at the given screen coordinates.
+   */
+  public hitTest(
+    screenX: number,
+    screenY: number,
+  ): { proteinId: string; dataCoords: [number, number] } | null {
+    if (!this._quadtreeIndex) return null;
+    const svgEl = this._svg;
+    if (!svgEl) return null;
+    const rect = svgEl.getBoundingClientRect();
+    const localX = screenX - rect.left;
+    const localY = screenY - rect.top;
+    const transform = this._transform;
+    const dataX = (localX - transform.x) / transform.k;
+    const dataY = (localY - transform.y) / transform.k;
+    const searchRadius = (this._mergedConfig.pointSize + 4) / transform.k;
+    const nearest = this._quadtreeIndex.findNearest(dataX, dataY, searchRadius);
+    if (!nearest) return null;
+    return { proteinId: nearest.id, dataCoords: [nearest.x, nearest.y] };
   }
 
   /**

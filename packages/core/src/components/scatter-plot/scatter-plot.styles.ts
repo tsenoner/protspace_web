@@ -170,6 +170,18 @@ const scatterplotStylesCore = css`
     pointer-events: all;
     cursor: pointer;
   }
+
+  protspace-indicator-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  protspace-context-menu {
+    position: absolute;
+    z-index: 200;
+  }
 `;
 
 export const scatterplotStyles = [tokens, overlayMixins, scatterplotStylesCore];
