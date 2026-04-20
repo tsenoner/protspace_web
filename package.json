@@ -43,6 +43,13 @@
       "prettier --write"
     ]
   },
+  "knip": {
+    "ignoreIssues": {
+      "app/src/explore/annotation-controller.ts": [
+        "types"
+      ]
+    }
+  },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "^22.19.17",
