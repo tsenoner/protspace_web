@@ -47,3 +47,10 @@ export type {
 // Context menu component and types
 export { ProtspaceContextMenu, resolveMenuItems } from './components/scatter-plot/context-menu';
 export type { MenuItem } from './components/scatter-plot/context-menu';
+
+// Indicator layer component and utilities
+export {
+  ProtspaceIndicatorLayer,
+  computeArrowScreenPosition,
+} from './components/scatter-plot/indicator-layer';
+export type { ArrowScreenPosition } from './components/scatter-plot/indicator-layer';
