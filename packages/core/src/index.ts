@@ -34,3 +34,12 @@ export { readFileOptimized } from './components/data-loader/utils/file-io';
 export { extractRowsFromParquetBundle } from './components/data-loader/utils/bundle';
 export type { BundleExtractionResult } from './components/data-loader/utils/bundle';
 export { convertParquetToVisualizationDataOptimized } from './components/data-loader/utils/conversion';
+
+// Annotation types
+export type {
+  Indicator,
+  Inset,
+  InsetStep,
+  AnnotationSnapshot,
+  ContextMenuAction,
+} from './components/scatter-plot/annotation-types';
