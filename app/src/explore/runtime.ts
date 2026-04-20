@@ -1,5 +1,6 @@
 import '@protspace/core'; // Registers all web components
 import { startProductTour } from '../tour/product-tour';
+import { createAnnotationController } from './annotation-controller';
 import { bindControlBarEvents } from './control-bar-events';
 import { createDatasetController } from './dataset-controller';
 import { getElements, waitForElements } from './elements';
@@ -81,6 +82,12 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     selectedProteinElement,
     structureViewer,
     clearPersistedLegendHiddenValues: persistedLegendController.clearPersistedLegendHiddenValues,
+  });
+
+  const annotationController = createAnnotationController({
+    onChange() {
+      plotElement.indicators = annotationController.getIndicators();
+    },
   });
 
   const datasetController = createDatasetController({
@@ -171,6 +178,51 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
       void dataLoader.loadFromFile(file);
     }
   });
+
+  addTrackedEventListener(lifecycle, plotElement, 'context-menu-action', (event: Event) => {
+    const action = (event as CustomEvent).detail;
+    switch (action.type) {
+      case 'indicate':
+        if (action.proteinId && action.dataCoords) {
+          annotationController.addIndicator({
+            proteinId: action.proteinId,
+            label: action.proteinId,
+            dataCoords: action.dataCoords,
+          });
+        }
+        break;
+      case 'select':
+        if (action.proteinId) {
+          const current = plotElement.selectedProteinIds ?? [];
+          plotElement.selectedProteinIds = [...current, action.proteinId];
+        }
+        break;
+      case 'copy-id':
+        if (action.proteinId) {
+          void navigator.clipboard.writeText(action.proteinId);
+        }
+        break;
+      case 'view-uniprot':
+        if (action.proteinId) {
+          window.open(`https://www.uniprot.org/uniprot/${action.proteinId}`, '_blank');
+        }
+        break;
+      case 'add-inset':
+        annotationController.startInsetFraming();
+        break;
+    }
+  });
+
+  addTrackedEventListener(lifecycle, plotElement, 'indicator-update', (event: Event) => {
+    const { id, ...patch } = (event as CustomEvent).detail;
+    annotationController.updateIndicator(id, patch);
+  });
+
+  addTrackedEventListener(lifecycle, plotElement, 'indicator-remove', (event: Event) => {
+    const { id } = (event as CustomEvent).detail;
+    annotationController.removeIndicator(id);
+  });
+
   bindControlBarEvents({
     addControlBarListener(type, listener, options) {
       addTrackedEventListener(lifecycle, controlBar, type, listener, options);
