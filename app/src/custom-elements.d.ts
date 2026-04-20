@@ -55,5 +55,11 @@ declare namespace JSX {
       },
       HTMLElement
     >;
+    'protspace-export-studio': React.DetailedHTMLProps<
+      React.HTMLAttributes<HTMLElement> & {
+        id?: string;
+      },
+      HTMLElement
+    >;
   }
 }

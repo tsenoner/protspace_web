@@ -89,6 +89,8 @@ const Explore = () => {
               ></protspace-structure-viewer>
             </div>
           </div>
+
+          <protspace-export-studio id="export-studio"></protspace-export-studio>
         </div>
       </div>
     </div>

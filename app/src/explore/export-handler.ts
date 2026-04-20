@@ -1,4 +1,9 @@
-import type { ProtspaceControlBar, ProtspaceLegend, ProtspaceScatterplot } from '@protspace/core';
+import type {
+  ProtspaceControlBar,
+  ProtspaceExportStudio,
+  ProtspaceLegend,
+  ProtspaceScatterplot,
+} from '@protspace/core';
 import type { BundleSettings, PublicationFigureLayoutId } from '@protspace/utils';
 import {
   createScatterCaptureFromElement,
@@ -22,6 +27,7 @@ interface ExportEventDetail {
 
 interface ExportHandlerOptions {
   controlBar: ProtspaceControlBar;
+  exportStudio?: ProtspaceExportStudio | null;
   getSelectedProteins(): string[];
   legendElement: ProtspaceLegend;
   plotElement: ProtspaceScatterplot;
@@ -29,6 +35,7 @@ interface ExportHandlerOptions {
 
 export function createExportHandler({
   controlBar,
+  exportStudio,
   getSelectedProteins,
   legendElement,
   plotElement,
@@ -39,6 +46,12 @@ export function createExportHandler({
       customEvent.detail;
 
     try {
+      // Route PNG/PDF to Export Studio when available
+      if ((type === 'png' || type === 'pdf') && exportStudio) {
+        exportStudio.open = true;
+        return;
+      }
+
       if (type === 'parquet') {
         const currentData = plotElement.getCurrentData();
         if (!currentData) {

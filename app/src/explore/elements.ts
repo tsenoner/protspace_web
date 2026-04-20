@@ -1,5 +1,6 @@
 import type {
   ProtspaceControlBar,
+  ProtspaceExportStudio,
   ProtspaceLegend,
   ProtspaceScatterplot,
   ProtspaceStructureViewer,
@@ -9,6 +10,7 @@ import type {
 interface ExploreElements {
   controlBar: ProtspaceControlBar;
   dataLoader: ProtspaceDataLoader;
+  exportStudio: ProtspaceExportStudio | null;
   legendElement: ProtspaceLegend;
   plotElement: ProtspaceScatterplot;
   selectedProteinElement: HTMLElement | null;
@@ -35,6 +37,7 @@ export function getElements(doc: Document = document): ExploreElements | null {
   ) as ProtspaceStructureViewer | null;
   const controlBar = doc.getElementById('myControlBar') as ProtspaceControlBar | null;
   const dataLoader = doc.getElementById('myDataLoader') as ProtspaceDataLoader | null;
+  const exportStudio = doc.getElementById('export-studio') as ProtspaceExportStudio | null;
 
   if (!plotElement || !legendElement || !structureViewer || !controlBar || !dataLoader) {
     console.error('Could not find one or more required explore elements.', {
@@ -50,6 +53,7 @@ export function getElements(doc: Document = document): ExploreElements | null {
   return {
     controlBar,
     dataLoader,
+    exportStudio,
     legendElement,
     plotElement,
     selectedProteinElement: doc.getElementById('selectedProtein') as HTMLElement | null,

@@ -38,6 +38,7 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
   const {
     controlBar,
     dataLoader,
+    exportStudio,
     legendElement,
     plotElement,
     selectedProteinElement,
@@ -87,8 +88,18 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
   const annotationController = createAnnotationController({
     onChange() {
       plotElement.indicators = annotationController.getIndicators();
+      if (exportStudio) {
+        exportStudio.indicators = annotationController.getIndicators();
+        exportStudio.insets = annotationController.getInsets();
+      }
     },
   });
+
+  if (exportStudio) {
+    addTrackedEventListener(lifecycle, exportStudio, 'export-studio-close', () => {
+      exportStudio.open = false;
+    });
+  }
 
   const datasetController = createDatasetController({
     controlBar,
@@ -108,6 +119,7 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
 
   const handleExport = createExportHandler({
     controlBar,
+    exportStudio,
     getSelectedProteins: interactionController.getSelectedProteins,
     legendElement,
     plotElement,
