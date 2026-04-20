@@ -35,18 +35,18 @@ Both commands share similar parameters. The key difference:
 | `-i`      | Input embeddings (HDF5)         | local only |
 | `-o`      | Output directory                | both       |
 | `-m`      | Projection methods              | both       |
-| `-f`      | Annotations (names or CSV path) | both       |
+| `-a`      | Annotations (names or CSV path) | both       |
 
 ### Annotations
 
-Specify annotations with `-f`:
+Specify annotations with `-a`:
 
 ```bash
 # By name (auto-retrieved)
--f protein_family,reviewed,pfam,genus,species
+-a protein_family,reviewed,pfam,genus,species
 
 # Or provide a CSV file
--f annotations.csv
+-a annotations.csv
 ```
 
 **CSV format:**
