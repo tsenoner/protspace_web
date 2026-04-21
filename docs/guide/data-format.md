@@ -81,7 +81,7 @@ For numeric annotations:
 - the selected distribution can be `linear`, `quantile`, or `logarithmic`
 - numeric palettes are sequential gradients, not categorical swatches
 - the gradient direction can also be reversed and is persisted as part of the numeric settings
-- unsupported numeric palette IDs are normalized to `cividis` on import/load
+- unsupported numeric palette IDs are normalized to `batlow` on import/load
 
 ### Numeric Edge Cases
 
@@ -102,6 +102,8 @@ Numeric legend labels are summaries of the observed values in each realized bin.
 Proteins with missing, empty, or whitespace-only annotation values are displayed as **N/A** in
 the legend and tooltip. N/A items receive a dedicated color (#DDDDDD) and can be toggled,
 isolated, or reordered in the legend like any other category.
+
+For numeric annotations, common missing-value markers in the data — such as `NaN`, `NA`, `N/A`, `null`, `none`, `-`, `.`, and `Infinity` variants — are treated as missing values rather than forcing the column to categorical. The numeric gradient is preserved, and missing-value proteins appear as N/A in the legend. One bin slot is reserved for N/A when missing values are present (e.g., requesting 10 bins yields 9 numeric bins + 1 N/A).
 
 ### Scored Annotations
 

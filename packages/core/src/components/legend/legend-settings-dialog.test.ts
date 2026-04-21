@@ -5,7 +5,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from 'lit';
 import { renderSettingsDialog, type SettingsDialogCallbacks } from './legend-settings-dialog';
 import type { LegendPersistedSettings, LegendSortMode } from './types';
-import { DEFAULT_NUMERIC_PALETTE_ID, type NumericBinningStrategy } from '@protspace/utils';
+import {
+  DEFAULT_NUMERIC_PALETTE_ID,
+  DEFAULT_NUMERIC_STRATEGY,
+  type NumericBinningStrategy,
+} from '@protspace/utils';
 
 // Import the component to register the custom element for integration coverage.
 import './legend';
@@ -235,7 +239,7 @@ describe('ProtspaceLegend settings dialog numeric inference integration', () => 
     expect(el._selectedPaletteId).toBe(DEFAULT_NUMERIC_PALETTE_ID);
     expect(el._numericSettingsByAnnotation.score).toMatchObject({
       binCount: 10,
-      strategy: 'linear',
+      strategy: DEFAULT_NUMERIC_STRATEGY,
       paletteId: DEFAULT_NUMERIC_PALETTE_ID,
       reverseGradient: false,
     });

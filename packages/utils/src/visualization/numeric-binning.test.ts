@@ -273,7 +273,7 @@ describe('numeric-binning', () => {
     });
 
     expect(result.annotation.numericMetadata?.logSupported).toBe(false);
-    expect(result.annotation.numericMetadata?.strategy).toBe('linear');
+    expect(result.annotation.numericMetadata?.strategy).toBe('quantile');
   });
 
   it('creates logarithmic bins when all values are positive', () => {
@@ -316,15 +316,15 @@ describe('numeric-binning', () => {
     expect(result.annotation.colors).toHaveLength(1);
   });
 
-  it('normalizes non-gradient numeric palettes to cividis', () => {
+  it('normalizes non-gradient numeric palettes to batlow', () => {
     const result = materializeNumericAnnotation([1, 2, 3, 4], {
       binCount: 2,
       strategy: 'linear',
       paletteId: 'kellys',
     });
 
-    expect(result.annotation.colors[0]).toBe('#00224E');
-    expect(result.annotation.colors[1]).toBe('#FEE838');
+    expect(result.annotation.colors[0]).toBe('#011959');
+    expect(result.annotation.colors[1]).toBe('#FACCFA');
   });
 
   it('reverses numeric gradient colors without changing bin topology', () => {
