@@ -49,6 +49,20 @@ export function computePreviewDimensions(
   return fitByWidth.height <= available.height ? fitByWidth : fitByHeight;
 }
 
+interface FreeformPreset {
+  label: string;
+  width: number;
+  height: number;
+}
+
+const FREEFORM_PRESETS: FreeformPreset[] = [
+  { label: 'HD', width: 1920, height: 1080 },
+  { label: '4K', width: 3840, height: 2160 },
+  { label: 'Square', width: 2000, height: 2000 },
+  { label: 'Poster', width: 4000, height: 3000 },
+  { label: 'Slide 4:3', width: 2048, height: 1536 },
+];
+
 const LAYOUT_LABELS: Record<FigureLayoutId, string> = {
   one_column_below: '1-col + legend below',
   two_column_right: '2-col + legend right',
@@ -395,10 +409,31 @@ export class ProtspaceExportStudio extends LitElement {
     `;
   }
 
+  private _applyFreeformPreset(preset: FreeformPreset) {
+    this._freeformWidth = preset.width;
+    this._freeformHeight = preset.height;
+  }
+
   private _renderFreeformInputs() {
     return html`
       <div class="control-section">
         <h3>Custom Dimensions</h3>
+        <div class="preset-grid" style="margin-bottom:10px;">
+          ${FREEFORM_PRESETS.map(
+            (p) => html`
+              <button
+                class="preset-btn ${this._freeformWidth === p.width &&
+                this._freeformHeight === p.height
+                  ? 'active'
+                  : ''}"
+                @click="${() => this._applyFreeformPreset(p)}"
+                title="${p.width} x ${p.height}px"
+              >
+                ${p.label}
+              </button>
+            `,
+          )}
+        </div>
         <div class="control-row">
           <label class="control-label" for="freeform-w">Width (px)</label>
           <input
