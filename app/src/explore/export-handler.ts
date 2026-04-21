@@ -48,6 +48,16 @@ export function createExportHandler({
     try {
       // Route PNG/PDF to Export Studio when available
       if ((type === 'png' || type === 'pdf') && exportStudio) {
+        // Wire capture function and legend model before opening
+        exportStudio.scatterCapture = createScatterCaptureFromElement(plotElement);
+        const selectionIds = plotElement.selectedProteinIds ?? getSelectedProteins();
+        exportStudio.legendModel = buildPublicationLegendModelFromDom(
+          plotElement,
+          legendElement,
+          selectionIds,
+        );
+        exportStudio.viewportAspect = plotElement.plotAreaAspect;
+        exportStudio.fileNameBase = generateProtspaceExportBasename(plotElement);
         exportStudio.open = true;
         return;
       }

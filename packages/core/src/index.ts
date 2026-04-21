@@ -4,6 +4,7 @@ export * from './components/scatter-plot/scatter-plot';
 // Export Studio
 export * from './components/export-studio/export-studio';
 export type { ProtspaceExportStudio } from './components/export-studio/export-studio';
+export * from './components/export-studio/export-studio-preview';
 export * from './components/legend/legend';
 export * from './components/structure-viewer/structure-viewer';
 export { ProtspaceControlBar } from './components/control-bar/control-bar'; // Explicit export for value access
