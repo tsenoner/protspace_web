@@ -4,6 +4,7 @@ import {
   materializeVisualizationData,
   resolveNumericAnnotationDisplaySettings,
 } from './numeric-binning';
+import { LEGEND_VALUES } from './shapes';
 import type { VisualizationData } from '../types';
 
 describe('numeric-binning', () => {
@@ -442,5 +443,122 @@ describe('numeric-binning', () => {
       paletteId: 'cividis',
       reverseGradient: true,
     });
+  });
+
+  it('appends N/A pseudo-bin for null values, reserving one slot from binCount', () => {
+    const result = materializeNumericAnnotation(
+      [1, null, 3, null, 5],
+      { binCount: 3, strategy: 'linear', paletteId: 'viridis', reverseGradient: false },
+      'int',
+    );
+
+    // binCount=3 with missing values → 2 numeric bins + 1 N/A = 3 total
+    expect(result.annotation.values).toHaveLength(3);
+    const naIndex = result.annotation.values.indexOf(LEGEND_VALUES.NA_VALUE);
+    expect(naIndex).toBe(2); // N/A is last
+    expect(result.annotation.colors[naIndex]).toBe(LEGEND_VALUES.NA_COLOR);
+    expect(result.annotation.shapes[naIndex]).toBe('circle');
+
+    // Gradient uses full spectrum across the 2 numeric bins
+    expect(result.annotation.colors[0]).toBe('#440154'); // viridis start
+    expect(result.annotation.colors[1]).toBe('#FDE725'); // viridis end
+
+    // Missing-value proteins assigned to N/A index
+    expect(result.annotationData[1]).toEqual([naIndex]);
+    expect(result.annotationData[3]).toEqual([naIndex]);
+
+    // Non-missing proteins assigned to numeric bins
+    expect(result.annotationData[0].length).toBe(1);
+    expect(result.annotationData[0][0]).not.toBe(naIndex);
+    expect(result.annotationData[4].length).toBe(1);
+    expect(result.annotationData[4][0]).not.toBe(naIndex);
+  });
+
+  it('does not append N/A bin when there are no missing values', () => {
+    const result = materializeNumericAnnotation(
+      [1, 2, 3],
+      { binCount: 3, strategy: 'linear', paletteId: 'viridis', reverseGradient: false },
+      'int',
+    );
+
+    expect(result.annotation.values).not.toContain(LEGEND_VALUES.NA_VALUE);
+    // Full 3 bins used for numeric data
+    expect(result.annotation.values).toHaveLength(3);
+  });
+
+  it('N/A color is not affected by gradient reversal', () => {
+    const result = materializeNumericAnnotation(
+      [1, null, 3],
+      { binCount: 3, strategy: 'linear', paletteId: 'viridis', reverseGradient: true },
+      'int',
+    );
+
+    // binCount=3 → 2 numeric bins + 1 N/A = 3 total
+    const naIndex = result.annotation.values.indexOf(LEGEND_VALUES.NA_VALUE);
+    expect(naIndex).toBeGreaterThan(0);
+    expect(result.annotation.colors[naIndex]).toBe(LEGEND_VALUES.NA_COLOR);
+    // Reversed gradient: first bin should be viridis end, not start
+    expect(result.annotation.colors[0]).toBe('#FDE725');
+  });
+
+  it('N/A does not push out the last numeric bin — all data must be covered', () => {
+    // Regression: N/A used to be appended as an extra value WITHOUT reducing
+    // binCount, so the total exceeded maxVisibleValues and the last bin was
+    // cut off by sortAndLimitItems, losing data coverage.
+    const values = [
+      ...Array.from({ length: 100 }, (_, i) => i * 0.5), // 0..49.5
+      null,
+      null,
+      null,
+    ];
+    const binCount = 10;
+    const result = materializeNumericAnnotation(
+      values,
+      { binCount, strategy: 'linear', paletteId: 'cividis', reverseGradient: false },
+      'float',
+    );
+
+    // Total values must fit within binCount (9 numeric + 1 N/A = 10)
+    expect(result.annotation.values).toHaveLength(binCount);
+    expect(result.annotation.values).toContain(LEGEND_VALUES.NA_VALUE);
+
+    // Every data point must be assigned to a bin (no empty annotationData)
+    for (let i = 0; i < values.length; i++) {
+      expect(result.annotationData[i].length).toBe(1);
+    }
+
+    // The highest value (49.5) must be in one of the numeric bins, not lost
+    const lastDataIndex = 99; // index of value 49.5
+    const lastBinIdx = result.annotationData[lastDataIndex][0];
+    expect(result.annotation.values[lastBinIdx]).not.toBe(LEGEND_VALUES.NA_VALUE);
+
+    // The gradient must use the full color spectrum
+    const numericColors = result.annotation.colors.filter(
+      (_, i) => result.annotation.values[i] !== LEGEND_VALUES.NA_VALUE,
+    );
+    const firstNumericBinPosition = result.annotation.numericMetadata?.bins[0]?.colorPosition ?? -1;
+    const lastNumericBinPosition =
+      result.annotation.numericMetadata?.bins.at(-1)?.colorPosition ?? -1;
+    expect(firstNumericBinPosition).toBe(0);
+    expect(lastNumericBinPosition).toBe(1);
+    expect(numericColors[0]).not.toBe(numericColors.at(-1));
+  });
+
+  it('N/A does not reduce binCount when binCount is 1', () => {
+    const result = materializeNumericAnnotation(
+      [10, null, 20],
+      { binCount: 1, strategy: 'linear', paletteId: 'viridis', reverseGradient: false },
+      'int',
+    );
+
+    // binCount=1 cannot be reduced further, so 1 numeric bin + 1 N/A = 2 total
+    expect(result.annotation.values).toHaveLength(2);
+    const numericBins = result.annotation.values.filter((v) => v !== LEGEND_VALUES.NA_VALUE);
+    expect(numericBins).toHaveLength(1);
+
+    // All data points still assigned
+    for (const data of result.annotationData) {
+      expect(data.length).toBe(1);
+    }
   });
 });

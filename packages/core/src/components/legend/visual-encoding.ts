@@ -24,7 +24,7 @@ export const SPECIAL_SLOTS = {
 /** Special colors for reserved categories */
 const SPECIAL_COLORS: Record<string, string> = {
   [LEGEND_VALUES.OTHER]: '#999999',
-  [LEGEND_VALUES.NA_DISPLAY]: '#DDDDDD',
+  [LEGEND_VALUES.NA_DISPLAY]: LEGEND_VALUES.NA_COLOR,
 };
 
 interface VisualEncoding {

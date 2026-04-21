@@ -157,6 +157,20 @@ describe('legend-data-processor', () => {
       expect(result.topItems.some(([v]) => v === LEGEND_VALUES.NA_VALUE)).toBe(true);
     });
 
+    it('N/A sorts last in all sort modes', () => {
+      const freq = new Map<string, number>([
+        ['a', 10],
+        [LEGEND_VALUES.NA_VALUE, 50],
+        ['b', 8],
+      ]);
+      // N/A has count 50 (highest) — would sort first in size-desc without special handling
+      for (const mode of ['size-desc', 'size-asc', 'alpha-asc', 'alpha-desc'] as const) {
+        const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, mode);
+        const lastItem = result.topItems[result.topItems.length - 1];
+        expect(lastItem[0]).toBe(LEGEND_VALUES.NA_VALUE);
+      }
+    });
+
     it('sorts by size ascending', () => {
       const freq = new Map<string, number>([
         ['small', 5],

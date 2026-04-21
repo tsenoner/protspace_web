@@ -112,18 +112,19 @@ export class LegendDataProcessor {
     otherCount: number;
   } {
     const sortFn = (a: [string, number], b: [string, number]) => {
+      // N/A always sorts last regardless of sort mode
+      const aIsNA = isNAValue(a[0]);
+      const bIsNA = isNAValue(b[0]);
+      if (aIsNA && !bIsNA) return 1;
+      if (!aIsNA && bIsNA) return -1;
+      if (aIsNA && bIsNA) return 0;
+
       if (sortMode === 'manual' || sortMode === 'manual-reverse') {
         const aOrder = existingZOrders.get(a[0]) ?? Number.MAX_SAFE_INTEGER;
         const bOrder = existingZOrders.get(b[0]) ?? Number.MAX_SAFE_INTEGER;
         return sortMode === 'manual' ? aOrder - bOrder : bOrder - aOrder;
       } else if (sortMode === 'alpha-asc' || sortMode === 'alpha-desc') {
         const isAsc = sortMode === 'alpha-asc';
-        const aIsNA = isNAValue(a[0]);
-        const bIsNA = isNAValue(b[0]);
-        // N/A always sorts last regardless of direction
-        if (aIsNA && !bIsNA) return 1;
-        if (!aIsNA && bIsNA) return -1;
-        if (aIsNA && bIsNA) return 0;
         const aNumericOrder = numericOrderValues.get(a[0]);
         const bNumericOrder = numericOrderValues.get(b[0]);
         if (

@@ -1,4 +1,5 @@
 import { sampleColorSchemeColor } from './color-scheme';
+import { LEGEND_VALUES } from './shapes';
 import type {
   Annotation,
   NumericBinningStrategy,
@@ -584,8 +585,14 @@ export function materializeNumericAnnotation(
     includeSortedValues: settings.strategy === 'quantile',
   });
   const resolvedNumericType = numericType ?? (summary.allIntegers ? 'int' : 'float');
+  // Reserve one slot for N/A when missing values exist, so the total
+  // (numeric bins + N/A) fits within the requested binCount.
+  const hasMissingValues = summary.nonNullCount < values.length;
+  const effectiveBinCount =
+    hasMissingValues && settings.binCount > 1 ? settings.binCount - 1 : settings.binCount;
   const effectiveSettings = {
     ...settings,
+    binCount: effectiveBinCount,
     strategy: resolveEffectiveStrategy(settings.strategy, summary),
     paletteId: normalizeNumericPaletteId(settings.paletteId),
     reverseGradient: settings.reverseGradient,
@@ -701,12 +708,30 @@ export function materializeNumericAnnotation(
     bins: binsWithColorPositions,
   };
 
+  // Append N/A pseudo-bin for missing values so they appear in the legend
+  const finalValues = bins.map((bin) => bin.id);
+  const finalColors = [...colors];
+  const finalShapes = [...shapes];
+
+  if (hasMissingValues) {
+    const naIndex = finalValues.length;
+    finalValues.push(LEGEND_VALUES.NA_VALUE);
+    finalColors.push(LEGEND_VALUES.NA_COLOR);
+    finalShapes.push('circle');
+
+    for (let i = 0; i < annotationData.length; i++) {
+      if (annotationData[i].length === 0) {
+        annotationData[i] = [naIndex];
+      }
+    }
+  }
+
   return {
     annotation: {
       kind: 'categorical',
-      values: bins.map((bin) => bin.id),
-      colors,
-      shapes,
+      values: finalValues,
+      colors: finalColors,
+      shapes: finalShapes,
       sourceKind: 'numeric',
       numericType: resolvedNumericType,
       numericMetadata,

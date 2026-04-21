@@ -18,6 +18,8 @@ export const LEGEND_VALUES = {
   NA_DISPLAY: 'N/A',
   /** Internal value used to represent N/A items (null, empty string, whitespace) */
   NA_VALUE: '__NA__',
+  /** Color for N/A items — used in both legend and numeric binning */
+  NA_COLOR: '#DDDDDD',
 } as const;
 
 // ============================================================================

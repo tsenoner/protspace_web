@@ -145,17 +145,17 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(optimizedResult.annotation_data.length).toEqual([[], [], []]);
   });
 
-  it('falls back to categorical for nonnumeric and special numeric strings', () => {
+  it('treats NaN and Infinity strings as missing values, preserving numeric inference', () => {
     const result = convertParquetToVisualizationData([
       { identifier: 'P1', x: 0, y: 0, length: '1', family: 'A' },
       { identifier: 'P2', x: 1, y: 1, length: 'NaN', family: 'B' },
       { identifier: 'P3', x: 2, y: 2, length: 'Infinity', family: 'A' },
     ]);
 
-    expect(result.annotations.length.kind).toBe('categorical');
-    expect(result.annotations.length.numericType).toBeUndefined();
-    expect(result.numeric_annotation_data?.length).toBeUndefined();
-    expect(result.annotation_data.length).toBeDefined();
+    expect(result.annotations.length.kind).toBe('numeric');
+    expect(result.annotations.length.numericType).toBe('int');
+    expect(result.numeric_annotation_data?.length).toEqual([1, null, null]);
+    expect(result.annotation_data.length).toBeUndefined();
   });
 
   it('falls back to categorical for semicolon and pipe-delimited strings', () => {
@@ -229,6 +229,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
       'edge_all_zeros',
       'edge_density_boundary',
       'edge_density_below',
+      'cat_nan_inf_strings',
     ];
     const expectedFloatAnnotations = [
       'num_random_float',
@@ -237,6 +238,8 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
       'cat_high_precision_float',
       'cat_wide_range_float',
       'edge_single_float',
+      'cat_with_nan_strings',
+      'edge_few_nan_many_numbers',
     ];
     const expectedStringAnnotations = [
       'cat_mixed_str_num',
@@ -245,10 +248,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
       'cat_comma_thousands',
       'cat_pipe_delimited',
       'cat_semicolon_delimited',
-      'cat_nan_inf_strings',
-      'cat_with_nan_strings',
       'edge_all_nan',
-      'edge_few_nan_many_numbers',
     ];
     const expectedAnnotationNames = [
       ...expectedIntAnnotations,
@@ -308,5 +308,81 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(result.numeric_annotation_data?.length?.some((value) => typeof value === 'number')).toBe(
       true,
     );
+  });
+
+  it('treats NA, N/A, null, and none strings as missing values in numeric columns', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, score: 1.5 },
+      { identifier: 'P2', x: 1, y: 1, score: 'NA' },
+      { identifier: 'P3', x: 2, y: 2, score: 2.5 },
+      { identifier: 'P4', x: 3, y: 3, score: 'N/A' },
+      { identifier: 'P5', x: 4, y: 4, score: 'null' },
+      { identifier: 'P6', x: 5, y: 5, score: 'none' },
+    ]);
+
+    expect(result.annotations.score.kind).toBe('numeric');
+    expect(result.annotations.score.numericType).toBe('float');
+    expect(result.numeric_annotation_data?.score).toEqual([1.5, null, 2.5, null, null, null]);
+  });
+
+  it('treats dash and dot as missing values in numeric columns', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, length: 100 },
+      { identifier: 'P2', x: 1, y: 1, length: '-' },
+      { identifier: 'P3', x: 2, y: 2, length: '.' },
+      { identifier: 'P4', x: 3, y: 3, length: 200 },
+    ]);
+
+    expect(result.annotations.length.kind).toBe('numeric');
+    expect(result.annotations.length.numericType).toBe('int');
+    expect(result.numeric_annotation_data?.length).toEqual([100, null, null, 200]);
+  });
+
+  it('treats numeric NaN and Infinity values as missing', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, val: 10 },
+      { identifier: 'P2', x: 1, y: 1, val: NaN },
+      { identifier: 'P3', x: 2, y: 2, val: Infinity },
+      { identifier: 'P4', x: 3, y: 3, val: 20 },
+    ]);
+
+    expect(result.annotations.val.kind).toBe('numeric');
+    expect(result.annotations.val.numericType).toBe('int');
+    expect(result.numeric_annotation_data?.val).toEqual([10, null, null, 20]);
+  });
+
+  it('falls back to categorical when ALL values are missing markers', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, score: 'NaN' },
+      { identifier: 'P2', x: 1, y: 1, score: 'NA' },
+      { identifier: 'P3', x: 2, y: 2, score: null },
+    ]);
+
+    expect(result.annotations.score.kind).toBe('categorical');
+  });
+
+  it('still falls back to categorical for non-missing non-numeric strings', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, label: '1' },
+      { identifier: 'P2', x: 1, y: 1, label: 'alpha' },
+      { identifier: 'P3', x: 2, y: 2, label: '3' },
+    ]);
+
+    expect(result.annotations.label.kind).toBe('categorical');
+  });
+
+  it('handles case-insensitive missing value markers', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, val: 5 },
+      { identifier: 'P2', x: 1, y: 1, val: 'nan' },
+      { identifier: 'P3', x: 2, y: 2, val: 'NAN' },
+      { identifier: 'P4', x: 3, y: 3, val: 'None' },
+      { identifier: 'P5', x: 4, y: 4, val: 'NONE' },
+      { identifier: 'P6', x: 5, y: 5, val: 10 },
+    ]);
+
+    expect(result.annotations.val.kind).toBe('numeric');
+    expect(result.annotations.val.numericType).toBe('int');
+    expect(result.numeric_annotation_data?.val).toEqual([5, null, null, null, null, 10]);
   });
 });
