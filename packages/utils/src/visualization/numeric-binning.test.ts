@@ -273,7 +273,8 @@ describe('numeric-binning', () => {
     });
 
     expect(result.annotation.numericMetadata?.logSupported).toBe(false);
-    expect(result.annotation.numericMetadata?.strategy).toBe('quantile');
+    // log → default (quantile) → linear (4 distinct values ≤ binCount 4)
+    expect(result.annotation.numericMetadata?.strategy).toBe('linear');
   });
 
   it('creates logarithmic bins when all values are positive', () => {

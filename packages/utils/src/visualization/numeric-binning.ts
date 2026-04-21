@@ -296,7 +296,7 @@ function createEdges(
   settings: NumericAnnotationDisplaySettings,
 ): number[] {
   const requestedBinCount = Math.max(1, Math.min(settings.binCount, summary.distinctCount || 1));
-  const strategy = resolveEffectiveStrategy(settings.strategy, summary);
+  const strategy = resolveEffectiveStrategy(settings.strategy, summary, requestedBinCount);
 
   const edges =
     strategy === 'quantile'
@@ -490,8 +490,17 @@ export function getNumericAnnotationSettings(
 function resolveEffectiveStrategy(
   strategy: NumericBinningStrategy,
   summary: NumericSummary,
+  binCount?: number,
 ): NumericBinningStrategy {
-  return strategy === 'logarithmic' && !summary.logSupported ? DEFAULT_NUMERIC_STRATEGY : strategy;
+  // Log requires positive values — fall back to default (quantile → linear via sparsity check)
+  if (strategy === 'logarithmic' && !summary.logSupported) {
+    return resolveEffectiveStrategy(DEFAULT_NUMERIC_STRATEGY, summary, binCount);
+  }
+  // Quantile edges collapse when distinct values are sparse — fall back to linear
+  if (strategy === 'quantile' && binCount !== undefined && summary.distinctCount <= binCount) {
+    return 'linear';
+  }
+  return strategy;
 }
 
 function getLinearColorPosition(
@@ -593,7 +602,7 @@ export function materializeNumericAnnotation(
   const effectiveSettings = {
     ...settings,
     binCount: effectiveBinCount,
-    strategy: resolveEffectiveStrategy(settings.strategy, summary),
+    strategy: resolveEffectiveStrategy(settings.strategy, summary, effectiveBinCount),
     paletteId: normalizeNumericPaletteId(settings.paletteId),
     reverseGradient: settings.reverseGradient,
   };
