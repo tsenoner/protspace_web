@@ -87,6 +87,14 @@ export default defineConfig({
       },
       testMatch: /url-view-state\.spec\.ts/,
     },
+    {
+      name: 'export-studio',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /export-studio\.spec\.ts/,
+    },
   ],
 
   outputDir: '../test-results/',
