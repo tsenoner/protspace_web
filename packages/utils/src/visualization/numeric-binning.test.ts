@@ -273,7 +273,8 @@ describe('numeric-binning', () => {
     });
 
     expect(result.annotation.numericMetadata?.logSupported).toBe(false);
-    expect(result.annotation.numericMetadata?.strategy).toBe('quantile');
+    // Logarithmic falls back to linear (not quantile) regardless of default
+    expect(result.annotation.numericMetadata?.strategy).toBe('linear');
   });
 
   it('creates logarithmic bins when all values are positive', () => {
