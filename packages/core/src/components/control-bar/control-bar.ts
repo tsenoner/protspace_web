@@ -445,6 +445,21 @@ export class ProtspaceControlBar extends LitElement {
     this.showExportMenu = false;
   }
 
+  private handleOpenPublishEditor() {
+    const customEvent = new CustomEvent('open-publish-editor', {
+      detail: {
+        imageWidth: this.exportImageWidth,
+        imageHeight: this.exportImageHeight,
+        legendWidthPercent: this.exportLegendWidthPercent,
+        legendFontSizePx: this.exportLegendFontSizePx,
+      },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(customEvent);
+    this.showExportMenu = false;
+  }
+
   private toggleExportMenu(event?: Event) {
     event?.stopPropagation();
     this.showExportMenu = !this.showExportMenu;
@@ -1308,6 +1323,20 @@ export class ProtspaceControlBar extends LitElement {
                                   Export
                                 </button>
                               </div>
+                              <button
+                                class="btn-secondary export-figure-editor-btn"
+                                @click=${this.handleOpenPublishEditor}
+                                title="Open full-screen figure editor with live preview, journal presets, and annotation tools"
+                              >
+                                <svg class="icon" viewBox="0 0 24 24">
+                                  <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                  />
+                                </svg>
+                                Open figure editor…
+                              </button>
                             `
                           : html`
                               <button

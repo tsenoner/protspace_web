@@ -192,6 +192,14 @@ export const exportStyles = css`
     flex: 1;
   }
 
+  .export-figure-editor-btn {
+    width: 100%;
+    margin-top: var(--spacing-xs);
+    justify-content: center;
+    gap: var(--spacing-xs);
+    font-size: var(--text-sm);
+  }
+
   .import-menu {
     width: 240px;
     padding: var(--spacing-md);
