@@ -29,6 +29,17 @@ export type { ProtspaceScatterplot } from './components/scatter-plot/scatter-plo
 export type { ProtspaceLegend } from './components/legend/legend';
 export type { ProtspaceStructureViewer } from './components/structure-viewer/structure-viewer';
 
+// Publish modal types (component itself is lazy-loaded via @protspace/core/publish)
+export type { ProtspacePublishModal } from './components/publish/publish-modal';
+export type {
+  PublishState,
+  Annotation,
+  Inset,
+  LegendPosition,
+  LegendOverflow,
+} from './components/publish/publish-state';
+export type { PresetId, JournalPreset } from './components/publish/journal-presets';
+
 // Utilities for data loading
 export { readFileOptimized } from './components/data-loader/utils/file-io';
 export { extractRowsFromParquetBundle } from './components/data-loader/utils/bundle';

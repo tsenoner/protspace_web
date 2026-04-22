@@ -10,6 +10,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/core.mjs",
       "require": "./dist/core.js"
+    },
+    "./publish": {
+      "types": "./dist/components/publish/index.d.ts",
+      "import": "./dist/publish.mjs",
+      "require": "./dist/publish.js"
     }
   },
   "files": [

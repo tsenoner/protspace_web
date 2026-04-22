@@ -17,7 +17,7 @@
       ],
     },
     "packages/core": {
-      "entry": ["src/index.ts"],
+      "entry": ["src/index.ts", "src/components/publish/index.ts"],
       "project": ["src/**/*.ts"],
     },
     "packages/utils": {
