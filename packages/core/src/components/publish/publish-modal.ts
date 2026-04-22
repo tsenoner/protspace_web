@@ -22,6 +22,7 @@ import {
   type LegendPosition,
   type LegendOverflow,
   type OverlayTool,
+  type Inset,
 } from './publish-state';
 import {
   pxToMm,
@@ -340,6 +341,12 @@ export class ProtspacePublishModal extends LitElement {
   private _removeInset(index: number) {
     const ins = this._state.insets.filter((_, i) => i !== index);
     this._state = { ...this._state, insets: ins };
+  }
+
+  private _updateInset(index: number, partial: Partial<Inset>) {
+    const insets = [...this._state.insets];
+    insets[index] = { ...insets[index], ...partial };
+    this._state = { ...this._state, insets };
   }
 
   // ── Export ─────────────────────────────────────────
@@ -867,12 +874,47 @@ export class ProtspacePublishModal extends LitElement {
       <div class="publish-section">
         <div class="publish-section-title">Zoom Insets (${ins.length})</div>
         ${ins.map(
-          (_, i) => html`
-            <div class="publish-annotation-item">
-              <span>Inset ${i + 1}</span>
-              <button class="delete-btn" @click=${() => this._removeInset(i)} title="Remove">
-                <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+          (inset, i) => html`
+            <div
+              class="publish-annotation-item"
+              style="flex-direction: column; align-items: stretch; gap: 4px;"
+            >
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Inset ${i + 1}</span>
+                <button class="delete-btn" @click=${() => this._removeInset(i)} title="Remove">
+                  <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div class="publish-row" style="margin-bottom: 0;">
+                <label>Zoom</label>
+                <div class="publish-input-group">
+                  <input
+                    type="range"
+                    class="publish-slider"
+                    min="1"
+                    max="10"
+                    step="0.5"
+                    .value=${String(inset.magnification ?? 2)}
+                    @input=${(e: Event) => {
+                      const mag = parseFloat((e.target as HTMLInputElement).value) || 2;
+                      this._updateInset(i, { magnification: mag });
+                    }}
+                  />
+                  <input
+                    type="number"
+                    class="publish-row-input"
+                    min="1"
+                    max="10"
+                    step="0.5"
+                    .value=${String(inset.magnification ?? 2)}
+                    @change=${(e: Event) => {
+                      const mag = parseFloat((e.target as HTMLInputElement).value) || 2;
+                      this._updateInset(i, { magnification: mag });
+                    }}
+                  />
+                  <span class="publish-unit">x</span>
+                </div>
+              </div>
             </div>
           `,
         )}

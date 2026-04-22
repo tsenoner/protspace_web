@@ -360,20 +360,32 @@ function renderInset(
 ) {
   const sr = inset.sourceRect;
   const tr = inset.targetRect;
+  const mag = inset.magnification ?? 2;
 
-  // Convert normalised coords to plot-space pixels
+  // Compute magnified source: shrink source rect around its center by 1/mag
+  const srcCenterX = sr.x + sr.w / 2;
+  const srcCenterY = sr.y + sr.h / 2;
+  const magW = sr.w / mag;
+  const magH = sr.h / mag;
+
+  // Convert normalised coords to plot-space pixels — full source for outline, magnified for crop
   const sx = plotRect.x + sr.x * plotRect.w;
   const sy = plotRect.y + sr.y * plotRect.h;
   const sw = sr.w * plotRect.w;
   const sh = sr.h * plotRect.h;
+
+  const cropX = plotRect.x + (srcCenterX - magW / 2) * plotRect.w;
+  const cropY = plotRect.y + (srcCenterY - magH / 2) * plotRect.h;
+  const cropW = magW * plotRect.w;
+  const cropH = magH * plotRect.h;
 
   const tx = plotRect.x + tr.x * plotRect.w;
   const ty = plotRect.y + tr.y * plotRect.h;
   const tw = tr.w * plotRect.w;
   const th = tr.h * plotRect.h;
 
-  // Draw cropped source into target rect
-  ctx.drawImage(srcCanvas, sx, sy, sw, sh, tx, ty, tw, th);
+  // Draw magnified crop into target rect
+  ctx.drawImage(srcCanvas, cropX, cropY, cropW, cropH, tx, ty, tw, th);
 
   // Border
   if (inset.border > 0) {
@@ -387,16 +399,69 @@ function renderInset(
     ctx.setLineDash([]);
   }
 
-  // Connector lines
+  // Connector lines — auto-detect best pair from all 4 corners
   if (inset.connector === 'lines') {
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 1;
+
+    // Source corners
+    const srcCorners = [
+      { x: sx, y: sy }, // top-left
+      { x: sx + sw, y: sy }, // top-right
+      { x: sx, y: sy + sh }, // bottom-left
+      { x: sx + sw, y: sy + sh }, // bottom-right
+    ];
+    // Target corners
+    const tgtCorners = [
+      { x: tx, y: ty }, // top-left
+      { x: tx + tw, y: ty }, // top-right
+      { x: tx, y: ty + th }, // bottom-left
+      { x: tx + tw, y: ty + th }, // bottom-right
+    ];
+
+    // Determine relative position of target vs source center
+    const srcCx = sx + sw / 2;
+    const srcCy = sy + sh / 2;
+    const tgtCx = tx + tw / 2;
+    const tgtCy = ty + th / 2;
+
+    // Pick 2 pairs of corners to connect based on relative position
+    let pairs: [number, number][];
+    if (Math.abs(tgtCx - srcCx) > Math.abs(tgtCy - srcCy)) {
+      if (tgtCx > srcCx) {
+        // Target is right of source
+        pairs = [
+          [1, 0],
+          [3, 2],
+        ]; // src-TR→tgt-TL, src-BR→tgt-BL
+      } else {
+        // Target is left of source
+        pairs = [
+          [0, 1],
+          [2, 3],
+        ]; // src-TL→tgt-TR, src-BL→tgt-BR
+      }
+    } else {
+      if (tgtCy > srcCy) {
+        // Target is below source
+        pairs = [
+          [2, 0],
+          [3, 1],
+        ]; // src-BL→tgt-TL, src-BR→tgt-TR
+      } else {
+        // Target is above source
+        pairs = [
+          [0, 2],
+          [1, 3],
+        ]; // src-TL→tgt-BL, src-TR→tgt-BR
+      }
+    }
+
     ctx.beginPath();
-    // Connect bottom-left of source to top-left of target
-    ctx.moveTo(sx, sy + sh);
-    ctx.lineTo(tx, ty);
-    ctx.moveTo(sx + sw, sy + sh);
-    ctx.lineTo(tx + tw, ty);
+    for (const [si, ti] of pairs) {
+      ctx.moveTo(srcCorners[si].x, srcCorners[si].y);
+      ctx.lineTo(tgtCorners[ti].x, tgtCorners[ti].y);
+    }
     ctx.stroke();
   }
 }
