@@ -33,24 +33,24 @@ export const JOURNAL_PRESETS = [
   { id: 'science-2col', label: 'Science \u00b7 2 col', widthMm: 121, dpi: 300 },
 
   // ── Cell Press ──────────────────────────────────────────
-  { id: 'cell-1col', label: 'Cell \u00b7 1 col', widthMm: 85, dpi: 300 },
-  { id: 'cell-1p5col', label: 'Cell \u00b7 1.5 col', widthMm: 114, dpi: 300 },
-  { id: 'cell-2col', label: 'Cell \u00b7 2 col', widthMm: 174, dpi: 300 },
+  { id: 'cell-1col', label: 'Cell \u00b7 1 col', widthMm: 85, dpi: 300, maxHeightMm: 225 },
+  { id: 'cell-1p5col', label: 'Cell \u00b7 1.5 col', widthMm: 114, dpi: 300, maxHeightMm: 225 },
+  { id: 'cell-2col', label: 'Cell \u00b7 2 col', widthMm: 174, dpi: 300, maxHeightMm: 225 },
 
   // ── PNAS ────────────────────────────────────────────────
-  { id: 'pnas-1col', label: 'PNAS \u00b7 1 col', widthMm: 88, dpi: 300 },
-  { id: 'pnas-2col', label: 'PNAS \u00b7 2 col', widthMm: 178, dpi: 300 },
+  { id: 'pnas-1col', label: 'PNAS \u00b7 1 col', widthMm: 87, dpi: 300, maxHeightMm: 225 },
+  { id: 'pnas-2col', label: 'PNAS \u00b7 2 col', widthMm: 178, dpi: 300, maxHeightMm: 225 },
 
   // ── PLOS ONE ────────────────────────────────────────────
-  { id: 'plos-1col', label: 'PLOS \u00b7 1 col', widthMm: 83, dpi: 300 },
-  { id: 'plos-2col', label: 'PLOS \u00b7 2 col', widthMm: 173, dpi: 300 },
+  { id: 'plos-1col', label: 'PLOS \u00b7 1 col', widthMm: 132, dpi: 300, maxHeightMm: 222 },
+  { id: 'plos-2col', label: 'PLOS \u00b7 2 col', widthMm: 190, dpi: 300, maxHeightMm: 222 },
 
   // ── Presentation ────────────────────────────────────────
   { id: 'slide-16-9', label: 'Slide \u00b7 16:9', widthPx: 1920, heightPx: 1080, dpi: 96 },
   { id: 'slide-4-3', label: 'Slide \u00b7 4:3', widthPx: 1440, heightPx: 1080, dpi: 96 },
 
-  // ── Poster ──────────────────────────────────────────────
-  { id: 'poster-a0-col', label: 'Poster \u00b7 A0 col', widthMm: 400, dpi: 200 },
+  // ── Flexible ─────────────────────────────────────────────
+  { id: 'flexible', label: 'Flexible', widthPx: 2048, heightPx: 1024, dpi: 300 },
 ] as const;
 
 /** Convert millimetres to pixels at the given DPI. */

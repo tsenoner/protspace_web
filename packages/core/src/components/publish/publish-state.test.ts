@@ -9,7 +9,7 @@ describe('publish-state', () => {
   describe('createDefaultPublishState', () => {
     it('creates a valid default state', () => {
       const state = createDefaultPublishState();
-      expect(state.preset).toBe('custom');
+      expect(state.preset).toBe('flexible');
       expect(state.widthPx).toBe(2048);
       expect(state.heightPx).toBe(1024);
       expect(state.dpi).toBe(300);

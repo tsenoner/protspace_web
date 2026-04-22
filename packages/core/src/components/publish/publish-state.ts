@@ -122,7 +122,7 @@ export function createDefaultPublishState(base?: {
   legendFontSizePx?: number;
 }): PublishState {
   return {
-    preset: 'custom',
+    preset: 'flexible',
     sizeMode: 'flexible',
     widthPx: base?.imageWidth ?? 2048,
     heightPx: base?.imageHeight ?? 1024,

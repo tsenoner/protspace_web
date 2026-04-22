@@ -230,6 +230,10 @@ export const publishModalStyles = css`
   }
 
   .publish-preset-btn {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px;
     padding: 6px 8px;
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius);
@@ -242,6 +246,12 @@ export const publishModalStyles = css`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .publish-preset-dims {
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: var(--font-normal);
   }
 
   .publish-preset-btn:hover {
@@ -315,6 +325,7 @@ export const publishModalStyles = css`
   .publish-input-group {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
   }
 
   /* ─── Select (dropdown) ─────────────────────────────────── */
@@ -459,13 +470,39 @@ export const publishModalStyles = css`
     cursor: pointer;
   }
 
+  /* ─── Dimension field (label+value on top, slider below) ── */
+  .publish-dim-field {
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .publish-dim-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2px;
+  }
+
+  .publish-dim-header label {
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  .publish-dim-value {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+  }
+
+  .publish-dim-field .publish-slider {
+    width: 100%;
+  }
+
   /* ─── mm display ─────────────────────────────────────── */
   .publish-mm-display {
     font-size: var(--text-xs);
     color: var(--muted);
     white-space: nowrap;
-    min-width: 56px;
-    text-align: right;
+    margin-left: 4px;
   }
 
   /* ─── Responsive ────────────────────────────────────────── */

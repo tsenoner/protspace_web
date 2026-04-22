@@ -24,15 +24,7 @@ import {
   type OverlayTool,
   type Inset,
 } from './publish-state';
-import {
-  pxToMm,
-  mmToPx,
-  adjustDpiForWidthMm,
-  clampHeight,
-  SIZE_MODE_WIDTH_MM,
-  MAX_HEIGHT_MM,
-  type SizeMode,
-} from './dimension-utils';
+import { pxToMm, mmToPx, adjustDpiForWidthMm } from './dimension-utils';
 import {
   capturePlotCanvas,
   composeFigure,
@@ -95,7 +87,6 @@ export class ProtspacePublishModal extends LitElement {
 
   @state() private _state: PublishState = createDefaultPublishState();
   @state() private _tool: OverlayTool = 'select';
-  @state() private _fullResPreview = false;
   @state() private _legendItems: LegendItem[] = [];
   @state() private _annotationName = 'Legend';
   @state() private _includeShapes = false;
@@ -133,7 +124,7 @@ export class ProtspacePublishModal extends LitElement {
   }
 
   override updated(changed: Map<string, unknown>) {
-    if (changed.has('_state') || changed.has('_fullResPreview') || changed.has('_tool')) {
+    if (changed.has('_state') || changed.has('_tool')) {
       this._scheduleRedraw();
     }
   }
@@ -217,9 +208,8 @@ export class ProtspacePublishModal extends LitElement {
     if (!this._previewCanvas || !this.plotElement) return;
 
     const s = this._state;
-    const previewMaxW = this._fullResPreview ? s.widthPx : Math.min(s.widthPx, 1600);
     const aspect = s.heightPx / s.widthPx;
-    const previewW = previewMaxW;
+    const previewW = s.widthPx;
     const previewH = Math.round(previewW * aspect);
 
     this._previewCanvas.width = previewW;
@@ -274,48 +264,52 @@ export class ProtspacePublishModal extends LitElement {
     this._plotCacheKey = '';
   }
 
-  private _setSizeMode(mode: SizeMode) {
-    const widthMm = SIZE_MODE_WIDTH_MM[mode];
-    if (widthMm !== undefined) {
-      const widthPx = mmToPx(widthMm, this._state.dpi);
-      const heightPx = clampHeight(this._state.heightPx, this._state.dpi, MAX_HEIGHT_MM);
-      this._state = { ...this._state, sizeMode: mode, widthPx, heightPx, preset: 'custom' };
-    } else {
-      this._state = { ...this._state, sizeMode: mode, preset: 'custom' };
-    }
-    this._plotCacheKey = '';
+  /** Return the active preset's mm constraints, or null for px-based / custom. */
+  private _getActivePresetConstraints(): {
+    widthMm: number;
+    maxHeightMm: number | undefined;
+  } | null {
+    const preset = getPreset(this._state.preset);
+    if (!preset || preset.widthMm === undefined) return null;
+    return { widthMm: preset.widthMm, maxHeightMm: preset.maxHeightMm };
   }
 
   private _updateWidthPx(widthPx: number) {
-    const s = this._state;
-    const widthMm = SIZE_MODE_WIDTH_MM[s.sizeMode];
-    if (widthMm !== undefined) {
-      const dpi = adjustDpiForWidthMm(widthPx, widthMm);
-      const heightPx = clampHeight(s.heightPx, dpi, MAX_HEIGHT_MM);
-      this._state = { ...s, widthPx, dpi, heightPx, preset: 'custom' };
+    const c = this._getActivePresetConstraints();
+    if (c) {
+      // Constrained: adjust DPI to keep mm constant
+      const dpi = adjustDpiForWidthMm(widthPx, c.widthMm);
+      const heightPx = c.maxHeightMm
+        ? Math.min(this._state.heightPx, mmToPx(c.maxHeightMm, dpi))
+        : this._state.heightPx;
+      this._state = { ...this._state, widthPx, dpi, heightPx };
     } else {
-      this._state = { ...s, widthPx, preset: 'custom' };
+      this._state = { ...this._state, widthPx, preset: 'custom' };
     }
     this._plotCacheKey = '';
   }
 
   private _updateHeightPx(heightPx: number) {
-    const s = this._state;
-    const maxMm = s.sizeMode !== 'flexible' ? MAX_HEIGHT_MM : undefined;
-    const clamped = clampHeight(heightPx, s.dpi, maxMm);
-    this._state = { ...s, heightPx: clamped, preset: 'custom' };
+    const c = this._getActivePresetConstraints();
+    if (c?.maxHeightMm) {
+      const maxPx = mmToPx(c.maxHeightMm, this._state.dpi);
+      heightPx = Math.min(heightPx, maxPx);
+    }
+    this._state = { ...this._state, heightPx };
     this._plotCacheKey = '';
   }
 
   private _updateDpi(dpi: number) {
-    const s = this._state;
-    const widthMm = SIZE_MODE_WIDTH_MM[s.sizeMode];
-    if (widthMm !== undefined) {
-      const widthPx = mmToPx(widthMm, dpi);
-      const heightPx = clampHeight(s.heightPx, dpi, MAX_HEIGHT_MM);
-      this._state = { ...s, dpi, widthPx, heightPx, preset: 'custom' };
+    const c = this._getActivePresetConstraints();
+    if (c) {
+      // Constrained: adjust px to keep mm constant
+      const widthPx = mmToPx(c.widthMm, dpi);
+      const heightPx = c.maxHeightMm
+        ? Math.min(this._state.heightPx, mmToPx(c.maxHeightMm, dpi))
+        : this._state.heightPx;
+      this._state = { ...this._state, dpi, widthPx, heightPx };
     } else {
-      this._state = { ...s, dpi, preset: 'custom' };
+      this._state = { ...this._state, dpi, preset: 'custom' };
     }
     this._plotCacheKey = '';
   }
@@ -420,9 +414,6 @@ export class ProtspacePublishModal extends LitElement {
           <div class="publish-preview">
             <div class="publish-preview-header">
               <h2>Figure Editor</h2>
-              <span class="publish-preview-info">
-                ${s.widthPx} &times; ${s.heightPx} px &middot; ${s.dpi} DPI
-              </span>
             </div>
 
             <div class="publish-preview-canvas-container">
@@ -518,21 +509,6 @@ export class ProtspacePublishModal extends LitElement {
           </svg>
           Zoom Inset
         </button>
-
-        <div class="tool-separator"></div>
-
-        <label class="publish-checkbox-label" style="margin-bottom: 0">
-          <input
-            type="checkbox"
-            class="publish-checkbox"
-            .checked=${this._fullResPreview}
-            @change=${(e: Event) => {
-              this._fullResPreview = (e.target as HTMLInputElement).checked;
-              this._plotCacheKey = '';
-            }}
-          />
-          Full resolution
-        </label>
       </div>
     `;
   }
@@ -544,17 +520,22 @@ export class ProtspacePublishModal extends LitElement {
       <div class="publish-section">
         <div class="publish-section-title">Presets</div>
         <div class="publish-preset-grid">
-          ${JOURNAL_PRESETS.map(
-            (p) => html`
+          ${JOURNAL_PRESETS.map((p) => {
+            const preset = p as { widthMm?: number; widthPx?: number; heightPx?: number };
+            const dims =
+              preset.widthMm !== undefined
+                ? `${preset.widthMm} mm`
+                : `${preset.widthPx}\u00d7${preset.heightPx}`;
+            return html`
               <button
                 class="publish-preset-btn ${this._state.preset === p.id ? 'active' : ''}"
                 @click=${() => this._applyPreset(p.id)}
-                title="${p.label}"
+                title="${p.label} (${dims})"
               >
-                ${p.label}
+                ${p.label}<span class="publish-preset-dims">${dims}</span>
               </button>
-            `,
-          )}
+            `;
+          })}
         </div>
       </div>
     `;
@@ -564,122 +545,109 @@ export class ProtspacePublishModal extends LitElement {
 
   private _renderDimensionsSection() {
     const s = this._state;
-    const widthMm = pxToMm(s.widthPx, s.dpi);
+    const constraints = this._getActivePresetConstraints();
+    const widthMmDisplay = constraints
+      ? `${constraints.widthMm} mm`
+      : `${pxToMm(s.widthPx, s.dpi).toFixed(1)} mm`;
     const heightMm = pxToMm(s.heightPx, s.dpi);
-    const maxHeightPx = s.sizeMode !== 'flexible' ? mmToPx(MAX_HEIGHT_MM, s.dpi) : 8192;
-    const dimWarning = s.widthPx > 6000 || s.heightPx > 6000;
-    const isConstrained = s.sizeMode !== 'flexible';
+    const maxHeightPx = constraints?.maxHeightMm ? mmToPx(constraints.maxHeightMm, s.dpi) : 8192;
+    const heightMmDisplay = constraints?.maxHeightMm
+      ? `${heightMm.toFixed(1)} mm (max ${constraints.maxHeightMm})`
+      : `${heightMm.toFixed(1)} mm`;
 
     return html`
       <div class="publish-section">
         <div class="publish-section-title">Dimensions</div>
 
-        <div class="publish-size-mode-toggle">
-          ${(['1-column', '2-column', 'flexible'] as SizeMode[]).map(
-            (mode) => html`
-              <button
-                class="publish-size-mode-btn ${s.sizeMode === mode ? 'active' : ''}"
-                @click=${() => this._setSizeMode(mode)}
-              >
-                ${mode === '1-column'
-                  ? '1 col (89 mm)'
-                  : mode === '2-column'
-                    ? '2 col (183 mm)'
-                    : 'Flexible'}
-              </button>
-            `,
-          )}
-        </div>
-
-        <div class="publish-row">
-          <label>Width</label>
-          <div class="publish-input-group">
-            <input
-              type="range"
-              class="publish-slider"
-              min="400"
-              max="8192"
-              .value=${String(s.widthPx)}
-              @input=${(e: Event) => {
-                this._updateWidthPx(parseInt((e.target as HTMLInputElement).value) || s.widthPx);
-              }}
-            />
-            <input
-              type="number"
-              class="publish-row-input"
-              min="400"
-              max="8192"
-              .value=${String(s.widthPx)}
-              @change=${(e: Event) => {
-                this._updateWidthPx(parseInt((e.target as HTMLInputElement).value) || s.widthPx);
-              }}
-            />
-            <span class="publish-unit">px</span>
-            <span class="publish-mm-display">${widthMm.toFixed(1)} mm</span>
+        <div class="publish-dim-field">
+          <div class="publish-dim-header">
+            <label>Width</label>
+            <span class="publish-dim-value">
+              <input
+                type="number"
+                class="publish-row-input"
+                min="400"
+                max="8192"
+                .value=${String(s.widthPx)}
+                @change=${(e: Event) => {
+                  this._updateWidthPx(parseInt((e.target as HTMLInputElement).value) || s.widthPx);
+                }}
+              />
+              <span class="publish-unit">px</span>
+              <span class="publish-mm-display">${widthMmDisplay}</span>
+            </span>
           </div>
+          <input
+            type="range"
+            class="publish-slider"
+            min="400"
+            max="8192"
+            .value=${String(s.widthPx)}
+            @input=${(e: Event) => {
+              this._updateWidthPx(parseInt((e.target as HTMLInputElement).value) || s.widthPx);
+            }}
+          />
         </div>
 
-        <div class="publish-row">
-          <label>Height</label>
-          <div class="publish-input-group">
-            <input
-              type="range"
-              class="publish-slider"
-              min="400"
-              .max=${String(maxHeightPx)}
-              .value=${String(s.heightPx)}
-              @input=${(e: Event) => {
-                this._updateHeightPx(parseInt((e.target as HTMLInputElement).value) || s.heightPx);
-              }}
-            />
-            <input
-              type="number"
-              class="publish-row-input"
-              min="400"
-              .max=${String(maxHeightPx)}
-              .value=${String(s.heightPx)}
-              @change=${(e: Event) => {
-                this._updateHeightPx(parseInt((e.target as HTMLInputElement).value) || s.heightPx);
-              }}
-            />
-            <span class="publish-unit">px</span>
-            <span class="publish-mm-display"
-              >${heightMm.toFixed(1)} mm${isConstrained ? ` (max ${MAX_HEIGHT_MM})` : ''}</span
-            >
+        <div class="publish-dim-field">
+          <div class="publish-dim-header">
+            <label>Height</label>
+            <span class="publish-dim-value">
+              <input
+                type="number"
+                class="publish-row-input"
+                min="400"
+                .max=${String(maxHeightPx)}
+                .value=${String(s.heightPx)}
+                @change=${(e: Event) => {
+                  this._updateHeightPx(
+                    parseInt((e.target as HTMLInputElement).value) || s.heightPx,
+                  );
+                }}
+              />
+              <span class="publish-unit">px</span>
+              <span class="publish-mm-display">${heightMmDisplay}</span>
+            </span>
           </div>
+          <input
+            type="range"
+            class="publish-slider"
+            min="400"
+            .max=${String(maxHeightPx)}
+            .value=${String(s.heightPx)}
+            @input=${(e: Event) => {
+              this._updateHeightPx(parseInt((e.target as HTMLInputElement).value) || s.heightPx);
+            }}
+          />
         </div>
 
-        <div class="publish-row">
-          <label>DPI</label>
-          <div class="publish-input-group">
-            <input
-              type="range"
-              class="publish-slider"
-              min="72"
-              max="600"
-              .value=${String(s.dpi)}
-              @input=${(e: Event) => {
-                this._updateDpi(parseInt((e.target as HTMLInputElement).value) || s.dpi);
-              }}
-            />
-            <input
-              type="number"
-              class="publish-row-input"
-              min="72"
-              max="600"
-              .value=${String(s.dpi)}
-              @change=${(e: Event) => {
-                this._updateDpi(parseInt((e.target as HTMLInputElement).value) || s.dpi);
-              }}
-            />
+        <div class="publish-dim-field">
+          <div class="publish-dim-header">
+            <label>DPI</label>
+            <span class="publish-dim-value">
+              <input
+                type="number"
+                class="publish-row-input"
+                min="72"
+                max="1000"
+                .value=${String(s.dpi)}
+                @change=${(e: Event) => {
+                  this._updateDpi(parseInt((e.target as HTMLInputElement).value) || s.dpi);
+                }}
+              />
+            </span>
           </div>
+          <input
+            type="range"
+            class="publish-slider"
+            min="72"
+            max="1000"
+            .value=${String(s.dpi)}
+            @input=${(e: Event) => {
+              this._updateDpi(parseInt((e.target as HTMLInputElement).value) || s.dpi);
+            }}
+          />
         </div>
-
-        ${dimWarning
-          ? html`<div class="publish-warning">
-              Large dimensions may be slow to render. Consider using PDF for vector output.
-            </div>`
-          : nothing}
       </div>
     `;
   }
@@ -737,7 +705,7 @@ export class ProtspacePublishModal extends LitElement {
                     type="range"
                     class="publish-slider"
                     min="10"
-                    max="50"
+                    max="100"
                     .value=${String(leg.widthPercent)}
                     @input=${(e: Event) => {
                       this._updateLegend({
@@ -750,7 +718,7 @@ export class ProtspacePublishModal extends LitElement {
                     type="number"
                     class="publish-row-input"
                     min="10"
-                    max="50"
+                    max="100"
                     .value=${String(leg.widthPercent)}
                     @change=${(e: Event) => {
                       this._updateLegend({
