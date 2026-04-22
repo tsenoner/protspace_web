@@ -63,6 +63,14 @@ export function createExportHandler({
           legendFontSizePx: detail.legendFontSizePx,
         };
 
+        // Restore saved publish state from current bundle settings
+        const bundleSettings = (
+          plotElement as unknown as { bundleSettings?: { publishState?: Record<string, unknown> } }
+        ).bundleSettings;
+        if (bundleSettings?.publishState) {
+          modal.savedPublishState = bundleSettings.publishState;
+        }
+
         // Handle export from the figure editor
         modal.addEventListener('publish-export', (async (e: CustomEvent) => {
           const { canvas, state } = e.detail as {

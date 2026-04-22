@@ -169,6 +169,17 @@ export function isNormalizedBundleSettings(obj: unknown): obj is BundleSettings 
   }
 
   const settings = obj as Record<string, unknown>;
+
+  // publishState is optional and free-form — just check it's an object if present
+  if (
+    settings.publishState !== undefined &&
+    (typeof settings.publishState !== 'object' ||
+      settings.publishState === null ||
+      Array.isArray(settings.publishState))
+  ) {
+    return false;
+  }
+
   return (
     isValidLegendSettingsMap(settings.legendSettings) &&
     isValidExportOptionsMap(settings.exportOptions)
@@ -302,9 +313,16 @@ export function normalizeBundleSettings(obj: unknown): BundleSettings | null {
     const sanitizedExportOptions = sanitizeExportOptionsMap(settings.exportOptions) ?? {};
 
     if (sanitizedLegendSettings) {
+      const publishState =
+        typeof settings.publishState === 'object' &&
+        settings.publishState !== null &&
+        !Array.isArray(settings.publishState)
+          ? (settings.publishState as Record<string, unknown>)
+          : undefined;
       return {
         legendSettings: sanitizedLegendSettings,
         exportOptions: sanitizedExportOptions,
+        publishState,
       };
     }
   }

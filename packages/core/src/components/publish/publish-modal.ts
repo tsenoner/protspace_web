@@ -90,6 +90,9 @@ export class ProtspacePublishModal extends LitElement {
     legendFontSizePx: number;
   }> = {};
 
+  /** Saved publish state from parquetbundle, used to restore on open. */
+  @property({ attribute: false }) savedPublishState: Record<string, unknown> | null = null;
+
   @state() private _state: PublishState = createDefaultPublishState();
   @state() private _tool: OverlayTool = 'select';
   @state() private _fullResPreview = false;
@@ -106,7 +109,12 @@ export class ProtspacePublishModal extends LitElement {
 
   override connectedCallback() {
     super.connectedCallback();
-    this._state = createDefaultPublishState(this.initialState);
+    if (this.savedPublishState) {
+      const defaults = createDefaultPublishState(this.initialState);
+      this._state = { ...defaults, ...this.savedPublishState } as PublishState;
+    } else {
+      this._state = createDefaultPublishState(this.initialState);
+    }
     this._readLegend();
     document.addEventListener('keydown', this._onKeyDown);
   }

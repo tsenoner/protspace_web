@@ -198,4 +198,52 @@ describe('settings-validation', () => {
       });
     });
   });
+
+  describe('publishState in BundleSettings', () => {
+    it('accepts BundleSettings with publishState', () => {
+      const settings = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: { widthPx: 2048, heightPx: 1024 },
+      };
+      expect(isNormalizedBundleSettings(settings)).toBe(true);
+    });
+
+    it('accepts BundleSettings without publishState', () => {
+      const settings = {
+        legendSettings: {},
+        exportOptions: {},
+      };
+      expect(isNormalizedBundleSettings(settings)).toBe(true);
+    });
+
+    it('rejects publishState that is not an object', () => {
+      const settings = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: 'invalid',
+      };
+      expect(isNormalizedBundleSettings(settings)).toBe(false);
+    });
+
+    it('rejects publishState that is an array', () => {
+      const settings = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: [1, 2, 3],
+      };
+      expect(isNormalizedBundleSettings(settings)).toBe(false);
+    });
+
+    it('normalizes bundle with publishState', () => {
+      const raw = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: { widthPx: 1051, dpi: 300, annotations: [] },
+      };
+      const result = normalizeBundleSettings(raw);
+      expect(result).not.toBeNull();
+      expect(result!.publishState).toEqual({ widthPx: 1051, dpi: 300, annotations: [] });
+    });
+  });
 });
