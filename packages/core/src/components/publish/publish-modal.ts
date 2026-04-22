@@ -698,13 +698,27 @@ export class ProtspacePublishModal extends LitElement {
                   <option value="tl">Top-left (overlay)</option>
                   <option value="br">Bottom-right (overlay)</option>
                   <option value="bl">Bottom-left (overlay)</option>
+                  <option value="free">Free (drag to move)</option>
                   <option value="none">Hidden</option>
                 </select>
               </div>
 
               <div class="publish-row">
-                <label>Width %</label>
+                <label>Size %</label>
                 <div class="publish-input-group">
+                  <input
+                    type="range"
+                    class="publish-slider"
+                    min="10"
+                    max="50"
+                    .value=${String(leg.widthPercent)}
+                    @input=${(e: Event) => {
+                      this._updateLegend({
+                        widthPercent:
+                          parseInt((e.target as HTMLInputElement).value) || leg.widthPercent,
+                      });
+                    }}
+                  />
                   <input
                     type="number"
                     class="publish-row-input"
@@ -726,6 +740,19 @@ export class ProtspacePublishModal extends LitElement {
                 <label>Font size</label>
                 <div class="publish-input-group">
                   <input
+                    type="range"
+                    class="publish-slider"
+                    min="8"
+                    max="120"
+                    .value=${String(leg.fontSizePx)}
+                    @input=${(e: Event) => {
+                      this._updateLegend({
+                        fontSizePx:
+                          parseInt((e.target as HTMLInputElement).value) || leg.fontSizePx,
+                      });
+                    }}
+                  />
+                  <input
                     type="number"
                     class="publish-row-input"
                     min="8"
@@ -745,6 +772,18 @@ export class ProtspacePublishModal extends LitElement {
               <div class="publish-row">
                 <label>Columns</label>
                 <div class="publish-input-group">
+                  <input
+                    type="range"
+                    class="publish-slider"
+                    min="1"
+                    max="6"
+                    .value=${String(leg.columns)}
+                    @input=${(e: Event) => {
+                      this._updateLegend({
+                        columns: parseInt((e.target as HTMLInputElement).value) || leg.columns,
+                      });
+                    }}
+                  />
                   <input
                     type="number"
                     class="publish-row-input"
