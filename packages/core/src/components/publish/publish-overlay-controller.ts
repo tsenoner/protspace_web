@@ -200,6 +200,7 @@ export class PublishOverlayController {
       targetRect: { x, y, w, h },
       border: 2,
       connector: 'lines',
+      magnification: 2,
     };
     this.pendingInsetSource = null;
     this.tool = 'select';

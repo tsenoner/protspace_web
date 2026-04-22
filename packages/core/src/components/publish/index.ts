@@ -6,6 +6,7 @@ export type {
   Inset,
   LegendPosition,
   LegendOverflow,
+  LegendFreePosition,
 } from './publish-state';
 export type { PresetId, JournalPreset } from './journal-presets';
 export {
