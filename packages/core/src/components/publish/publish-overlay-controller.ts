@@ -23,11 +23,13 @@ interface OverlayCallbacks {
   getPlotRect(): { x: number; y: number; w: number; h: number };
   getAnnotations(): Annotation[];
   getInsets(): Inset[];
+  getLegendRect(): { x: number; y: number; w: number; h: number } | null;
   onAnnotationAdded(annotation: Annotation): void;
   onAnnotationUpdated(index: number, annotation: Annotation): void;
   onInsetAdded(inset: Inset): void;
   onInsetUpdated(index: number, inset: Inset): void;
   onSelectionChanged(type: 'annotation' | 'inset' | null, index: number): void;
+  onLegendMoved(nx: number, ny: number): void;
   requestRedraw(): void;
 }
 
@@ -49,6 +51,7 @@ export class PublishOverlayController {
   private pendingInsetSource: NormRect | null = null;
   private selected: { kind: 'annotation' | 'inset'; index: number } | null = null;
   private dragOffset: { dx: number; dy: number } = { dx: 0, dy: 0 };
+  private legendDragging = false;
 
   constructor(canvas: HTMLCanvasElement, callbacks: OverlayCallbacks) {
     this.canvas = canvas;
@@ -202,6 +205,28 @@ export class PublishOverlayController {
           return;
         }
       }
+      // Check if clicking on legend (for free position mode)
+      const legendRect = this.callbacks.getLegendRect();
+      if (legendRect) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const px = x * scaleX;
+        const py = y * scaleY;
+        if (
+          px >= legendRect.x &&
+          px <= legendRect.x + legendRect.w &&
+          py >= legendRect.y &&
+          py <= legendRect.y + legendRect.h
+        ) {
+          this.legendDragging = true;
+          this.dragOffset = {
+            dx: px - legendRect.x,
+            dy: py - legendRect.y,
+          };
+          return;
+        }
+      }
       this.selected = null;
     }
   };
@@ -211,6 +236,18 @@ export class PublishOverlayController {
     const rect = this.canvas.getBoundingClientRect();
     this.drag.currentX = e.clientX - rect.left;
     this.drag.currentY = e.clientY - rect.top;
+
+    if (this._tool === 'select' && this.legendDragging) {
+      const scaleX = this.canvas.width / rect.width;
+      const scaleY = this.canvas.height / rect.height;
+      const px = this.drag.currentX * scaleX;
+      const py = this.drag.currentY * scaleY;
+      const nx = (px - this.dragOffset.dx) / this.canvas.width;
+      const ny = (py - this.dragOffset.dy) / this.canvas.height;
+      this.callbacks.onLegendMoved(Math.max(0, Math.min(1, nx)), Math.max(0, Math.min(1, ny)));
+      this.callbacks.requestRedraw();
+      return;
+    }
 
     if (this._tool === 'select' && this.selected) {
       const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
@@ -231,6 +268,13 @@ export class PublishOverlayController {
     const endY = e.clientY - rect.top;
     const start = this.toNorm(this.drag.startX, this.drag.startY);
     const end = this.toNorm(endX, endY);
+
+    if (this.legendDragging) {
+      this.legendDragging = false;
+      this.drag.active = false;
+      this.callbacks.requestRedraw();
+      return;
+    }
 
     switch (this._tool) {
       case 'circle':

@@ -83,6 +83,40 @@ interface LegendRenderOptions {
 }
 
 /**
+ * Draw text with word wrapping. Returns the number of lines drawn.
+ */
+function fillTextWrapped(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+): number {
+  if (maxWidth <= 0) return 0;
+  const words = text.split(/\s+/);
+  let line = '';
+  let lines = 0;
+
+  for (const word of words) {
+    const testLine = line ? `${line} ${word}` : word;
+    const metrics = ctx.measureText(testLine);
+    if (metrics.width > maxWidth && line) {
+      ctx.fillText(line, x, y + lines * lineHeight);
+      line = word;
+      lines++;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) {
+    ctx.fillText(line, x, y + lines * lineHeight);
+    lines++;
+  }
+  return lines;
+}
+
+/**
  * Render legend items to an off-screen canvas.
  * Supports multi-column layout, truncation, and legacy Y-scale mode.
  */
@@ -145,7 +179,8 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
   ctx.font = `600 ${headerFontSize}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  ctx.fillText(opts.annotationName || 'Legend', padding, padding + headerHeight / 2);
+  const headerText = (opts.annotationName || 'Legend').replace(/_/g, ' ');
+  ctx.fillText(headerText, padding, padding + headerHeight / 2);
 
   // Items — distribute across columns
   const colWidth = (canvas.width - padding * 2) / columns;
@@ -171,16 +206,19 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
     // Label
     ctx.fillStyle = '#1f2937';
     ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
-    ctx.textBaseline = 'middle';
+    ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
     const textOffset = 8 * scale;
     const maxTextWidth = colWidth - symbolSize - textOffset - padding;
-    const label = it.displayValue ?? it.value;
-    ctx.fillText(
+    const label = (it.displayValue ?? it.value).replace(/_/g, ' ');
+    const labelY = y + (itemHeight - itemFontSize) / 2;
+    fillTextWrapped(
+      ctx,
       label,
       xBase + symbolSize + textOffset,
-      cy,
-      maxTextWidth > 0 ? maxTextWidth : undefined,
+      labelY,
+      maxTextWidth,
+      itemFontSize * 1.2,
     );
 
     // Count (only in single-column or first column gets count)
@@ -293,6 +331,17 @@ export function computeLayout(
     bl: { x: 0, y: totalH - cornerH, w: cornerW, h: cornerH },
     br: { x: totalW - cornerW, y: totalH - cornerH, w: cornerW, h: cornerH },
   };
+
+  // Free-floating position
+  if (pos === 'free') {
+    const legendW = Math.round(totalW * pct);
+    const legendH = Math.round(totalH * 0.5);
+    const plotRect: LayoutRect = { x: 0, y: 0, w: totalW, h: totalH };
+    const freePos = legend.freePos;
+    const lx = freePos ? Math.round(totalW * freePos.nx) : Math.round((totalW - legendW) / 2);
+    const ly = freePos ? Math.round(totalH * freePos.ny) : Math.round((totalH - legendH) / 2);
+    return { plotRect, legendRect: { x: lx, y: ly, w: legendW, h: legendH } };
+  }
 
   return { plotRect, legendRect: cornerRects[pos] ?? null };
 }
@@ -485,7 +534,7 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
 
   // Legend
   if (legendRect && state.legend.visible && state.legend.position !== 'none') {
-    const isCorner = ['tl', 'tr', 'bl', 'br'].includes(state.legend.position);
+    const isCorner = ['tl', 'tr', 'bl', 'br', 'free'].includes(state.legend.position);
     const legendCanvas = renderLegendCanvas(legendItems, {
       width: legendRect.w,
       height: legendRect.h,

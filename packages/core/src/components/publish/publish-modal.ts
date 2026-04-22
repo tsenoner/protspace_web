@@ -162,6 +162,15 @@ export class ProtspacePublishModal extends LitElement {
       },
       getAnnotations: () => this._state.annotations,
       getInsets: () => this._state.insets,
+      getLegendRect: () => {
+        if (this._state.legend.position !== 'free') return null;
+        const { legendRect } = computeLayout(
+          this._previewCanvas.width,
+          this._previewCanvas.height,
+          this._state.legend,
+        );
+        return legendRect;
+      },
       onAnnotationAdded: (a) => {
         this._state = { ...this._state, annotations: [...this._state.annotations, a] };
       },
@@ -180,6 +189,9 @@ export class ProtspacePublishModal extends LitElement {
       },
       onSelectionChanged: () => {
         /* selection visual handled in redraw */
+      },
+      onLegendMoved: (nx: number, ny: number) => {
+        this._updateLegend({ freePos: { nx, ny } });
       },
       requestRedraw: () => this._redraw(),
     });
