@@ -898,7 +898,7 @@ export class ProtspacePublishModal extends LitElement {
         `;
       case 'arrow':
         return html`
-          <div class="publish-row" style="margin-bottom: 2px;">
+          <div class="publish-row" style="margin-bottom: 0;">
             <label>Stroke</label>
             <div class="publish-input-group">
               <input
@@ -924,38 +924,6 @@ export class ProtspacePublishModal extends LitElement {
                 @change=${(e: Event) => {
                   this._updateAnnotation(i, {
                     width: parseFloat((e.target as HTMLInputElement).value) || 2,
-                  });
-                }}
-              />
-              <span class="publish-unit">px</span>
-            </div>
-          </div>
-          <div class="publish-row" style="margin-bottom: 0;">
-            <label>Head</label>
-            <div class="publish-input-group">
-              <input
-                type="range"
-                class="publish-slider"
-                min="4"
-                max="30"
-                step="1"
-                .value=${String(a.headSize)}
-                @input=${(e: Event) => {
-                  this._updateAnnotation(i, {
-                    headSize: parseFloat((e.target as HTMLInputElement).value) || 10,
-                  });
-                }}
-              />
-              <input
-                type="number"
-                class="publish-row-input"
-                min="4"
-                max="30"
-                step="1"
-                .value=${String(a.headSize)}
-                @change=${(e: Event) => {
-                  this._updateAnnotation(i, {
-                    headSize: parseFloat((e.target as HTMLInputElement).value) || 10,
                   });
                 }}
               />

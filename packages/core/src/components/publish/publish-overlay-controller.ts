@@ -51,7 +51,14 @@ export class PublishOverlayController {
   private pendingInsetSource: NormRect | null = null;
   private selected: { kind: 'annotation' | 'inset'; index: number } | null = null;
   private dragOffset: { dx: number; dy: number } = { dx: 0, dy: 0 };
-  private handleMode: 'move' | 'resize-rx' | 'resize-ry' | 'rotate' | null = null;
+  private handleMode:
+    | 'move'
+    | 'resize-rx'
+    | 'resize-ry'
+    | 'rotate'
+    | 'arrow-start'
+    | 'arrow-end'
+    | null = null;
   private legendDragging = false;
 
   constructor(canvas: HTMLCanvasElement, callbacks: OverlayCallbacks) {
@@ -231,7 +238,23 @@ export class PublishOverlayController {
     if (!this.selected || this.selected.kind !== 'annotation') return;
     const anns = this.callbacks.getAnnotations();
     const a = anns[this.selected.index];
-    if (!a || a.type !== 'circle') return;
+    if (!a) return;
+
+    // Arrow endpoint handles
+    if (
+      a.type === 'arrow' &&
+      (this.handleMode === 'arrow-start' || this.handleMode === 'arrow-end')
+    ) {
+      const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
+      if (this.handleMode === 'arrow-start') {
+        this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, x1: norm.nx, y1: norm.ny });
+      } else {
+        this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, x2: norm.nx, y2: norm.ny });
+      }
+      return;
+    }
+
+    if (a.type !== 'circle') return;
 
     const pr = this.callbacks.getPlotRect();
     const rect = this.canvas.getBoundingClientRect();
@@ -277,13 +300,30 @@ export class PublishOverlayController {
       const pxX = x * (this.canvas.width / canvasRect.width);
       const pxY = y * (this.canvas.height / canvasRect.height);
 
-      // If a circle is already selected, check handles first
+      // If an annotation is already selected, check its handles first
       if (this.selected?.kind === 'annotation') {
         const a = this.callbacks.getAnnotations()[this.selected.index];
         if (a?.type === 'circle') {
           const mode = this.hitTestCircleHandles(pxX, pxY, a);
           if (mode) {
             this.handleMode = mode;
+            return;
+          }
+        }
+        if (a?.type === 'arrow') {
+          const pr = this.callbacks.getPlotRect();
+          const ds = this.canvas.width / canvasRect.width;
+          const hitR = 8 * ds;
+          const sx = pr.x + a.x1 * pr.w;
+          const sy = pr.y + a.y1 * pr.h;
+          const ex = pr.x + a.x2 * pr.w;
+          const ey = pr.y + a.y2 * pr.h;
+          if ((pxX - sx) ** 2 + (pxY - sy) ** 2 < hitR ** 2) {
+            this.handleMode = 'arrow-start';
+            return;
+          }
+          if ((pxX - ex) ** 2 + (pxY - ey) ** 2 < hitR ** 2) {
+            this.handleMode = 'arrow-end';
             return;
           }
         }
@@ -461,7 +501,6 @@ export class PublishOverlayController {
       y2: end.ny,
       color: '#000000',
       width: 2,
-      headSize: 10,
     };
     this.callbacks.onAnnotationAdded(annotation);
   }
@@ -560,42 +599,65 @@ export class PublishOverlayController {
     void pr; // used for coord space reference
   }
 
-  /** Draw resize/rotate handles when a circle annotation is selected. */
+  /** Draw resize/rotate handles when an annotation is selected. */
   drawSelectionHandles(ctx: CanvasRenderingContext2D) {
     if (!this.selected || this.selected.kind !== 'annotation') return;
     const a = this.callbacks.getAnnotations()[this.selected.index];
-    if (!a || a.type !== 'circle') return;
+    if (!a) return;
 
-    const handles = this.getCircleHandles(a);
-    // Scale handle size so they appear constant on screen regardless of canvas resolution
     const rect = this.canvas.getBoundingClientRect();
     const ds = this.canvas.width / rect.width;
     const handleSize = 5 * ds;
 
     ctx.save();
-
-    // Line from top handle to rotate handle
-    ctx.strokeStyle = 'rgba(0, 163, 224, 0.6)';
-    ctx.lineWidth = 1 * ds;
-    ctx.beginPath();
-    ctx.moveTo(handles.top.x, handles.top.y);
-    ctx.lineTo(handles.rotate.x, handles.rotate.y);
-    ctx.stroke();
-
-    // Resize handles — filled squares
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = 'rgba(0, 163, 224, 0.9)';
     ctx.lineWidth = 1.5 * ds;
-    for (const h of [handles.right, handles.left, handles.top, handles.bottom]) {
-      ctx.fillRect(h.x - handleSize, h.y - handleSize, handleSize * 2, handleSize * 2);
-      ctx.strokeRect(h.x - handleSize, h.y - handleSize, handleSize * 2, handleSize * 2);
-    }
 
-    // Rotate handle — filled circle
-    ctx.beginPath();
-    ctx.arc(handles.rotate.x, handles.rotate.y, handleSize, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    if (a.type === 'circle') {
+      const handles = this.getCircleHandles(a);
+
+      // Line from top handle to rotate handle
+      ctx.strokeStyle = 'rgba(0, 163, 224, 0.6)';
+      ctx.lineWidth = 1 * ds;
+      ctx.beginPath();
+      ctx.moveTo(handles.top.x, handles.top.y);
+      ctx.lineTo(handles.rotate.x, handles.rotate.y);
+      ctx.stroke();
+
+      // Resize handles — filled squares
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = 'rgba(0, 163, 224, 0.9)';
+      ctx.lineWidth = 1.5 * ds;
+      for (const h of [handles.right, handles.left, handles.top, handles.bottom]) {
+        ctx.fillRect(h.x - handleSize, h.y - handleSize, handleSize * 2, handleSize * 2);
+        ctx.strokeRect(h.x - handleSize, h.y - handleSize, handleSize * 2, handleSize * 2);
+      }
+
+      // Rotate handle — filled circle
+      ctx.beginPath();
+      ctx.arc(handles.rotate.x, handles.rotate.y, handleSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else if (a.type === 'arrow') {
+      const pr = this.callbacks.getPlotRect();
+      const sx = pr.x + a.x1 * pr.w;
+      const sy = pr.y + a.y1 * pr.h;
+      const ex = pr.x + a.x2 * pr.w;
+      const ey = pr.y + a.y2 * pr.h;
+
+      // Start handle — circle
+      ctx.beginPath();
+      ctx.arc(sx, sy, handleSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // End handle — circle
+      ctx.beginPath();
+      ctx.arc(ex, ey, handleSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
 
     ctx.restore();
   }

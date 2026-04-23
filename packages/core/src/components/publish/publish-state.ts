@@ -34,7 +34,6 @@ export interface ArrowAnnotation {
   y2: number;
   color: string;
   width: number;
-  headSize: number;
 }
 
 export interface LabelAnnotation {

@@ -596,7 +596,6 @@ function drawArrowAnnotation(
     y2: number;
     color: string;
     width: number;
-    headSize: number;
   },
   pr: LayoutRect,
   scale: number,
@@ -606,24 +605,42 @@ function drawArrowAnnotation(
   const x2 = pr.x + a.x2 * pr.w;
   const y2 = pr.y + a.y2 * pr.h;
 
+  const sw = a.width * scale;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+
+  // Arrowhead sized proportionally to stroke width
+  const headLen = sw * 4;
+  const headHalfW = sw * 2;
+  const headAngle = Math.atan2(headHalfW, headLen);
+
+  // Shaft ends slightly inside the arrowhead (overlap by half headLen) to avoid a gap
+  const shaftStop = headLen * 0.5;
+  const shaftEndX = x2 - shaftStop * Math.cos(angle);
+  const shaftEndY = y2 - shaftStop * Math.sin(angle);
+
   ctx.save();
   ctx.strokeStyle = a.color;
   ctx.fillStyle = a.color;
-  ctx.lineWidth = a.width * scale;
+  ctx.lineWidth = sw;
+  ctx.lineCap = 'butt';
 
   // Shaft
   ctx.beginPath();
   ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
+  ctx.lineTo(shaftEndX, shaftEndY);
   ctx.stroke();
 
-  // Arrowhead
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  const hs = a.headSize * scale;
+  // Arrowhead — filled polygon, no stroke
   ctx.beginPath();
   ctx.moveTo(x2, y2);
-  ctx.lineTo(x2 - hs * Math.cos(angle - Math.PI / 6), y2 - hs * Math.sin(angle - Math.PI / 6));
-  ctx.lineTo(x2 - hs * Math.cos(angle + Math.PI / 6), y2 - hs * Math.sin(angle + Math.PI / 6));
+  ctx.lineTo(
+    x2 - headLen * Math.cos(angle - headAngle),
+    y2 - headLen * Math.sin(angle - headAngle),
+  );
+  ctx.lineTo(
+    x2 - headLen * Math.cos(angle + headAngle),
+    y2 - headLen * Math.sin(angle + headAngle),
+  );
   ctx.closePath();
   ctx.fill();
   ctx.restore();
