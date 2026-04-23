@@ -171,6 +171,39 @@ const scatterplotStylesCore = css`
     cursor: pointer;
   }
 
+  .inset-tool-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 10;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    background: var(--protspace-tooltip-bg, rgba(255, 255, 255, 0.95));
+    border: 1px solid var(--protspace-tooltip-border, #d9e2ec);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    line-height: 1;
+    box-shadow: var(--protspace-tooltip-shadow, 0 6px 16px rgba(0, 0, 0, 0.08));
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .inset-tool-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    border-color: var(--protspace-highlight-color, #00a3e0);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    transform: scale(1.05);
+  }
+
+  .inset-tool-btn:focus-visible {
+    outline: 2px solid var(--primary-alpha-30);
+    outline-offset: 2px;
+  }
+
   protspace-indicator-layer {
     position: absolute;
     inset: 0;

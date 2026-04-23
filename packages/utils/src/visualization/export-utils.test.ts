@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, it, expect, vi } from 'vitest';
-import { createExporter, ProtSpaceExporter, generateProtspaceExportBasename } from './export-utils';
+import { exportProteinIdsFromElement, generateProtspaceExportBasename } from './export-utils';
 import type { ExportableElement, ExportableData } from './export-utils';
 import { LEGEND_VALUES } from './shapes';
 import { validateCanvasDimensions } from './canvas-limits';
@@ -25,14 +25,6 @@ function createMockElement(overrides: Partial<ExportableElement> = {}): Exportab
     ...overrides,
   } as ExportableElement;
 }
-
-describe('createExporter', () => {
-  it('creates an exporter instance', () => {
-    const mockElement = createMockElement();
-    const exporter = createExporter(mockElement);
-    expect(exporter).toBeInstanceOf(ProtSpaceExporter);
-  });
-});
 
 describe('validateCanvasDimensions', () => {
   it('accepts moderate dimensions', () => {
@@ -59,7 +51,7 @@ describe('generateProtspaceExportBasename', () => {
   });
 });
 
-describe('exportProteinIds', () => {
+describe('exportProteinIdsFromElement', () => {
   const baseData: ExportableData = {
     protein_ids: ['P1', 'P2', 'P3', 'P4'],
     annotations: {
@@ -85,7 +77,7 @@ describe('exportProteinIds', () => {
       }
       return node;
     });
-    createExporter(el).exportProteinIds();
+    exportProteinIdsFromElement(el);
     vi.mocked(document.createElement).mockRestore();
     const encoded = capturedHref.replace('data:text/plain;charset=utf-8,', '');
     expect(decodeURIComponent(encoded).split('\n')).toEqual(['P1', 'P2', 'P3', 'P4']);
@@ -108,7 +100,7 @@ describe('exportProteinIds', () => {
       }
       return node;
     });
-    createExporter(el).exportProteinIds();
+    exportProteinIdsFromElement(el);
     vi.mocked(document.createElement).mockRestore();
     const encoded = capturedHref.replace('data:text/plain;charset=utf-8,', '');
     expect(decodeURIComponent(encoded).split('\n')).toEqual(['P1', 'P2', 'P4']);

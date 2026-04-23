@@ -13,6 +13,7 @@
 
 import { tokens } from '../../styles/tokens';
 import { buttonMixin, inputMixin, dropdownMixin, iconMixin } from '../../styles/mixins';
+import { overlayMixins } from '../../styles/overlay-mixins';
 import { layoutStyles } from './styles/layout';
 import { queryBuilderStyles } from './query-builder.styles';
 import { exportStyles } from './styles/export';
@@ -28,6 +29,7 @@ export const controlBarStyles = [
   inputMixin,
   dropdownMixin,
   iconMixin,
+  overlayMixins,
   layoutStyles,
   queryBuilderStyles,
   exportStyles,

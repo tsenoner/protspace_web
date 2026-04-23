@@ -301,6 +301,7 @@ export class ProtspaceScatterplot extends LitElement {
     this.addEventListener('dragenter', this.handleDragEnter);
     this.addEventListener('dragleave', this.handleDragLeave);
     this.addEventListener('drop', this.handleDrop);
+    this.addEventListener('restore-transform', this._handleRestoreTransform as EventListener);
   }
 
   disconnectedCallback() {
@@ -331,6 +332,7 @@ export class ProtspaceScatterplot extends LitElement {
     this.removeEventListener('dragenter', this.handleDragEnter);
     this.removeEventListener('dragleave', this.handleDragLeave);
     this.removeEventListener('drop', this.handleDrop);
+    this.removeEventListener('restore-transform', this._handleRestoreTransform as EventListener);
   }
 
   private handleDragOver = (e: DragEvent) => {
@@ -2008,6 +2010,9 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _handleContextMenuAction(e: CustomEvent<ContextMenuAction>) {
+    // Stop the original composed event — we re-dispatch from the host so
+    // there's exactly one event reaching the runtime, not two.
+    e.stopPropagation();
     const action = e.detail;
     this.dispatchEvent(
       new CustomEvent('context-menu-action', {
@@ -2020,6 +2025,29 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _handleContextMenuClose() {
     this._contextMenuOpen = false;
+  }
+
+  private _getActiveCanvas(): HTMLCanvasElement | null {
+    const key = this._canvasKey % 2 === 1 ? 'alt' : 'base';
+    return this.shadowRoot?.querySelector(`canvas[data-key="${key}"]`) as HTMLCanvasElement | null;
+  }
+
+  private _handleRestoreTransform(e: CustomEvent<{ x: number; y: number; k: number }>) {
+    const { x, y, k } = e.detail;
+    if (this._zoom && this._svgSelection) {
+      const restored = d3.zoomIdentity.translate(x, y).scale(k);
+      this._svgSelection.call(this._zoom.transform, restored);
+    }
+  }
+
+  private _handleInsetToolClick() {
+    this.dispatchEvent(
+      new CustomEvent('context-menu-action', {
+        detail: { type: 'add-inset' } as ContextMenuAction,
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private _clearHoverState(): void {
@@ -2164,6 +2192,14 @@ export class ProtspaceScatterplot extends LitElement {
               </div>
             `
           : ''}
+        <button
+          class="inset-tool-btn"
+          title="Add inset (zoom region)"
+          aria-label="Add inset"
+          @click="${this._handleInsetToolClick}"
+        >
+          &#128269;
+        </button>
         <protspace-indicator-layer
           .indicators="${this.indicators}"
           .transform="${this._transform}"
@@ -2171,8 +2207,7 @@ export class ProtspaceScatterplot extends LitElement {
           .scaleY="${this._scales?.y ?? null}"
         ></protspace-indicator-layer>
         <protspace-context-menu
-          .x="${this._contextMenuX}"
-          .y="${this._contextMenuY}"
+          style="left:${this._contextMenuX}px;top:${this._contextMenuY}px;"
           .open="${this._contextMenuOpen}"
           .items="${this._contextMenuItems}"
           @context-menu-action="${this._handleContextMenuAction}"
@@ -2182,6 +2217,7 @@ export class ProtspaceScatterplot extends LitElement {
           .step="${this.insetStep}"
           .insets="${this.insets}"
           .containerSize="${{ width: this.clientWidth, height: this.clientHeight }}"
+          .sourceCanvas="${this._getActiveCanvas()}"
         ></protspace-inset-tool>
       </div>
     `;
@@ -2452,7 +2488,12 @@ export class ProtspaceScatterplot extends LitElement {
   public captureAtResolution(
     width: number,
     height: number,
-    options: { dpr?: number; backgroundColor?: string; desaturateUnselected?: boolean } = {},
+    options: {
+      dpr?: number;
+      backgroundColor?: string;
+      desaturateUnselected?: boolean;
+      skipAnnotations?: boolean;
+    } = {},
   ): HTMLCanvasElement {
     if (!this._webglRenderer) {
       throw new Error('WebGL renderer not initialized');
@@ -2462,7 +2503,12 @@ export class ProtspaceScatterplot extends LitElement {
       throw new Error('Width and height must be positive numbers');
     }
 
-    const { dpr = 1, backgroundColor = '#ffffff', desaturateUnselected = false } = options;
+    const {
+      dpr = 1,
+      backgroundColor = '#ffffff',
+      desaturateUnselected = false,
+      skipAnnotations = false,
+    } = options;
     const desatFactor = desaturateUnselected ? 0.75 : 0;
 
     // Capture WebGL content using native off-screen rendering
@@ -2489,20 +2535,136 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     // Apply background color if the canvas has transparency
+    const outputCanvas = document.createElement('canvas');
+    outputCanvas.width = webglCanvas.width;
+    outputCanvas.height = webglCanvas.height;
+    const ctx = outputCanvas.getContext('2d');
+    if (!ctx) return webglCanvas;
+
     if (backgroundColor && backgroundColor !== 'transparent') {
-      const outputCanvas = document.createElement('canvas');
-      outputCanvas.width = webglCanvas.width;
-      outputCanvas.height = webglCanvas.height;
-      const ctx = outputCanvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = backgroundColor;
-        ctx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
-        ctx.drawImage(webglCanvas, 0, 0);
-        return outputCanvas;
-      }
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+    }
+    ctx.drawImage(webglCanvas, 0, 0);
+
+    // Draw indicators and insets onto the export canvas
+    if (!skipAnnotations) {
+      this._drawAnnotationsOnCanvas(ctx, outputCanvas.width, outputCanvas.height);
     }
 
-    return webglCanvas;
+    return outputCanvas;
+  }
+
+  /**
+   * Draw indicator arrows and inset boxes onto a 2D canvas context.
+   * Uses the same data-space coordinates as the live DOM overlays,
+   * but renders them as canvas primitives for export.
+   */
+  private _drawAnnotationsOnCanvas(
+    ctx: CanvasRenderingContext2D,
+    canvasW: number,
+    canvasH: number,
+  ): void {
+    if (!this._scales) return;
+
+    // Compute scale factors: export canvas vs current viewport
+    const viewW = this.clientWidth || 1;
+    const viewH = this.clientHeight || 1;
+    const sx = canvasW / viewW;
+    const sy = canvasH / viewH;
+
+    const scaleX = this._scales.x;
+    const scaleY = this._scales.y;
+    const transform = this._transform;
+
+    // ── Draw indicators ──
+    for (const ind of this.indicators) {
+      const rawX = scaleX(ind.dataCoords[0]);
+      const rawY = scaleY(ind.dataCoords[1]);
+      const tipX = (rawX * transform.k + transform.x) * sx;
+      const tipY = (rawY * transform.k + transform.y) * sy;
+      const shaftX = tipX + ind.offsetPx[0] * sx;
+      const shaftY = tipY + ind.offsetPx[1] * sy;
+
+      const shaftLen = 32 * sy;
+      const shaftTop = shaftY - shaftLen;
+
+      // Arrow shaft
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = Math.max(2 * sx, 1);
+      ctx.beginPath();
+      ctx.moveTo(shaftX, shaftTop);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+
+      // Arrow head
+      const headH = 9 * sy;
+      const headW = 6 * sx;
+      ctx.fillStyle = '#111';
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX - headW, tipY - headH);
+      ctx.lineTo(tipX + headW, tipY - headH);
+      ctx.closePath();
+      ctx.fill();
+
+      // Label
+      const fontSize = Math.round(10 * sy);
+      ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+      const labelW = ctx.measureText(ind.label).width;
+      const labelPadX = 6 * sx;
+      const labelPadY = 2 * sy;
+      const labelX = shaftX - labelW / 2 - labelPadX;
+      const labelY = shaftTop - 4 * sy - fontSize - labelPadY;
+
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.roundRect(labelX, labelY, labelW + labelPadX * 2, fontSize + labelPadY * 2, 3 * sx);
+      ctx.fill();
+      ctx.fillStyle = '#111';
+      ctx.fillText(ind.label, labelX + labelPadX, labelY + labelPadY + fontSize * 0.85);
+    }
+
+    // ── Draw insets ──
+    // Inset position/size are 0-1 normalized to the container, so multiply by canvas dimensions
+    for (const inset of this.insets) {
+      const ix = inset.position.x * canvasW;
+      const iy = inset.position.y * canvasH;
+      const iw = inset.size.width * canvasW;
+      const ih = inset.size.height * canvasH;
+
+      // Inset border
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = Math.max(2.5 * sx, 1);
+
+      if (inset.shape === 'circle') {
+        ctx.beginPath();
+        ctx.ellipse(ix + iw / 2, iy + ih / 2, iw / 2, ih / 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(ix, iy, iw, ih);
+      }
+
+      // Draw captured content if available
+      if (inset.capturedCanvas) {
+        ctx.save();
+        if (inset.shape === 'circle') {
+          ctx.beginPath();
+          ctx.ellipse(ix + iw / 2, iy + ih / 2, iw / 2, ih / 2, 0, 0, Math.PI * 2);
+          ctx.clip();
+        }
+        ctx.drawImage(inset.capturedCanvas, ix, iy, iw, ih);
+        ctx.restore();
+      }
+
+      // Inset label
+      if (inset.label) {
+        const fontSize = Math.round(9 * sx);
+        ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+        ctx.fillStyle = '#333';
+        ctx.fillText(inset.label, ix, iy + ih + fontSize + 4 * sx);
+      }
+    }
   }
 }
 

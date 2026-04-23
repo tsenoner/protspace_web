@@ -8,6 +8,87 @@ export const insetToolStyles = css`
     pointer-events: none;
   }
 
+  /* ── Lens (draggable magnifying overlay) ── */
+
+  .lens {
+    position: absolute;
+    border: 3px solid var(--primary, #00a3e0);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow:
+      0 4px 20px rgba(0, 0, 0, 0.3),
+      0 0 0 1px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    cursor: grab;
+    pointer-events: auto;
+    z-index: 10;
+  }
+
+  .lens:active {
+    cursor: grabbing;
+  }
+
+  .lens-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .lens-zoom-label {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    pointer-events: none;
+  }
+
+  .lens-resize-handle {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 14px;
+    height: 14px;
+    background: var(--primary, #00a3e0);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    cursor: nwse-resize;
+    pointer-events: auto;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .lens-confirm {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: var(--primary, #00a3e0);
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+  }
+
+  .lens-confirm:hover {
+    background: #0090c0;
+    transform: scale(1.1);
+  }
+
+  /* ── Confirmed inset boxes ── */
+
   .source-region {
     position: absolute;
     border: 1.5px dashed #333;
@@ -40,7 +121,7 @@ export const insetToolStyles = css`
     right: -6px;
     width: 12px;
     height: 12px;
-    background: var(--accent-color, #5b8fd9);
+    background: var(--primary, #00a3e0);
     border-radius: 50%;
     cursor: nwse-resize;
     border: 2px solid #fff;
@@ -63,17 +144,28 @@ export const insetToolStyles = css`
     pointer-events: none;
   }
 
-  .framing-badge {
+  .toolbar-hint {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    background: var(--accent-color, #5b8fd9);
-    color: #fff;
-    padding: 4px 12px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 30, 46, 0.9);
+    color: #ddd;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 12px;
     pointer-events: none;
+    white-space: nowrap;
+    z-index: 11;
+  }
+
+  .toolbar-hint kbd {
+    background: #334;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: #ddd;
+    border: 1px solid #444;
   }
 
   .snap-badge {
@@ -89,28 +181,5 @@ export const insetToolStyles = css`
     font-weight: 600;
     pointer-events: none;
     box-shadow: 0 2px 8px rgba(46, 204, 113, 0.3);
-  }
-
-  .toolbar-hint {
-    position: absolute;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(30, 30, 46, 0.9);
-    color: #aaa;
-    padding: 8px 20px;
-    border-radius: 8px;
-    font-size: 12px;
-    pointer-events: none;
-    white-space: nowrap;
-  }
-
-  .toolbar-hint kbd {
-    background: #334;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 10px;
-    color: #ddd;
-    border: 1px solid #444;
   }
 `;

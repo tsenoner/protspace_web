@@ -255,7 +255,7 @@ test.describe('Export Studio', () => {
     // Click on the overlay (top-left corner which should be outside the studio content)
     await page.evaluate(() => {
       const studio = document.querySelector('#export-studio') as any;
-      const overlay = studio?.shadowRoot?.querySelector('.overlay');
+      const overlay = studio?.shadowRoot?.querySelector('.modal-overlay');
       if (overlay) {
         overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       }

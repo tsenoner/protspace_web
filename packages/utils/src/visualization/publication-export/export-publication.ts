@@ -18,12 +18,18 @@ export interface PublicationExportRequest {
   scatterCapture: ScatterplotCaptureFn;
   legendModel: PublicationLegendModel;
   fileNameBase?: string;
+  /** Override legend band width (flexible legend mode) */
+  legendBandMmOverride?: number;
+  /** Override legend font size in px (flexible legend mode) */
+  fontSizeOverridePx?: number;
 }
 
 export async function exportPublicationFigure(req: PublicationExportRequest): Promise<void> {
   const layoutDef = FIGURE_LAYOUTS[req.layoutId];
   const dpi = req.dpi ?? PRINT_DPI_DEFAULT;
-  const layout = computePublicationLayout(layoutDef, req.viewportAspect);
+  const legendOverrides =
+    req.legendBandMmOverride != null ? { legendBandMm: req.legendBandMmOverride } : undefined;
+  const layout = computePublicationLayout(layoutDef, req.viewportAspect, legendOverrides);
   const bg = req.backgroundColor ?? '#ffffff';
 
   const figW = Math.round(mmToPx(layout.figureMm.width, dpi));
@@ -42,6 +48,7 @@ export async function exportPublicationFigure(req: PublicationExportRequest): Pr
       drawPublicationLegend(ctx, rect, req.legendModel, {
         dpi,
         layoutId: req.layoutId,
+        fontSizeOverridePx: req.fontSizeOverridePx,
       }),
     dpi,
     backgroundColor: bg,

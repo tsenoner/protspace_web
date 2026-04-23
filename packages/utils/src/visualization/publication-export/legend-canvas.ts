@@ -120,9 +120,14 @@ export async function drawPublicationLegend(
   ctx: CanvasRenderingContext2D,
   rect: PxRect,
   model: PublicationLegendModel,
-  options: { dpi: number; layoutId: FigureLayoutId },
+  options: {
+    dpi: number;
+    layoutId: FigureLayoutId;
+    /** Override font size in px (flexible legend mode). Bypasses auto-scaling. */
+    fontSizeOverridePx?: number;
+  },
 ): Promise<void> {
-  const { dpi, layoutId } = options;
+  const { dpi, layoutId, fontSizeOverridePx } = options;
   const layout = FIGURE_LAYOUTS[layoutId];
   const cols = layout.legend.columns;
 
@@ -135,10 +140,19 @@ export async function drawPublicationLegend(
   const innerHmm = Math.max(4, legendBoxMmH - 2 * padMm - HEADER_BODY_MM);
 
   const displayedRows = visible.length + (hasFooter ? 1 : 0);
-  const bodyPt = legendBodyPt(innerHmm, displayedRows, HEADER_BODY_MM);
-  const headerPt = Math.min(10, bodyPt + 1);
-  const bodyPx = ptToPx(bodyPt, dpi) * BODY_FONT_SCALE;
-  const headerPx = ptToPx(headerPt, dpi);
+  let bodyPx: number;
+  let headerPx: number;
+  if (fontSizeOverridePx != null) {
+    // Flexible mode: use user-specified font size, scale to DPI
+    bodyPx = fontSizeOverridePx * (dpi / 96);
+    headerPx = bodyPx * 1.15;
+  } else {
+    // Locked mode: auto-compute from available space
+    const bodyPt = legendBodyPt(innerHmm, displayedRows, HEADER_BODY_MM);
+    const headerPt = Math.min(10, bodyPt + 1);
+    bodyPx = ptToPx(bodyPt, dpi) * BODY_FONT_SCALE;
+    headerPx = ptToPx(headerPt, dpi);
+  }
 
   const titleY = rect.y + paddingPx + headerPx / 2;
   const gridTop = rect.y + paddingPx + headerPx + Math.max(2, bodyPx * 0.4);

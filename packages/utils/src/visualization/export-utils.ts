@@ -25,10 +25,6 @@ export interface ExportableElement extends Element {
   hiddenAnnotationValues?: string[];
 }
 
-export interface ExportOptions {
-  exportName?: string;
-}
-
 export function generateProtspaceExportBasename(
   element: Pick<
     ExportableElement,
@@ -89,32 +85,3 @@ export function exportProteinIdsFromElement(element: ExportableElement): void {
   link.download = fileName;
   link.click();
 }
-
-export class ProtSpaceExporter {
-  private element: ExportableElement;
-
-  constructor(element: ExportableElement, _selectedProteins: string[] = []) {
-    this.element = element;
-  }
-
-  exportProteinIds(_options: ExportOptions = {}): void {
-    exportProteinIdsFromElement(this.element);
-  }
-}
-
-export function createExporter(
-  element: ExportableElement,
-  selectedProteins: string[] = [],
-): ProtSpaceExporter {
-  return new ProtSpaceExporter(element, selectedProteins);
-}
-
-export const exportUtils = {
-  exportProteinIds: (
-    element: ExportableElement,
-    _selectedProteins?: string[],
-    _options?: ExportOptions,
-  ) => {
-    exportProteinIdsFromElement(element);
-  },
-};

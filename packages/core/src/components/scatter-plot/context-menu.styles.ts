@@ -4,18 +4,19 @@ import { css } from 'lit';
 export const contextMenuStyles = css`
   :host {
     position: absolute;
-    z-index: 200;
+    z-index: var(--z-dropdown, 100);
     pointer-events: auto;
   }
 
   .menu {
-    background: var(--surface-overlay, #1e1e2e);
-    border: 1px solid var(--border-color, #444);
-    border-radius: 8px;
+    position: absolute;
+    background: var(--surface, #fff);
+    border: var(--border-width, 1px) solid var(--border, #e2e8f0);
+    border-radius: var(--radius, 6px);
     padding: 4px 0;
     min-width: 180px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-    font-size: 12px;
+    box-shadow: var(--shadow-lg, 0 8px 30px rgba(0, 0, 0, 0.12));
+    font-size: var(--text-base, 12px);
     font-family: inherit;
   }
 
@@ -24,7 +25,7 @@ export const contextMenuStyles = css`
     align-items: center;
     gap: 10px;
     padding: 7px 14px;
-    color: var(--text-primary, #ddd);
+    color: var(--text-primary, #334155);
     cursor: pointer;
     border: none;
     background: none;
@@ -34,11 +35,12 @@ export const contextMenuStyles = css`
   }
 
   .menu-item:hover {
-    background: var(--surface-hover, #2a3a5a);
+    background: var(--primary-light, #eef6fb);
+    color: var(--primary, #00a3e0);
   }
 
   .menu-item[aria-disabled='true'] {
-    color: var(--text-disabled, #555);
+    color: var(--text-tertiary, #a0aec0);
     cursor: default;
     pointer-events: none;
   }
@@ -52,13 +54,13 @@ export const contextMenuStyles = css`
 
   .menu-item .shortcut {
     margin-left: auto;
-    font-size: 10px;
-    color: var(--text-secondary, #667);
+    font-size: var(--text-xs, 10px);
+    color: var(--text-secondary, #5b6b7a);
   }
 
   .separator {
     height: 1px;
-    background: var(--border-color, #333);
+    background: var(--border, #e2e8f0);
     margin: 4px 0;
   }
 `;

@@ -66,8 +66,10 @@ function placeLegendVertical(
 export function computePublicationLayout(
   layout: FigureLayout,
   viewportAspect?: number,
+  overrides?: { legendBandMm?: number },
 ): PublicationLayout {
-  const { widthMm, heightMm, paddingMm, legendBandMm, legend } = layout;
+  const { widthMm, heightMm, paddingMm, legend } = layout;
+  const legendBandMm = overrides?.legendBandMm ?? layout.legendBandMm;
   const scatterAspect = viewportAspect ?? layout.scatterAspect;
   const innerX = paddingMm;
   const innerY = paddingMm;

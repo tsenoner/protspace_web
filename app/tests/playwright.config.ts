@@ -95,6 +95,38 @@ export default defineConfig({
       },
       testMatch: /export-studio\.spec\.ts/,
     },
+    {
+      name: 'export-double-check',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /export-double-check\.spec\.ts/,
+    },
+    {
+      name: 'export-inset-check',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /export-inset-check\.spec\.ts/,
+    },
+    {
+      name: 'inset-debug',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /inset-debug\.spec\.ts/,
+    },
+    {
+      name: 'visual-smoke',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /visual-smoke\.spec\.ts/,
+    },
   ],
 
   outputDir: '../test-results/',

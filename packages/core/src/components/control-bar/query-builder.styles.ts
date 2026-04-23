@@ -273,23 +273,28 @@ export const queryBuilderStyles = css`
   }
 
   /* ==========================================
-     VALUE PICKER (DROPDOWN)
+     PICKER DROPDOWNS (shared base for value + annotation pickers)
      ========================================== */
 
-  .value-picker {
+  .value-picker,
+  .annotation-picker {
     position: fixed;
     background: var(--surface);
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
     z-index: var(--z-above-modal);
-    max-width: 280px;
     min-width: 200px;
+    max-width: 280px;
     padding: var(--spacing-sm);
     box-sizing: border-box;
   }
 
-  .value-picker-input {
+  /* Picker search inputs — shared base for both dropdowns.
+     Note: child components (query-value-picker, query-condition-row) use
+     queryBuilderStyles directly without inputMixin, so base styling lives here. */
+  .value-picker-input,
+  .annotation-picker-input {
     width: 100%;
     padding: var(--input-padding-y) var(--input-padding-x);
     border: var(--border-width) solid var(--border);
@@ -302,7 +307,8 @@ export const queryBuilderStyles = css`
     transition: var(--transition-fast);
   }
 
-  .value-picker-input:focus {
+  .value-picker-input:focus,
+  .annotation-picker-input:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow:
@@ -357,44 +363,6 @@ export const queryBuilderStyles = css`
     border-top: var(--border-width) solid var(--border);
     margin-top: var(--spacing-xs);
     text-align: center;
-  }
-
-  /* ==========================================
-     ANNOTATION PICKER (INSIDE CONDITION ROW)
-     ========================================== */
-
-  .annotation-picker {
-    position: fixed;
-    background: var(--surface);
-    border: var(--border-width) solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-lg);
-    z-index: var(--z-above-modal);
-    min-width: 200px;
-    max-width: 280px;
-    padding: var(--spacing-sm);
-    box-sizing: border-box;
-  }
-
-  .annotation-picker-input {
-    width: 100%;
-    padding: var(--input-padding-y) var(--input-padding-x);
-    border: var(--border-width) solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-base);
-    color: var(--text-primary);
-    margin-bottom: var(--spacing-xs);
-    box-sizing: border-box;
-    transition: var(--transition-fast);
-  }
-
-  .annotation-picker-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow:
-      0 0 0 1px var(--primary),
-      0 0 0 3px var(--focus-ring-bg);
   }
 
   .annotation-picker-category {
@@ -457,19 +425,8 @@ export const queryBuilderStyles = css`
   }
 
   /* ==========================================
-     MODAL OVERLAY
+     MODAL (overlay comes from overlayMixins)
      ========================================== */
-
-  .query-builder-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: var(--z-modal);
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overscroll-behavior: contain;
-  }
 
   .query-builder-modal {
     width: 70%;

@@ -15,10 +15,13 @@ import {
   mmToPx,
 } from '@protspace/utils';
 import type { Indicator, Inset } from '../scatter-plot/annotation-types';
+import { tokens } from '../../styles/tokens';
+import { buttonMixin, inputMixin } from '../../styles/mixins';
+import { overlayMixins } from '../../styles/overlay-mixins';
 import { exportStudioStyles } from './export-studio.styles';
 import './export-studio-preview';
 
-type LayoutMode = 'publication' | 'native' | 'freeform';
+type LayoutMode = 'publication' | 'native';
 
 interface FigureSizeMm {
   widthMm: number;
@@ -49,20 +52,6 @@ export function computePreviewDimensions(
   return fitByWidth.height <= available.height ? fitByWidth : fitByHeight;
 }
 
-interface FreeformPreset {
-  label: string;
-  width: number;
-  height: number;
-}
-
-const FREEFORM_PRESETS: FreeformPreset[] = [
-  { label: 'HD', width: 1920, height: 1080 },
-  { label: '4K', width: 3840, height: 2160 },
-  { label: 'Square', width: 2000, height: 2000 },
-  { label: 'Poster', width: 4000, height: 3000 },
-  { label: 'Slide 4:3', width: 2048, height: 1536 },
-];
-
 const LAYOUT_LABELS: Record<FigureLayoutId, string> = {
   one_column_below: '1-col + legend below',
   two_column_right: '2-col + legend right',
@@ -75,7 +64,7 @@ const LAYOUT_LABELS: Record<FigureLayoutId, string> = {
 
 @customElement('protspace-export-studio')
 export class ProtspaceExportStudio extends LitElement {
-  static styles = exportStudioStyles;
+  static styles = [tokens, buttonMixin, inputMixin, overlayMixins, exportStudioStyles];
 
   @property({ type: Boolean }) open = false;
   @property({ type: Array }) indicators: Indicator[] = [];
@@ -91,8 +80,9 @@ export class ProtspaceExportStudio extends LitElement {
   @state() private _format: 'png' | 'pdf' = 'png';
   @state() private _previewCanvas: HTMLCanvasElement | null = null;
   @state() private _isRendering = false;
-  @state() private _freeformWidth = 1920;
-  @state() private _freeformHeight = 1080;
+  @state() private _legendLocked = true; // true = t03i's publication styling
+  @state() private _legendFontSizePx = 15;
+  @state() private _legendWidthPercent = 20;
 
   private _debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -107,6 +97,7 @@ export class ProtspaceExportStudio extends LitElement {
 
     try {
       if (this._layoutMode === 'publication') {
+        const layoutDef = FIGURE_LAYOUTS[this._layoutId];
         await exportPublicationFigure({
           layoutId: this._layoutId,
           format: fmt,
@@ -116,6 +107,10 @@ export class ProtspaceExportStudio extends LitElement {
           legendModel: this.legendModel,
           fileNameBase: this.fileNameBase,
           viewportAspect: this.viewportAspect,
+          legendBandMmOverride: !this._legendLocked
+            ? layoutDef.widthMm * (this._legendWidthPercent / 100)
+            : undefined,
+          fontSizeOverridePx: !this._legendLocked ? this._legendFontSizePx : undefined,
         });
       } else {
         // Native or Freeform: render at exact pixel dimensions
@@ -144,10 +139,7 @@ export class ProtspaceExportStudio extends LitElement {
   }
 
   private _getPixelDimensions(): { w: number; h: number } {
-    if (this._layoutMode === 'native') {
-      return { w: window.innerWidth, h: window.innerHeight };
-    }
-    return { w: this._freeformWidth, h: this._freeformHeight };
+    return { w: window.innerWidth, h: window.innerHeight };
   }
 
   private _onOverlayClick(e: MouseEvent) {
@@ -177,11 +169,12 @@ export class ProtspaceExportStudio extends LitElement {
       '_layoutMode',
       '_layoutId',
       '_dpi',
+      '_legendLocked',
+      '_legendFontSizePx',
+      '_legendWidthPercent',
       'scatterCapture',
       'legendModel',
       'viewportAspect',
-      '_freeformWidth',
-      '_freeformHeight',
     ];
     const shouldRerender = triggerKeys.some((k) => changedProperties.has(k));
     if (shouldRerender && this.open) {
@@ -211,7 +204,16 @@ export class ProtspaceExportStudio extends LitElement {
 
         // Use a lower DPI for preview to keep it fast
         const previewDpi = Math.min(this._dpi, 150);
-        const previewLayout = computePublicationLayout(layoutDef, this.viewportAspect);
+
+        // Flexible legend: override legend band width
+        const legendOverrides = !this._legendLocked
+          ? { legendBandMm: layoutDef.widthMm * (this._legendWidthPercent / 100) }
+          : undefined;
+        const previewLayout = computePublicationLayout(
+          layoutDef,
+          this.viewportAspect,
+          legendOverrides,
+        );
 
         const scatterCanvas = captureScatterForLayout(
           previewLayout.scatterMm,
@@ -222,6 +224,7 @@ export class ProtspaceExportStudio extends LitElement {
 
         const legendModel = this.legendModel;
         const layoutId = this._layoutId;
+        const fontSizeOverridePx = !this._legendLocked ? this._legendFontSizePx : undefined;
 
         const canvas = await composePublicationFigureRaster({
           layout: previewLayout,
@@ -230,6 +233,7 @@ export class ProtspaceExportStudio extends LitElement {
             drawPublicationLegend(ctx, rect, legendModel, {
               dpi: previewDpi,
               layoutId,
+              fontSizeOverridePx,
             }),
           dpi: previewDpi,
           backgroundColor: bg,
@@ -271,10 +275,7 @@ export class ProtspaceExportStudio extends LitElement {
       const hPx = Math.round(mmToPx(layout.heightMm, this._dpi));
       return `${layout.widthMm}mm x ${layout.heightMm}mm (${wPx} x ${hPx}px @ ${this._dpi}dpi)`;
     }
-    if (this._layoutMode === 'native') {
-      return `${window.innerWidth} x ${window.innerHeight}px (screen)`;
-    }
-    return `${this._freeformWidth} x ${this._freeformHeight}px`;
+    return `${window.innerWidth} x ${window.innerHeight}px (screen)`;
   }
 
   render() {
@@ -282,7 +283,7 @@ export class ProtspaceExportStudio extends LitElement {
 
     return html`
       <div
-        class="overlay"
+        class="modal-overlay"
         @click="${this._onOverlayClick}"
         role="dialog"
         aria-modal="true"
@@ -303,7 +304,7 @@ export class ProtspaceExportStudio extends LitElement {
           <div class="controls-panel">
             <div class="studio-header">
               <h2>Export Studio</h2>
-              <button class="close-btn" @click="${this._close}" aria-label="Close">&#x2715;</button>
+              <button class="btn-close" @click="${this._close}" aria-label="Close">&#x2715;</button>
             </div>
 
             ${this._renderModeSelector()} ${this._renderLayoutControls()}
@@ -318,8 +319,7 @@ export class ProtspaceExportStudio extends LitElement {
   private _renderModeSelector() {
     const modes: { id: LayoutMode; label: string }[] = [
       { id: 'publication', label: 'Publication' },
-      { id: 'native', label: 'Native' },
-      { id: 'freeform', label: 'Freeform' },
+      { id: 'native', label: 'Screen' },
     ];
 
     return html`
@@ -345,10 +345,7 @@ export class ProtspaceExportStudio extends LitElement {
     if (this._layoutMode === 'publication') {
       return this._renderPublicationPresets();
     }
-    if (this._layoutMode === 'native') {
-      return this._renderNativeInfo();
-    }
-    return this._renderFreeformInputs();
+    return this._renderNativeInfo();
   }
 
   private _renderPublicationPresets() {
@@ -383,9 +380,51 @@ export class ProtspaceExportStudio extends LitElement {
           <span class="control-value">${FIGURE_LAYOUTS[this._layoutId].legend.columns}</span>
         </div>
         <div class="control-row">
-          <span class="control-label">Band</span>
-          <span class="control-value">${FIGURE_LAYOUTS[this._layoutId].legendBandMm}mm</span>
+          <label class="control-label">
+            <input
+              type="checkbox"
+              .checked="${this._legendLocked}"
+              @change="${(e: Event) => {
+                this._legendLocked = (e.target as HTMLInputElement).checked;
+              }}"
+            />
+            Locked styling
+          </label>
         </div>
+        ${!this._legendLocked
+          ? html`
+              <div class="control-row">
+                <span class="control-label">Font size</span>
+                <span class="control-value">${this._legendFontSizePx}px</span>
+              </div>
+              <input
+                type="range"
+                min="8"
+                max="24"
+                step="1"
+                .value="${String(this._legendFontSizePx)}"
+                @input="${(e: Event) => {
+                  this._legendFontSizePx = Number((e.target as HTMLInputElement).value);
+                }}"
+                style="width:100%;margin-bottom:8px;"
+              />
+              <div class="control-row">
+                <span class="control-label">Legend width</span>
+                <span class="control-value">${this._legendWidthPercent}%</span>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="50"
+                step="1"
+                .value="${String(this._legendWidthPercent)}"
+                @input="${(e: Event) => {
+                  this._legendWidthPercent = Number((e.target as HTMLInputElement).value);
+                }}"
+                style="width:100%;"
+              />
+            `
+          : nothing}
       </div>
     `;
   }
@@ -405,64 +444,6 @@ export class ProtspaceExportStudio extends LitElement {
         <p class="info-text">
           Exports at current screen pixel dimensions (scatter only, no legend).
         </p>
-      </div>
-    `;
-  }
-
-  private _applyFreeformPreset(preset: FreeformPreset) {
-    this._freeformWidth = preset.width;
-    this._freeformHeight = preset.height;
-  }
-
-  private _renderFreeformInputs() {
-    return html`
-      <div class="control-section">
-        <h3>Custom Dimensions</h3>
-        <div class="preset-grid" style="margin-bottom:10px;">
-          ${FREEFORM_PRESETS.map(
-            (p) => html`
-              <button
-                class="preset-btn ${this._freeformWidth === p.width &&
-                this._freeformHeight === p.height
-                  ? 'active'
-                  : ''}"
-                @click="${() => this._applyFreeformPreset(p)}"
-                title="${p.width} x ${p.height}px"
-              >
-                ${p.label}
-              </button>
-            `,
-          )}
-        </div>
-        <div class="control-row">
-          <label class="control-label" for="freeform-w">Width (px)</label>
-          <input
-            id="freeform-w"
-            class="num-input"
-            type="number"
-            min="100"
-            max="8000"
-            .value="${String(this._freeformWidth)}"
-            @change="${(e: Event) => {
-              this._freeformWidth = Math.max(100, Number((e.target as HTMLInputElement).value));
-            }}"
-          />
-        </div>
-        <div class="control-row">
-          <label class="control-label" for="freeform-h">Height (px)</label>
-          <input
-            id="freeform-h"
-            class="num-input"
-            type="number"
-            min="100"
-            max="8000"
-            .value="${String(this._freeformHeight)}"
-            @change="${(e: Event) => {
-              this._freeformHeight = Math.max(100, Number((e.target as HTMLInputElement).value));
-            }}"
-          />
-        </div>
-        <p class="info-text">Exports scatter at custom pixel dimensions (no legend).</p>
       </div>
     `;
   }
@@ -528,6 +509,16 @@ export class ProtspaceExportStudio extends LitElement {
     `;
   }
 
+  private _dispatchExportAction(type: string) {
+    this.dispatchEvent(
+      new CustomEvent('export-action', {
+        detail: { type },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
   private _renderDownloadButtons() {
     const disabled = !this.scatterCapture || !this.legendModel;
     return html`
@@ -537,7 +528,7 @@ export class ProtspaceExportStudio extends LitElement {
           ?disabled="${disabled}"
           @click="${() => this._handleDownload('png')}"
         >
-          Download PNG
+          PNG
         </button>
         <button
           class="btn btn-secondary"
@@ -545,6 +536,12 @@ export class ProtspaceExportStudio extends LitElement {
           @click="${() => this._handleDownload('pdf')}"
         >
           PDF
+        </button>
+        <button class="btn btn-secondary" @click="${() => this._dispatchExportAction('ids')}">
+          IDs
+        </button>
+        <button class="btn btn-secondary" @click="${() => this._dispatchExportAction('parquet')}">
+          Parquet
         </button>
       </div>
     `;

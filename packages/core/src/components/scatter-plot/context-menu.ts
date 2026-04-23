@@ -62,13 +62,14 @@ export function resolveMenuItems(hit: PointHit | null): MenuItem[] {
 export class ProtspaceContextMenu extends LitElement {
   static styles = contextMenuStyles;
 
-  @property({ type: Number }) x = 0;
-  @property({ type: Number }) y = 0;
   @property({ type: Boolean }) open = false;
   @property({ type: Array }) items: MenuItem[] = [];
 
   private _onClickOutside = (e: MouseEvent) => {
-    if (!this.contains(e.target as Node)) {
+    // Use composedPath() to correctly detect clicks inside nested shadow DOMs.
+    // With nested shadow DOM, e.target at the document level is retargeted to
+    // the outermost shadow host, so this.contains(e.target) always returns false.
+    if (!e.composedPath().includes(this)) {
       this._close();
     }
   };
@@ -112,7 +113,7 @@ export class ProtspaceContextMenu extends LitElement {
     if (!this.open) return nothing;
 
     return html`
-      <div class="menu" style="left:${this.x}px;top:${this.y}px;" role="menu">
+      <div class="menu" role="menu">
         ${this.items.map((item) =>
           item.separator
             ? html`<div class="separator"></div>`

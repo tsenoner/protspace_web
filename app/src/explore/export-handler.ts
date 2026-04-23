@@ -8,8 +8,8 @@ import type { BundleSettings, PublicationFigureLayoutId } from '@protspace/utils
 import {
   createScatterCaptureFromElement,
   exportParquetBundle,
+  exportProteinIdsFromElement,
   exportPublicationFigure,
-  exportUtils,
   generateBundleFilename,
   generateProtspaceExportBasename,
 } from '@protspace/utils';
@@ -46,6 +46,29 @@ export function createExportHandler({
       customEvent.detail;
 
     try {
+      // IDs and Parquet export directly, no studio needed
+      if (type === 'ids') {
+        exportProteinIdsFromElement(plotElement);
+        return;
+      }
+
+      if (type === 'parquet') {
+        const currentData = plotElement.getCurrentData();
+        if (!currentData) throw new Error('No data available for export');
+        const includeSettings = includeLegendSettings || includeExportOptions;
+        let settings: BundleSettings | undefined;
+        if (includeSettings) {
+          settings = {
+            legendSettings: includeLegendSettings ? legendElement.getAllPersistedSettings() : {},
+            exportOptions: includeExportOptions ? controlBar.getAllPersistedExportOptions() : {},
+          };
+        }
+        const filename = generateBundleFilename(includeSettings);
+        exportParquetBundle(currentData, filename, { includeSettings, settings });
+        notify.success(getExportSuccessNotification(filename));
+        return;
+      }
+
       // Route PNG/PDF to Export Studio when available
       if ((type === 'png' || type === 'pdf') && exportStudio) {
         // Wire capture function and legend model before opening
@@ -62,32 +85,7 @@ export function createExportHandler({
         return;
       }
 
-      if (type === 'parquet') {
-        const currentData = plotElement.getCurrentData();
-        if (!currentData) {
-          throw new Error('No data available for export');
-        }
-
-        const includeSettings = includeLegendSettings || includeExportOptions;
-        let settings: BundleSettings | undefined;
-        if (includeSettings) {
-          settings = {
-            legendSettings: includeLegendSettings ? legendElement.getAllPersistedSettings() : {},
-            exportOptions: includeExportOptions ? controlBar.getAllPersistedExportOptions() : {},
-          };
-        }
-
-        const filename = generateBundleFilename(includeSettings);
-        exportParquetBundle(currentData, filename, { includeSettings, settings });
-        notify.success(getExportSuccessNotification(filename));
-        return;
-      }
-
-      if (type === 'ids') {
-        exportUtils.exportProteinIds(plotElement);
-        return;
-      }
-
+      // Fallback direct PNG/PDF export (no studio)
       if (type === 'png' || type === 'pdf') {
         if (mode !== 'publication' || !layoutId) {
           throw new Error(

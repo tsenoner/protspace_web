@@ -10,13 +10,8 @@ interface SnapInsetInput {
   sourceTransform: { x: number; y: number; scale: number };
   capturedCanvas: HTMLCanvasElement | null;
   zoomFactor: number;
-}
-
-interface ConfirmInsetInput {
   position: { x: number; y: number };
   size: { width: number; height: number };
-  shape: 'rectangle' | 'circle';
-  label: string;
 }
 
 interface AnnotationControllerOptions {
@@ -33,7 +28,7 @@ export interface AnnotationController {
   getInsetStep(): InsetStep;
   startInsetFraming(): void;
   snapInset(input: SnapInsetInput): void;
-  confirmInset(input: ConfirmInsetInput): void;
+  confirmInset(): void;
   cancelInset(): void;
   removeInset(id: string): void;
 
@@ -98,42 +93,44 @@ export function createAnnotationController(
     startInsetFraming() {
       insetStep = 'framing';
       pendingInset = {};
+      notify();
     },
 
     snapInset(input) {
       if (insetStep !== 'framing') return;
+      // Create the inset immediately so it appears on the canvas as a draggable box
+      const id = genId('inset');
       pendingInset = {
-        ...pendingInset,
+        id,
         sourceTransform: input.sourceTransform,
         capturedCanvas: input.capturedCanvas,
         zoomFactor: input.zoomFactor,
+        position: input.position,
+        size: input.size,
+        shape: 'rectangle' as const,
+        label: `${input.zoomFactor}× zoom`,
       };
+      // Add to visible insets so the user can drag it into position
+      insets = [...insets, pendingInset as Inset];
       insetStep = 'snapped';
+      notify();
     },
 
-    confirmInset(input) {
+    confirmInset() {
       if (insetStep !== 'snapped' || !pendingInset) return;
-      insets = [
-        ...insets,
-        {
-          id: genId('inset'),
-          sourceTransform: pendingInset.sourceTransform!,
-          capturedCanvas: pendingInset.capturedCanvas ?? null,
-          position: input.position,
-          size: input.size,
-          shape: input.shape,
-          label: input.label,
-          zoomFactor: pendingInset.zoomFactor ?? 1,
-        },
-      ];
+      // Inset is already in the array from snap — just finalize
       pendingInset = null;
       insetStep = 'idle';
       notify();
     },
 
     cancelInset() {
+      if (pendingInset?.id) {
+        insets = insets.filter((i) => i.id !== pendingInset!.id);
+      }
       pendingInset = null;
       insetStep = 'idle';
+      notify();
     },
 
     removeInset(id) {

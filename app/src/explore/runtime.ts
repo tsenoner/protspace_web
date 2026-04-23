@@ -88,6 +88,8 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
   const annotationController = createAnnotationController({
     onChange() {
       plotElement.indicators = annotationController.getIndicators();
+      plotElement.insets = annotationController.getInsets();
+      plotElement.insetStep = annotationController.getInsetStep();
       if (exportStudio) {
         exportStudio.indicators = annotationController.getIndicators();
         exportStudio.insets = annotationController.getInsets();
@@ -98,6 +100,18 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
   if (exportStudio) {
     addTrackedEventListener(lifecycle, exportStudio, 'export-studio-close', () => {
       exportStudio.open = false;
+    });
+
+    // Handle IDs/Parquet export from within the Export Studio
+    addTrackedEventListener(lifecycle, exportStudio, 'export-action', (event: Event) => {
+      const { type } = (event as CustomEvent).detail;
+      controlBar.dispatchEvent(
+        new CustomEvent('export', {
+          detail: { type },
+          bubbles: true,
+          composed: true,
+        }),
+      );
     });
   }
 
@@ -206,7 +220,15 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
       case 'select':
         if (action.proteinId) {
           const current = plotElement.selectedProteinIds ?? [];
-          plotElement.selectedProteinIds = [...current, action.proteinId];
+          const updated = [...current, action.proteinId];
+          plotElement.selectedProteinIds = updated;
+
+          // Activate selection mode so Escape clears and the UI reflects it
+          if (!plotElement.selectionMode) {
+            plotElement.selectionMode = true;
+            controlBar.selectionMode = true;
+          }
+          controlBar.selectedProteinsCount = updated.length;
         }
         break;
       case 'copy-id':
@@ -219,9 +241,14 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
           window.open(`https://www.uniprot.org/uniprot/${action.proteinId}`, '_blank');
         }
         break;
-      case 'add-inset':
+      case 'add-inset': {
+        // Save current zoom/pan so we can restore after snap
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const t = (plotElement as Record<string, any>)._transform ?? { x: 0, y: 0, k: 1 };
+        preFramingTransform = { x: t.x, y: t.y, k: t.k };
         annotationController.startInsetFraming();
         break;
+      }
     }
   });
 
@@ -233,6 +260,103 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
   addTrackedEventListener(lifecycle, plotElement, 'indicator-remove', (event: Event) => {
     const { id } = (event as CustomEvent).detail;
     annotationController.removeIndicator(id);
+  });
+
+  // ── Inset tool events ──
+  // Saved transform from before framing started, so we can restore after snap
+  let preFramingTransform: { x: number; y: number; k: number } | null = null;
+
+  // Lens confirms with the drawn region — capture that region and create the inset
+  addTrackedEventListener(lifecycle, plotElement, 'inset-frame-drawn', (event: Event) => {
+    const { x, y, width, height, zoom } = (event as CustomEvent).detail;
+    const plotEl = plotElement as HTMLElement & {
+      captureAtResolution?: (...args: unknown[]) => HTMLCanvasElement;
+    };
+
+    // Capture the full scatter at high res, then crop the lens region
+    const fullW = plotElement.clientWidth * 2;
+    const fullH = plotElement.clientHeight * 2;
+    const fullCanvas = plotEl.captureAtResolution
+      ? (plotEl.captureAtResolution(fullW, fullH, {
+          backgroundColor: '#ffffff',
+          skipAnnotations: true,
+        }) as HTMLCanvasElement)
+      : null;
+
+    let capturedCanvas: HTMLCanvasElement | null = null;
+    if (fullCanvas) {
+      // The lens shows a zoomed view: it reads a (1/zoom)-sized region centered
+      // on the lens and stretches it to the lens size. Replicate that here.
+      const lensW = width * fullW;
+      const lensH = height * fullH;
+      const lensCenterX = (x + width / 2) * fullW;
+      const lensCenterY = (y + height / 2) * fullH;
+
+      // Source region is smaller by the zoom factor
+      const srcW = lensW / zoom;
+      const srcH = lensH / zoom;
+      const srcX = lensCenterX - srcW / 2;
+      const srcY = lensCenterY - srcH / 2;
+
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = Math.round(lensW);
+      cropCanvas.height = Math.round(lensH);
+      const ctx = cropCanvas.getContext('2d');
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(
+          fullCanvas,
+          Math.round(srcX),
+          Math.round(srcY),
+          Math.round(srcW),
+          Math.round(srcH),
+          0,
+          0,
+          cropCanvas.width,
+          cropCanvas.height,
+        );
+      }
+      capturedCanvas = cropCanvas;
+    }
+
+    // Lens confirm is a single action: snap + confirm in one go
+    // Use the exact lens position and size so the inset stays where it was
+    annotationController.snapInset({
+      sourceTransform: { x: 0, y: 0, scale: zoom },
+      capturedCanvas,
+      zoomFactor: zoom,
+      position: { x, y },
+      size: { width, height },
+    });
+    annotationController.confirmInset();
+    preFramingTransform = null;
+  });
+
+  addTrackedEventListener(lifecycle, plotElement, 'inset-reposition', (event: Event) => {
+    const { id, position } = (event as CustomEvent).detail;
+    const insets = annotationController.getInsets();
+    const idx = insets.findIndex((i) => i.id === id);
+    if (idx >= 0) {
+      insets[idx] = { ...insets[idx], position };
+      // Direct mutation + notify via a remove+re-add would be heavy;
+      // instead, poke the plot element directly for immediate feedback
+      plotElement.insets = [...insets];
+      if (exportStudio) exportStudio.insets = [...insets];
+    }
+  });
+
+  addTrackedEventListener(lifecycle, plotElement, 'inset-cancel', () => {
+    // Restore pre-framing zoom if cancelled during framing
+    if (preFramingTransform) {
+      plotElement.dispatchEvent(
+        new CustomEvent('restore-transform', {
+          detail: preFramingTransform,
+        }),
+      );
+    }
+    preFramingTransform = null;
+    annotationController.cancelInset();
   });
 
   bindControlBarEvents({
@@ -285,9 +409,11 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
 
   void startInitialExploreLoad({ datasetController, plotElement, dataLoader });
 
+  /* eslint-disable no-console */
   console.log('ProtSpace components loaded and connected!');
   console.log('Data will be loaded from OPFS when available, otherwise from data.parquetbundle');
   console.log('Use the control bar to change annotations and toggle selection modes!');
+  /* eslint-enable no-console */
 
   return {
     setRequestedView(requested) {

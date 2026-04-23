@@ -1,0 +1,71 @@
+<h2>Publication Export: Overall Workflow</h2>
+<p class="subtitle">Before we dive into individual features, let's align on how these tools should fit together</p>
+
+<p>You described 5 capabilities: <strong>preview</strong>, <strong>indicate</strong>, <strong>insets/lens</strong>, <strong>legend tuning</strong>, and <strong>column presets</strong>. The key question is: where does the user do all this?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Export Studio (Modal Panel)</h3>
+      <p>Click "Export" → opens a dedicated <strong>full-screen modal</strong> with a live preview canvas on the left and controls on the right. You add indicators, position insets, adjust legend, pick layout preset — all in one place. The preview updates in real-time. When happy, hit "Download PNG/PDF".</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Clear separation: explore mode vs. publication mode</li>
+          <li>Preview matches final output exactly (WYSIWYG)</li>
+          <li>No clutter in the main exploration UI</li>
+          <li>Can show the figure at actual print dimensions</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Context switch — you leave the exploration view</li>
+          <li>If you want to change the data view, you have to go back</li>
+          <li>More code to build and maintain</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Inline Tools + Side Preview</h3>
+      <p>Tools (indicate, lens/inset) are available directly on the canvas during exploration. A <strong>collapsible side panel</strong> shows a live publication preview at chosen dimensions. You annotate on the canvas, and the preview reflects it. Toggle between explore and "pub mode" without leaving the page.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Fluid — no context switch</li>
+          <li>Can explore data + build figure simultaneously</li>
+          <li>Annotations (arrows, insets) live on the canvas</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>UI gets complex — more toolbar buttons, modes</li>
+          <li>Preview panel fights for screen space with legend/structure viewer</li>
+          <li>Harder to show true print dimensions inline</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid: Inline Annotate → Export Studio Finalize</h3>
+      <p>Add indicators and define inset regions <strong>directly on the canvas</strong> while exploring. When ready to export, click "Export" to open a focused <strong>Export Studio</strong> that shows the composed figure with legend, insets, and annotations already placed — you fine-tune positioning, pick layout/column preset, and download.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Best of both: annotate in context, finalize in dedicated UI</li>
+          <li>Annotations feel natural (part of exploration)</li>
+          <li>Export Studio is simpler (just layout + polish)</li>
+          <li>Preview shows true output dimensions</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>State must bridge between explore and studio</li>
+          <li>Two places where annotation state lives</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top: 1.5rem; color: #888; font-size: 0.9rem;">
+  <strong>My recommendation:</strong> Option C (Hybrid). Annotating while you can see your data in context is more natural. The export studio then becomes a focused "compose & export" step — not a full editing suite. It's also the most incremental to build: inline tools first, studio later.
+</p>

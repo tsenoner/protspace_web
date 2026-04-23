@@ -6,7 +6,7 @@ import type {
   PersistedExportOptions,
   PublicationFigureLayoutId,
 } from '@protspace/utils';
-import { maxLegendItemsForLayout } from '@protspace/utils';
+// maxLegendItemsForLayout removed — cap logic moved to Export Studio
 import type {
   DataChangeDetail,
   ProtspaceData,
@@ -86,7 +86,7 @@ export class ProtspaceControlBar extends LitElement {
   @state() private projectionHighlightIndex: number = -1;
 
   // Export configuration state
-  @state() private exportFormat: 'png' | 'pdf' | 'ids' | 'parquet' = EXPORT_DEFAULTS.FORMAT;
+  // exportFormat removed — format selection moved to Export Studio
   @state() private exportLayoutId: PublicationFigureLayoutId = EXPORT_DEFAULTS.LAYOUT_ID;
   @state() private exportIncludeLegendSettings: boolean = true;
   @state() private exportIncludeExportOptions: boolean = true;
@@ -425,40 +425,18 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   private handleExport() {
-    const base = {
-      type: this.exportFormat,
-      includeLegendSettings: this.exportIncludeLegendSettings,
-      includeExportOptions: this.exportIncludeExportOptions,
-    };
-    const detail =
-      this.exportFormat === 'png' || this.exportFormat === 'pdf'
-        ? {
-            ...base,
-            mode: 'publication' as const,
-            layoutId: this.exportLayoutId,
-          }
-        : base;
+    // Always open Export Studio — format selection happens there
     const customEvent = new CustomEvent('export', {
-      detail,
+      detail: {
+        type: 'png' as const,
+        mode: 'publication' as const,
+        layoutId: this.exportLayoutId,
+      },
       bubbles: true,
       composed: true,
     });
     this.dispatchEvent(customEvent);
     this.showExportMenu = false;
-  }
-
-  private toggleExportMenu(event?: Event) {
-    event?.stopPropagation();
-    this.showExportMenu = !this.showExportMenu;
-    if (this.showExportMenu) {
-      this.closeOtherDropdowns('export');
-      this.updateComplete.then(() => {
-        const firstFormatBtn = this.shadowRoot?.querySelector(
-          '.export-format-options button',
-        ) as HTMLButtonElement | null;
-        firstFormatBtn?.focus();
-      });
-    }
   }
 
   private toggleImportMenu(event?: Event) {
@@ -471,24 +449,6 @@ export class ProtspaceControlBar extends LitElement {
           '.import-menu button',
         ) as HTMLButtonElement | null;
         firstImportAction?.focus();
-      });
-    }
-  }
-
-  private handleExportKeydown(event: KeyboardEvent) {
-    if (!this.showExportMenu) {
-      // Handle trigger button keys
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        this.toggleExportMenu();
-      }
-      return;
-    }
-
-    // Only handle Escape to close (native form navigation handles the rest)
-    if (event.key === 'Escape') {
-      handleDropdownEscape(event, () => {
-        this.showExportMenu = false;
       });
     }
   }
@@ -507,27 +467,6 @@ export class ProtspaceControlBar extends LitElement {
         this.showImportMenu = false;
       });
     }
-  }
-
-  private resetExportSettings() {
-    this._applyUserExportSettingsChange(() => {
-      this._applyPersistedExportSettings(createDefaultExportOptions());
-    });
-  }
-
-  private _visibleLegendExportItemCount(): number {
-    const el = document.querySelector('protspace-legend') as {
-      getLegendExportData?: () => { items: readonly { isVisible: boolean }[] };
-    } | null;
-    if (!el?.getLegendExportData) return 0;
-    const d = el.getLegendExportData();
-    return d.items.filter((i) => i.isVisible).length;
-  }
-
-  private _legendExceedsPublicationCap(): boolean {
-    const n = this._visibleLegendExportItemCount();
-    if (n === 0) return false;
-    return n > maxLegendItemsForLayout(this.exportLayoutId);
   }
 
   public getAllPersistedExportOptions(): ExportOptionsMap {
@@ -549,7 +488,7 @@ export class ProtspaceControlBar extends LitElement {
   public clearForNewDataset(datasetHash: string, clearPersistedState: boolean = true): void {
     this._exportPersistence.clearForNewDataset(datasetHash, clearPersistedState);
     this._applyPersistedExportSettings(createDefaultExportOptions());
-    this.exportFormat = EXPORT_DEFAULTS.FORMAT;
+    // exportFormat removed — handled in Export Studio
   }
 
   private _getCurrentExportSettings(): PersistedExportOptions {
@@ -569,11 +508,6 @@ export class ProtspaceControlBar extends LitElement {
     this.exportIncludeLegendSettings = settings.includeLegendSettings;
     this.exportIncludeExportOptions = settings.includeExportOptions;
     this.exportLayoutId = settings.layoutId ?? EXPORT_DEFAULTS.LAYOUT_ID;
-  }
-
-  private _applyUserExportSettingsChange(update: () => void): void {
-    update();
-    this._exportPersistence.saveSettings();
   }
 
   private _syncExportPersistenceFromData(data: ProtspaceData): void {
@@ -874,15 +808,12 @@ export class ProtspaceControlBar extends LitElement {
               </button>
             </div>
 
-            <!-- Export dropdown -->
+            <!-- Export button — opens Export Studio directly -->
             <div class="export-container right-controls-export">
               <button
-                class="dropdown-trigger ${this.showExportMenu ? 'open' : ''}"
-                @click=${this.toggleExportMenu}
-                @keydown=${this.handleExportKeydown}
-                title="${this.hasFileSettings
-                  ? 'Export Options (file contains custom settings)'
-                  : 'Export Options'}"
+                class="dropdown-trigger"
+                @click=${this.handleExport}
+                title="Open Export Studio"
               >
                 <svg class="icon" viewBox="0 0 24 24">
                   <path
@@ -892,193 +823,7 @@ export class ProtspaceControlBar extends LitElement {
                   />
                 </svg>
                 Export
-                <svg class="chevron-down" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
               </button>
-
-              ${this.showExportMenu
-                ? html`
-                    <div class="export-menu" @keydown=${this.handleExportKeydown}>
-                      <div class="export-menu-header">
-                        <span>Export Options</span>
-                      </div>
-
-                      <div class="export-menu-content">
-                        <!-- Format Selection -->
-                        <div class="export-option-group">
-                          <label class="export-option-label">Format</label>
-                          <div class="export-format-options">
-                            <button
-                              class="btn-secondary btn-compact ${this.exportFormat === 'png'
-                                ? 'active'
-                                : ''}"
-                              @click=${() => {
-                                this.exportFormat = 'png';
-                              }}
-                              title="Export as PNG image"
-                            >
-                              PNG
-                            </button>
-                            <button
-                              class="btn-secondary btn-compact ${this.exportFormat === 'pdf'
-                                ? 'active'
-                                : ''}"
-                              @click=${() => {
-                                this.exportFormat = 'pdf';
-                              }}
-                              title="Export as PDF document"
-                            >
-                              PDF
-                            </button>
-                            <button
-                              class="btn-secondary btn-compact ${this.exportFormat === 'ids'
-                                ? 'active'
-                                : ''}"
-                              @click=${() => {
-                                this.exportFormat = 'ids';
-                              }}
-                              title="Export protein IDs list"
-                            >
-                              IDs
-                            </button>
-                            <button
-                              class="btn-secondary btn-compact ${this.exportFormat === 'parquet'
-                                ? 'active'
-                                : ''}"
-                              @click=${() => {
-                                this.exportFormat = 'parquet';
-                              }}
-                              title="Export as Parquet bundle"
-                            >
-                              Parquet
-                            </button>
-                          </div>
-                        </div>
-
-                        <!-- Parquet Settings -->
-                        ${this.exportFormat === 'parquet'
-                          ? html`
-                              <div class="export-option-group">
-                                <label class="export-checkbox-label">
-                                  <input
-                                    type="checkbox"
-                                    class="export-checkbox"
-                                    .checked=${this.exportIncludeLegendSettings}
-                                    @change=${(e: Event) => {
-                                      this._applyUserExportSettingsChange(() => {
-                                        this.exportIncludeLegendSettings = (
-                                          e.target as HTMLInputElement
-                                        ).checked;
-                                      });
-                                    }}
-                                  />
-                                  <span>Include legend settings</span>
-                                </label>
-                                <label class="export-checkbox-label">
-                                  <input
-                                    type="checkbox"
-                                    class="export-checkbox"
-                                    .checked=${this.exportIncludeExportOptions}
-                                    @change=${(e: Event) => {
-                                      this._applyUserExportSettingsChange(() => {
-                                        this.exportIncludeExportOptions = (
-                                          e.target as HTMLInputElement
-                                        ).checked;
-                                      });
-                                    }}
-                                  />
-                                  <span>Include export options settings</span>
-                                </label>
-                                <div class="export-parquet-help">
-                                  Legend customizations and remembered figure export settings can be
-                                  saved in the file and restored when loading.
-                                </div>
-                              </div>
-                            `
-                          : ''}
-
-                        <!-- Image Settings (for PNG/PDF only) -->
-                        ${this.exportFormat === 'png' || this.exportFormat === 'pdf'
-                          ? html`
-                              <div class="export-option-group">
-                                <label class="export-option-label">Layout</label>
-                                <select
-                                  class="export-select"
-                                  .value=${this.exportLayoutId}
-                                  @change=${(e: Event) => {
-                                    this._applyUserExportSettingsChange(() => {
-                                      this.exportLayoutId = (e.target as HTMLSelectElement)
-                                        .value as PublicationFigureLayoutId;
-                                    });
-                                  }}
-                                >
-                                  <option value="one_column_below">
-                                    One column (legend below)
-                                  </option>
-                                  <option value="two_column_right">
-                                    Two column (legend right)
-                                  </option>
-                                  <option value="two_column_below">
-                                    Two column (legend below)
-                                  </option>
-                                  <option value="full_page_top">Full page (legend top)</option>
-                                  <option value="one_column_scatter_only">
-                                    One column (scatter only)
-                                  </option>
-                                  <option value="two_column_scatter_only">
-                                    Two column (scatter only)
-                                  </option>
-                                  <option value="full_page_scatter_only">
-                                    Full page (scatter only)
-                                  </option>
-                                </select>
-                              </div>
-                              ${this._legendExceedsPublicationCap()
-                                ? html`
-                                    <div class="export-parquet-help">
-                                      Legend lists up to
-                                      ${maxLegendItemsForLayout(this.exportLayoutId)} categories;
-                                      additional ones appear as a summary line. Use Parquet or
-                                      Protein IDs for the full list.
-                                    </div>
-                                  `
-                                : ''}
-                              <div class="export-actions">
-                                <button class="btn-danger" @click=${this.resetExportSettings}>
-                                  Reset
-                                </button>
-                                <button class="btn-primary" @click=${this.handleExport}>
-                                  <svg class="icon" viewBox="0 0 24 24">
-                                    <path
-                                      stroke-linecap="round"
-                                      stroke-linejoin="round"
-                                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                                    />
-                                  </svg>
-                                  Export
-                                </button>
-                              </div>
-                            `
-                          : html`
-                              <button
-                                class="btn-primary export-action-btn"
-                                @click=${this.handleExport}
-                              >
-                                <svg class="icon" viewBox="0 0 24 24">
-                                  <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                                  />
-                                </svg>
-                                Export ${this.exportFormat.toUpperCase()}
-                              </button>
-                            `}
-                      </div>
-                    </div>
-                  `
-                : ''}
             </div>
             <div class="export-container right-controls-data" data-driver-id="import">
               <button
@@ -1141,7 +886,7 @@ export class ProtspaceControlBar extends LitElement {
 
       ${this.showFilterMenu
         ? html`
-            <div class="query-builder-overlay" @click=${this._handleOverlayClick}>
+            <div class="modal-overlay" @click=${this._handleOverlayClick}>
               <div
                 class="query-builder-modal"
                 role="dialog"

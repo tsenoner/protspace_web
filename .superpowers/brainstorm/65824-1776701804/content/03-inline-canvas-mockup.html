@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inline Canvas Annotation Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #111; color: #e0e0e0; }
+
+  .tabs { display: flex; background: #1a1a2e; border-bottom: 1px solid #333; padding: 0 16px; }
+  .tab { padding: 10px 20px; font-size: 13px; color: #888; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab.active { color: #5b8fd9; border-bottom-color: #5b8fd9; }
+  .tab:hover { color: #ccc; }
+
+  .scene { display: none; position: relative; height: calc(100vh - 42px); overflow: hidden; }
+  .scene.active { display: block; }
+
+  .scene-label { position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,0.75); color: #aaa; padding: 4px 12px; border-radius: 4px; font-size: 11px; z-index: 100; }
+  .scene-step { position: absolute; top: 12px; right: 12px; background: #5b8fd9; color: #fff; padding: 4px 12px; border-radius: 4px; font-size: 11px; z-index: 100; font-weight: 600; }
+
+  /* Canvas area */
+  .canvas-area { width: 100%; height: 100%; position: relative; background: #fafafa; }
+  .canvas-area canvas { display: block; width: 100%; height: 100%; }
+
+  /* Right-click context menu */
+  .context-menu { position: absolute; background: #1e1e2e; border: 1px solid #444; border-radius: 8px; padding: 4px 0; min-width: 180px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); z-index: 200; font-size: 12px; }
+  .context-menu .menu-item { padding: 7px 14px; color: #ddd; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+  .context-menu .menu-item:hover { background: #2a3a5a; }
+  .context-menu .menu-item .icon { width: 16px; text-align: center; font-size: 13px; }
+  .context-menu .menu-item .shortcut { margin-left: auto; font-size: 10px; color: #667; }
+  .context-menu .separator { height: 1px; background: #333; margin: 4px 0; }
+  .context-menu .menu-item.disabled { color: #555; cursor: default; }
+  .context-menu .menu-item.disabled:hover { background: transparent; }
+
+  /* Tooltip (hover state) */
+  .point-tooltip { position: absolute; background: #1e1e2e; border: 1px solid #444; border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #ddd; z-index: 150; pointer-events: none; white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+  .point-tooltip .tt-id { font-weight: 600; color: #fff; font-size: 12px; }
+  .point-tooltip .tt-row { color: #aaa; margin-top: 2px; }
+
+  /* Indicator arrow on canvas */
+  .canvas-indicator { position: absolute; z-index: 80; pointer-events: none; }
+  .canvas-indicator .ci-shaft { width: 2px; height: 32px; background: #111; }
+  .canvas-indicator .ci-head { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 9px solid #111; position: relative; left: -5px; }
+  .canvas-indicator .ci-label { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 600; color: #111; background: rgba(255,255,255,0.9); padding: 1px 6px; border-radius: 3px; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+
+  /* Inset framing overlay */
+  .frame-overlay { position: absolute; inset: 0; z-index: 90; cursor: crosshair; }
+  .frame-rect { position: absolute; border: 2px dashed #5b8fd9; background: rgba(91,143,217,0.08); }
+  .frame-rect .frame-badge { position: absolute; top: -20px; left: 0; font-size: 9px; color: #5b8fd9; font-weight: 600; background: rgba(30,30,46,0.85); padding: 2px 6px; border-radius: 3px; }
+
+  /* Inset preview (after snap) */
+  .inset-preview { position: absolute; border: 2.5px solid #333; background: #fff; box-shadow: 0 3px 12px rgba(0,0,0,0.25); z-index: 85; cursor: move; }
+  .inset-preview canvas { width: 100%; height: 100%; display: block; }
+  .inset-preview .ip-handle { position: absolute; top: -8px; right: -8px; width: 16px; height: 16px; background: #5b8fd9; border-radius: 50%; cursor: nwse-resize; border: 2px solid #fff; }
+  .inset-preview .ip-label { position: absolute; bottom: -18px; left: 0; font-size: 9px; font-weight: 600; color: #333; }
+
+  /* Connector lines */
+  .connector-svg { position: absolute; inset: 0; z-index: 84; pointer-events: none; }
+
+  /* Toolbar hint */
+  .toolbar-hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(30,30,46,0.9); color: #aaa; padding: 8px 20px; border-radius: 8px; font-size: 12px; z-index: 100; display: flex; align-items: center; gap: 8px; backdrop-filter: blur(8px); }
+  .toolbar-hint kbd { background: #334; padding: 2px 6px; border-radius: 3px; font-size: 10px; color: #ddd; border: 1px solid #444; }
+
+  /* Snapped state badge */
+  .snap-badge { position: absolute; top: 50px; left: 50%; transform: translateX(-50%); background: #2ecc71; color: #fff; padding: 6px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; z-index: 100; box-shadow: 0 2px 8px rgba(46,204,113,0.3); }
+
+  .highlight-ring { position: absolute; border: 2px solid #5b8fd9; border-radius: 50%; pointer-events: none; z-index: 75; animation: pulse-ring 1.5s ease-out infinite; }
+  @keyframes pulse-ring {
+    0% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(2.5); }
+  }
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <div class="tab active" onclick="showScene('scene1')">1. Right-Click Menu</div>
+  <div class="tab" onclick="showScene('scene2')">2. Indicator Added</div>
+  <div class="tab" onclick="showScene('scene3')">3. Inset: Frame</div>
+  <div class="tab" onclick="showScene('scene4')">4. Inset: Snap</div>
+  <div class="tab" onclick="showScene('scene5')">5. Inset: Position</div>
+</div>
+
+<!-- SCENE 1: Right-click context menu -->
+<div class="scene active" id="scene1">
+  <div class="scene-label">Explore view — user right-clicks a point</div>
+  <div class="canvas-area">
+    <canvas id="scatter1"></canvas>
+
+    <!-- Hovered point highlight -->
+    <div class="highlight-ring" style="top: 242px; left: 378px; width: 20px; height: 20px;"></div>
+
+    <!-- Tooltip -->
+    <div class="point-tooltip" style="top: 210px; left: 404px;">
+      <div class="tt-id">P0DM09</div>
+      <div class="tt-row">Kunitz-type protease inhibitor 2</div>
+      <div class="tt-row" style="color:#2ecc71;">Kunitz</div>
+    </div>
+
+    <!-- Context menu -->
+    <div class="context-menu" style="top: 260px; left: 385px;">
+      <div class="menu-item">
+        <span class="icon">↗</span>
+        <span>Indicate</span>
+      </div>
+      <div class="menu-item">
+        <span class="icon">◻</span>
+        <span>Select</span>
+      </div>
+      <div class="separator"></div>
+      <div class="menu-item">
+        <span class="icon">🔍</span>
+        <span>Add inset here</span>
+        <span class="shortcut">I</span>
+      </div>
+      <div class="separator"></div>
+      <div class="menu-item">
+        <span class="icon">📋</span>
+        <span>Copy ID</span>
+        <span class="shortcut">⌘C</span>
+      </div>
+      <div class="menu-item disabled">
+        <span class="icon">🔗</span>
+        <span>View in UniProt</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 2: Indicator arrow placed -->
+<div class="scene" id="scene2">
+  <div class="scene-label">After clicking "Indicate" — arrow placed at point</div>
+  <div class="canvas-area">
+    <canvas id="scatter2"></canvas>
+
+    <!-- Indicator arrow on the canvas -->
+    <div class="canvas-indicator" style="top: 212px; left: 386px;">
+      <div class="ci-label">P0DM09</div>
+      <div class="ci-shaft"></div>
+      <div class="ci-head"></div>
+    </div>
+
+    <div class="toolbar-hint">
+      Arrow stays fixed size at any zoom · Drag to reposition · <kbd>Del</kbd> to remove
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 3: Inset framing step -->
+<div class="scene" id="scene3">
+  <div class="scene-label">Inset tool — Step 1: Navigate & frame the region</div>
+  <div class="scene-step">FRAMING</div>
+  <div class="canvas-area">
+    <canvas id="scatter3"></canvas>
+
+    <!-- Zoomed-in view with frame rectangle -->
+    <div class="frame-rect" style="top: 120px; left: 180px; width: 280px; height: 200px;">
+      <div class="frame-badge">Inset region — scroll to zoom, drag to pan</div>
+    </div>
+
+    <div class="toolbar-hint">
+      Zoom into the cluster you want · Adjust the frame · Press <kbd>Enter</kbd> or click <kbd>Snap</kbd> to lock
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 4: Snapped -->
+<div class="scene" id="scene4">
+  <div class="scene-label">Inset tool — Step 2: Content locked</div>
+  <div class="scene-step" style="background:#2ecc71;">SNAPPED ✓</div>
+  <div class="canvas-area">
+    <canvas id="scatter4"></canvas>
+
+    <!-- Source region (now dashed, locked) -->
+    <svg class="connector-svg">
+      <rect x="250" y="200" width="160" height="120" fill="rgba(91,143,217,0.06)" stroke="#5b8fd9" stroke-width="1.5" stroke-dasharray="6,4" rx="3"/>
+    </svg>
+
+    <div class="snap-badge">Content locked — now drag to position the inset</div>
+
+    <!-- The inset box, ready to be dragged -->
+    <div class="inset-preview" style="top: 60px; right: 60px; width: 180px; height: 135px;">
+      <canvas id="insetSnap"></canvas>
+      <div class="ip-handle"></div>
+      <div class="ip-label">Kunitz cluster · 2.4×</div>
+    </div>
+
+    <div class="toolbar-hint">
+      Drag the inset to position it · Corner handle to resize · <kbd>Esc</kbd> to cancel · <kbd>Enter</kbd> to confirm
+    </div>
+  </div>
+</div>
+
+<!-- SCENE 5: Final positioned -->
+<div class="scene" id="scene5">
+  <div class="scene-label">Inset tool — Step 3: Positioned & confirmed</div>
+  <div class="canvas-area">
+    <canvas id="scatter5"></canvas>
+
+    <!-- Source region with connectors -->
+    <svg class="connector-svg">
+      <rect x="250" y="200" width="160" height="120" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="5,3" rx="2"/>
+      <line x1="250" y1="200" x2="500" y2="50" stroke="#333" stroke-width="0.8" stroke-dasharray="4,3"/>
+      <line x1="410" y1="320" x2="680" y2="185" stroke="#333" stroke-width="0.8" stroke-dasharray="4,3"/>
+    </svg>
+
+    <!-- Final inset -->
+    <div class="inset-preview" style="top: 50px; right: 40px; width: 180px; height: 135px; cursor: default; border-color: #333;">
+      <canvas id="insetFinal"></canvas>
+      <div class="ip-label">Kunitz cluster · 2.4×</div>
+    </div>
+
+    <!-- Also an indicator arrow -->
+    <div class="canvas-indicator" style="top: 160px; left: 320px;">
+      <div class="ci-label">P0DM09</div>
+      <div class="ci-shaft"></div>
+      <div class="ci-head"></div>
+    </div>
+
+    <div class="toolbar-hint">
+      Annotations saved · Open <kbd>Export Studio</kbd> to compose the final figure
+    </div>
+  </div>
+</div>
+
+<script>
+  function showScene(id) {
+    document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    const idx = parseInt(id.replace('scene','')) - 1;
+    document.querySelectorAll('.tab')[idx].classList.add('active');
+    drawAll();
+  }
+
+  function drawScatter(canvasId, zoom, offsetX, offsetY) {
+    const c = document.getElementById(canvasId);
+    if (!c) return;
+    const rect = c.parentElement.getBoundingClientRect();
+    c.width = rect.width * 2;
+    c.height = rect.height * 2;
+    const ctx = c.getContext('2d');
+    ctx.scale(2, 2);
+    const w = rect.width, h = rect.height;
+    ctx.fillStyle = '#fafafa';
+    ctx.fillRect(0, 0, w, h);
+
+    const z = zoom || 1;
+    const ox = offsetX || 0;
+    const oy = offsetY || 0;
+
+    const colors = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#95a5a6'];
+    const clusters = [
+      { cx: 0.2, cy: 0.3, spread: 0.1, color: 0, count: 80 },
+      { cx: 0.55, cy: 0.22, spread: 0.07, color: 1, count: 50 },
+      { cx: 0.38, cy: 0.6, spread: 0.08, color: 2, count: 40 },
+      { cx: 0.72, cy: 0.55, spread: 0.08, color: 3, count: 50 },
+      { cx: 0.12, cy: 0.72, spread: 0.06, color: 4, count: 35 },
+      { cx: 0.82, cy: 0.3, spread: 0.05, color: 5, count: 25 },
+      { cx: 0.48, cy: 0.45, spread: 0.04, color: 6, count: 25 },
+      { cx: 0.32, cy: 0.12, spread: 0.05, color: 7, count: 20 },
+    ];
+
+    // Seeded random for consistency
+    let seed = 42;
+    function seededRandom() { seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647; }
+
+    for (const cl of clusters) {
+      for (let i = 0; i < cl.count; i++) {
+        const angle = seededRandom() * Math.PI * 2;
+        const r = seededRandom() * cl.spread;
+        const x = ((cl.cx + Math.cos(angle) * r) * z + ox) * w;
+        const y = ((cl.cy + Math.sin(angle) * r) * z + oy) * h;
+        if (x < -5 || x > w + 5 || y < -5 || y > h + 5) continue;
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.arc(x, y, 3.5 * Math.sqrt(z), 0, Math.PI * 2);
+        ctx.fillStyle = colors[cl.color];
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawInset(canvasId) {
+    const c = document.getElementById(canvasId);
+    if (!c) return;
+    c.width = 360; c.height = 270;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fafafa';
+    ctx.fillRect(0, 0, 360, 270);
+
+    let seed = 100;
+    function sr() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    const colors = ['#2ecc71','#2ecc71','#f39c12'];
+    for (let i = 0; i < 40; i++) {
+      const x = (0.2 + sr() * 0.6) * 360;
+      const y = (0.2 + sr() * 0.6) * 270;
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = colors[i % 3 === 2 ? 2 : 0];
+      ctx.fill();
+    }
+  }
+
+  function drawAll() {
+    drawScatter('scatter1', 1, 0, 0);
+    drawScatter('scatter2', 1, 0, 0);
+    drawScatter('scatter3', 1.8, -0.15, -0.2);
+    drawScatter('scatter4', 1, 0, 0);
+    drawScatter('scatter5', 1, 0, 0);
+    drawInset('insetSnap');
+    drawInset('insetFinal');
+  }
+
+  window.addEventListener('resize', drawAll);
+  setTimeout(drawAll, 100);
+</script>
+
+</body>
+</html>

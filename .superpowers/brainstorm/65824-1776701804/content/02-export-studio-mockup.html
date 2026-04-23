@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Export Studio Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; overflow-x: hidden; }
+
+  .page-header { padding: 16px 24px; background: #16213e; border-bottom: 1px solid #333; display: flex; align-items: center; gap: 12px; }
+  .page-header h1 { font-size: 18px; font-weight: 600; color: #fff; }
+  .page-header .badge { background: #4a6fa5; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .page-header .subtitle { color: #888; font-size: 13px; margin-left: auto; }
+
+  .studio { display: flex; height: calc(100vh - 53px); }
+
+  /* Preview area */
+  .preview-area { flex: 1; display: flex; align-items: center; justify-content: center; background: #111; position: relative; overflow: hidden; }
+  .preview-area .checkerboard { position: absolute; inset: 0; opacity: 0.03;
+    background-image: repeating-conic-gradient(#fff 0% 25%, transparent 0% 50%);
+    background-size: 20px 20px;
+  }
+
+  .figure-frame { position: relative; background: #fff; box-shadow: 0 8px 40px rgba(0,0,0,0.5); z-index: 1; }
+  .figure-frame.single-col { width: 340px; height: 400px; }
+  .figure-frame.double-col { width: 580px; height: 400px; }
+
+  /* Scatter mock */
+  .scatter-area { position: relative; overflow: hidden; }
+  .scatter-area canvas { display: block; }
+
+  /* Legend mock */
+  .legend-area { padding: 8px 12px; border-left: 1px solid #e0e0e0; font-size: 10px; color: #333; }
+  .legend-area h4 { font-size: 9px; text-transform: uppercase; color: #666; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .legend-label { font-size: 9px; color: #444; }
+
+  /* Inset mock */
+  .inset-box { position: absolute; border: 2px solid #333; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 10; }
+  .inset-box.circle { border-radius: 50%; }
+  .inset-box .inset-label { position: absolute; bottom: -16px; left: 0; font-size: 8px; color: #333; font-weight: 600; }
+  .inset-connector { position: absolute; z-index: 9; }
+
+  /* Arrow indicator */
+  .indicator-arrow { position: absolute; z-index: 11; }
+  .indicator-arrow .arrow-shaft { width: 2px; height: 28px; background: #111; transform-origin: bottom center; }
+  .indicator-arrow .arrow-head { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 8px solid #111; position: absolute; bottom: -1px; left: -4px; }
+  .indicator-arrow .arrow-label { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 7px; color: #111; font-weight: 600; white-space: nowrap; background: rgba(255,255,255,0.85); padding: 1px 3px; border-radius: 2px; }
+
+  /* Controls panel */
+  .controls-panel { width: 280px; background: #16213e; border-left: 1px solid #333; overflow-y: auto; flex-shrink: 0; }
+  .control-section { padding: 14px 16px; border-bottom: 1px solid #2a2a4a; }
+  .control-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #8899aa; margin-bottom: 10px; }
+
+  .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .preset-btn { padding: 6px 8px; border: 1px solid #334; border-radius: 6px; background: #1a2744; color: #ccc; font-size: 10px; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .preset-btn:hover { border-color: #4a6fa5; background: #1e3050; }
+  .preset-btn.active { border-color: #5b8fd9; background: #1e3a5f; color: #fff; }
+  .preset-btn .dim { font-size: 8px; color: #667; margin-top: 2px; }
+
+  .control-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .control-row label { font-size: 11px; color: #aab; }
+  .control-row .value { font-size: 11px; color: #5b8fd9; font-weight: 500; }
+
+  .slider { width: 100%; -webkit-appearance: none; height: 3px; background: #334; border-radius: 2px; outline: none; margin: 4px 0 8px; }
+  .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #5b8fd9; cursor: pointer; }
+
+  .toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .toggle { width: 32px; height: 18px; border-radius: 9px; background: #334; position: relative; cursor: pointer; transition: background 0.2s; }
+  .toggle.on { background: #5b8fd9; }
+  .toggle .knob { width: 14px; height: 14px; border-radius: 50%; background: #fff; position: absolute; top: 2px; left: 2px; transition: left 0.2s; }
+  .toggle.on .knob { left: 16px; }
+  .toggle-label { font-size: 11px; color: #aab; }
+
+  .inset-list { display: flex; flex-direction: column; gap: 6px; }
+  .inset-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #1a2744; border-radius: 6px; border: 1px solid #334; }
+  .inset-item .shape-icon { width: 20px; height: 20px; border: 1.5px solid #5b8fd9; }
+  .inset-item .shape-icon.sq { border-radius: 3px; }
+  .inset-item .shape-icon.ci { border-radius: 50%; }
+  .inset-item .inset-meta { font-size: 10px; color: #aab; }
+  .inset-item .inset-meta strong { color: #ddd; }
+
+  .indicator-list-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: #1a2744; border-radius: 6px; border: 1px solid #334; margin-bottom: 4px; }
+  .indicator-list-item .arrow-icon { font-size: 14px; }
+  .indicator-list-item .ind-meta { font-size: 10px; color: #aab; }
+
+  .btn-row { display: flex; gap: 8px; padding: 14px 16px; }
+  .btn { padding: 8px 16px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer; font-weight: 500; }
+  .btn-primary { background: #5b8fd9; color: #fff; }
+  .btn-secondary { background: #2a2a4a; color: #aab; border: 1px solid #444; }
+
+  /* Dimension badge on figure */
+  .dim-badge { position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 9px; color: #666; white-space: nowrap; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 3px; color: #aaa; }
+
+  /* Tab for switching mockup states */
+  .mockup-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid #333; }
+  .mockup-tab { padding: 8px 16px; font-size: 12px; color: #888; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
+  .mockup-tab:hover { color: #ccc; }
+  .mockup-tab.active { color: #5b8fd9; border-bottom-color: #5b8fd9; }
+
+  .view-label { position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,0.7); color: #aaa; padding: 3px 10px; border-radius: 4px; font-size: 10px; z-index: 20; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Export Studio</h1>
+  <span class="badge">Preview</span>
+  <span class="subtitle">Mockup — not functional</span>
+</div>
+
+<div class="studio">
+  <!-- PREVIEW AREA -->
+  <div class="preview-area">
+    <div class="checkerboard"></div>
+    <div class="view-label">Double Column — 183 × 120 mm @ 300 DPI</div>
+
+    <div class="figure-frame double-col" id="figureFrame" style="display: grid; grid-template-columns: 1fr 100px;">
+      <!-- Scatter -->
+      <div class="scatter-area" style="position: relative;">
+        <canvas id="scatterCanvas" style="width: 100%; height: 100%;"></canvas>
+
+        <!-- Indicator arrow -->
+        <div class="indicator-arrow" style="top: 85px; left: 210px;">
+          <div class="arrow-label">P0DM09</div>
+          <div class="arrow-shaft"></div>
+          <div class="arrow-head"></div>
+        </div>
+
+        <!-- Inset (rectangle) -->
+        <div class="inset-box" style="width: 120px; height: 90px; top: 12px; right: 12px;">
+          <canvas id="insetCanvas1" style="width: 100%; height: 100%;"></canvas>
+          <div class="inset-label">2× Kunitz cluster</div>
+        </div>
+
+        <!-- Source region indicator (dashed) -->
+        <svg style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:8;">
+          <rect x="155" y="180" width="60" height="45" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="4,3" rx="2"/>
+          <line x1="155" y1="180" x2="359" y2="102" stroke="#333" stroke-width="0.8" stroke-dasharray="3,3"/>
+          <line x1="215" y1="225" x2="479" y2="102" stroke="#333" stroke-width="0.8" stroke-dasharray="3,3"/>
+        </svg>
+      </div>
+
+      <!-- Legend -->
+      <div class="legend-area">
+        <h4>Venom Family</h4>
+        <div class="legend-item"><div class="legend-dot" style="background:#e74c3c;"></div><span class="legend-label">3FTx</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3498db;"></div><span class="legend-label">PLA2</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:#2ecc71;"></div><span class="legend-label">Kunitz</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f39c12;"></div><span class="legend-label">SVMP</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:#9b59b6;"></div><span class="legend-label">SVSP</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:#1abc9c;"></div><span class="legend-label">CRiSP</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e67e22;"></div><span class="legend-label">LAAO</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:#95a5a6;"></div><span class="legend-label">Other (4)</span></div>
+      </div>
+
+      <div class="dim-badge">183 × 120 mm</div>
+    </div>
+  </div>
+
+  <!-- CONTROLS PANEL -->
+  <div class="controls-panel">
+    <!-- Layout Presets -->
+    <div class="control-section">
+      <h3>Layout Preset</h3>
+      <div class="preset-grid">
+        <div class="preset-btn">
+          <div>Single Col</div>
+          <div class="dim">89 mm</div>
+        </div>
+        <div class="preset-btn active">
+          <div>Double Col</div>
+          <div class="dim">183 mm</div>
+        </div>
+        <div class="preset-btn">
+          <div>Full Page</div>
+          <div class="dim">183 × 247 mm</div>
+        </div>
+        <div class="preset-btn">
+          <div>Native</div>
+          <div class="dim">screen px</div>
+        </div>
+        <div class="preset-btn" style="grid-column: span 2;">
+          <div>Freeform</div>
+          <div class="dim">custom W × H</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="control-section">
+      <h3>Legend</h3>
+      <div class="toggle-row">
+        <div class="toggle on"><div class="knob"></div></div>
+        <span class="toggle-label">Show legend</span>
+      </div>
+      <div class="control-row">
+        <label>Placement</label>
+        <span class="value">Right</span>
+      </div>
+      <div class="control-row">
+        <label>Width %</label>
+        <span class="value">22%</span>
+      </div>
+      <input type="range" class="slider" min="10" max="50" value="22">
+      <div class="control-row">
+        <label>Font scale</label>
+        <span class="value">1.0×</span>
+      </div>
+      <input type="range" class="slider" min="5" max="20" value="10">
+      <div class="control-row">
+        <label>Columns</label>
+        <span class="value">1</span>
+      </div>
+    </div>
+
+    <!-- Indicators -->
+    <div class="control-section">
+      <h3>Indicators</h3>
+      <div class="indicator-list-item">
+        <span class="arrow-icon">↗</span>
+        <div class="ind-meta"><strong>P0DM09</strong> — Kunitz-2</div>
+      </div>
+      <p style="font-size: 10px; color: #667; margin-top: 6px;">Right-click a point on canvas to add</p>
+    </div>
+
+    <!-- Insets -->
+    <div class="control-section">
+      <h3>Insets</h3>
+      <div class="inset-list">
+        <div class="inset-item">
+          <div class="shape-icon sq"></div>
+          <div class="inset-meta"><strong>Kunitz cluster</strong><br>2× zoom · 120×90 px</div>
+        </div>
+      </div>
+      <p style="font-size: 10px; color: #667; margin-top: 6px;">
+        + Add inset: frame → snap → position
+      </p>
+      <div class="control-row" style="margin-top: 8px;">
+        <label>Shape</label>
+        <span class="value">■ Rectangle</span>
+      </div>
+    </div>
+
+    <!-- Background -->
+    <div class="control-section">
+      <h3>Output</h3>
+      <div class="control-row">
+        <label>Background</label>
+        <span class="value" style="display:flex;align-items:center;gap:4px;">
+          <span style="display:inline-block;width:12px;height:12px;background:#fff;border:1px solid #555;border-radius:2px;"></span> White
+        </span>
+      </div>
+      <div class="control-row">
+        <label>DPI</label>
+        <span class="value">300</span>
+      </div>
+      <div class="control-row">
+        <label>Format</label>
+        <span class="value">PNG</span>
+      </div>
+    </div>
+
+    <!-- Export buttons -->
+    <div class="btn-row">
+      <button class="btn btn-primary" style="flex:1;">Download PNG</button>
+      <button class="btn btn-secondary">PDF</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Draw mock scatter points
+  function drawMockScatter(canvasId, width, height, pointCount, pointSize) {
+    const c = document.getElementById(canvasId);
+    if (!c) return;
+    c.width = width; c.height = height;
+    c.style.width = '100%'; c.style.height = '100%';
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+
+    const colors = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#95a5a6'];
+    const clusters = [
+      { cx: 0.25, cy: 0.35, spread: 0.12, color: 0, count: 0.25 },
+      { cx: 0.6, cy: 0.25, spread: 0.08, color: 1, count: 0.15 },
+      { cx: 0.4, cy: 0.7, spread: 0.1, color: 2, count: 0.12 },
+      { cx: 0.75, cy: 0.6, spread: 0.09, color: 3, count: 0.15 },
+      { cx: 0.15, cy: 0.75, spread: 0.07, color: 4, count: 0.1 },
+      { cx: 0.85, cy: 0.35, spread: 0.06, color: 5, count: 0.08 },
+      { cx: 0.5, cy: 0.5, spread: 0.05, color: 6, count: 0.08 },
+      { cx: 0.35, cy: 0.15, spread: 0.06, color: 7, count: 0.07 },
+    ];
+
+    for (const cl of clusters) {
+      const n = Math.floor(pointCount * cl.count);
+      for (let i = 0; i < n; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * cl.spread;
+        const x = (cl.cx + Math.cos(angle) * r) * width;
+        const y = (cl.cy + Math.sin(angle) * r) * height;
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.arc(x, y, pointSize, 0, Math.PI * 2);
+        ctx.fillStyle = colors[cl.color];
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Draw inset (zoomed portion)
+  function drawInsetScatter() {
+    const c = document.getElementById('insetCanvas1');
+    if (!c) return;
+    c.width = 240; c.height = 180;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, 240, 180);
+
+    const colors = ['#2ecc71'];
+    for (let i = 0; i < 35; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.random() * 0.35;
+      const x = (0.5 + Math.cos(angle) * r) * 240;
+      const y = (0.5 + Math.sin(angle) * r) * 180;
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = colors[0];
+      ctx.fill();
+    }
+  }
+
+  drawMockScatter('scatterCanvas', 960, 800, 400, 3);
+  drawInsetScatter();
+</script>
+
+</body>
+</html>

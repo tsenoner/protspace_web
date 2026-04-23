@@ -1,17 +1,25 @@
 import { css } from 'lit';
 
+/**
+ * Export Studio Styles
+ *
+ * Layout-only styles for the export studio modal. Visual primitives
+ * (buttons, inputs, overlays) come from shared mixins via style composition.
+ *
+ * The preview canvas area stays dark (functional: figure contrast).
+ * Controls panel uses the standard light design system.
+ */
 export const exportStudioStyles = css`
   :host {
     display: block;
   }
 
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    z-index: 1000;
-    display: flex;
+  /* Override modal-overlay: full-bleed studio, not centered dialog */
+  .modal-overlay {
+    align-items: normal;
+    justify-content: normal;
     backdrop-filter: blur(2px);
+    background: rgba(0, 0, 0, 0.6);
   }
 
   .studio {
@@ -20,12 +28,14 @@ export const exportStudioStyles = css`
     height: 100%;
   }
 
+  /* ── Preview (dark canvas — functional need for figure contrast) ── */
+
   .preview-area {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--surface-base, #111);
+    background: #1a1a2e;
     position: relative;
     overflow: hidden;
   }
@@ -54,18 +64,20 @@ export const exportStudioStyles = css`
     bottom: -4px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 9px;
+    font-size: var(--text-xs);
     color: #aaa;
     white-space: nowrap;
     background: rgba(0, 0, 0, 0.6);
     padding: 2px 8px;
-    border-radius: 3px;
+    border-radius: var(--radius);
   }
+
+  /* ── Controls panel (standard light theme) ── */
 
   .controls-panel {
     width: 280px;
-    background: var(--surface-elevated, #16213e);
-    border-left: 1px solid var(--border-color, #333);
+    background: var(--surface);
+    border-left: var(--border-width) solid var(--border);
     overflow-y: auto;
     flex-shrink: 0;
     display: flex;
@@ -73,50 +85,42 @@ export const exportStudioStyles = css`
   }
 
   .studio-header {
-    padding: 12px 16px;
-    background: var(--surface-elevated, #16213e);
-    border-bottom: 1px solid var(--border-color, #333);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: var(--surface);
+    border-bottom: var(--border-width) solid var(--border);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--spacing-md);
     flex-shrink: 0;
   }
 
   .studio-header h2 {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-primary, #fff);
+    font-size: var(--text-md);
+    font-weight: var(--font-semibold);
+    color: var(--text-primary);
     margin: 0;
   }
 
-  .studio-header .close-btn {
+  .studio-header .btn-close {
     margin-left: auto;
-    background: none;
-    border: none;
-    color: var(--text-secondary, #888);
-    cursor: pointer;
-    font-size: 18px;
-    padding: 4px 8px;
-    border-radius: 4px;
   }
 
-  .studio-header .close-btn:hover {
-    background: var(--surface-hover, #2a3a5a);
-    color: var(--text-primary, #fff);
-  }
+  /* ── Sections ── */
 
   .control-section {
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border-subtle, #2a2a4a);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: var(--border-width) solid var(--border-light);
   }
 
   .control-section h3 {
-    font-size: 11px;
+    font-size: var(--text-xs);
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    color: var(--text-secondary, #8899aa);
-    margin: 0 0 10px;
+    color: var(--text-secondary);
+    margin: 0 0 var(--spacing-sm);
   }
+
+  /* ── Presets ── */
 
   .preset-grid {
     display: flex;
@@ -136,137 +140,85 @@ export const exportStudioStyles = css`
   }
 
   .preset-btn {
-    padding: 5px 8px;
-    font-size: 10px;
-    border: 1px solid var(--border-color, #444);
-    border-radius: 4px;
-    background: var(--surface-hover, #2a2a4a);
-    color: var(--text-secondary, #aab);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--text-sm);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: var(--transition-fast);
     white-space: nowrap;
   }
 
   .preset-btn:hover {
-    background: var(--surface-active, #3a3a5a);
-    color: var(--text-primary, #fff);
+    background: var(--hover-bg);
+    color: var(--text-primary);
   }
 
   .preset-btn.active {
-    background: var(--accent-color, #5b8fd9);
-    color: #fff;
-    border-color: var(--accent-color, #5b8fd9);
+    background: var(--primary);
+    color: var(--text-light);
+    border-color: var(--primary);
   }
+
+  /* ── Controls ── */
 
   .control-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 11px;
-    color: var(--text-secondary, #aab);
-    margin-bottom: 6px;
-  }
-
-  .control-label {
-    color: var(--text-secondary, #aab);
-    font-size: 11px;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-xs);
   }
 
   .control-value {
-    color: var(--accent-color, #5b8fd9);
-    font-size: 11px;
+    color: var(--primary);
+    font-size: var(--text-sm);
   }
 
   .info-text {
-    font-size: 10px;
-    color: var(--text-disabled, #667);
-    margin: 6px 0 0;
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    margin: var(--spacing-xs) 0 0;
     line-height: 1.4;
   }
+
+  /* ── Annotations list ── */
 
   .annotation-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 4px 0;
-    font-size: 11px;
-    color: var(--text-primary, #ddd);
+    gap: var(--spacing-sm);
+    padding: var(--spacing-2xs) 0;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
   }
 
   .annotation-icon {
     flex-shrink: 0;
   }
 
+  /* ── Inputs (extend inputMixin base) ── */
+
   .num-input {
     width: 72px;
-    padding: 4px 6px;
-    font-size: 11px;
-    border: 1px solid var(--border-color, #444);
-    border-radius: 4px;
-    background: var(--surface-base, #111);
-    color: var(--text-primary, #fff);
     text-align: right;
+    font-size: var(--text-sm);
   }
 
-  .num-input:focus {
-    outline: none;
-    border-color: var(--accent-color, #5b8fd9);
-  }
-
-  .select-input {
-    padding: 4px 6px;
-    font-size: 11px;
-    border: 1px solid var(--border-color, #444);
-    border-radius: 4px;
-    background: var(--surface-base, #111);
-    color: var(--text-primary, #fff);
-    cursor: pointer;
-  }
-
-  .select-input:focus {
-    outline: none;
-    border-color: var(--accent-color, #5b8fd9);
-  }
+  /* ── Download row ── */
 
   .btn-row {
     display: flex;
-    gap: 8px;
-    padding: 14px 16px;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
     margin-top: auto;
     flex-shrink: 0;
   }
 
-  .btn {
-    padding: 8px 16px;
-    border-radius: 6px;
-    border: none;
-    font-size: 12px;
-    cursor: pointer;
-    font-weight: 500;
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-primary {
-    background: var(--accent-color, #5b8fd9);
-    color: #fff;
+  .btn-row .btn-primary {
     flex: 1;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    opacity: 0.9;
-  }
-
-  .btn-secondary {
-    background: var(--surface-hover, #2a2a4a);
-    color: var(--text-secondary, #aab);
-    border: 1px solid var(--border-color, #444);
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    background: var(--surface-active, #3a3a5a);
   }
 `;

@@ -68,6 +68,8 @@ describe('annotation-controller', () => {
         sourceTransform: { x: 100, y: 50, scale: 2.4 },
         capturedCanvas: null,
         zoomFactor: 2.4,
+        position: { x: 0.3, y: 0.2 },
+        size: { width: 0.25, height: 0.2 },
       });
       expect(ctrl.getInsetStep()).toBe('snapped');
     });
@@ -79,17 +81,14 @@ describe('annotation-controller', () => {
         sourceTransform: { x: 100, y: 50, scale: 2.4 },
         capturedCanvas: null,
         zoomFactor: 2.4,
-      });
-      ctrl.confirmInset({
-        position: { x: 0.8, y: 0.1 },
+        position: { x: 0.3, y: 0.2 },
         size: { width: 0.25, height: 0.2 },
-        shape: 'rectangle',
-        label: 'Kunitz cluster',
       });
+      ctrl.confirmInset();
       expect(ctrl.getInsetStep()).toBe('idle');
       expect(ctrl.getInsets()).toHaveLength(1);
-      expect(ctrl.getInsets()[0].label).toBe('Kunitz cluster');
       expect(ctrl.getInsets()[0].shape).toBe('rectangle');
+      expect(ctrl.getInsets()[0].zoomFactor).toBe(2.4);
     });
 
     it('cancels inset framing and resets step', () => {
@@ -107,13 +106,10 @@ describe('annotation-controller', () => {
         sourceTransform: { x: 0, y: 0, scale: 1 },
         capturedCanvas: null,
         zoomFactor: 1,
-      });
-      ctrl.confirmInset({
         position: { x: 0, y: 0 },
         size: { width: 0.2, height: 0.2 },
-        shape: 'rectangle',
-        label: '',
       });
+      ctrl.confirmInset();
       const id = ctrl.getInsets()[0].id;
       ctrl.removeInset(id);
       expect(ctrl.getInsets()).toEqual([]);
@@ -129,13 +125,10 @@ describe('annotation-controller', () => {
         sourceTransform: { x: 0, y: 0, scale: 2 },
         capturedCanvas: null,
         zoomFactor: 2,
-      });
-      ctrl.confirmInset({
         position: { x: 0.5, y: 0.5 },
         size: { width: 0.3, height: 0.3 },
-        shape: 'circle',
-        label: 'Test',
       });
+      ctrl.confirmInset();
 
       const snap = ctrl.getSnapshot();
       expect(snap.indicators).toHaveLength(1);
@@ -160,13 +153,10 @@ describe('annotation-controller', () => {
         sourceTransform: { x: 0, y: 0, scale: 1 },
         capturedCanvas: null,
         zoomFactor: 1,
-      });
-      ctrl.confirmInset({
         position: { x: 0, y: 0 },
         size: { width: 0.2, height: 0.2 },
-        shape: 'rectangle',
-        label: '',
       });
+      ctrl.confirmInset();
       expect(onChange).toHaveBeenCalled();
     });
   });
