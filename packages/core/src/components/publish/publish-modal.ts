@@ -21,6 +21,7 @@ import {
   type PublishState,
   type LegendPosition,
   type OverlayTool,
+  type Annotation,
   type Inset,
 } from './publish-state';
 import { pxToMm, mmToPx, adjustDpiForWidthMm } from './dimension-utils';
@@ -174,7 +175,11 @@ export class ProtspacePublishModal extends LitElement {
         return legendRect;
       },
       onAnnotationAdded: (a) => {
-        this._state = { ...this._state, annotations: [...this._state.annotations, a] };
+        this._state = {
+          ...this._state,
+          annotations: [...this._state.annotations, a],
+          referenceWidth: this._state.widthPx,
+        };
       },
       onAnnotationUpdated: (i, a) => {
         const anns = [...this._state.annotations];
@@ -182,7 +187,11 @@ export class ProtspacePublishModal extends LitElement {
         this._state = { ...this._state, annotations: anns };
       },
       onInsetAdded: (inset) => {
-        this._state = { ...this._state, insets: [...this._state.insets, inset] };
+        this._state = {
+          ...this._state,
+          insets: [...this._state.insets, inset],
+          referenceWidth: this._state.widthPx,
+        };
       },
       onInsetUpdated: (i, inset) => {
         const ins = [...this._state.insets];
@@ -246,6 +255,9 @@ export class ProtspacePublishModal extends LitElement {
       annotationName: this._annotationName,
       includeShapes: this._includeShapes,
       highlightedItem: this._highlightedItem,
+      displayScale:
+        this._previewCanvas.width /
+        (this._previewCanvas.getBoundingClientRect().width || this._previewCanvas.width),
     });
 
     // Draw overlay indicators and selection handles
@@ -343,6 +355,12 @@ export class ProtspacePublishModal extends LitElement {
 
   private _removeAnnotation(index: number) {
     const anns = this._state.annotations.filter((_, i) => i !== index);
+    this._state = { ...this._state, annotations: anns };
+  }
+
+  private _updateAnnotation(index: number, partial: Partial<Annotation>) {
+    const anns = [...this._state.annotations];
+    anns[index] = { ...anns[index], ...partial } as Annotation;
     this._state = { ...this._state, annotations: anns };
   }
 
@@ -808,13 +826,13 @@ export class ProtspacePublishModal extends LitElement {
     return html`
       <div class="publish-section">
         <div class="publish-section-title">Annotations (${anns.length})</div>
-        ${anns.map(
-          (a, i) => html`
+        ${anns.map((a, i) => {
+          const isHi =
+            this._highlightedItem?.kind === 'annotation' && this._highlightedItem.index === i;
+          return html`
             <div
-              class="publish-annotation-item ${this._highlightedItem?.kind === 'annotation' &&
-              this._highlightedItem.index === i
-                ? 'highlighted'
-                : ''}"
+              class="publish-annotation-item ${isHi ? 'highlighted' : ''}"
+              style="flex-direction: column; align-items: stretch; gap: 4px;"
               @mouseenter=${() => {
                 this._highlightedItem = { kind: 'annotation', index: i };
               }}
@@ -822,13 +840,16 @@ export class ProtspacePublishModal extends LitElement {
                 this._highlightedItem = null;
               }}
             >
-              <span>${a.type}${a.type === 'label' ? `: ${a.text}` : ''}</span>
-              <button class="delete-btn" @click=${() => this._removeAnnotation(i)} title="Remove">
-                <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>${a.type}${a.type === 'label' ? `: ${a.text}` : ''}</span>
+                <button class="delete-btn" @click=${() => this._removeAnnotation(i)} title="Remove">
+                  <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              ${this._renderAnnotationProps(a, i)}
             </div>
-          `,
-        )}
+          `;
+        })}
         ${anns.length === 0
           ? html`<span style="font-size: var(--text-xs); color: var(--muted)"
               >Use toolbar to add</span
@@ -836,6 +857,162 @@ export class ProtspacePublishModal extends LitElement {
           : nothing}
       </div>
     `;
+  }
+
+  private _renderAnnotationProps(a: Annotation, i: number) {
+    switch (a.type) {
+      case 'circle':
+        return html`
+          <div class="publish-row" style="margin-bottom: 0;">
+            <label>Stroke</label>
+            <div class="publish-input-group">
+              <input
+                type="range"
+                class="publish-slider"
+                min="0.5"
+                max="10"
+                step="0.5"
+                .value=${String(a.strokeWidth)}
+                @input=${(e: Event) => {
+                  this._updateAnnotation(i, {
+                    strokeWidth: parseFloat((e.target as HTMLInputElement).value) || 2,
+                  });
+                }}
+              />
+              <input
+                type="number"
+                class="publish-row-input"
+                min="0.5"
+                max="10"
+                step="0.5"
+                .value=${String(a.strokeWidth)}
+                @change=${(e: Event) => {
+                  this._updateAnnotation(i, {
+                    strokeWidth: parseFloat((e.target as HTMLInputElement).value) || 2,
+                  });
+                }}
+              />
+              <span class="publish-unit">px</span>
+            </div>
+          </div>
+        `;
+      case 'arrow':
+        return html`
+          <div class="publish-row" style="margin-bottom: 2px;">
+            <label>Stroke</label>
+            <div class="publish-input-group">
+              <input
+                type="range"
+                class="publish-slider"
+                min="0.5"
+                max="10"
+                step="0.5"
+                .value=${String(a.width)}
+                @input=${(e: Event) => {
+                  this._updateAnnotation(i, {
+                    width: parseFloat((e.target as HTMLInputElement).value) || 2,
+                  });
+                }}
+              />
+              <input
+                type="number"
+                class="publish-row-input"
+                min="0.5"
+                max="10"
+                step="0.5"
+                .value=${String(a.width)}
+                @change=${(e: Event) => {
+                  this._updateAnnotation(i, {
+                    width: parseFloat((e.target as HTMLInputElement).value) || 2,
+                  });
+                }}
+              />
+              <span class="publish-unit">px</span>
+            </div>
+          </div>
+          <div class="publish-row" style="margin-bottom: 0;">
+            <label>Head</label>
+            <div class="publish-input-group">
+              <input
+                type="range"
+                class="publish-slider"
+                min="4"
+                max="30"
+                step="1"
+                .value=${String(a.headSize)}
+                @input=${(e: Event) => {
+                  this._updateAnnotation(i, {
+                    headSize: parseFloat((e.target as HTMLInputElement).value) || 10,
+                  });
+                }}
+              />
+              <input
+                type="number"
+                class="publish-row-input"
+                min="4"
+                max="30"
+                step="1"
+                .value=${String(a.headSize)}
+                @change=${(e: Event) => {
+                  this._updateAnnotation(i, {
+                    headSize: parseFloat((e.target as HTMLInputElement).value) || 10,
+                  });
+                }}
+              />
+              <span class="publish-unit">px</span>
+            </div>
+          </div>
+        `;
+      case 'label':
+        return html`
+          <div class="publish-row" style="margin-bottom: 2px;">
+            <label>Text</label>
+            <input
+              type="text"
+              class="publish-row-input"
+              style="width: 8rem; text-align: left;"
+              .value=${a.text}
+              @change=${(e: Event) => {
+                this._updateAnnotation(i, {
+                  text: (e.target as HTMLInputElement).value || 'Label',
+                });
+              }}
+            />
+          </div>
+          <div class="publish-row" style="margin-bottom: 0;">
+            <label>Size</label>
+            <div class="publish-input-group">
+              <input
+                type="range"
+                class="publish-slider"
+                min="8"
+                max="72"
+                step="1"
+                .value=${String(a.fontSize)}
+                @input=${(e: Event) => {
+                  this._updateAnnotation(i, {
+                    fontSize: parseFloat((e.target as HTMLInputElement).value) || 16,
+                  });
+                }}
+              />
+              <input
+                type="number"
+                class="publish-row-input"
+                min="8"
+                max="72"
+                step="1"
+                .value=${String(a.fontSize)}
+                @change=${(e: Event) => {
+                  this._updateAnnotation(i, {
+                    fontSize: parseFloat((e.target as HTMLInputElement).value) || 16,
+                  });
+                }}
+              />
+              <span class="publish-unit">px</span>
+            </div>
+          </div>
+        `;
+    }
   }
 
   // ── Insets section ─────────────────────────────────
@@ -894,6 +1071,38 @@ export class ProtspacePublishModal extends LitElement {
                     }}
                   />
                   <span class="publish-unit">x</span>
+                </div>
+              </div>
+              <div class="publish-row" style="margin-bottom: 0;">
+                <label>Border</label>
+                <div class="publish-input-group">
+                  <input
+                    type="range"
+                    class="publish-slider"
+                    min="0.5"
+                    max="10"
+                    step="0.5"
+                    .value=${String(inset.border)}
+                    @input=${(e: Event) => {
+                      this._updateInset(i, {
+                        border: parseFloat((e.target as HTMLInputElement).value) || 2,
+                      });
+                    }}
+                  />
+                  <input
+                    type="number"
+                    class="publish-row-input"
+                    min="0.5"
+                    max="10"
+                    step="0.5"
+                    .value=${String(inset.border)}
+                    @change=${(e: Event) => {
+                      this._updateInset(i, {
+                        border: parseFloat((e.target as HTMLInputElement).value) || 2,
+                      });
+                    }}
+                  />
+                  <span class="publish-unit">px</span>
                 </div>
               </div>
             </div>

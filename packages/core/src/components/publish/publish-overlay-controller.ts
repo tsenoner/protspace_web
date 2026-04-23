@@ -151,7 +151,9 @@ export class PublishOverlayController {
     const rot = a.rotation || 0;
     const cos = Math.cos(rot);
     const sin = Math.sin(rot);
-    const rotateOffset = 30; // px beyond the top handle
+    const rect = this.canvas.getBoundingClientRect();
+    const ds = this.canvas.width / rect.width;
+    const rotateOffset = 30 * ds; // screen-px beyond the top handle
 
     return {
       right: { x: cxPx + rxPx * cos, y: cyPx + rxPx * sin },
@@ -174,7 +176,9 @@ export class PublishOverlayController {
     a: CircleAnnotation,
   ): 'resize-rx' | 'resize-ry' | 'rotate' | null {
     const handles = this.getCircleHandles(a);
-    const hitRadius = 8; // px
+    const rect = this.canvas.getBoundingClientRect();
+    const ds = this.canvas.width / rect.width;
+    const hitRadius = 8 * ds; // screen-px scaled to canvas-px
 
     const distSq = (hx: number, hy: number) => (pxX - hx) ** 2 + (pxY - hy) ** 2;
 
@@ -516,10 +520,11 @@ export class PublishOverlayController {
     const cx = this.drag.currentX * scaleX;
     const cy = this.drag.currentY * scaleY;
 
+    const ds = this.canvas.width / (rect.width || this.canvas.width);
     ctx.save();
     ctx.strokeStyle = 'rgba(0, 163, 224, 0.8)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1.5 * ds;
+    ctx.setLineDash([4 * ds, 4 * ds]);
 
     switch (this._tool) {
       case 'circle': {
@@ -562,13 +567,16 @@ export class PublishOverlayController {
     if (!a || a.type !== 'circle') return;
 
     const handles = this.getCircleHandles(a);
-    const handleSize = 5;
+    // Scale handle size so they appear constant on screen regardless of canvas resolution
+    const rect = this.canvas.getBoundingClientRect();
+    const ds = this.canvas.width / rect.width;
+    const handleSize = 5 * ds;
 
     ctx.save();
 
     // Line from top handle to rotate handle
     ctx.strokeStyle = 'rgba(0, 163, 224, 0.6)';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1 * ds;
     ctx.beginPath();
     ctx.moveTo(handles.top.x, handles.top.y);
     ctx.lineTo(handles.rotate.x, handles.rotate.y);
@@ -577,7 +585,7 @@ export class PublishOverlayController {
     // Resize handles — filled squares
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = 'rgba(0, 163, 224, 0.9)';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.5 * ds;
     for (const h of [handles.right, handles.left, handles.top, handles.bottom]) {
       ctx.fillRect(h.x - handleSize, h.y - handleSize, handleSize * 2, handleSize * 2);
       ctx.strokeRect(h.x - handleSize, h.y - handleSize, handleSize * 2, handleSize * 2);

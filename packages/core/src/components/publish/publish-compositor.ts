@@ -425,6 +425,7 @@ function renderInset(
   srcCanvas: HTMLCanvasElement,
   inset: Inset,
   plotRect: LayoutRect,
+  scale: number,
 ) {
   const sr = inset.sourceRect;
   const tr = inset.targetRect;
@@ -458,11 +459,11 @@ function renderInset(
   // Border
   if (inset.border > 0) {
     ctx.strokeStyle = '#000000';
-    ctx.lineWidth = inset.border;
+    ctx.lineWidth = inset.border * scale;
     ctx.strokeRect(tx, ty, tw, th);
 
     // Also outline source rect
-    ctx.setLineDash([4, 4]);
+    ctx.setLineDash([4 * scale, 4 * scale]);
     ctx.strokeRect(sx, sy, sw, sh);
     ctx.setLineDash([]);
   }
@@ -470,7 +471,7 @@ function renderInset(
   // Connector lines — auto-detect best pair from all 4 corners
   if (inset.connector === 'lines') {
     ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1 * scale;
 
     // Source corners
     const srcCorners = [
@@ -544,16 +545,17 @@ function drawAnnotation(
   ctx: CanvasRenderingContext2D,
   annotation: Annotation,
   plotRect: LayoutRect,
+  scale: number,
 ) {
   switch (annotation.type) {
     case 'circle':
-      drawCircleAnnotation(ctx, annotation, plotRect);
+      drawCircleAnnotation(ctx, annotation, plotRect, scale);
       break;
     case 'arrow':
-      drawArrowAnnotation(ctx, annotation, plotRect);
+      drawArrowAnnotation(ctx, annotation, plotRect, scale);
       break;
     case 'label':
-      drawLabelAnnotation(ctx, annotation, plotRect);
+      drawLabelAnnotation(ctx, annotation, plotRect, scale);
       break;
   }
 }
@@ -570,6 +572,7 @@ function drawCircleAnnotation(
     strokeWidth: number;
   },
   pr: LayoutRect,
+  scale: number,
 ) {
   const cx = pr.x + a.cx * pr.w;
   const cy = pr.y + a.cy * pr.h;
@@ -577,7 +580,7 @@ function drawCircleAnnotation(
   const ry = a.ry * pr.h;
   ctx.save();
   ctx.strokeStyle = a.color;
-  ctx.lineWidth = a.strokeWidth;
+  ctx.lineWidth = a.strokeWidth * scale;
   ctx.beginPath();
   ctx.ellipse(cx, cy, rx, ry, a.rotation || 0, 0, Math.PI * 2);
   ctx.stroke();
@@ -596,6 +599,7 @@ function drawArrowAnnotation(
     headSize: number;
   },
   pr: LayoutRect,
+  scale: number,
 ) {
   const x1 = pr.x + a.x1 * pr.w;
   const y1 = pr.y + a.y1 * pr.h;
@@ -605,7 +609,7 @@ function drawArrowAnnotation(
   ctx.save();
   ctx.strokeStyle = a.color;
   ctx.fillStyle = a.color;
-  ctx.lineWidth = a.width;
+  ctx.lineWidth = a.width * scale;
 
   // Shaft
   ctx.beginPath();
@@ -615,7 +619,7 @@ function drawArrowAnnotation(
 
   // Arrowhead
   const angle = Math.atan2(y2 - y1, x2 - x1);
-  const hs = a.headSize;
+  const hs = a.headSize * scale;
   ctx.beginPath();
   ctx.moveTo(x2, y2);
   ctx.lineTo(x2 - hs * Math.cos(angle - Math.PI / 6), y2 - hs * Math.sin(angle - Math.PI / 6));
@@ -629,12 +633,13 @@ function drawLabelAnnotation(
   ctx: CanvasRenderingContext2D,
   a: { x: number; y: number; text: string; fontSize: number; color: string },
   pr: LayoutRect,
+  scale: number,
 ) {
   const x = pr.x + a.x * pr.w;
   const y = pr.y + a.y * pr.h;
   ctx.save();
   ctx.fillStyle = a.color;
-  ctx.font = `600 ${a.fontSize}px Arial, sans-serif`;
+  ctx.font = `600 ${a.fontSize * scale}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
   ctx.fillText(a.text, x, y);
@@ -642,8 +647,13 @@ function drawLabelAnnotation(
 }
 
 /** Draw a highlight outline around an annotation. Uses current ctx stroke style. */
-function drawAnnotationHighlight(ctx: CanvasRenderingContext2D, a: Annotation, pr: LayoutRect) {
-  const pad = 4;
+function drawAnnotationHighlight(
+  ctx: CanvasRenderingContext2D,
+  a: Annotation,
+  pr: LayoutRect,
+  displayScale: number,
+) {
+  const pad = 4 * displayScale;
   switch (a.type) {
     case 'circle': {
       const cx = pr.x + a.cx * pr.w;
@@ -693,6 +703,8 @@ interface CompositeOptions {
   includeShapes: boolean;
   /** When set, draw a highlight outline around this item on the preview. */
   highlightedItem?: { kind: 'annotation' | 'inset'; index: number } | null;
+  /** Ratio of canvas pixels to display pixels — used to keep highlights at constant screen size. */
+  displayScale?: number;
 }
 
 /**
@@ -714,6 +726,9 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
 
   const visibleCount = legendItems.filter((it) => it.isVisible).length;
   const { plotRect, legendRect } = computeLayout(W, H, state.legend, visibleCount);
+
+  // Scale annotation pixel properties proportionally to the reference width
+  const annotationScale = W / (state.referenceWidth || W);
 
   // Draw scatterplot into its area
   ctx.drawImage(plotCanvas, plotRect.x, plotRect.y, plotRect.w, plotRect.h);
@@ -751,26 +766,27 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
 
   // Insets
   for (const inset of state.insets) {
-    renderInset(ctx, plotCanvas, inset, plotRect);
+    renderInset(ctx, plotCanvas, inset, plotRect, annotationScale);
   }
 
   // Annotations
   for (const annotation of state.annotations) {
-    drawAnnotation(ctx, annotation, plotRect);
+    drawAnnotation(ctx, annotation, plotRect, annotationScale);
   }
 
   // Highlight outline for hovered item (preview only)
   const hi = opts.highlightedItem;
   if (hi) {
+    const ds = opts.displayScale ?? 1;
     ctx.save();
     ctx.strokeStyle = 'rgba(0, 163, 224, 0.9)';
-    ctx.lineWidth = 3;
-    ctx.setLineDash([6, 4]);
+    ctx.lineWidth = 3 * ds;
+    ctx.setLineDash([6 * ds, 4 * ds]);
 
     if (hi.kind === 'annotation') {
       const a = state.annotations[hi.index];
       if (a) {
-        drawAnnotationHighlight(ctx, a, plotRect);
+        drawAnnotationHighlight(ctx, a, plotRect, ds);
       }
     } else {
       const inset = state.insets[hi.index];
@@ -786,8 +802,9 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
         const ty = plotRect.y + tr.y * plotRect.h;
         const tw = tr.w * plotRect.w;
         const th = tr.h * plotRect.h;
-        ctx.strokeRect(sx - 2, sy - 2, sw + 4, sh + 4);
-        ctx.strokeRect(tx - 2, ty - 2, tw + 4, th + 4);
+        const hp = 2 * ds;
+        ctx.strokeRect(sx - hp, sy - hp, sw + hp * 2, sh + hp * 2);
+        ctx.strokeRect(tx - hp, ty - hp, tw + hp * 2, th + hp * 2);
       }
     }
 

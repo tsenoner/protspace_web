@@ -114,6 +114,8 @@ export interface PublishState {
   background: 'white' | 'transparent';
   annotations: Annotation[];
   insets: Inset[];
+  /** Width in px when annotations were authored. Used to scale pixel properties proportionally. */
+  referenceWidth: number;
 }
 
 /** Tool currently active on the overlay */
@@ -143,5 +145,6 @@ export function createDefaultPublishState(base?: {
     background: 'white',
     annotations: [],
     insets: [],
+    referenceWidth: base?.imageWidth ?? 2048,
   };
 }
