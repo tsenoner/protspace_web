@@ -20,7 +20,6 @@ import {
   createDefaultPublishState,
   type PublishState,
   type LegendPosition,
-  type LegendOverflow,
   type OverlayTool,
   type Inset,
 } from './publish-state';
@@ -157,6 +156,7 @@ export class ProtspacePublishModal extends LitElement {
           this._previewCanvas.width,
           this._previewCanvas.height,
           this._state.legend,
+          this._legendItems.filter((it) => it.isVisible).length,
         );
         return plotRect;
       },
@@ -168,6 +168,7 @@ export class ProtspacePublishModal extends LitElement {
           this._previewCanvas.width,
           this._previewCanvas.height,
           this._state.legend,
+          this._legendItems.filter((it) => it.isVisible).length,
         );
         return legendRect;
       },
@@ -216,7 +217,8 @@ export class ProtspacePublishModal extends LitElement {
     this._previewCanvas.height = previewH;
 
     // Capture plot (cache when dimensions and key state haven't changed)
-    const { plotRect } = computeLayout(previewW, previewH, s.legend);
+    const visibleCount = this._legendItems.filter((it) => it.isVisible).length;
+    const { plotRect } = computeLayout(previewW, previewH, s.legend, visibleCount);
     const cacheKey = `${plotRect.w}x${plotRect.h}`;
     if (cacheKey !== this._plotCacheKey || !this._cachedPlotCanvas) {
       this._cachedPlotCanvas = capturePlotCanvas(
@@ -357,7 +359,8 @@ export class ProtspacePublishModal extends LitElement {
     // Re-render at full resolution for export
     if (!this.plotElement) return;
     const s = this._state;
-    const { plotRect } = computeLayout(s.widthPx, s.heightPx, s.legend);
+    const visibleCount = this._legendItems.filter((it) => it.isVisible).length;
+    const { plotRect } = computeLayout(s.widthPx, s.heightPx, s.legend, visibleCount);
 
     const plotCanvas = capturePlotCanvas(
       this.plotElement as HTMLElement & {
@@ -689,12 +692,7 @@ export class ProtspacePublishModal extends LitElement {
                   <option value="left">Left</option>
                   <option value="top">Top</option>
                   <option value="bottom">Bottom</option>
-                  <option value="tr">Top-right (overlay)</option>
-                  <option value="tl">Top-left (overlay)</option>
-                  <option value="br">Bottom-right (overlay)</option>
-                  <option value="bl">Bottom-left (overlay)</option>
                   <option value="free">Free (drag to move)</option>
-                  <option value="none">Hidden</option>
                 </select>
               </div>
 
@@ -792,23 +790,6 @@ export class ProtspacePublishModal extends LitElement {
                     }}
                   />
                 </div>
-              </div>
-
-              <div class="publish-row">
-                <label>Overflow</label>
-                <select
-                  class="publish-select"
-                  .value=${leg.overflow}
-                  @change=${(e: Event) => {
-                    this._updateLegend({
-                      overflow: (e.target as HTMLSelectElement).value as LegendOverflow,
-                    });
-                  }}
-                >
-                  <option value="multi-column">Multi-column (auto)</option>
-                  <option value="truncate">Truncate</option>
-                  <option value="scale">Scale (legacy)</option>
-                </select>
               </div>
             `
           : nothing}

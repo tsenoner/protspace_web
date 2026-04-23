@@ -76,10 +76,36 @@ interface LegendRenderOptions {
   height: number;
   fontSizePx: number;
   columns: number;
-  overflow: 'scale' | 'truncate' | 'multi-column';
   annotationName: string;
   includeShapes: boolean;
   backgroundColor: string;
+}
+
+/**
+ * Count how many lines text would need when wrapped to maxWidth.
+ * Uses the current font set on ctx for measurement.
+ */
+function measureWrappedLineCount(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): number {
+  if (maxWidth <= 0 || !text) return 1;
+  const words = text.split(/\s+/);
+  let line = '';
+  let lines = 0;
+
+  for (const word of words) {
+    const testLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      line = word;
+      lines++;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) lines++;
+  return Math.max(1, lines);
 }
 
 /**
@@ -139,40 +165,10 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const visibleItems = items.filter((it) => it.isVisible);
-
-  // Resolve columns for multi-column overflow
-  let columns = Math.max(1, opts.columns);
-  const availableHeight = canvas.height - padding * 2 - headerHeight;
-
-  if (opts.overflow === 'multi-column' && columns === 1) {
-    // Auto-compute columns so tallest column fits
-    const singleColHeight = visibleItems.length * itemHeight;
-    if (singleColHeight > availableHeight && availableHeight > 0) {
-      columns = Math.ceil(singleColHeight / availableHeight);
-    }
-  }
-
-  // Decide how many items to render
-  let renderItems = visibleItems;
-  let truncatedCount = 0;
-  if (opts.overflow === 'truncate') {
-    const maxPerCol = Math.max(1, Math.floor(availableHeight / itemHeight));
-    const maxItems = maxPerCol * columns;
-    if (visibleItems.length > maxItems) {
-      truncatedCount = visibleItems.length - maxItems;
-      renderItems = visibleItems.slice(0, maxItems);
-    }
-  }
-
-  // For legacy scale mode, apply Y-scale to fit
-  let scaleY = 1;
-  if (opts.overflow === 'scale') {
-    const requiredHeight = padding + headerHeight + visibleItems.length * itemHeight + padding;
-    scaleY = Math.min(1, canvas.height / requiredHeight);
-  }
+  const renderItems = visibleItems;
+  const columns = Math.max(1, opts.columns);
 
   ctx.save();
-  if (scaleY < 1) ctx.scale(1, scaleY);
 
   // Header
   ctx.fillStyle = '#1f2937';
@@ -182,62 +178,95 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
   const headerText = (opts.annotationName || 'Legend').replace(/_/g, ' ');
   ctx.fillText(headerText, padding, padding + headerHeight / 2);
 
-  // Items — distribute across columns
+  // Items — distribute across columns with variable row heights
   const colWidth = (canvas.width - padding * 2) / columns;
   const itemsPerCol = Math.ceil(renderItems.length / columns);
+  const textOffset = 8 * scale;
+  const colGap = 16 * scale;
+  const countWidth = 48 * scale;
+  const lineHeight = itemFontSize * 1.2;
+  const itemPadding = 8 * scale; // vertical padding around each item
 
+  // Pre-measure line counts for label wrapping
+  ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
+  const labelTexts = renderItems.map((it) => (it.displayValue ?? it.value).replace(/_/g, ' '));
+  const lineCounts: number[] = [];
+  for (let i = 0; i < renderItems.length; i++) {
+    const col = Math.floor(i / itemsPerCol);
+    const xBase = padding + col * colWidth;
+    const colRight = xBase + colWidth - (col < columns - 1 ? colGap : padding);
+    const maxTextWidth = colRight - countWidth - (xBase + symbolSize + textOffset);
+    lineCounts.push(
+      measureWrappedLineCount(ctx, labelTexts[i], maxTextWidth > 0 ? maxTextWidth : colWidth * 0.5),
+    );
+  }
+
+  // Compute cumulative Y offsets per column
+  const colYOffsets: number[][] = Array.from({ length: columns }, () => []);
+  for (let i = 0; i < renderItems.length; i++) {
+    const col = Math.floor(i / itemsPerCol);
+    const row = i % itemsPerCol;
+    const prevY =
+      row === 0
+        ? 0
+        : colYOffsets[col][row - 1] +
+          Math.max(itemHeight, lineCounts[i - columns >= 0 ? i : i] * lineHeight + itemPadding * 2);
+    colYOffsets[col].push(row === 0 ? 0 : prevY);
+  }
+
+  // Recompute properly: accumulate based on previous item's actual height
+  for (let col = 0; col < columns; col++) {
+    let y = 0;
+    for (let row = 0; row < itemsPerCol; row++) {
+      const i = col * itemsPerCol + row;
+      if (i >= renderItems.length) break;
+      colYOffsets[col][row] = y;
+      const lines = lineCounts[i];
+      const thisItemH = Math.max(itemHeight, lines * lineHeight + itemPadding * 2);
+      y += thisItemH;
+    }
+  }
+
+  // Draw items
   for (let i = 0; i < renderItems.length; i++) {
     const col = Math.floor(i / itemsPerCol);
     const row = i % itemsPerCol;
     const it = renderItems[i];
+    const lines = lineCounts[i];
 
     const xBase = padding + col * colWidth;
-    const y = padding + headerHeight + row * itemHeight;
-    const cx = xBase + symbolSize / 2;
-    const cy = y + itemHeight / 2;
+    const yOffset = colYOffsets[col][row];
+    const y = padding + headerHeight + yOffset;
+    const thisItemH = Math.max(itemHeight, lines * lineHeight + itemPadding * 2);
+    const cy = y + thisItemH / 2;
 
-    // Symbol
-    if (opts.includeShapes) {
-      drawColoredCircle(ctx, it.color, cx, cy, symbolSize / 2);
-    } else {
-      drawColoredCircle(ctx, it.color, cx, cy, symbolSize / 2);
-    }
+    // Symbol — centered vertically in the item
+    drawColoredCircle(ctx, it.color, xBase + symbolSize / 2, cy, symbolSize / 2);
 
-    // Label
+    // Label — centered vertically in the item
     ctx.fillStyle = '#1f2937';
     ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
-    const textOffset = 8 * scale;
-    const maxTextWidth = colWidth - symbolSize - textOffset - padding;
-    const label = (it.displayValue ?? it.value).replace(/_/g, ' ');
-    const labelY = y + (itemHeight - itemFontSize) / 2;
+    const colRight = xBase + colWidth - (col < columns - 1 ? colGap : padding);
+    const maxTextWidth = colRight - countWidth - (xBase + symbolSize + textOffset);
+    const textBlockH = lines * lineHeight;
+    const labelY = y + (thisItemH - textBlockH) / 2;
     fillTextWrapped(
       ctx,
-      label,
+      labelTexts[i],
       xBase + symbolSize + textOffset,
       labelY,
-      maxTextWidth,
-      itemFontSize * 1.2,
+      maxTextWidth > 0 ? maxTextWidth : colWidth * 0.5,
+      lineHeight,
     );
 
-    // Count (only in single-column or first column gets count)
-    if (columns === 1) {
-      ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
-      ctx.fillStyle = '#4b5563';
-      ctx.textAlign = 'right';
-      ctx.fillText(String(it.count), canvas.width - padding, cy);
-    }
-  }
-
-  // Truncation notice
-  if (truncatedCount > 0) {
-    const lastRow = Math.min(itemsPerCol, renderItems.length);
-    const y = padding + headerHeight + lastRow * itemHeight + itemHeight / 2;
-    ctx.fillStyle = '#6b7280';
-    ctx.font = `italic 500 ${itemFontSize * 0.85}px Arial, sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.fillText(`+ ${truncatedCount} more`, padding, y);
+    // Count — right-aligned, vertically centered
+    ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
+    ctx.fillStyle = '#4b5563';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(it.count), colRight, cy);
   }
 
   ctx.restore();
@@ -272,16 +301,39 @@ interface LayoutRect {
 }
 
 /**
+ * Compute the tight height the legend needs for its content.
+ * Uses the same scale factors as renderLegendCanvas.
+ */
+function computeLegendContentHeight(
+  fontSizePx: number,
+  itemCount: number,
+  columns: number,
+): number {
+  const scale = fontSizePx / 24;
+  const padding = 24 * scale;
+  const headerHeight = 60 * scale;
+  const itemHeight = 56 * scale;
+  const cols = Math.max(1, columns);
+  const itemsPerCol = Math.ceil(itemCount / cols);
+  return padding + headerHeight + itemsPerCol * itemHeight + padding;
+}
+
+/**
  * Compute where the plot and legend go on the output canvas given a legend position.
  *
  * Side positions (left/right/top/bottom) split the canvas.
  * Corner positions (tl/tr/bl/br) overlay the legend on the plot.
  * 'none' gives the full canvas to the plot.
+ *
+ * @param visibleItemCount — number of visible legend items; used to compute
+ *   tight height for overlay positions (corners + free). Falls back to 50%
+ *   canvas height when omitted.
  */
 export function computeLayout(
   totalW: number,
   totalH: number,
   legend: LegendLayout,
+  visibleItemCount?: number,
 ): { plotRect: LayoutRect; legendRect: LayoutRect | null } {
   if (!legend.visible || legend.position === 'none') {
     return { plotRect: { x: 0, y: 0, w: totalW, h: totalH }, legendRect: null };
@@ -320,9 +372,17 @@ export function computeLayout(
     };
   }
 
-  // Corner positions overlay on the plot
+  // Corner positions overlay on the plot — use tight content height when item count known
   const cornerW = Math.round(totalW * pct);
-  const cornerH = Math.round(totalH * 0.5); // Half-height for corners
+  const cornerH =
+    visibleItemCount !== undefined
+      ? Math.min(
+          Math.round(
+            computeLegendContentHeight(legend.fontSizePx, visibleItemCount, legend.columns),
+          ),
+          totalH,
+        )
+      : Math.round(totalH * 0.5);
   const plotRect: LayoutRect = { x: 0, y: 0, w: totalW, h: totalH };
 
   const cornerRects: Record<string, LayoutRect> = {
@@ -335,7 +395,15 @@ export function computeLayout(
   // Free-floating position
   if (pos === 'free') {
     const legendW = Math.round(totalW * pct);
-    const legendH = Math.round(totalH * 0.5);
+    const legendH =
+      visibleItemCount !== undefined
+        ? Math.min(
+            Math.round(
+              computeLegendContentHeight(legend.fontSizePx, visibleItemCount, legend.columns),
+            ),
+            totalH,
+          )
+        : Math.round(totalH * 0.5);
     const plotRect: LayoutRect = { x: 0, y: 0, w: totalW, h: totalH };
     const freePos = legend.freePos;
     const lx = freePos ? Math.round(totalW * freePos.nx) : Math.round((totalW - legendW) / 2);
@@ -592,7 +660,8 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
     ctx.fillRect(0, 0, W, H);
   }
 
-  const { plotRect, legendRect } = computeLayout(W, H, state.legend);
+  const visibleCount = legendItems.filter((it) => it.isVisible).length;
+  const { plotRect, legendRect } = computeLayout(W, H, state.legend, visibleCount);
 
   // Draw scatterplot into its area
   ctx.drawImage(plotCanvas, plotRect.x, plotRect.y, plotRect.w, plotRect.h);
@@ -605,7 +674,6 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
       height: legendRect.h,
       fontSizePx: state.legend.fontSizePx,
       columns: state.legend.columns,
-      overflow: state.legend.overflow,
       annotationName,
       includeShapes,
       backgroundColor: isCorner
