@@ -103,11 +103,30 @@ export class PublishOverlayController {
     const threshold = 0.03;
     switch (a.type) {
       case 'circle': {
-        // Normalize to unit circle space for proper ellipse hit-test
-        const dx = (nx - a.cx) / a.rx;
-        const dy = (ny - a.cy) / a.ry;
-        const dist = Math.abs(Math.sqrt(dx * dx + dy * dy) - 1);
-        return dist < threshold / Math.min(a.rx, a.ry);
+        // The ellipse is drawn rotated in pixel space, so we must hit-test
+        // in pixel space too: convert to pixels, undo rotation around center,
+        // then check distance from the unrotated ellipse boundary.
+        const pr = this.callbacks.getPlotRect();
+        const pxX = nx * pr.w; // click in plot-pixel coords
+        const pxY = ny * pr.h;
+        const cxPx = a.cx * pr.w; // centre in plot-pixel coords
+        const cyPx = a.cy * pr.h;
+        const rxPx = a.rx * pr.w;
+        const ryPx = a.ry * pr.h;
+        const rot = a.rotation || 0;
+        const cos = Math.cos(-rot);
+        const sin = Math.sin(-rot);
+        // Rotate click into local (unrotated) frame
+        const relX = pxX - cxPx;
+        const relY = pxY - cyPx;
+        const localX = relX * cos - relY * sin;
+        const localY = relX * sin + relY * cos;
+        // Normalise to unit circle and check distance from boundary
+        const ux = localX / rxPx;
+        const uy = localY / ryPx;
+        const dist = Math.abs(Math.sqrt(ux * ux + uy * uy) - 1);
+        const hitTol = threshold / Math.min(a.rx, a.ry);
+        return dist < hitTol;
       }
       case 'arrow':
         return this.pointToSegmentDist(nx, ny, a.x1, a.y1, a.x2, a.y2) < threshold;
