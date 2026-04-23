@@ -109,15 +109,16 @@ describe('legend free position', () => {
   });
 });
 
-describe('inset magnification', () => {
-  it('inset accepts magnification field', () => {
+describe('inset structure', () => {
+  it('inset has source and target rects with border and connector', () => {
     const inset = {
       sourceRect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
       targetRect: { x: 0.6, y: 0.6, w: 0.3, h: 0.3 },
       border: 2,
       connector: 'lines' as const,
-      magnification: 2,
     };
-    expect(inset.magnification).toBe(2);
+    expect(inset.sourceRect.w).toBe(0.2);
+    expect(inset.targetRect.w).toBe(0.3);
+    expect(inset.border).toBe(2);
   });
 });

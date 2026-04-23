@@ -414,6 +414,24 @@ export function computeLayout(
   return { plotRect, legendRect: cornerRects[pos] ?? null };
 }
 
+// ── Inset helpers ────────────────────────────────────────────────────
+
+/**
+ * Compute how much to boost the plot capture resolution so inset source
+ * regions have enough pixels to fill their target rects without upscaling.
+ * Returns 1 when there are no insets.
+ */
+export function computeInsetBoost(insets: readonly Inset[], maxBoost = 4): number {
+  if (insets.length === 0) return 1;
+  let maxZoom = 1;
+  for (const inset of insets) {
+    const zx = inset.targetRect.w / inset.sourceRect.w;
+    const zy = inset.targetRect.h / inset.sourceRect.h;
+    maxZoom = Math.max(maxZoom, zx, zy);
+  }
+  return Math.min(Math.ceil(maxZoom), maxBoost);
+}
+
 // ── Inset rendering ──────────────────────────────────────────────────
 
 /**
@@ -429,31 +447,26 @@ function renderInset(
 ) {
   const sr = inset.sourceRect;
   const tr = inset.targetRect;
-  const mag = inset.magnification ?? 2;
 
-  // Compute magnified source: shrink source rect around its center by 1/mag
-  const srcCenterX = sr.x + sr.w / 2;
-  const srcCenterY = sr.y + sr.h / 2;
-  const magW = sr.w / mag;
-  const magH = sr.h / mag;
+  // Source-canvas coordinates (for drawImage crop — based on actual canvas size,
+  // which may be boosted for crisp insets)
+  const cropX = sr.x * srcCanvas.width;
+  const cropY = sr.y * srcCanvas.height;
+  const cropW = sr.w * srcCanvas.width;
+  const cropH = sr.h * srcCanvas.height;
 
-  // Convert normalised coords to plot-space pixels — full source for outline, magnified for crop
+  // Output-canvas coordinates (for borders, connectors — in output space)
   const sx = plotRect.x + sr.x * plotRect.w;
   const sy = plotRect.y + sr.y * plotRect.h;
   const sw = sr.w * plotRect.w;
   const sh = sr.h * plotRect.h;
-
-  const cropX = plotRect.x + (srcCenterX - magW / 2) * plotRect.w;
-  const cropY = plotRect.y + (srcCenterY - magH / 2) * plotRect.h;
-  const cropW = magW * plotRect.w;
-  const cropH = magH * plotRect.h;
 
   const tx = plotRect.x + tr.x * plotRect.w;
   const ty = plotRect.y + tr.y * plotRect.h;
   const tw = tr.w * plotRect.w;
   const th = tr.h * plotRect.h;
 
-  // Draw magnified crop into target rect
+  // Draw source region from (possibly boosted) canvas into target rect
   ctx.drawImage(srcCanvas, cropX, cropY, cropW, cropH, tx, ty, tw, th);
 
   // Border
@@ -723,6 +736,8 @@ interface CompositeOptions {
   highlightedItem?: { kind: 'annotation' | 'inset'; index: number } | null;
   /** Ratio of canvas pixels to display pixels — used to keep highlights at constant screen size. */
   displayScale?: number;
+  /** Higher-resolution plot canvas for crisp inset rendering. Falls back to plotCanvas. */
+  insetPlotCanvas?: HTMLCanvasElement;
 }
 
 /**
@@ -782,9 +797,10 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
     }
   }
 
-  // Insets
+  // Insets — use boosted canvas if available for crisp rendering
+  const insetSrc = opts.insetPlotCanvas ?? plotCanvas;
   for (const inset of state.insets) {
-    renderInset(ctx, plotCanvas, inset, plotRect, annotationScale);
+    renderInset(ctx, insetSrc, inset, plotRect, annotationScale);
   }
 
   // Annotations

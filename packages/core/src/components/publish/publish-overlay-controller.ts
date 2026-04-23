@@ -59,6 +59,15 @@ export class PublishOverlayController {
     | 'arrow-start'
     | 'arrow-end'
     | 'label-rotate'
+    | 'inset-source-move'
+    | 'inset-src-tl'
+    | 'inset-src-tr'
+    | 'inset-src-bl'
+    | 'inset-src-br'
+    | 'inset-tgt-tl'
+    | 'inset-tgt-tr'
+    | 'inset-tgt-bl'
+    | 'inset-tgt-br'
     | null = null;
   private legendDragging = false;
 
@@ -135,9 +144,12 @@ export class PublishOverlayController {
     }
   }
 
-  private hitTestInset(nx: number, ny: number, inset: Inset): boolean {
+  private hitTestInset(nx: number, ny: number, inset: Inset): 'target' | 'source' | null {
     const tr = inset.targetRect;
-    return nx >= tr.x && nx <= tr.x + tr.w && ny >= tr.y && ny <= tr.y + tr.h;
+    if (nx >= tr.x && nx <= tr.x + tr.w && ny >= tr.y && ny <= tr.y + tr.h) return 'target';
+    const sr = inset.sourceRect;
+    if (nx >= sr.x && nx <= sr.x + sr.w && ny >= sr.y && ny <= sr.y + sr.h) return 'source';
+    return null;
   }
 
   private pointToSegmentDist(
@@ -218,6 +230,91 @@ export class PublishOverlayController {
     return null;
   }
 
+  /** Corner positions for a NormRect in canvas-pixel coordinates. */
+  private getInsetRectCorners(r: NormRect): {
+    tl: { x: number; y: number };
+    tr: { x: number; y: number };
+    bl: { x: number; y: number };
+    br: { x: number; y: number };
+  } {
+    const pr = this.callbacks.getPlotRect();
+    return {
+      tl: { x: pr.x + r.x * pr.w, y: pr.y + r.y * pr.h },
+      tr: { x: pr.x + (r.x + r.w) * pr.w, y: pr.y + r.y * pr.h },
+      bl: { x: pr.x + r.x * pr.w, y: pr.y + (r.y + r.h) * pr.h },
+      br: { x: pr.x + (r.x + r.w) * pr.w, y: pr.y + (r.y + r.h) * pr.h },
+    };
+  }
+
+  /** Hit-test the 8 corner handles of an inset (4 on source, 4 on target). */
+  private hitTestInsetHandles(pxX: number, pxY: number, inset: Inset): typeof this.handleMode {
+    const rect = this.canvas.getBoundingClientRect();
+    const ds = this.canvas.width / rect.width;
+    const hitRadius = 8 * ds;
+    const distSq = (hx: number, hy: number) => (pxX - hx) ** 2 + (pxY - hy) ** 2;
+    const r2 = hitRadius ** 2;
+
+    // Target corners (drawn on top, check first)
+    const tgt = this.getInsetRectCorners(inset.targetRect);
+    if (distSq(tgt.tl.x, tgt.tl.y) < r2) return 'inset-tgt-tl';
+    if (distSq(tgt.tr.x, tgt.tr.y) < r2) return 'inset-tgt-tr';
+    if (distSq(tgt.bl.x, tgt.bl.y) < r2) return 'inset-tgt-bl';
+    if (distSq(tgt.br.x, tgt.br.y) < r2) return 'inset-tgt-br';
+
+    // Source corners
+    const src = this.getInsetRectCorners(inset.sourceRect);
+    if (distSq(src.tl.x, src.tl.y) < r2) return 'inset-src-tl';
+    if (distSq(src.tr.x, src.tr.y) < r2) return 'inset-src-tr';
+    if (distSq(src.bl.x, src.bl.y) < r2) return 'inset-src-bl';
+    if (distSq(src.br.x, src.br.y) < r2) return 'inset-src-br';
+
+    return null;
+  }
+
+  /** Resize an inset source or target rect by dragging a corner handle. */
+  private applyInsetHandleDrag() {
+    if (!this.selected || this.selected.kind !== 'inset' || !this.handleMode) return;
+    const insets = this.callbacks.getInsets();
+    const inset = insets[this.selected.index];
+    if (!inset) return;
+
+    const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
+    const isSource = this.handleMode.startsWith('inset-src-');
+    const rect = isSource ? inset.sourceRect : inset.targetRect;
+    const corner = this.handleMode.slice(-2); // 'tl', 'tr', 'bl', 'br'
+
+    let newRect: NormRect;
+    switch (corner) {
+      case 'tl':
+        newRect = {
+          x: norm.nx,
+          y: norm.ny,
+          w: rect.x + rect.w - norm.nx,
+          h: rect.y + rect.h - norm.ny,
+        };
+        break;
+      case 'tr':
+        newRect = { x: rect.x, y: norm.ny, w: norm.nx - rect.x, h: rect.y + rect.h - norm.ny };
+        break;
+      case 'bl':
+        newRect = { x: norm.nx, y: rect.y, w: rect.x + rect.w - norm.nx, h: norm.ny - rect.y };
+        break;
+      case 'br':
+        newRect = { x: rect.x, y: rect.y, w: norm.nx - rect.x, h: norm.ny - rect.y };
+        break;
+      default:
+        return;
+    }
+
+    // Enforce minimum size
+    if (newRect.w < 0.01 || newRect.h < 0.01) return;
+
+    const updated = isSource
+      ? { ...inset, sourceRect: newRect }
+      : { ...inset, targetRect: newRect };
+    this.callbacks.onInsetUpdated(this.selected.index, updated);
+  }
+
   private moveSelected(nx: number, ny: number) {
     if (!this.selected) return;
 
@@ -246,11 +343,19 @@ export class PublishOverlayController {
       const insets = this.callbacks.getInsets();
       const inset = insets[this.selected.index];
       if (!inset) return;
-      const moved: Inset = {
-        ...inset,
-        targetRect: { ...inset.targetRect, x: nx, y: ny },
-      };
-      this.callbacks.onInsetUpdated(this.selected.index, moved);
+      if (this.handleMode === 'inset-source-move') {
+        const moved: Inset = {
+          ...inset,
+          sourceRect: { ...inset.sourceRect, x: nx, y: ny },
+        };
+        this.callbacks.onInsetUpdated(this.selected.index, moved);
+      } else {
+        const moved: Inset = {
+          ...inset,
+          targetRect: { ...inset.targetRect, x: nx, y: ny },
+        };
+        this.callbacks.onInsetUpdated(this.selected.index, moved);
+      }
     }
   }
 
@@ -388,17 +493,62 @@ export class PublishOverlayController {
         }
       }
 
+      // If an inset is already selected, check its handles first
+      if (this.selected?.kind === 'inset') {
+        const inset = this.callbacks.getInsets()[this.selected.index];
+        if (inset) {
+          const mode = this.hitTestInsetHandles(pxX, pxY, inset);
+          if (mode) {
+            this.handleMode = mode;
+            return;
+          }
+          // Check source rect interior for source-move
+          const sr = inset.sourceRect;
+          if (
+            norm.nx >= sr.x &&
+            norm.nx <= sr.x + sr.w &&
+            norm.ny >= sr.y &&
+            norm.ny <= sr.y + sr.h
+          ) {
+            this.handleMode = 'inset-source-move';
+            this.dragOffset = { dx: norm.nx - sr.x, dy: norm.ny - sr.y };
+            return;
+          }
+          // Check target rect interior for target-move (keeps selection)
+          const tr = inset.targetRect;
+          if (
+            norm.nx >= tr.x &&
+            norm.nx <= tr.x + tr.w &&
+            norm.ny >= tr.y &&
+            norm.ny <= tr.y + tr.h
+          ) {
+            this.handleMode = null;
+            this.dragOffset = { dx: norm.nx - tr.x, dy: norm.ny - tr.y };
+            return;
+          }
+        }
+      }
+
       this.handleMode = null;
 
-      // Check insets first (drawn on top)
+      // Check insets first (drawn on top) — both source and target rects
       const insets = this.callbacks.getInsets();
       for (let i = insets.length - 1; i >= 0; i--) {
-        if (this.hitTestInset(norm.nx, norm.ny, insets[i])) {
+        const hit = this.hitTestInset(norm.nx, norm.ny, insets[i]);
+        if (hit) {
           this.selected = { kind: 'inset', index: i };
-          this.dragOffset = {
-            dx: norm.nx - insets[i].targetRect.x,
-            dy: norm.ny - insets[i].targetRect.y,
-          };
+          if (hit === 'source') {
+            this.handleMode = 'inset-source-move';
+            this.dragOffset = {
+              dx: norm.nx - insets[i].sourceRect.x,
+              dy: norm.ny - insets[i].sourceRect.y,
+            };
+          } else {
+            this.dragOffset = {
+              dx: norm.nx - insets[i].targetRect.x,
+              dy: norm.ny - insets[i].targetRect.y,
+            };
+          }
           this.callbacks.onSelectionChanged('inset', i);
           return;
         }
@@ -468,6 +618,12 @@ export class PublishOverlayController {
     if (this._tool === 'select' && this.selected) {
       if (this.handleMode && this.selected.kind === 'annotation') {
         this.applyHandleDrag();
+      } else if (
+        this.selected.kind === 'inset' &&
+        this.handleMode &&
+        this.handleMode !== 'inset-source-move'
+      ) {
+        this.applyInsetHandleDrag();
       } else {
         const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
         const nx = norm.nx - this.dragOffset.dx;
@@ -599,7 +755,6 @@ export class PublishOverlayController {
       targetRect: { x, y, w, h },
       border: 2,
       connector: 'lines',
-      magnification: 2,
     };
     this.pendingInsetSource = null;
     this.tool = 'select';
@@ -659,15 +814,49 @@ export class PublishOverlayController {
     void pr; // used for coord space reference
   }
 
-  /** Draw resize/rotate handles when an annotation is selected. */
+  /** Draw resize/rotate handles when an annotation or inset is selected. */
   drawSelectionHandles(ctx: CanvasRenderingContext2D, annotationScale = 1) {
-    if (!this.selected || this.selected.kind !== 'annotation') return;
-    const a = this.callbacks.getAnnotations()[this.selected.index];
-    if (!a) return;
+    if (!this.selected) return;
 
     const rect = this.canvas.getBoundingClientRect();
     const ds = this.canvas.width / rect.width;
     const handleSize = 5 * ds;
+
+    // ── Inset handles ─────────────────────────────────────
+    if (this.selected.kind === 'inset') {
+      const inset = this.callbacks.getInsets()[this.selected.index];
+      if (!inset) return;
+
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = 'rgba(0, 163, 224, 0.9)';
+      ctx.lineWidth = 1.5 * ds;
+
+      // Dashed outlines around both rects
+      ctx.setLineDash([6 * ds, 4 * ds]);
+      const pr = this.callbacks.getPlotRect();
+      const sr = inset.sourceRect;
+      const tr = inset.targetRect;
+      ctx.strokeRect(pr.x + sr.x * pr.w, pr.y + sr.y * pr.h, sr.w * pr.w, sr.h * pr.h);
+      ctx.strokeRect(pr.x + tr.x * pr.w, pr.y + tr.y * pr.h, tr.w * pr.w, tr.h * pr.h);
+      ctx.setLineDash([]);
+
+      // Corner handles on both rects
+      for (const r of [inset.sourceRect, inset.targetRect]) {
+        const corners = this.getInsetRectCorners(r);
+        for (const c of [corners.tl, corners.tr, corners.bl, corners.br]) {
+          ctx.fillRect(c.x - handleSize, c.y - handleSize, handleSize * 2, handleSize * 2);
+          ctx.strokeRect(c.x - handleSize, c.y - handleSize, handleSize * 2, handleSize * 2);
+        }
+      }
+
+      ctx.restore();
+      return;
+    }
+
+    // ── Annotation handles ────────────────────────────────
+    const a = this.callbacks.getAnnotations()[this.selected.index];
+    if (!a) return;
 
     ctx.save();
     ctx.fillStyle = '#ffffff';

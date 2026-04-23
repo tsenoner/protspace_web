@@ -28,6 +28,7 @@ import { pxToMm, mmToPx, adjustDpiForWidthMm } from './dimension-utils';
 import {
   capturePlotCanvas,
   composeFigure,
+  computeInsetBoost,
   computeLayout,
   type LegendItem,
 } from './publish-compositor';
@@ -98,6 +99,8 @@ export class ProtspacePublishModal extends LitElement {
   private _debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private _plotCacheKey = '';
   private _cachedPlotCanvas: HTMLCanvasElement | null = null;
+  private _insetCacheKey = '';
+  private _cachedInsetCanvas: HTMLCanvasElement | null = null;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -229,23 +232,39 @@ export class ProtspacePublishModal extends LitElement {
     // Capture plot (cache when dimensions and key state haven't changed)
     const visibleCount = this._legendItems.filter((it) => it.isVisible).length;
     const { plotRect } = computeLayout(previewW, previewH, s.legend, visibleCount);
+    const plotEl = this.plotElement as HTMLElement & {
+      captureAtResolution?: (
+        w: number,
+        h: number,
+        opts: { dpr?: number; backgroundColor?: string },
+      ) => HTMLCanvasElement;
+    };
+    const bgColor = s.background === 'white' ? '#ffffff' : 'rgba(0,0,0,0)';
+
     const cacheKey = `${plotRect.w}x${plotRect.h}`;
     if (cacheKey !== this._plotCacheKey || !this._cachedPlotCanvas) {
-      this._cachedPlotCanvas = capturePlotCanvas(
-        this.plotElement as HTMLElement & {
-          captureAtResolution?: (
-            w: number,
-            h: number,
-            opts: { dpr?: number; backgroundColor?: string },
-          ) => HTMLCanvasElement;
-        },
-        {
-          width: plotRect.w,
-          height: plotRect.h,
-          backgroundColor: s.background === 'white' ? '#ffffff' : 'rgba(0,0,0,0)',
-        },
-      );
+      this._cachedPlotCanvas = capturePlotCanvas(plotEl, {
+        width: plotRect.w,
+        height: plotRect.h,
+        backgroundColor: bgColor,
+      });
       this._plotCacheKey = cacheKey;
+    }
+
+    // Boosted capture for crisp inset rendering
+    let insetPlotCanvas: HTMLCanvasElement | undefined;
+    const boost = computeInsetBoost(s.insets);
+    if (boost > 1) {
+      const insetKey = `${plotRect.w * boost}x${plotRect.h * boost}`;
+      if (insetKey !== this._insetCacheKey || !this._cachedInsetCanvas) {
+        this._cachedInsetCanvas = capturePlotCanvas(plotEl, {
+          width: plotRect.w * boost,
+          height: plotRect.h * boost,
+          backgroundColor: bgColor,
+        });
+        this._insetCacheKey = insetKey;
+      }
+      insetPlotCanvas = this._cachedInsetCanvas;
     }
 
     composeFigure(this._previewCanvas, {
@@ -258,6 +277,7 @@ export class ProtspacePublishModal extends LitElement {
       displayScale:
         this._previewCanvas.width /
         (this._previewCanvas.getBoundingClientRect().width || this._previewCanvas.width),
+      insetPlotCanvas,
     });
 
     // Draw overlay indicators and selection handles
@@ -275,12 +295,14 @@ export class ProtspacePublishModal extends LitElement {
     if ('widthPx' in partial || 'heightPx' in partial) {
       this._state = { ...this._state, preset: 'custom' };
     }
-    this._plotCacheKey = ''; // invalidate
+    this._plotCacheKey = '';
+    this._insetCacheKey = ''; // invalidate
   }
 
   private _updateLegend(partial: Partial<PublishState['legend']>) {
     this._state = { ...this._state, legend: { ...this._state.legend, ...partial } };
     this._plotCacheKey = '';
+    this._insetCacheKey = '';
   }
 
   /** Return the active preset's mm constraints, or null for px-based / custom. */
@@ -306,6 +328,7 @@ export class ProtspacePublishModal extends LitElement {
       this._state = { ...this._state, widthPx, preset: 'custom' };
     }
     this._plotCacheKey = '';
+    this._insetCacheKey = '';
   }
 
   private _updateHeightPx(heightPx: number) {
@@ -316,6 +339,7 @@ export class ProtspacePublishModal extends LitElement {
     }
     this._state = { ...this._state, heightPx };
     this._plotCacheKey = '';
+    this._insetCacheKey = '';
   }
 
   private _updateDpi(dpi: number) {
@@ -331,6 +355,7 @@ export class ProtspacePublishModal extends LitElement {
       this._state = { ...this._state, dpi, preset: 'custom' };
     }
     this._plotCacheKey = '';
+    this._insetCacheKey = '';
   }
 
   private _applyPreset(presetId: PresetId) {
@@ -345,6 +370,7 @@ export class ProtspacePublishModal extends LitElement {
       dpi: preset.dpi,
     };
     this._plotCacheKey = '';
+    this._insetCacheKey = '';
   }
 
   private _setTool(tool: OverlayTool) {
@@ -384,21 +410,31 @@ export class ProtspacePublishModal extends LitElement {
     const s = this._state;
     const visibleCount = this._legendItems.filter((it) => it.isVisible).length;
     const { plotRect } = computeLayout(s.widthPx, s.heightPx, s.legend, visibleCount);
+    const plotEl = this.plotElement as HTMLElement & {
+      captureAtResolution?: (
+        w: number,
+        h: number,
+        opts: { dpr?: number; backgroundColor?: string },
+      ) => HTMLCanvasElement;
+    };
+    const bgColor = s.background === 'white' ? '#ffffff' : 'rgba(0,0,0,0)';
 
-    const plotCanvas = capturePlotCanvas(
-      this.plotElement as HTMLElement & {
-        captureAtResolution?: (
-          w: number,
-          h: number,
-          opts: { dpr?: number; backgroundColor?: string },
-        ) => HTMLCanvasElement;
-      },
-      {
-        width: plotRect.w,
-        height: plotRect.h,
-        backgroundColor: s.background === 'white' ? '#ffffff' : 'rgba(0,0,0,0)',
-      },
-    );
+    const plotCanvas = capturePlotCanvas(plotEl, {
+      width: plotRect.w,
+      height: plotRect.h,
+      backgroundColor: bgColor,
+    });
+
+    // Boosted capture for crisp inset rendering
+    let insetPlotCanvas: HTMLCanvasElement | undefined;
+    const boost = computeInsetBoost(s.insets);
+    if (boost > 1) {
+      insetPlotCanvas = capturePlotCanvas(plotEl, {
+        width: plotRect.w * boost,
+        height: plotRect.h * boost,
+        backgroundColor: bgColor,
+      });
+    }
 
     const outCanvas = document.createElement('canvas');
     outCanvas.width = s.widthPx;
@@ -410,6 +446,7 @@ export class ProtspacePublishModal extends LitElement {
       legendItems: this._legendItems,
       annotationName: this._annotationName,
       includeShapes: this._includeShapes,
+      insetPlotCanvas,
     });
 
     this.dispatchEvent(
@@ -1011,36 +1048,6 @@ export class ProtspacePublishModal extends LitElement {
                 <button class="delete-btn" @click=${() => this._removeInset(i)} title="Remove">
                   <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
-              </div>
-              <div class="publish-row" style="margin-bottom: 0;">
-                <label>Zoom</label>
-                <div class="publish-input-group">
-                  <input
-                    type="range"
-                    class="publish-slider"
-                    min="1"
-                    max="10"
-                    step="0.5"
-                    .value=${String(inset.magnification ?? 2)}
-                    @input=${(e: Event) => {
-                      const mag = parseFloat((e.target as HTMLInputElement).value) || 2;
-                      this._updateInset(i, { magnification: mag });
-                    }}
-                  />
-                  <input
-                    type="number"
-                    class="publish-row-input"
-                    min="1"
-                    max="10"
-                    step="0.5"
-                    .value=${String(inset.magnification ?? 2)}
-                    @change=${(e: Event) => {
-                      const mag = parseFloat((e.target as HTMLInputElement).value) || 2;
-                      this._updateInset(i, { magnification: mag });
-                    }}
-                  />
-                  <span class="publish-unit">x</span>
-                </div>
               </div>
               <div class="publish-row" style="margin-bottom: 0;">
                 <label>Border</label>

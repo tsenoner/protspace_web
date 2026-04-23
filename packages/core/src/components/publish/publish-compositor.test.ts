@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeLayout } from './publish-compositor';
+import { computeLayout, computeInsetBoost } from './publish-compositor';
 import type { LegendLayout } from './publish-state';
 
 function makeLegend(overrides: Partial<LegendLayout> = {}): LegendLayout {
@@ -136,6 +136,58 @@ describe('publish-compositor', () => {
       expect(legendRect).not.toBeNull();
       const expectedW = Math.round(2000 * 0.2);
       expect(legendRect!.x).toBe(Math.round((2000 - expectedW) / 2));
+    });
+  });
+
+  describe('computeInsetBoost', () => {
+    it('returns 1 when there are no insets', () => {
+      expect(computeInsetBoost([])).toBe(1);
+    });
+
+    it('computes boost from target/source size ratio', () => {
+      const insets = [
+        {
+          sourceRect: { x: 0, y: 0, w: 0.1, h: 0.1 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.3, h: 0.3 },
+          border: 2,
+          connector: 'lines' as const,
+        },
+      ];
+      // 0.3 / 0.1 = 3x zoom → boost = 3
+      expect(computeInsetBoost(insets)).toBe(3);
+    });
+
+    it('caps boost at maxBoost', () => {
+      const insets = [
+        {
+          sourceRect: { x: 0, y: 0, w: 0.05, h: 0.05 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
+          border: 2,
+          connector: 'lines' as const,
+        },
+      ];
+      // 0.5 / 0.05 = 10x → capped at 4
+      expect(computeInsetBoost(insets)).toBe(4);
+      expect(computeInsetBoost(insets, 2)).toBe(2);
+    });
+
+    it('uses the max zoom across multiple insets', () => {
+      const insets = [
+        {
+          sourceRect: { x: 0, y: 0, w: 0.2, h: 0.2 },
+          targetRect: { x: 0.5, y: 0, w: 0.3, h: 0.3 },
+          border: 2,
+          connector: 'lines' as const,
+        },
+        {
+          sourceRect: { x: 0, y: 0, w: 0.1, h: 0.1 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.4, h: 0.4 },
+          border: 2,
+          connector: 'lines' as const,
+        },
+      ];
+      // First: 0.3/0.2 = 1.5x, Second: 0.4/0.1 = 4x → boost = 4
+      expect(computeInsetBoost(insets)).toBe(4);
     });
   });
 });

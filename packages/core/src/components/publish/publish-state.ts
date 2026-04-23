@@ -63,8 +63,6 @@ export interface Inset {
   targetRect: NormRect;
   border: number;
   connector: 'lines' | 'none';
-  /** Zoom level — controls how much the source rect is magnified. Default 2. */
-  magnification: number;
 }
 
 // ── Legend layout ────────────────────────────────────────
