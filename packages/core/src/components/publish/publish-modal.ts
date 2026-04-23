@@ -86,6 +86,7 @@ export class ProtspacePublishModal extends LitElement {
 
   @state() private _state: PublishState = createDefaultPublishState();
   @state() private _tool: OverlayTool = 'select';
+  @state() private _highlightedItem: { kind: 'annotation' | 'inset'; index: number } | null = null;
   @state() private _legendItems: LegendItem[] = [];
   @state() private _annotationName = 'Legend';
   @state() private _includeShapes = false;
@@ -123,7 +124,7 @@ export class ProtspacePublishModal extends LitElement {
   }
 
   override updated(changed: Map<string, unknown>) {
-    if (changed.has('_state') || changed.has('_tool')) {
+    if (changed.has('_state') || changed.has('_tool') || changed.has('_highlightedItem')) {
       this._scheduleRedraw();
     }
   }
@@ -244,10 +245,13 @@ export class ProtspacePublishModal extends LitElement {
       legendItems: this._legendItems,
       annotationName: this._annotationName,
       includeShapes: this._includeShapes,
+      highlightedItem: this._highlightedItem,
     });
 
-    // Draw overlay indicators
-    this._overlayController?.drawDragIndicator(this._previewCanvas.getContext('2d')!);
+    // Draw overlay indicators and selection handles
+    const overlayCtx = this._previewCanvas.getContext('2d')!;
+    this._overlayController?.drawDragIndicator(overlayCtx);
+    this._overlayController?.drawSelectionHandles(overlayCtx);
   }
 
   // ── State mutations ────────────────────────────────
@@ -806,7 +810,18 @@ export class ProtspacePublishModal extends LitElement {
         <div class="publish-section-title">Annotations (${anns.length})</div>
         ${anns.map(
           (a, i) => html`
-            <div class="publish-annotation-item">
+            <div
+              class="publish-annotation-item ${this._highlightedItem?.kind === 'annotation' &&
+              this._highlightedItem.index === i
+                ? 'highlighted'
+                : ''}"
+              @mouseenter=${() => {
+                this._highlightedItem = { kind: 'annotation', index: i };
+              }}
+              @mouseleave=${() => {
+                this._highlightedItem = null;
+              }}
+            >
               <span>${a.type}${a.type === 'label' ? `: ${a.text}` : ''}</span>
               <button class="delete-btn" @click=${() => this._removeAnnotation(i)} title="Remove">
                 <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
@@ -833,8 +848,17 @@ export class ProtspacePublishModal extends LitElement {
         ${ins.map(
           (inset, i) => html`
             <div
-              class="publish-annotation-item"
+              class="publish-annotation-item ${this._highlightedItem?.kind === 'inset' &&
+              this._highlightedItem.index === i
+                ? 'highlighted'
+                : ''}"
               style="flex-direction: column; align-items: stretch; gap: 4px;"
+              @mouseenter=${() => {
+                this._highlightedItem = { kind: 'inset', index: i };
+              }}
+              @mouseleave=${() => {
+                this._highlightedItem = null;
+              }}
             >
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span>Inset ${i + 1}</span>

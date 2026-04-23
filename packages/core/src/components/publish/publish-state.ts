@@ -16,8 +16,12 @@ export interface CircleAnnotation {
   cx: number;
   /** Centre Y, normalised 0–1 */
   cy: number;
-  /** Radius, normalised 0–1 */
-  r: number;
+  /** Horizontal radius, normalised 0–1 */
+  rx: number;
+  /** Vertical radius, normalised 0–1 */
+  ry: number;
+  /** Rotation in radians */
+  rotation: number;
   color: string;
   strokeWidth: number;
 }

@@ -560,18 +560,26 @@ function drawAnnotation(
 
 function drawCircleAnnotation(
   ctx: CanvasRenderingContext2D,
-  a: { cx: number; cy: number; r: number; color: string; strokeWidth: number },
+  a: {
+    cx: number;
+    cy: number;
+    rx: number;
+    ry: number;
+    rotation: number;
+    color: string;
+    strokeWidth: number;
+  },
   pr: LayoutRect,
 ) {
   const cx = pr.x + a.cx * pr.w;
   const cy = pr.y + a.cy * pr.h;
-  const rx = a.r * pr.w;
-  const ry = a.r * pr.h;
+  const rx = a.rx * pr.w;
+  const ry = a.ry * pr.h;
   ctx.save();
   ctx.strokeStyle = a.color;
   ctx.lineWidth = a.strokeWidth;
   ctx.beginPath();
-  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy, rx, ry, a.rotation || 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
@@ -633,6 +641,48 @@ function drawLabelAnnotation(
   ctx.restore();
 }
 
+/** Draw a highlight outline around an annotation. Uses current ctx stroke style. */
+function drawAnnotationHighlight(ctx: CanvasRenderingContext2D, a: Annotation, pr: LayoutRect) {
+  const pad = 4;
+  switch (a.type) {
+    case 'circle': {
+      const cx = pr.x + a.cx * pr.w;
+      const cy = pr.y + a.cy * pr.h;
+      const rx = a.rx * pr.w + pad;
+      const ry = a.ry * pr.h + pad;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, a.rotation || 0, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+    case 'arrow': {
+      const x1 = pr.x + a.x1 * pr.w;
+      const y1 = pr.y + a.y1 * pr.h;
+      const x2 = pr.x + a.x2 * pr.w;
+      const y2 = pr.y + a.y2 * pr.h;
+      const minX = Math.min(x1, x2) - pad;
+      const minY = Math.min(y1, y2) - pad;
+      const w = Math.abs(x2 - x1) + pad * 2;
+      const h = Math.abs(y2 - y1) + pad * 2;
+      ctx.strokeRect(minX, minY, w, h);
+      break;
+    }
+    case 'label': {
+      const x = pr.x + a.x * pr.w;
+      const y = pr.y + a.y * pr.h;
+      ctx.font = `600 ${a.fontSize}px Arial, sans-serif`;
+      const metrics = ctx.measureText(a.text);
+      ctx.strokeRect(
+        x - pad,
+        y - a.fontSize / 2 - pad,
+        metrics.width + pad * 2,
+        a.fontSize + pad * 2,
+      );
+      break;
+    }
+  }
+}
+
 // ── Main compositor ──────────────────────────────────────────────────
 
 interface CompositeOptions {
@@ -641,6 +691,8 @@ interface CompositeOptions {
   legendItems: LegendItem[];
   annotationName: string;
   includeShapes: boolean;
+  /** When set, draw a highlight outline around this item on the preview. */
+  highlightedItem?: { kind: 'annotation' | 'inset'; index: number } | null;
 }
 
 /**
@@ -705,5 +757,40 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
   // Annotations
   for (const annotation of state.annotations) {
     drawAnnotation(ctx, annotation, plotRect);
+  }
+
+  // Highlight outline for hovered item (preview only)
+  const hi = opts.highlightedItem;
+  if (hi) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0, 163, 224, 0.9)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6, 4]);
+
+    if (hi.kind === 'annotation') {
+      const a = state.annotations[hi.index];
+      if (a) {
+        drawAnnotationHighlight(ctx, a, plotRect);
+      }
+    } else {
+      const inset = state.insets[hi.index];
+      if (inset) {
+        // Highlight both source and target rects
+        const sr = inset.sourceRect;
+        const tr = inset.targetRect;
+        const sx = plotRect.x + sr.x * plotRect.w;
+        const sy = plotRect.y + sr.y * plotRect.h;
+        const sw = sr.w * plotRect.w;
+        const sh = sr.h * plotRect.h;
+        const tx = plotRect.x + tr.x * plotRect.w;
+        const ty = plotRect.y + tr.y * plotRect.h;
+        const tw = tr.w * plotRect.w;
+        const th = tr.h * plotRect.h;
+        ctx.strokeRect(sx - 2, sy - 2, sw + 4, sh + 4);
+        ctx.strokeRect(tx - 2, ty - 2, tw + 4, th + 4);
+      }
+    }
+
+    ctx.restore();
   }
 }

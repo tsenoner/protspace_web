@@ -51,6 +51,7 @@ export class PublishOverlayController {
   private pendingInsetSource: NormRect | null = null;
   private selected: { kind: 'annotation' | 'inset'; index: number } | null = null;
   private dragOffset: { dx: number; dy: number } = { dx: 0, dy: 0 };
+  private handleMode: 'move' | 'resize-rx' | 'resize-ry' | 'rotate' | null = null;
   private legendDragging = false;
 
   constructor(canvas: HTMLCanvasElement, callbacks: OverlayCallbacks) {
@@ -94,10 +95,11 @@ export class PublishOverlayController {
     const threshold = 0.03;
     switch (a.type) {
       case 'circle': {
-        const dx = nx - a.cx;
-        const dy = ny - a.cy;
-        const dist = Math.abs(Math.sqrt(dx * dx + dy * dy) - a.r);
-        return dist < threshold;
+        // Normalize to unit circle space for proper ellipse hit-test
+        const dx = (nx - a.cx) / a.rx;
+        const dy = (ny - a.cy) / a.ry;
+        const dist = Math.abs(Math.sqrt(dx * dx + dy * dy) - 1);
+        return dist < threshold / Math.min(a.rx, a.ry);
       }
       case 'arrow':
         return this.pointToSegmentDist(nx, ny, a.x1, a.y1, a.x2, a.y2) < threshold;
@@ -128,6 +130,61 @@ export class PublishOverlayController {
     const projX = x1 + t * dx;
     const projY = y1 + t * dy;
     return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
+  }
+
+  /**
+   * Compute the 4 resize handles + 1 rotate handle for a circle annotation,
+   * in canvas-pixel coordinates. Returns null if not a circle.
+   */
+  private getCircleHandles(a: CircleAnnotation): {
+    right: { x: number; y: number };
+    left: { x: number; y: number };
+    top: { x: number; y: number };
+    bottom: { x: number; y: number };
+    rotate: { x: number; y: number };
+  } {
+    const pr = this.callbacks.getPlotRect();
+    const cxPx = pr.x + a.cx * pr.w;
+    const cyPx = pr.y + a.cy * pr.h;
+    const rxPx = a.rx * pr.w;
+    const ryPx = a.ry * pr.h;
+    const rot = a.rotation || 0;
+    const cos = Math.cos(rot);
+    const sin = Math.sin(rot);
+    const rotateOffset = 30; // px beyond the top handle
+
+    return {
+      right: { x: cxPx + rxPx * cos, y: cyPx + rxPx * sin },
+      left: { x: cxPx - rxPx * cos, y: cyPx - rxPx * sin },
+      top: { x: cxPx + ryPx * sin, y: cyPx - ryPx * cos },
+      bottom: { x: cxPx - ryPx * sin, y: cyPx + ryPx * cos },
+      rotate: {
+        x: cxPx + (ryPx + rotateOffset) * sin,
+        y: cyPx - (ryPx + rotateOffset) * cos,
+      },
+    };
+  }
+
+  /**
+   * Check if a canvas-pixel position hits a handle. Returns the handle type or null.
+   */
+  private hitTestCircleHandles(
+    pxX: number,
+    pxY: number,
+    a: CircleAnnotation,
+  ): 'resize-rx' | 'resize-ry' | 'rotate' | null {
+    const handles = this.getCircleHandles(a);
+    const hitRadius = 8; // px
+
+    const distSq = (hx: number, hy: number) => (pxX - hx) ** 2 + (pxY - hy) ** 2;
+
+    if (distSq(handles.rotate.x, handles.rotate.y) < hitRadius ** 2) return 'rotate';
+    if (distSq(handles.right.x, handles.right.y) < hitRadius ** 2) return 'resize-rx';
+    if (distSq(handles.left.x, handles.left.y) < hitRadius ** 2) return 'resize-rx';
+    if (distSq(handles.top.x, handles.top.y) < hitRadius ** 2) return 'resize-ry';
+    if (distSq(handles.bottom.x, handles.bottom.y) < hitRadius ** 2) return 'resize-ry';
+
+    return null;
   }
 
   private moveSelected(nx: number, ny: number) {
@@ -166,6 +223,43 @@ export class PublishOverlayController {
     }
   }
 
+  private applyHandleDrag() {
+    if (!this.selected || this.selected.kind !== 'annotation') return;
+    const anns = this.callbacks.getAnnotations();
+    const a = anns[this.selected.index];
+    if (!a || a.type !== 'circle') return;
+
+    const pr = this.callbacks.getPlotRect();
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+    const curPxX = this.drag.currentX * scaleX;
+    const curPxY = this.drag.currentY * scaleY;
+
+    const cxPx = pr.x + a.cx * pr.w;
+    const cyPx = pr.y + a.cy * pr.h;
+
+    if (this.handleMode === 'rotate') {
+      const angle = Math.atan2(curPxX - cxPx, -(curPxY - cyPx));
+      this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, rotation: angle });
+    } else if (this.handleMode === 'resize-rx') {
+      // Distance from center along the rotation axis
+      const rot = a.rotation || 0;
+      const dx = curPxX - cxPx;
+      const dy = curPxY - cyPx;
+      const projectedRx = Math.abs(dx * Math.cos(rot) + dy * Math.sin(rot));
+      const newRx = Math.max(0.01, projectedRx / pr.w);
+      this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, rx: newRx });
+    } else if (this.handleMode === 'resize-ry') {
+      const rot = a.rotation || 0;
+      const dx = curPxX - cxPx;
+      const dy = curPxY - cyPx;
+      const projectedRy = Math.abs(-dx * Math.sin(rot) + dy * Math.cos(rot));
+      const newRy = Math.max(0.01, projectedRy / pr.h);
+      this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, ry: newRy });
+    }
+  }
+
   private onPointerDown = (e: PointerEvent) => {
     const rect = this.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -175,6 +269,24 @@ export class PublishOverlayController {
 
     if (this._tool === 'select') {
       const norm = this.toNorm(x, y);
+      const canvasRect = this.canvas.getBoundingClientRect();
+      const pxX = x * (this.canvas.width / canvasRect.width);
+      const pxY = y * (this.canvas.height / canvasRect.height);
+
+      // If a circle is already selected, check handles first
+      if (this.selected?.kind === 'annotation') {
+        const a = this.callbacks.getAnnotations()[this.selected.index];
+        if (a?.type === 'circle') {
+          const mode = this.hitTestCircleHandles(pxX, pxY, a);
+          if (mode) {
+            this.handleMode = mode;
+            return;
+          }
+        }
+      }
+
+      this.handleMode = null;
+
       // Check insets first (drawn on top)
       const insets = this.callbacks.getInsets();
       for (let i = insets.length - 1; i >= 0; i--) {
@@ -228,6 +340,7 @@ export class PublishOverlayController {
         }
       }
       this.selected = null;
+      this.callbacks.onSelectionChanged(null, -1);
     }
   };
 
@@ -250,10 +363,14 @@ export class PublishOverlayController {
     }
 
     if (this._tool === 'select' && this.selected) {
-      const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
-      const nx = norm.nx - this.dragOffset.dx;
-      const ny = norm.ny - this.dragOffset.dy;
-      this.moveSelected(nx, ny);
+      if (this.handleMode && this.selected.kind === 'annotation') {
+        this.applyHandleDrag();
+      } else {
+        const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
+        const nx = norm.nx - this.dragOffset.dx;
+        const ny = norm.ny - this.dragOffset.dy;
+        this.moveSelected(nx, ny);
+      }
     }
 
     this.callbacks.requestRedraw();
@@ -268,6 +385,12 @@ export class PublishOverlayController {
     const endY = e.clientY - rect.top;
     const start = this.toNorm(this.drag.startX, this.drag.startY);
     const end = this.toNorm(endX, endY);
+
+    if (this.handleMode) {
+      this.handleMode = null;
+      this.callbacks.requestRedraw();
+      return;
+    }
 
     if (this.legendDragging) {
       this.legendDragging = false;
@@ -293,10 +416,7 @@ export class PublishOverlayController {
         this.finishInsetTarget(start, end);
         break;
       case 'select':
-        if (!this.selected) {
-          this.callbacks.onSelectionChanged(null, -1);
-        }
-        this.selected = null;
+        // Selection persists — cleared by clicking empty space in onPointerDown
         break;
     }
 
@@ -304,15 +424,21 @@ export class PublishOverlayController {
   };
 
   private finishCircle(start: { nx: number; ny: number }, end: { nx: number; ny: number }) {
-    const dx = end.nx - start.nx;
-    const dy = end.ny - start.ny;
-    const r = Math.sqrt(dx * dx + dy * dy);
-    if (r < 0.005) return; // too small
+    // Compute pixel radius so the circle looks circular regardless of aspect ratio
+    const pr = this.callbacks.getPlotRect();
+    const dxPx = (end.nx - start.nx) * pr.w;
+    const dyPx = (end.ny - start.ny) * pr.h;
+    const radiusPx = Math.sqrt(dxPx * dxPx + dyPx * dyPx);
+    if (radiusPx < 3) return; // too small
+    const rx = radiusPx / pr.w;
+    const ry = radiusPx / pr.h;
     const annotation: CircleAnnotation = {
       type: 'circle',
       cx: start.nx,
       cy: start.ny,
-      r,
+      rx,
+      ry,
+      rotation: 0,
       color: '#000000',
       strokeWidth: 2,
     };
@@ -427,5 +553,42 @@ export class PublishOverlayController {
 
     ctx.restore();
     void pr; // used for coord space reference
+  }
+
+  /** Draw resize/rotate handles when a circle annotation is selected. */
+  drawSelectionHandles(ctx: CanvasRenderingContext2D) {
+    if (!this.selected || this.selected.kind !== 'annotation') return;
+    const a = this.callbacks.getAnnotations()[this.selected.index];
+    if (!a || a.type !== 'circle') return;
+
+    const handles = this.getCircleHandles(a);
+    const handleSize = 5;
+
+    ctx.save();
+
+    // Line from top handle to rotate handle
+    ctx.strokeStyle = 'rgba(0, 163, 224, 0.6)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(handles.top.x, handles.top.y);
+    ctx.lineTo(handles.rotate.x, handles.rotate.y);
+    ctx.stroke();
+
+    // Resize handles — filled squares
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = 'rgba(0, 163, 224, 0.9)';
+    ctx.lineWidth = 1.5;
+    for (const h of [handles.right, handles.left, handles.top, handles.bottom]) {
+      ctx.fillRect(h.x - handleSize, h.y - handleSize, handleSize * 2, handleSize * 2);
+      ctx.strokeRect(h.x - handleSize, h.y - handleSize, handleSize * 2, handleSize * 2);
+    }
+
+    // Rotate handle — filled circle
+    ctx.beginPath();
+    ctx.arc(handles.rotate.x, handles.rotate.y, handleSize, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
   }
 }

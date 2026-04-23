@@ -390,6 +390,18 @@ export const publishModalStyles = css`
     margin-bottom: var(--spacing-xs);
     font-size: var(--text-xs);
     color: var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+
+  .publish-annotation-item:hover {
+    background: var(--hover-bg);
+    border-color: var(--border-hover);
+  }
+
+  .publish-annotation-item.highlighted {
+    background: var(--primary-light);
+    border-color: var(--primary);
   }
 
   .publish-annotation-item .delete-btn {

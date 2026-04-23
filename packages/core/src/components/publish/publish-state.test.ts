@@ -72,7 +72,9 @@ describe('publish-state', () => {
         type: 'circle' as const,
         cx: 0.5,
         cy: 0.3,
-        r: 0.1,
+        rx: 0.1,
+        ry: 0.05,
+        rotation: 0,
         color: '#e42121',
         strokeWidth: 2,
       };
@@ -81,8 +83,8 @@ describe('publish-state', () => {
       expect(circle.cx).toBeLessThanOrEqual(1);
       expect(circle.cy).toBeGreaterThanOrEqual(0);
       expect(circle.cy).toBeLessThanOrEqual(1);
-      expect(circle.r).toBeGreaterThan(0);
-      expect(circle.r).toBeLessThanOrEqual(1);
+      expect(circle.rx).toBeGreaterThan(0);
+      expect(circle.ry).toBeGreaterThan(0);
     });
   });
 });
