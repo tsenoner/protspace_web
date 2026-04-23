@@ -87,7 +87,9 @@ export const publishModalStyles = css`
     flex-shrink: 0;
   }
 
-  .publish-tool-btn {
+  /* Shared toggle button base — used for tool buttons, preset grid.
+   * Mirrors the control-bar dropdown-trigger / filter-active pattern. */
+  .publish-toggle-btn {
     display: flex;
     align-items: center;
     gap: 4px;
@@ -101,15 +103,27 @@ export const publishModalStyles = css`
     transition: var(--transition-fast);
   }
 
-  .publish-tool-btn:hover {
+  .publish-toggle-btn:hover {
     background: var(--hover-bg);
     border-color: var(--border-hover);
   }
 
-  .publish-tool-btn.active {
-    background: var(--primary-light);
+  /* Active = blue border only, same hover as unselected.
+   * Matches filter-active in query-builder.styles.ts.
+   * Double class to beat global button.active specificity. */
+  .publish-toggle-btn.publish-toggle-btn.active {
     border-color: var(--primary);
     color: var(--primary);
+    background: var(--surface);
+  }
+
+  .publish-toggle-btn.publish-toggle-btn.active:hover {
+    background: var(--hover-bg);
+    border-color: var(--primary);
+  }
+
+  .publish-tool-btn {
+    font-size: var(--text-sm);
   }
 
   .publish-tool-btn svg {
@@ -230,19 +244,10 @@ export const publishModalStyles = css`
   }
 
   .publish-preset-btn {
-    display: flex;
-    align-items: baseline;
     justify-content: space-between;
-    gap: 4px;
     padding: 6px 8px;
-    border: var(--border-width) solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
     font-size: var(--text-xs);
-    color: var(--text-primary);
-    cursor: pointer;
     text-align: left;
-    transition: var(--transition-fast);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -254,16 +259,9 @@ export const publishModalStyles = css`
     font-weight: var(--font-normal);
   }
 
-  .publish-preset-btn:hover {
-    background: var(--hover-bg);
-    border-color: var(--border-hover);
-  }
-
-  .publish-preset-btn.active {
-    background: var(--primary-light);
-    border-color: var(--primary);
+  .publish-preset-btn.active .publish-preset-dims {
     color: var(--primary);
-    font-weight: var(--font-medium);
+    opacity: 0.7;
   }
 
   /* ─── Form rows ─────────────────────────────────────────── */
@@ -439,38 +437,6 @@ export const publishModalStyles = css`
     background: rgba(228, 33, 33, 0.06);
     border-radius: var(--radius);
     margin-bottom: var(--spacing-xs);
-  }
-
-  /* ─── Size mode toggle ───────────────────────────────── */
-  .publish-size-mode-toggle {
-    display: flex;
-    gap: var(--spacing-xs);
-    margin-bottom: var(--spacing-sm);
-  }
-
-  .publish-size-mode-btn {
-    flex: 1;
-    padding: 4px 6px;
-    border: var(--border-width) solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-xs);
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: var(--transition-fast);
-    text-align: center;
-  }
-
-  .publish-size-mode-btn:hover {
-    background: var(--hover-bg);
-    border-color: var(--border-hover);
-  }
-
-  .publish-size-mode-btn.active {
-    background: var(--primary-light);
-    border-color: var(--primary);
-    color: var(--primary);
-    font-weight: var(--font-medium);
   }
 
   /* ─── Slider ─────────────────────────────────────────── */

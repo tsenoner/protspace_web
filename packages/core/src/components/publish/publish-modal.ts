@@ -111,14 +111,12 @@ export class ProtspacePublishModal extends LitElement {
       this._state = createDefaultPublishState(this.initialState);
     }
     this._readLegend();
-    document.addEventListener('keydown', this._onKeyDown);
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
     this._overlayController?.destroy();
     this._overlayController = null;
-    document.removeEventListener('keydown', this._onKeyDown);
     if (this._debounceTimer) clearTimeout(this._debounceTimer);
   }
 
@@ -462,10 +460,6 @@ export class ProtspacePublishModal extends LitElement {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
   }
 
-  private _onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') this._handleClose();
-  };
-
   // ── Render ─────────────────────────────────────────
 
   override render() {
@@ -524,7 +518,7 @@ export class ProtspacePublishModal extends LitElement {
     return html`
       <div class="publish-preview-toolbar">
         <button
-          class="publish-tool-btn ${tool === 'select' ? 'active' : ''}"
+          class="publish-toggle-btn publish-tool-btn ${tool === 'select' ? 'active' : ''}"
           @click=${() => this._setTool('select')}
           title="Select / Move"
         >
@@ -532,7 +526,7 @@ export class ProtspacePublishModal extends LitElement {
           Select
         </button>
         <button
-          class="publish-tool-btn ${tool === 'circle' ? 'active' : ''}"
+          class="publish-toggle-btn publish-tool-btn ${tool === 'circle' ? 'active' : ''}"
           @click=${() => this._setTool('circle')}
           title="Draw circle highlight"
         >
@@ -540,7 +534,7 @@ export class ProtspacePublishModal extends LitElement {
           Circle
         </button>
         <button
-          class="publish-tool-btn ${tool === 'arrow' ? 'active' : ''}"
+          class="publish-toggle-btn publish-tool-btn ${tool === 'arrow' ? 'active' : ''}"
           @click=${() => this._setTool('arrow')}
           title="Draw arrow"
         >
@@ -550,7 +544,7 @@ export class ProtspacePublishModal extends LitElement {
           Arrow
         </button>
         <button
-          class="publish-tool-btn ${tool === 'label' ? 'active' : ''}"
+          class="publish-toggle-btn publish-tool-btn ${tool === 'label' ? 'active' : ''}"
           @click=${() => this._setTool('label')}
           title="Add text label"
         >
@@ -563,7 +557,7 @@ export class ProtspacePublishModal extends LitElement {
         <div class="tool-separator"></div>
 
         <button
-          class="publish-tool-btn ${tool === 'inset-source' ? 'active' : ''}"
+          class="publish-toggle-btn publish-tool-btn ${tool === 'inset-source' ? 'active' : ''}"
           @click=${() => this._setTool('inset-source')}
           title="Add zoom inset"
         >
@@ -591,7 +585,9 @@ export class ProtspacePublishModal extends LitElement {
                 : `${preset.widthPx}\u00d7${preset.heightPx}`;
             return html`
               <button
-                class="publish-preset-btn ${this._state.preset === p.id ? 'active' : ''}"
+                class="publish-toggle-btn publish-preset-btn ${this._state.preset === p.id
+                  ? 'active'
+                  : ''}"
                 @click=${() => this._applyPreset(p.id)}
                 title="${p.label} (${dims})"
               >
