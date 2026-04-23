@@ -42,6 +42,8 @@ export interface LabelAnnotation {
   y: number;
   text: string;
   fontSize: number;
+  /** Rotation in radians */
+  rotation: number;
   color: string;
 }
 

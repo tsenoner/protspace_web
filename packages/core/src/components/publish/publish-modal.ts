@@ -263,7 +263,8 @@ export class ProtspacePublishModal extends LitElement {
     // Draw overlay indicators and selection handles
     const overlayCtx = this._previewCanvas.getContext('2d')!;
     this._overlayController?.drawDragIndicator(overlayCtx);
-    this._overlayController?.drawSelectionHandles(overlayCtx);
+    const annotScale = previewW / (s.referenceWidth || previewW);
+    this._overlayController?.drawSelectionHandles(overlayCtx, annotScale);
   }
 
   // ── State mutations ────────────────────────────────

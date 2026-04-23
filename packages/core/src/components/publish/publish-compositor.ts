@@ -648,18 +648,20 @@ function drawArrowAnnotation(
 
 function drawLabelAnnotation(
   ctx: CanvasRenderingContext2D,
-  a: { x: number; y: number; text: string; fontSize: number; color: string },
+  a: { x: number; y: number; text: string; fontSize: number; rotation: number; color: string },
   pr: LayoutRect,
   scale: number,
 ) {
   const x = pr.x + a.x * pr.w;
   const y = pr.y + a.y * pr.h;
   ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a.rotation || 0);
   ctx.fillStyle = a.color;
   ctx.font = `600 ${a.fontSize * scale}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  ctx.fillText(a.text, x, y);
+  ctx.textAlign = 'center';
+  ctx.fillText(a.text, 0, 0);
   ctx.restore();
 }
 
@@ -698,13 +700,12 @@ function drawAnnotationHighlight(
       const x = pr.x + a.x * pr.w;
       const y = pr.y + a.y * pr.h;
       ctx.font = `600 ${a.fontSize}px Arial, sans-serif`;
-      const metrics = ctx.measureText(a.text);
-      ctx.strokeRect(
-        x - pad,
-        y - a.fontSize / 2 - pad,
-        metrics.width + pad * 2,
-        a.fontSize + pad * 2,
-      );
+      const tw = ctx.measureText(a.text).width;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(a.rotation || 0);
+      ctx.strokeRect(-tw / 2 - pad, -a.fontSize / 2 - pad, tw + pad * 2, a.fontSize + pad * 2);
+      ctx.restore();
       break;
     }
   }

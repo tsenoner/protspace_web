@@ -58,6 +58,7 @@ export class PublishOverlayController {
     | 'rotate'
     | 'arrow-start'
     | 'arrow-end'
+    | 'label-rotate'
     | null = null;
   private legendDragging = false;
 
@@ -111,7 +112,7 @@ export class PublishOverlayController {
       case 'arrow':
         return this.pointToSegmentDist(nx, ny, a.x1, a.y1, a.x2, a.y2) < threshold;
       case 'label':
-        return nx >= a.x - 0.01 && nx <= a.x + 0.15 && ny >= a.y - 0.03 && ny <= a.y + 0.03;
+        return nx >= a.x - 0.08 && nx <= a.x + 0.08 && ny >= a.y - 0.03 && ny <= a.y + 0.03;
     }
   }
 
@@ -254,6 +255,22 @@ export class PublishOverlayController {
       return;
     }
 
+    // Label rotate handle — rotation around the text anchor, same as circle
+    if (a.type === 'label' && this.handleMode === 'label-rotate') {
+      const pr = this.callbacks.getPlotRect();
+      const rect = this.canvas.getBoundingClientRect();
+      const scaleX = this.canvas.width / rect.width;
+      const scaleY = this.canvas.height / rect.height;
+      const curPxX = this.drag.currentX * scaleX;
+      const curPxY = this.drag.currentY * scaleY;
+      const lx = pr.x + a.x * pr.w;
+      const ly = pr.y + a.y * pr.h;
+      // Same formula as circle: atan2(dx, -dy) — "up" = 0, clockwise = positive
+      const angle = Math.atan2(curPxX - lx, -(curPxY - ly));
+      this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, rotation: angle });
+      return;
+    }
+
     if (a.type !== 'circle') return;
 
     const pr = this.callbacks.getPlotRect();
@@ -324,6 +341,29 @@ export class PublishOverlayController {
           }
           if ((pxX - ex) ** 2 + (pxY - ey) ** 2 < hitR ** 2) {
             this.handleMode = 'arrow-end';
+            return;
+          }
+        }
+        if (a?.type === 'label') {
+          const pr = this.callbacks.getPlotRect();
+          const ds = this.canvas.width / canvasRect.width;
+          const hitR = 10 * ds;
+          const lx = pr.x + a.x * pr.w;
+          const ly = pr.y + a.y * pr.h;
+          const rot = a.rotation || 0;
+          const cos = Math.cos(rot);
+          const sin = Math.sin(rot);
+          // Handle local pos: (0, -th/2 - pad - offset) since text is centered
+          const scaledFs = a.fontSize * ds;
+          const th = scaledFs;
+          const pad = 4 * ds;
+          const handleOffset = 25 * ds;
+          const hlx = 0;
+          const hly = -th / 2 - pad - handleOffset;
+          const hx = lx + hlx * cos - hly * sin;
+          const hy = ly + hlx * sin + hly * cos;
+          if ((pxX - hx) ** 2 + (pxY - hy) ** 2 < hitR ** 2) {
+            this.handleMode = 'label-rotate';
             return;
           }
         }
@@ -512,6 +552,7 @@ export class PublishOverlayController {
       y: start.ny,
       text: 'Label',
       fontSize: 16,
+      rotation: 0,
       color: '#000000',
     };
     this.callbacks.onAnnotationAdded(annotation);
@@ -600,7 +641,7 @@ export class PublishOverlayController {
   }
 
   /** Draw resize/rotate handles when an annotation is selected. */
-  drawSelectionHandles(ctx: CanvasRenderingContext2D) {
+  drawSelectionHandles(ctx: CanvasRenderingContext2D, annotationScale = 1) {
     if (!this.selected || this.selected.kind !== 'annotation') return;
     const a = this.callbacks.getAnnotations()[this.selected.index];
     if (!a) return;
@@ -657,6 +698,55 @@ export class PublishOverlayController {
       ctx.arc(ex, ey, handleSize, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+    } else if (a.type === 'label') {
+      const pr = this.callbacks.getPlotRect();
+      const lx = pr.x + a.x * pr.w;
+      const ly = pr.y + a.y * pr.h;
+      const rot = a.rotation || 0;
+
+      // Measure text at the SCALED font size to match compositor rendering
+      const scaledFontSize = a.fontSize * annotationScale;
+      ctx.font = `600 ${scaledFontSize}px Arial, sans-serif`;
+      const tw = ctx.measureText(a.text).width;
+      const th = scaledFontSize;
+      const pad = 4 * ds;
+      const handleOffset = 25 * ds;
+
+      // Draw everything in local space: translate to anchor, rotate
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(rot);
+
+      // Selection rectangle around text (text is centered at local 0,0)
+      ctx.strokeStyle = 'rgba(0, 163, 224, 0.9)';
+      ctx.lineWidth = 2 * ds;
+      ctx.setLineDash([6 * ds, 4 * ds]);
+      ctx.strokeRect(-tw / 2 - pad, -th / 2 - pad, tw + pad * 2, th + pad * 2);
+      ctx.setLineDash([]);
+
+      // Line from top-center of box to rotate handle
+      const topCenterLocalX = 0;
+      const topCenterLocalY = -th / 2 - pad;
+      const handleLocalX = 0;
+      const handleLocalY = -th / 2 - pad - handleOffset;
+
+      ctx.strokeStyle = 'rgba(0, 163, 224, 0.6)';
+      ctx.lineWidth = 1 * ds;
+      ctx.beginPath();
+      ctx.moveTo(topCenterLocalX, topCenterLocalY);
+      ctx.lineTo(handleLocalX, handleLocalY);
+      ctx.stroke();
+
+      // Rotate handle — filled circle
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = 'rgba(0, 163, 224, 0.9)';
+      ctx.lineWidth = 1.5 * ds;
+      ctx.beginPath();
+      ctx.arc(handleLocalX, handleLocalY, handleSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
     }
 
     ctx.restore();
