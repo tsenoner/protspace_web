@@ -2,7 +2,7 @@
 export { ProtspacePublishModal } from './publish-modal';
 export type {
   PublishState,
-  Annotation,
+  Overlay,
   Inset,
   LegendPosition,
   LegendOverflow,

@@ -1,7 +1,7 @@
 /**
  * Overlay Controller for the Publish modal preview canvas.
  *
- * Handles pointer events for drawing annotations (circle, arrow, label),
+ * Handles pointer events for drawing overlays (circle, arrow, label),
  * placing zoom-inset source/target rectangles, and moving/resizing
  * selected items via drag handles.
  *
@@ -10,10 +10,10 @@
  */
 
 import type {
-  Annotation,
-  CircleAnnotation,
-  ArrowAnnotation,
-  LabelAnnotation,
+  Overlay,
+  CircleOverlay,
+  ArrowOverlay,
+  LabelOverlay,
   Inset,
   NormRect,
   OverlayTool,
@@ -21,14 +21,14 @@ import type {
 
 interface OverlayCallbacks {
   getPlotRect(): { x: number; y: number; w: number; h: number };
-  getAnnotations(): Annotation[];
+  getOverlays(): Overlay[];
   getInsets(): Inset[];
   getLegendRect(): { x: number; y: number; w: number; h: number } | null;
-  onAnnotationAdded(annotation: Annotation): void;
-  onAnnotationUpdated(index: number, annotation: Annotation): void;
+  onOverlayAdded(overlay: Overlay): void;
+  onOverlayUpdated(index: number, overlay: Overlay): void;
   onInsetAdded(inset: Inset): void;
   onInsetUpdated(index: number, inset: Inset): void;
-  onSelectionChanged(type: 'annotation' | 'inset' | null, index: number): void;
+  onSelectionChanged(type: 'overlay' | 'inset' | null, index: number): void;
   onLegendMoved(nx: number, ny: number): void;
   requestRedraw(): void;
 }
@@ -49,7 +49,7 @@ export class PublishOverlayController {
 
   // Pending inset: after source is drawn, we switch to inset-target
   private pendingInsetSource: NormRect | null = null;
-  private selected: { kind: 'annotation' | 'inset'; index: number } | null = null;
+  private selected: { kind: 'overlay' | 'inset'; index: number } | null = null;
   private dragOffset: { dx: number; dy: number } = { dx: 0, dy: 0 };
   private handleMode:
     | 'move'
@@ -108,7 +108,7 @@ export class PublishOverlayController {
     };
   }
 
-  private hitTestAnnotation(nx: number, ny: number, a: Annotation): boolean {
+  private hitTestOverlay(nx: number, ny: number, a: Overlay): boolean {
     const threshold = 0.03;
     switch (a.type) {
       case 'circle': {
@@ -172,10 +172,10 @@ export class PublishOverlayController {
   }
 
   /**
-   * Compute the 4 resize handles + 1 rotate handle for a circle annotation,
+   * Compute the 4 resize handles + 1 rotate handle for a circle overlay,
    * in canvas-pixel coordinates. Returns null if not a circle.
    */
-  private getCircleHandles(a: CircleAnnotation): {
+  private getCircleHandles(a: CircleOverlay): {
     right: { x: number; y: number };
     left: { x: number; y: number };
     top: { x: number; y: number };
@@ -212,7 +212,7 @@ export class PublishOverlayController {
   private hitTestCircleHandles(
     pxX: number,
     pxY: number,
-    a: CircleAnnotation,
+    a: CircleOverlay,
   ): 'resize-rx' | 'resize-ry' | 'rotate' | null {
     const handles = this.getCircleHandles(a);
     const rect = this.canvas.getBoundingClientRect();
@@ -318,12 +318,12 @@ export class PublishOverlayController {
   private moveSelected(nx: number, ny: number) {
     if (!this.selected) return;
 
-    if (this.selected.kind === 'annotation') {
-      const anns = this.callbacks.getAnnotations();
+    if (this.selected.kind === 'overlay') {
+      const anns = this.callbacks.getOverlays();
       const a = anns[this.selected.index];
       if (!a) return;
 
-      let moved: Annotation;
+      let moved: Overlay;
       switch (a.type) {
         case 'circle':
           moved = { ...a, cx: nx, cy: ny };
@@ -338,7 +338,7 @@ export class PublishOverlayController {
           moved = { ...a, x: nx, y: ny };
           break;
       }
-      this.callbacks.onAnnotationUpdated(this.selected.index, moved);
+      this.callbacks.onOverlayUpdated(this.selected.index, moved);
     } else {
       const insets = this.callbacks.getInsets();
       const inset = insets[this.selected.index];
@@ -360,8 +360,8 @@ export class PublishOverlayController {
   }
 
   private applyHandleDrag() {
-    if (!this.selected || this.selected.kind !== 'annotation') return;
-    const anns = this.callbacks.getAnnotations();
+    if (!this.selected || this.selected.kind !== 'overlay') return;
+    const anns = this.callbacks.getOverlays();
     const a = anns[this.selected.index];
     if (!a) return;
 
@@ -372,9 +372,9 @@ export class PublishOverlayController {
     ) {
       const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
       if (this.handleMode === 'arrow-start') {
-        this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, x1: norm.nx, y1: norm.ny });
+        this.callbacks.onOverlayUpdated(this.selected.index, { ...a, x1: norm.nx, y1: norm.ny });
       } else {
-        this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, x2: norm.nx, y2: norm.ny });
+        this.callbacks.onOverlayUpdated(this.selected.index, { ...a, x2: norm.nx, y2: norm.ny });
       }
       return;
     }
@@ -391,7 +391,7 @@ export class PublishOverlayController {
       const ly = pr.y + a.y * pr.h;
       // Same formula as circle: atan2(dx, -dy) — "up" = 0, clockwise = positive
       const angle = Math.atan2(curPxX - lx, -(curPxY - ly));
-      this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, rotation: angle });
+      this.callbacks.onOverlayUpdated(this.selected.index, { ...a, rotation: angle });
       return;
     }
 
@@ -409,7 +409,7 @@ export class PublishOverlayController {
 
     if (this.handleMode === 'rotate') {
       const angle = Math.atan2(curPxX - cxPx, -(curPxY - cyPx));
-      this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, rotation: angle });
+      this.callbacks.onOverlayUpdated(this.selected.index, { ...a, rotation: angle });
     } else if (this.handleMode === 'resize-rx') {
       // Distance from center along the rotation axis
       const rot = a.rotation || 0;
@@ -417,14 +417,14 @@ export class PublishOverlayController {
       const dy = curPxY - cyPx;
       const projectedRx = Math.abs(dx * Math.cos(rot) + dy * Math.sin(rot));
       const newRx = Math.max(0.01, projectedRx / pr.w);
-      this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, rx: newRx });
+      this.callbacks.onOverlayUpdated(this.selected.index, { ...a, rx: newRx });
     } else if (this.handleMode === 'resize-ry') {
       const rot = a.rotation || 0;
       const dx = curPxX - cxPx;
       const dy = curPxY - cyPx;
       const projectedRy = Math.abs(-dx * Math.sin(rot) + dy * Math.cos(rot));
       const newRy = Math.max(0.01, projectedRy / pr.h);
-      this.callbacks.onAnnotationUpdated(this.selected.index, { ...a, ry: newRy });
+      this.callbacks.onOverlayUpdated(this.selected.index, { ...a, ry: newRy });
     }
   }
 
@@ -441,9 +441,9 @@ export class PublishOverlayController {
       const pxX = x * (this.canvas.width / canvasRect.width);
       const pxY = y * (this.canvas.height / canvasRect.height);
 
-      // If an annotation is already selected, check its handles first
-      if (this.selected?.kind === 'annotation') {
-        const a = this.callbacks.getAnnotations()[this.selected.index];
+      // If an overlay is already selected, check its handles first
+      if (this.selected?.kind === 'overlay') {
+        const a = this.callbacks.getOverlays()[this.selected.index];
         if (a?.type === 'circle') {
           const mode = this.hitTestCircleHandles(pxX, pxY, a);
           if (mode) {
@@ -553,11 +553,11 @@ export class PublishOverlayController {
           return;
         }
       }
-      // Check annotations
-      const anns = this.callbacks.getAnnotations();
+      // Check overlays
+      const anns = this.callbacks.getOverlays();
       for (let i = anns.length - 1; i >= 0; i--) {
-        if (this.hitTestAnnotation(norm.nx, norm.ny, anns[i])) {
-          this.selected = { kind: 'annotation', index: i };
+        if (this.hitTestOverlay(norm.nx, norm.ny, anns[i])) {
+          this.selected = { kind: 'overlay', index: i };
           const a = anns[i];
           if (a.type === 'circle') {
             this.dragOffset = { dx: norm.nx - a.cx, dy: norm.ny - a.cy };
@@ -566,7 +566,7 @@ export class PublishOverlayController {
           } else {
             this.dragOffset = { dx: norm.nx - a.x, dy: norm.ny - a.y };
           }
-          this.callbacks.onSelectionChanged('annotation', i);
+          this.callbacks.onSelectionChanged('overlay', i);
           return;
         }
       }
@@ -616,7 +616,7 @@ export class PublishOverlayController {
     }
 
     if (this._tool === 'select' && this.selected) {
-      if (this.handleMode && this.selected.kind === 'annotation') {
+      if (this.handleMode && this.selected.kind === 'overlay') {
         this.applyHandleDrag();
       } else if (
         this.selected.kind === 'inset' &&
@@ -691,7 +691,7 @@ export class PublishOverlayController {
     if (radiusPx < 3) return; // too small
     const rx = radiusPx / pr.w;
     const ry = radiusPx / pr.h;
-    const annotation: CircleAnnotation = {
+    const overlay: CircleOverlay = {
       type: 'circle',
       cx: start.nx,
       cy: start.ny,
@@ -701,14 +701,14 @@ export class PublishOverlayController {
       color: '#000000',
       strokeWidth: 2,
     };
-    this.callbacks.onAnnotationAdded(annotation);
+    this.callbacks.onOverlayAdded(overlay);
   }
 
   private finishArrow(start: { nx: number; ny: number }, end: { nx: number; ny: number }) {
     const dx = end.nx - start.nx;
     const dy = end.ny - start.ny;
     if (Math.sqrt(dx * dx + dy * dy) < 0.005) return;
-    const annotation: ArrowAnnotation = {
+    const overlay: ArrowOverlay = {
       type: 'arrow',
       x1: start.nx,
       y1: start.ny,
@@ -717,11 +717,11 @@ export class PublishOverlayController {
       color: '#000000',
       width: 2,
     };
-    this.callbacks.onAnnotationAdded(annotation);
+    this.callbacks.onOverlayAdded(overlay);
   }
 
   private finishLabel(start: { nx: number; ny: number }) {
-    const annotation: LabelAnnotation = {
+    const overlay: LabelOverlay = {
       type: 'label',
       x: start.nx,
       y: start.ny,
@@ -730,7 +730,7 @@ export class PublishOverlayController {
       rotation: 0,
       color: '#000000',
     };
-    this.callbacks.onAnnotationAdded(annotation);
+    this.callbacks.onOverlayAdded(overlay);
   }
 
   private finishInsetSource(start: { nx: number; ny: number }, end: { nx: number; ny: number }) {
@@ -814,8 +814,8 @@ export class PublishOverlayController {
     void pr; // used for coord space reference
   }
 
-  /** Draw resize/rotate handles when an annotation or inset is selected. */
-  drawSelectionHandles(ctx: CanvasRenderingContext2D, annotationScale = 1) {
+  /** Draw resize/rotate handles when an overlay or inset is selected. */
+  drawSelectionHandles(ctx: CanvasRenderingContext2D, overlayScale = 1) {
     if (!this.selected) return;
 
     const rect = this.canvas.getBoundingClientRect();
@@ -854,8 +854,8 @@ export class PublishOverlayController {
       return;
     }
 
-    // ── Annotation handles ────────────────────────────────
-    const a = this.callbacks.getAnnotations()[this.selected.index];
+    // ── Overlay handles ───────────────────────────────────
+    const a = this.callbacks.getOverlays()[this.selected.index];
     if (!a) return;
 
     ctx.save();
@@ -913,7 +913,7 @@ export class PublishOverlayController {
       const rot = a.rotation || 0;
 
       // Measure text at the SCALED font size to match compositor rendering
-      const scaledFontSize = a.fontSize * annotationScale;
+      const scaledFontSize = a.fontSize * overlayScale;
       ctx.font = `600 ${scaledFontSize}px Arial, sans-serif`;
       const tw = ctx.measureText(a.text).width;
       const th = scaledFontSize;

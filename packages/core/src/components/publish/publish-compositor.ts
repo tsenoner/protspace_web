@@ -2,11 +2,11 @@
  * Publish Compositor
  *
  * Single rendering pipeline used by both the live preview and final export.
- * Captures the scatterplot, renders the legend, draws annotations and insets,
+ * Captures the scatterplot, renders the legend, draws overlays and insets,
  * and composites everything onto a single output canvas.
  */
 
-import type { Annotation, Inset, LegendLayout, PublishState } from './publish-state';
+import type { Overlay, Inset, LegendLayout, PublishState } from './publish-state';
 
 // ── Legend item type (mirrors export-utils LegendExportItem) ─────────
 
@@ -548,32 +548,32 @@ function renderInset(
   }
 }
 
-// ── Annotation rendering ─────────────────────────────────────────────
+// ── Overlay rendering ────────────────────────────────────────────────
 
 /**
- * Draw a single annotation onto the canvas context.
+ * Draw a single overlay onto the canvas context.
  * Coordinates are normalised 0–1 within the plot area.
  */
-function drawAnnotation(
+function renderOverlay(
   ctx: CanvasRenderingContext2D,
-  annotation: Annotation,
+  overlay: Overlay,
   plotRect: LayoutRect,
   scale: number,
 ) {
-  switch (annotation.type) {
+  switch (overlay.type) {
     case 'circle':
-      drawCircleAnnotation(ctx, annotation, plotRect, scale);
+      drawCircleOverlay(ctx, overlay, plotRect, scale);
       break;
     case 'arrow':
-      drawArrowAnnotation(ctx, annotation, plotRect, scale);
+      drawArrowOverlay(ctx, overlay, plotRect, scale);
       break;
     case 'label':
-      drawLabelAnnotation(ctx, annotation, plotRect, scale);
+      drawLabelOverlay(ctx, overlay, plotRect, scale);
       break;
   }
 }
 
-function drawCircleAnnotation(
+function drawCircleOverlay(
   ctx: CanvasRenderingContext2D,
   a: {
     cx: number;
@@ -600,7 +600,7 @@ function drawCircleAnnotation(
   ctx.restore();
 }
 
-function drawArrowAnnotation(
+function drawArrowOverlay(
   ctx: CanvasRenderingContext2D,
   a: {
     x1: number;
@@ -659,7 +659,7 @@ function drawArrowAnnotation(
   ctx.restore();
 }
 
-function drawLabelAnnotation(
+function drawLabelOverlay(
   ctx: CanvasRenderingContext2D,
   a: { x: number; y: number; text: string; fontSize: number; rotation: number; color: string },
   pr: LayoutRect,
@@ -678,10 +678,10 @@ function drawLabelAnnotation(
   ctx.restore();
 }
 
-/** Draw a highlight outline around an annotation. Uses current ctx stroke style. */
-function drawAnnotationHighlight(
+/** Draw a highlight outline around an overlay. Uses current ctx stroke style. */
+function drawOverlayHighlight(
   ctx: CanvasRenderingContext2D,
-  a: Annotation,
+  a: Overlay,
   pr: LayoutRect,
   displayScale: number,
 ) {
@@ -733,7 +733,7 @@ interface CompositeOptions {
   annotationName: string;
   includeShapes: boolean;
   /** When set, draw a highlight outline around this item on the preview. */
-  highlightedItem?: { kind: 'annotation' | 'inset'; index: number } | null;
+  highlightedItem?: { kind: 'overlay' | 'inset'; index: number } | null;
   /** Ratio of canvas pixels to display pixels — used to keep highlights at constant screen size. */
   displayScale?: number;
   /** Higher-resolution plot canvas for crisp inset rendering. Falls back to plotCanvas. */
@@ -760,8 +760,8 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
   const visibleCount = legendItems.filter((it) => it.isVisible).length;
   const { plotRect, legendRect } = computeLayout(W, H, state.legend, visibleCount);
 
-  // Scale annotation pixel properties proportionally to the reference width
-  const annotationScale = W / (state.referenceWidth || W);
+  // Scale overlay pixel properties proportionally to the reference width
+  const overlayScale = W / (state.referenceWidth || W);
 
   // Draw scatterplot into its area
   ctx.drawImage(plotCanvas, plotRect.x, plotRect.y, plotRect.w, plotRect.h);
@@ -800,12 +800,12 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
   // Insets — use boosted canvas if available for crisp rendering
   const insetSrc = opts.insetPlotCanvas ?? plotCanvas;
   for (const inset of state.insets) {
-    renderInset(ctx, insetSrc, inset, plotRect, annotationScale);
+    renderInset(ctx, insetSrc, inset, plotRect, overlayScale);
   }
 
-  // Annotations
-  for (const annotation of state.annotations) {
-    drawAnnotation(ctx, annotation, plotRect, annotationScale);
+  // Overlays
+  for (const overlay of state.overlays) {
+    renderOverlay(ctx, overlay, plotRect, overlayScale);
   }
 
   // Highlight outline for hovered item (preview only)
@@ -817,10 +817,10 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
     ctx.lineWidth = 3 * ds;
     ctx.setLineDash([6 * ds, 4 * ds]);
 
-    if (hi.kind === 'annotation') {
-      const a = state.annotations[hi.index];
+    if (hi.kind === 'overlay') {
+      const a = state.overlays[hi.index];
       if (a) {
-        drawAnnotationHighlight(ctx, a, plotRect, ds);
+        drawOverlayHighlight(ctx, a, plotRect, ds);
       }
     } else {
       const inset = state.insets[hi.index];

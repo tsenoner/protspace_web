@@ -142,11 +142,24 @@ export const exportStyles = css`
     opacity: 0.7;
   }
 
-  .export-dimensions-group {
-    padding-bottom: var(--spacing-sm);
-    margin-bottom: var(--spacing-sm);
-    border-bottom: var(--border-width) solid var(--border);
-    box-sizing: border-box;
+  .export-image-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .export-image-actions button {
+    width: 100%;
+    justify-content: center;
+    gap: var(--spacing-xs);
+  }
+
+  .export-image-hint {
+    font-size: var(--text-xs);
+    color: var(--muted);
+    line-height: 1.4;
+    margin-top: var(--spacing-xs);
+    opacity: 0.8;
   }
 
   /* Simplified checkbox styling to match filter menu */
@@ -168,36 +181,12 @@ export const exportStyles = css`
     flex-shrink: 0;
   }
 
-  .export-include-legend-label {
-    margin-bottom: var(--spacing-sm);
-  }
-
   .export-parquet-help {
     font-size: var(--text-xs);
     color: var(--muted);
     line-height: 1.4;
     margin-top: var(--spacing-xs);
     opacity: 0.8;
-  }
-
-  .export-actions {
-    display: flex;
-    gap: var(--spacing-xs);
-    padding-top: var(--spacing-sm);
-    border-top: var(--border-width) solid var(--border);
-    box-sizing: border-box;
-  }
-
-  .export-actions button {
-    flex: 1;
-  }
-
-  .export-figure-editor-btn {
-    width: 100%;
-    margin-top: var(--spacing-xs);
-    justify-content: center;
-    gap: var(--spacing-xs);
-    font-size: var(--text-sm);
   }
 
   .import-menu {

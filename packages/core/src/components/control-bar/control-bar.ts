@@ -1,7 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { controlBarStyles } from './control-bar.styles';
-import type { ExportOptionsMap, PersistedExportOptions } from '@protspace/utils';
 import type {
   DataChangeDetail,
   ProtspaceData,
@@ -12,15 +11,11 @@ import type {
 import { handleDropdownEscape, isAnyDropdownOpen } from '../../utils/dropdown-helpers';
 import {
   EXPORT_DEFAULTS,
-  createDefaultExportOptions,
-  calculateHeightFromWidth,
-  calculateWidthFromHeight,
   isProjection3D,
   getProjectionPlane,
   toggleProteinSelection,
   mergeProteinSelections,
 } from './control-bar-helpers';
-import { ExportPersistenceController } from './export-persistence-controller';
 import {
   createSelectionDisabledNotificationDetail,
   type SelectionDisabledNotificationDetail,
@@ -84,19 +79,8 @@ export class ProtspaceControlBar extends LitElement {
 
   // Export configuration state
   @state() private exportFormat: 'png' | 'pdf' | 'ids' | 'parquet' = EXPORT_DEFAULTS.FORMAT;
-  @state() private exportImageWidth: number = EXPORT_DEFAULTS.IMAGE_WIDTH;
-  @state() private exportImageHeight: number = EXPORT_DEFAULTS.IMAGE_HEIGHT;
-  @state() private exportLegendWidthPercent: number = EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT;
-  @state() private exportLegendFontSizePx: number = EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX;
-  @state() private exportLockAspectRatio: boolean = EXPORT_DEFAULTS.LOCK_ASPECT_RATIO;
-  @state() private exportIncludeLegend: boolean = EXPORT_DEFAULTS.INCLUDE_LEGEND;
   @state() private exportIncludeLegendSettings: boolean = true;
-  @state() private exportIncludeExportOptions: boolean = true;
   private _scatterplotElement: ScatterplotElementLike | null = null;
-  private _exportPersistence = new ExportPersistenceController({
-    onSettingsLoaded: (settings) => this._applyPersistedExportSettings(settings),
-    getCurrentSettings: () => this._getCurrentExportSettings(),
-  });
 
   // Search state
   @state() private allProteinIds: string[] = [];
@@ -301,11 +285,7 @@ export class ProtspaceControlBar extends LitElement {
   }
 
   applyAnnotationSelection(annotation: string) {
-    if (annotation !== this.selectedAnnotation) {
-      this.selectedAnnotation = annotation;
-      this._exportPersistence.updateSelectedAnnotation(annotation);
-      this._exportPersistence.loadSettings();
-    }
+    this.selectedAnnotation = annotation;
 
     // If auto-sync is enabled, directly update the scatterplot
     if (this.autoSync && this._scatterplotElement) {
@@ -313,8 +293,6 @@ export class ProtspaceControlBar extends LitElement {
         (this._scatterplotElement as ScatterplotElementLike).selectedAnnotation = annotation;
       }
     }
-
-    this.selectedAnnotation = annotation;
 
     const customEvent = new CustomEvent('annotation-change', {
       detail: { annotation },
@@ -430,13 +408,12 @@ export class ProtspaceControlBar extends LitElement {
     const customEvent = new CustomEvent('export', {
       detail: {
         type: this.exportFormat,
-        imageWidth: this.exportImageWidth,
-        imageHeight: this.exportImageHeight,
-        legendWidthPercent: this.exportLegendWidthPercent,
-        legendFontSizePx: this.exportLegendFontSizePx,
-        includeLegend: this.exportIncludeLegend,
+        imageWidth: EXPORT_DEFAULTS.IMAGE_WIDTH,
+        imageHeight: EXPORT_DEFAULTS.IMAGE_HEIGHT,
+        legendWidthPercent: EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT,
+        legendFontSizePx: EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX,
+        includeLegend: EXPORT_DEFAULTS.INCLUDE_LEGEND,
         includeLegendSettings: this.exportIncludeLegendSettings,
-        includeExportOptions: this.exportIncludeExportOptions,
       },
       bubbles: true,
       composed: true,
@@ -447,12 +424,7 @@ export class ProtspaceControlBar extends LitElement {
 
   private handleOpenPublishEditor() {
     const customEvent = new CustomEvent('open-publish-editor', {
-      detail: {
-        imageWidth: this.exportImageWidth,
-        imageHeight: this.exportImageHeight,
-        legendWidthPercent: this.exportLegendWidthPercent,
-        legendFontSizePx: this.exportLegendFontSizePx,
-      },
+      detail: {},
       bubbles: true,
       composed: true,
     });
@@ -522,132 +494,8 @@ export class ProtspaceControlBar extends LitElement {
     }
   }
 
-  private resetExportSettings() {
-    this._applyUserExportSettingsChange(() => {
-      this._applyPersistedExportSettings(createDefaultExportOptions());
-    });
-    this.exportIncludeLegend = EXPORT_DEFAULTS.INCLUDE_LEGEND;
-  }
-
-  private handleWidthChange(newWidth: number) {
-    this._applyUserExportSettingsChange(() => {
-      const oldWidth = this.exportImageWidth;
-      this.exportImageWidth = newWidth;
-
-      if (this.exportLockAspectRatio) {
-        this.exportImageHeight = calculateHeightFromWidth(
-          newWidth,
-          oldWidth,
-          this.exportImageHeight,
-        );
-      }
-    });
-  }
-
-  private handleHeightChange(newHeight: number) {
-    this._applyUserExportSettingsChange(() => {
-      const oldHeight = this.exportImageHeight;
-      this.exportImageHeight = newHeight;
-
-      if (this.exportLockAspectRatio) {
-        this.exportImageWidth = calculateWidthFromHeight(
-          newHeight,
-          oldHeight,
-          this.exportImageWidth,
-        );
-      }
-    });
-  }
-
-  /**
-   * Clamp a value to a range
-   */
-  private clamp(value: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, value));
-  }
-
-  /**
-   * Handle number input blur - clamp value to range and update state
-   */
-  private handleNumberInputBlur(
-    e: Event,
-    min: number,
-    max: number,
-    setter: (value: number) => void,
-  ): void {
-    const input = e.target as HTMLInputElement;
-    const value = parseInt(input.value);
-    if (isNaN(value) || value < min) {
-      setter(min);
-    } else if (value > max) {
-      setter(max);
-    } else {
-      setter(value);
-    }
-  }
-
-  public getAllPersistedExportOptions(): ExportOptionsMap {
-    return this._exportPersistence.getAllSettingsForExport(this.annotations);
-  }
-
-  public setFileSettings(
-    settings: ExportOptionsMap | null,
-    datasetHash?: string,
-    clearExistingStorage: boolean = true,
-  ): void {
-    this._exportPersistence.setFileSettings(settings, datasetHash, clearExistingStorage);
-
-    if (settings?.[this.selectedAnnotation]) {
-      this._exportPersistence.loadSettings();
-    }
-  }
-
-  public clearForNewDataset(datasetHash: string, clearPersistedState: boolean = true): void {
-    this._exportPersistence.clearForNewDataset(datasetHash, clearPersistedState);
-    this._applyPersistedExportSettings(createDefaultExportOptions());
+  public clearForNewDataset(_datasetHash: string, _clearPersistedState: boolean = true): void {
     this.exportFormat = EXPORT_DEFAULTS.FORMAT;
-  }
-
-  private _getCurrentExportSettings(): PersistedExportOptions {
-    return {
-      imageWidth: this.exportImageWidth,
-      imageHeight: this.exportImageHeight,
-      lockAspectRatio: this.exportLockAspectRatio,
-      legendWidthPercent: this.exportLegendWidthPercent,
-      legendFontSizePx: this.exportLegendFontSizePx,
-      includeLegendSettings: this.exportIncludeLegendSettings,
-      includeExportOptions: this.exportIncludeExportOptions,
-    };
-  }
-
-  private _applyPersistedExportSettings(settings: PersistedExportOptions): void {
-    this.exportImageWidth = settings.imageWidth;
-    this.exportImageHeight = settings.imageHeight;
-    this.exportLockAspectRatio = settings.lockAspectRatio;
-    this.exportLegendWidthPercent = settings.legendWidthPercent;
-    this.exportLegendFontSizePx = settings.legendFontSizePx;
-    this.exportIncludeLegendSettings = settings.includeLegendSettings;
-    this.exportIncludeExportOptions = settings.includeExportOptions;
-  }
-
-  private _applyUserExportSettingsChange(update: () => void): void {
-    update();
-    this._exportPersistence.saveSettings();
-  }
-
-  private _syncExportPersistenceFromData(data: ProtspaceData): void {
-    const proteinIds = Array.isArray(data.protein_ids) ? data.protein_ids : [];
-    const hashChanged = this._exportPersistence.updateDatasetHash(proteinIds);
-
-    const annotationChanged = this._exportPersistence.updateSelectedAnnotation(
-      this.selectedAnnotation,
-    );
-    if (
-      (hashChanged || annotationChanged || !this._exportPersistence.settingsLoaded) &&
-      this.selectedAnnotation
-    ) {
-      this._exportPersistence.loadSettings();
-    }
   }
 
   private openFileDialog() {
@@ -1025,294 +873,40 @@ export class ProtspaceControlBar extends LitElement {
                                     class="export-checkbox"
                                     .checked=${this.exportIncludeLegendSettings}
                                     @change=${(e: Event) => {
-                                      this._applyUserExportSettingsChange(() => {
-                                        this.exportIncludeLegendSettings = (
-                                          e.target as HTMLInputElement
-                                        ).checked;
-                                      });
+                                      this.exportIncludeLegendSettings = (
+                                        e.target as HTMLInputElement
+                                      ).checked;
                                     }}
                                   />
                                   <span>Include legend settings</span>
                                 </label>
-                                <label class="export-checkbox-label">
-                                  <input
-                                    type="checkbox"
-                                    class="export-checkbox"
-                                    .checked=${this.exportIncludeExportOptions}
-                                    @change=${(e: Event) => {
-                                      this._applyUserExportSettingsChange(() => {
-                                        this.exportIncludeExportOptions = (
-                                          e.target as HTMLInputElement
-                                        ).checked;
-                                      });
-                                    }}
-                                  />
-                                  <span>Include export options settings</span>
-                                </label>
                                 <div class="export-parquet-help">
-                                  Legend customizations and remembered export dimensions can be
-                                  saved in the file and restored when loading.
+                                  Legend customizations can be saved in the file and restored when
+                                  loading.
                                 </div>
                               </div>
                             `
                           : ''}
 
-                        <!-- Image Settings (for PNG/PDF only) -->
+                        <!-- Image export actions (PNG/PDF) or direct export (IDs/Parquet) -->
                         ${this.exportFormat === 'png' || this.exportFormat === 'pdf'
                           ? html`
-                              <div class="export-dimensions-group">
-                                <div class="export-option-group">
-                                  <label class="export-option-label" for="export-width">
-                                    Width
-                                    <div class="export-option-value-wrapper">
-                                      <input
-                                        type="number"
-                                        class="export-option-value-input"
-                                        min="800"
-                                        max="8192"
-                                        step="1"
-                                        .value=${String(this.exportImageWidth)}
-                                        @change=${(e: Event) => {
-                                          const value = parseInt(
-                                            (e.target as HTMLInputElement).value,
-                                          );
-                                          if (!isNaN(value)) {
-                                            this.handleWidthChange(this.clamp(value, 800, 8192));
-                                          }
-                                        }}
-                                        @blur=${(e: Event) =>
-                                          this.handleNumberInputBlur(e, 800, 8192, (v) =>
-                                            this.handleWidthChange(v),
-                                          )}
-                                      />
-                                      <span class="export-option-value-unit">px</span>
-                                    </div>
-                                  </label>
-                                  <input
-                                    type="range"
-                                    id="export-width"
-                                    class="export-slider"
-                                    min="800"
-                                    max="8192"
-                                    step="1"
-                                    .value=${String(this.exportImageWidth)}
-                                    @input=${(e: Event) => {
-                                      this.handleWidthChange(
-                                        parseInt((e.target as HTMLInputElement).value),
-                                      );
-                                    }}
-                                  />
-                                  <div class="export-slider-labels">
-                                    <span>800px</span>
-                                    <span>8192px</span>
-                                  </div>
-                                </div>
-
-                                <div class="export-option-group">
-                                  <label class="export-option-label" for="export-height">
-                                    Height
-                                    <div class="export-option-value-wrapper">
-                                      <input
-                                        type="number"
-                                        class="export-option-value-input"
-                                        min="600"
-                                        max="8192"
-                                        step="1"
-                                        .value=${String(this.exportImageHeight)}
-                                        @change=${(e: Event) => {
-                                          const value = parseInt(
-                                            (e.target as HTMLInputElement).value,
-                                          );
-                                          if (!isNaN(value)) {
-                                            this.handleHeightChange(this.clamp(value, 600, 8192));
-                                          }
-                                        }}
-                                        @blur=${(e: Event) =>
-                                          this.handleNumberInputBlur(e, 600, 8192, (v) =>
-                                            this.handleHeightChange(v),
-                                          )}
-                                      />
-                                      <span class="export-option-value-unit">px</span>
-                                    </div>
-                                  </label>
-                                  <input
-                                    type="range"
-                                    id="export-height"
-                                    class="export-slider"
-                                    min="600"
-                                    max="8192"
-                                    step="128"
-                                    .value=${String(this.exportImageHeight)}
-                                    @input=${(e: Event) => {
-                                      this.handleHeightChange(
-                                        parseInt((e.target as HTMLInputElement).value),
-                                      );
-                                    }}
-                                  />
-                                  <div class="export-slider-labels">
-                                    <span>600px</span>
-                                    <span>8192px</span>
-                                  </div>
-                                </div>
-
-                                <label class="export-checkbox-label">
-                                  <input
-                                    type="checkbox"
-                                    class="export-checkbox"
-                                    .checked=${this.exportLockAspectRatio}
-                                    @change=${(e: Event) => {
-                                      this._applyUserExportSettingsChange(() => {
-                                        this.exportLockAspectRatio = (
-                                          e.target as HTMLInputElement
-                                        ).checked;
-                                      });
-                                    }}
-                                  />
-                                  <span>Lock aspect ratio</span>
-                                </label>
-                              </div>
-
-                              <label class="export-checkbox-label export-include-legend-label">
-                                <input
-                                  type="checkbox"
-                                  class="export-checkbox"
-                                  .checked=${this.exportIncludeLegend}
-                                  @change=${(e: Event) => {
-                                    this.exportIncludeLegend = (
-                                      e.target as HTMLInputElement
-                                    ).checked;
-                                  }}
-                                />
-                                <span>Include legend</span>
-                              </label>
-
-                              ${this.exportIncludeLegend
-                                ? html`
-                                    <div class="export-option-group">
-                                      <label class="export-option-label" for="export-legend-width">
-                                        Legend Width
-                                        <div class="export-option-value-wrapper">
-                                          <input
-                                            type="number"
-                                            class="export-option-value-input"
-                                            min="15"
-                                            max="50"
-                                            step="1"
-                                            .value=${String(this.exportLegendWidthPercent)}
-                                            @change=${(e: Event) => {
-                                              const value = parseInt(
-                                                (e.target as HTMLInputElement).value,
-                                              );
-                                              if (!isNaN(value)) {
-                                                this._applyUserExportSettingsChange(() => {
-                                                  this.exportLegendWidthPercent = this.clamp(
-                                                    value,
-                                                    15,
-                                                    50,
-                                                  );
-                                                });
-                                              }
-                                            }}
-                                            @blur=${(e: Event) =>
-                                              this.handleNumberInputBlur(e, 15, 50, (v) =>
-                                                this._applyUserExportSettingsChange(() => {
-                                                  this.exportLegendWidthPercent = v;
-                                                }),
-                                              )}
-                                          />
-                                          <span class="export-option-value-unit">%</span>
-                                        </div>
-                                      </label>
-                                      <input
-                                        type="range"
-                                        id="export-legend-width"
-                                        class="export-slider"
-                                        min="15"
-                                        max="50"
-                                        step="1"
-                                        .value=${String(this.exportLegendWidthPercent)}
-                                        @input=${(e: Event) => {
-                                          this._applyUserExportSettingsChange(() => {
-                                            this.exportLegendWidthPercent = parseInt(
-                                              (e.target as HTMLInputElement).value,
-                                            );
-                                          });
-                                        }}
-                                      />
-                                      <div class="export-slider-labels">
-                                        <span>15%</span>
-                                        <span>50%</span>
-                                      </div>
-                                    </div>
-
-                                    <div class="export-option-group">
-                                      <label class="export-option-label" for="export-legend-font">
-                                        Legend Font
-                                        <div class="export-option-value-wrapper">
-                                          <input
-                                            type="number"
-                                            class="export-option-value-input"
-                                            min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
-                                            max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
-                                            step="1"
-                                            .value=${String(this.exportLegendFontSizePx)}
-                                            @change=${(e: Event) => {
-                                              const value = parseInt(
-                                                (e.target as HTMLInputElement).value,
-                                              );
-                                              if (!isNaN(value)) {
-                                                this._applyUserExportSettingsChange(() => {
-                                                  this.exportLegendFontSizePx = this.clamp(
-                                                    value,
-                                                    EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
-                                                    EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
-                                                  );
-                                                });
-                                              }
-                                            }}
-                                            @blur=${(e: Event) =>
-                                              this.handleNumberInputBlur(
-                                                e,
-                                                EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX,
-                                                EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX,
-                                                (v) =>
-                                                  this._applyUserExportSettingsChange(() => {
-                                                    this.exportLegendFontSizePx = v;
-                                                  }),
-                                              )}
-                                          />
-                                          <span class="export-option-value-unit">px</span>
-                                        </div>
-                                      </label>
-                                      <input
-                                        type="range"
-                                        id="export-legend-font"
-                                        class="export-slider"
-                                        min=${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}
-                                        max=${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}
-                                        step="1"
-                                        .value=${String(this.exportLegendFontSizePx)}
-                                        @input=${(e: Event) => {
-                                          this._applyUserExportSettingsChange(() => {
-                                            this.exportLegendFontSizePx = parseInt(
-                                              (e.target as HTMLInputElement).value,
-                                            );
-                                          });
-                                        }}
-                                      />
-                                      <div class="export-slider-labels">
-                                        <span>${EXPORT_DEFAULTS.MIN_LEGEND_FONT_SIZE_PX}px</span>
-                                        <span>${EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX}px</span>
-                                      </div>
-                                    </div>
-                                  `
-                                : ''}
-
-                              <div class="export-actions">
-                                <button class="btn-danger" @click=${this.resetExportSettings}>
-                                  Reset
+                              <div class="export-image-actions">
+                                <button
+                                  class="btn-primary"
+                                  @click=${this.handleOpenPublishEditor}
+                                  title="Open full-screen figure editor with live preview, journal presets, and annotation tools"
+                                >
+                                  <svg class="icon" viewBox="0 0 24 24">
+                                    <path
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                    />
+                                  </svg>
+                                  Figure Editor
                                 </button>
-                                <button class="btn-primary" @click=${this.handleExport}>
+                                <button class="btn-secondary" @click=${this.handleExport}>
                                   <svg class="icon" viewBox="0 0 24 24">
                                     <path
                                       stroke-linecap="round"
@@ -1320,23 +914,13 @@ export class ProtspaceControlBar extends LitElement {
                                       d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                                     />
                                   </svg>
-                                  Export
+                                  Quick Export ${this.exportFormat.toUpperCase()}
                                 </button>
                               </div>
-                              <button
-                                class="btn-secondary export-figure-editor-btn"
-                                @click=${this.handleOpenPublishEditor}
-                                title="Open full-screen figure editor with live preview, journal presets, and annotation tools"
-                              >
-                                <svg class="icon" viewBox="0 0 24 24">
-                                  <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                  />
-                                </svg>
-                                Open figure editor…
-                              </button>
+                              <div class="export-image-hint">
+                                Figure Editor offers live preview, journal presets, annotations, and
+                                more.
+                              </div>
                             `
                           : html`
                               <button
@@ -1655,7 +1239,6 @@ export class ProtspaceControlBar extends LitElement {
       this._currentData = sp.getMaterializedData?.() ?? sp.getCurrentData?.();
     }
 
-    this._syncExportPersistenceFromData(data);
     this.requestUpdate();
   }
 
@@ -1823,7 +1406,6 @@ export class ProtspaceControlBar extends LitElement {
           this.selectedAnnotation = this.annotations[0];
         }
 
-        this._syncExportPersistenceFromData(data);
         this.requestUpdate();
       }
     }

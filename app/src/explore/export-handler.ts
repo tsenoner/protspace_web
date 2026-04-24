@@ -13,7 +13,6 @@ import { getExportFailureNotification, getExportSuccessNotification } from './no
 interface ExportEventDetail {
   imageHeight?: number;
   imageWidth?: number;
-  includeExportOptions?: boolean;
   includeLegend?: boolean;
   includeLegendSettings?: boolean;
   legendFontSizePx?: number;
@@ -21,18 +20,36 @@ interface ExportEventDetail {
   type: 'ids' | 'pdf' | 'png' | 'parquet';
 }
 
-interface PublishEditorEventDetail {
-  imageWidth?: number;
-  imageHeight?: number;
-  legendWidthPercent?: number;
-  legendFontSizePx?: number;
-}
-
 interface ExportHandlerOptions {
   controlBar: ProtspaceControlBar;
   getSelectedProteins(): string[];
   legendElement: ProtspaceLegend;
   plotElement: ProtspaceScatterplot;
+}
+
+const PUBLISH_STATE_KEY = 'protspace_publishState';
+
+function savePublishState(state: Record<string, unknown>): void {
+  try {
+    localStorage.setItem(PUBLISH_STATE_KEY, JSON.stringify(state));
+  } catch {
+    /* localStorage full or unavailable */
+  }
+}
+
+function loadPublishState(): Record<string, unknown> | null {
+  try {
+    const raw = localStorage.getItem(PUBLISH_STATE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    }
+  } catch {
+    /* corrupt or unavailable */
+  }
+  return null;
 }
 
 export function createExportHandler({
@@ -43,10 +60,20 @@ export function createExportHandler({
 }: ExportHandlerOptions) {
   // ── Publish editor handler ─────────────────────────
 
-  function setupPublishEditorHandler() {
-    controlBar.addEventListener('open-publish-editor', async (event: Event) => {
-      const detail = (event as CustomEvent<PublishEditorEventDetail>).detail;
+  function getCurrentProjection(): { projection: string; dimensionality: number } | null {
+    const sp = plotElement as unknown as {
+      selectedProjection?: string;
+    };
+    if (!sp.selectedProjection) return null;
+    const name = sp.selectedProjection;
+    const dimensionality = name.toLowerCase().includes('3d') ? 3 : 2;
+    // Extract projection method (e.g., "UMAP_2D" → "UMAP")
+    const projection = name.replace(/[_-]?[23][dD]$/i, '') || name;
+    return { projection, dimensionality };
+  }
 
+  function setupPublishEditorHandler() {
+    controlBar.addEventListener('open-publish-editor', async () => {
       try {
         // Lazy-import the publish modal component
         const { ProtspacePublishModal } = await import('@protspace/core/publish');
@@ -56,27 +83,27 @@ export function createExportHandler({
 
         const modal = new ProtspacePublishModal();
         modal.plotElement = plotElement as unknown as HTMLElement;
-        modal.initialState = {
-          imageWidth: detail.imageWidth,
-          imageHeight: detail.imageHeight,
-          legendWidthPercent: detail.legendWidthPercent,
-          legendFontSizePx: detail.legendFontSizePx,
-        };
+        modal.currentProjection = getCurrentProjection();
 
-        // Restore saved publish state from current bundle settings
+        // Restore saved publish state: bundle > localStorage > defaults
         const bundleSettings = (
           plotElement as unknown as { bundleSettings?: { publishState?: Record<string, unknown> } }
         ).bundleSettings;
         if (bundleSettings?.publishState) {
           modal.savedPublishState = bundleSettings.publishState;
+        } else {
+          modal.savedPublishState = loadPublishState();
         }
 
         // Handle export from the figure editor
         modal.addEventListener('publish-export', (async (e: CustomEvent) => {
           const { canvas, state } = e.detail as {
             canvas: HTMLCanvasElement;
-            state: { format: string; widthPx: number; heightPx: number };
+            state: Record<string, unknown> & { format: string; widthPx: number; heightPx: number };
           };
+
+          // Persist state to localStorage
+          savePublishState(state);
 
           try {
             const fname = generateFilename(state.format);
@@ -94,10 +121,13 @@ export function createExportHandler({
           modal.remove();
         }) as EventListener);
 
-        // Handle close
-        modal.addEventListener('close', () => {
+        // Handle close — persist state to localStorage
+        modal.addEventListener('close', ((e: CustomEvent) => {
+          if (e.detail?.state) {
+            savePublishState(e.detail.state as Record<string, unknown>);
+          }
           modal.remove();
-        });
+        }) as EventListener);
 
         document.body.appendChild(modal);
       } catch (err) {
@@ -134,7 +164,6 @@ export function createExportHandler({
       legendFontSizePx,
       includeLegend,
       includeLegendSettings,
-      includeExportOptions,
     } = customEvent.detail;
 
     try {
@@ -144,12 +173,13 @@ export function createExportHandler({
           throw new Error('No data available for export');
         }
 
-        const includeSettings = includeLegendSettings || includeExportOptions;
+        const includeSettings = !!includeLegendSettings;
         let settings: BundleSettings | undefined;
         if (includeSettings) {
           settings = {
-            legendSettings: includeLegendSettings ? legendElement.getAllPersistedSettings() : {},
-            exportOptions: includeExportOptions ? controlBar.getAllPersistedExportOptions() : {},
+            legendSettings: legendElement.getAllPersistedSettings(),
+            exportOptions: {},
+            publishState: loadPublishState() ?? undefined,
           };
         }
 

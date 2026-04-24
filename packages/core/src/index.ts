@@ -33,7 +33,7 @@ export type { ProtspaceStructureViewer } from './components/structure-viewer/str
 export type { ProtspacePublishModal } from './components/publish/publish-modal';
 export type {
   PublishState,
-  Annotation,
+  Overlay,
   Inset,
   LegendPosition,
   LegendOverflow,

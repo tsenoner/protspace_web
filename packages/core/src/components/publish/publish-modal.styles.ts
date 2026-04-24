@@ -221,6 +221,10 @@ export const publishModalStyles = css`
     flex: 1;
   }
 
+  .publish-sidebar-footer button.btn-danger {
+    flex: 0 0 auto;
+  }
+
   /* ─── Sidebar sections ──────────────────────────────────── */
   .publish-section {
     margin-bottom: var(--spacing-md);
@@ -437,6 +441,13 @@ export const publishModalStyles = css`
     background: rgba(228, 33, 33, 0.06);
     border-radius: var(--radius);
     margin-bottom: var(--spacing-xs);
+  }
+
+  .publish-warning a {
+    color: var(--danger);
+    font-weight: var(--font-semibold);
+    text-decoration: underline;
+    cursor: pointer;
   }
 
   /* ─── Slider ─────────────────────────────────────────── */

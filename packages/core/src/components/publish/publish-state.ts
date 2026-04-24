@@ -1,16 +1,16 @@
 /**
  * State types for the Publish (figure editor) modal.
  *
- * All annotation/inset coordinates are normalised to 0–1 over the
+ * All overlay/inset coordinates are normalised to 0–1 over the
  * scatterplot area so they survive resolution and preset changes.
  */
 
 import type { PresetId } from './journal-presets';
 import type { SizeMode } from './dimension-utils';
 
-// ── Annotation primitives ────────────────────────────────
+// ── Overlay primitives ──────────────────────────────────
 
-export interface CircleAnnotation {
+export interface CircleOverlay {
   type: 'circle';
   /** Centre X, normalised 0–1 */
   cx: number;
@@ -26,7 +26,7 @@ export interface CircleAnnotation {
   strokeWidth: number;
 }
 
-export interface ArrowAnnotation {
+export interface ArrowOverlay {
   type: 'arrow';
   x1: number;
   y1: number;
@@ -36,7 +36,7 @@ export interface ArrowAnnotation {
   width: number;
 }
 
-export interface LabelAnnotation {
+export interface LabelOverlay {
   type: 'label';
   x: number;
   y: number;
@@ -47,7 +47,7 @@ export interface LabelAnnotation {
   color: string;
 }
 
-export type Annotation = CircleAnnotation | ArrowAnnotation | LabelAnnotation;
+export type Overlay = CircleOverlay | ArrowOverlay | LabelOverlay;
 
 // ── Zoom inset ───────────────────────────────────────────
 
@@ -111,10 +111,15 @@ export interface PublishState {
   format: 'png' | 'pdf';
   legend: LegendLayout;
   background: 'white' | 'transparent';
-  annotations: Annotation[];
+  overlays: Overlay[];
   insets: Inset[];
-  /** Width in px when annotations were authored. Used to scale pixel properties proportionally. */
+  /** Width in px when overlays were authored. Used to scale pixel properties proportionally. */
   referenceWidth: number;
+  /** Visualization context when overlays/insets were authored. Used to detect stale positions. */
+  viewFingerprint?: {
+    projection: string;
+    dimensionality: number;
+  };
 }
 
 /** Tool currently active on the overlay */
@@ -142,7 +147,7 @@ export function createDefaultPublishState(base?: {
       overflow: 'multi-column',
     },
     background: 'white',
-    annotations: [],
+    overlays: [],
     insets: [],
     referenceWidth: base?.imageWidth ?? 2048,
   };

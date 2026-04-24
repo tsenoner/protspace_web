@@ -21,7 +21,7 @@ import {
   type PublishState,
   type LegendPosition,
   type OverlayTool,
-  type Annotation,
+  type Overlay,
   type Inset,
 } from './publish-state';
 import { pxToMm, mmToPx, adjustDpiForWidthMm } from './dimension-utils';
@@ -75,20 +75,19 @@ export class ProtspacePublishModal extends LitElement {
   /** Plot element to capture from */
   @property({ attribute: false }) plotElement: HTMLElement | null = null;
 
-  /** Initial export state to seed the editor with */
-  @property({ attribute: false }) initialState: Partial<{
-    imageWidth: number;
-    imageHeight: number;
-    legendWidthPercent: number;
-    legendFontSizePx: number;
-  }> = {};
-
-  /** Saved publish state from parquetbundle, used to restore on open. */
+  /** Saved publish state from parquetbundle or localStorage, used to restore on open. */
   @property({ attribute: false }) savedPublishState: Record<string, unknown> | null = null;
+
+  /** Current projection info for view fingerprint comparison. */
+  @property({ attribute: false }) currentProjection: {
+    projection: string;
+    dimensionality: number;
+  } | null = null;
 
   @state() private _state: PublishState = createDefaultPublishState();
   @state() private _tool: OverlayTool = 'select';
-  @state() private _highlightedItem: { kind: 'annotation' | 'inset'; index: number } | null = null;
+  @state() private _highlightedItem: { kind: 'overlay' | 'inset'; index: number } | null = null;
+  @state() private _showFingerprintWarning = false;
   @state() private _legendItems: LegendItem[] = [];
   @state() private _annotationName = 'Legend';
   @state() private _includeShapes = false;
@@ -105,10 +104,21 @@ export class ProtspacePublishModal extends LitElement {
   override connectedCallback() {
     super.connectedCallback();
     if (this.savedPublishState) {
-      const defaults = createDefaultPublishState(this.initialState);
+      const defaults = createDefaultPublishState();
       this._state = { ...defaults, ...this.savedPublishState } as PublishState;
     } else {
-      this._state = createDefaultPublishState(this.initialState);
+      this._state = createDefaultPublishState();
+    }
+    // Set fingerprint on first use (no saved state)
+    if (!this._state.viewFingerprint && this.currentProjection) {
+      this._state = { ...this._state, viewFingerprint: this.currentProjection };
+    }
+    // Check for fingerprint mismatch
+    if (this._state.viewFingerprint && this.currentProjection) {
+      const fp = this._state.viewFingerprint;
+      const cp = this.currentProjection;
+      this._showFingerprintWarning =
+        fp.projection !== cp.projection || fp.dimensionality !== cp.dimensionality;
     }
     this._readLegend();
   }
@@ -163,7 +173,7 @@ export class ProtspacePublishModal extends LitElement {
         );
         return plotRect;
       },
-      getAnnotations: () => this._state.annotations,
+      getOverlays: () => this._state.overlays,
       getInsets: () => this._state.insets,
       getLegendRect: () => {
         if (this._state.legend.position !== 'free') return null;
@@ -175,17 +185,17 @@ export class ProtspacePublishModal extends LitElement {
         );
         return legendRect;
       },
-      onAnnotationAdded: (a) => {
+      onOverlayAdded: (a) => {
         this._state = {
           ...this._state,
-          annotations: [...this._state.annotations, a],
+          overlays: [...this._state.overlays, a],
           referenceWidth: this._state.widthPx,
         };
       },
-      onAnnotationUpdated: (i, a) => {
-        const anns = [...this._state.annotations];
+      onOverlayUpdated: (i, a) => {
+        const anns = [...this._state.overlays];
         anns[i] = a;
-        this._state = { ...this._state, annotations: anns };
+        this._state = { ...this._state, overlays: anns };
       },
       onInsetAdded: (inset) => {
         this._state = {
@@ -378,15 +388,15 @@ export class ProtspacePublishModal extends LitElement {
     }
   }
 
-  private _removeAnnotation(index: number) {
-    const anns = this._state.annotations.filter((_, i) => i !== index);
-    this._state = { ...this._state, annotations: anns };
+  private _removeOverlay(index: number) {
+    const anns = this._state.overlays.filter((_, i) => i !== index);
+    this._state = { ...this._state, overlays: anns };
   }
 
-  private _updateAnnotation(index: number, partial: Partial<Annotation>) {
-    const anns = [...this._state.annotations];
-    anns[index] = { ...anns[index], ...partial } as Annotation;
-    this._state = { ...this._state, annotations: anns };
+  private _updateOverlay(index: number, partial: Partial<Overlay>) {
+    const anns = [...this._state.overlays];
+    anns[index] = { ...anns[index], ...partial } as Overlay;
+    this._state = { ...this._state, overlays: anns };
   }
 
   private _removeInset(index: number) {
@@ -457,7 +467,55 @@ export class ProtspacePublishModal extends LitElement {
   }
 
   private _handleClose() {
-    this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
+    this.dispatchEvent(
+      new CustomEvent('close', {
+        detail: { state: this._state },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private _handleReset() {
+    this._state = createDefaultPublishState();
+    if (this.currentProjection) {
+      this._state = { ...this._state, viewFingerprint: this.currentProjection };
+    }
+    this._tool = 'select';
+    this._highlightedItem = null;
+    this._showFingerprintWarning = false;
+    this._plotCacheKey = '';
+    this._insetCacheKey = '';
+    this._overlayController?.destroy();
+    this._overlayController = null;
+    this.updateComplete.then(() => this._setupOverlay());
+  }
+
+  private _handleNewFigure() {
+    this._state = {
+      ...this._state,
+      overlays: [],
+      insets: [],
+      viewFingerprint: this.currentProjection ?? undefined,
+    };
+    this._tool = 'select';
+    this._highlightedItem = null;
+    this._showFingerprintWarning = false;
+    this._plotCacheKey = '';
+    this._insetCacheKey = '';
+    this._overlayController?.destroy();
+    this._overlayController = null;
+    this.updateComplete.then(() => this._setupOverlay());
+  }
+
+  private _clearOverlays() {
+    this._state = {
+      ...this._state,
+      overlays: [],
+      insets: [],
+      viewFingerprint: this.currentProjection ?? undefined,
+    };
+    this._showFingerprintWarning = false;
   }
 
   // ── Render ─────────────────────────────────────────
@@ -490,12 +548,44 @@ export class ProtspacePublishModal extends LitElement {
             </div>
 
             <div class="publish-sidebar-content">
+              ${this._showFingerprintWarning
+                ? html`
+                    <div class="publish-warning">
+                      Overlays were placed on ${this._state.viewFingerprint?.projection ?? '?'}
+                      ${this._state.viewFingerprint?.dimensionality ?? '?'}D. Current view:
+                      ${this.currentProjection?.projection ?? '?'}
+                      ${this.currentProjection?.dimensionality ?? '?'}D.
+                      <a
+                        href="#"
+                        @click=${(e: Event) => {
+                          e.preventDefault();
+                          this._clearOverlays();
+                        }}
+                        >Clear overlays</a
+                      >
+                    </div>
+                  `
+                : nothing}
               ${this._renderPresetsSection()} ${this._renderDimensionsSection()}
-              ${this._renderLegendSection()} ${this._renderAnnotationsSection()}
+              ${this._renderLegendSection()} ${this._renderOverlaysSection()}
               ${this._renderInsetSection()} ${this._renderOptionsSection()}
             </div>
 
             <div class="publish-sidebar-footer">
+              <button
+                class="btn-danger"
+                @click=${this._handleNewFigure}
+                title="Clear overlays and insets, keep layout"
+              >
+                New Figure
+              </button>
+              <button
+                class="btn-danger"
+                @click=${this._handleReset}
+                title="Reset all settings to defaults"
+              >
+                Reset
+              </button>
               <button class="btn-secondary" @click=${this._handleClose}>Cancel</button>
               <button class="btn-primary" @click=${this._handleExport}>
                 Export ${s.format.toUpperCase()}
@@ -853,22 +943,22 @@ export class ProtspacePublishModal extends LitElement {
     `;
   }
 
-  // ── Annotations section ────────────────────────────
+  // ── Overlays section ───────────────────────────────
 
-  private _renderAnnotationsSection() {
-    const anns = this._state.annotations;
+  private _renderOverlaysSection() {
+    const anns = this._state.overlays;
     return html`
       <div class="publish-section">
-        <div class="publish-section-title">Annotations (${anns.length})</div>
+        <div class="publish-section-title">Overlays (${anns.length})</div>
         ${anns.map((a, i) => {
           const isHi =
-            this._highlightedItem?.kind === 'annotation' && this._highlightedItem.index === i;
+            this._highlightedItem?.kind === 'overlay' && this._highlightedItem.index === i;
           return html`
             <div
               class="publish-annotation-item ${isHi ? 'highlighted' : ''}"
               style="flex-direction: column; align-items: stretch; gap: 4px;"
               @mouseenter=${() => {
-                this._highlightedItem = { kind: 'annotation', index: i };
+                this._highlightedItem = { kind: 'overlay', index: i };
               }}
               @mouseleave=${() => {
                 this._highlightedItem = null;
@@ -876,11 +966,11 @@ export class ProtspacePublishModal extends LitElement {
             >
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span>${a.type}${a.type === 'label' ? `: ${a.text}` : ''}</span>
-                <button class="delete-btn" @click=${() => this._removeAnnotation(i)} title="Remove">
+                <button class="delete-btn" @click=${() => this._removeOverlay(i)} title="Remove">
                   <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
-              ${this._renderAnnotationProps(a, i)}
+              ${this._renderOverlayProps(a, i)}
             </div>
           `;
         })}
@@ -893,7 +983,7 @@ export class ProtspacePublishModal extends LitElement {
     `;
   }
 
-  private _renderAnnotationProps(a: Annotation, i: number) {
+  private _renderOverlayProps(a: Overlay, i: number) {
     switch (a.type) {
       case 'circle':
         return html`
@@ -908,7 +998,7 @@ export class ProtspacePublishModal extends LitElement {
                 step="0.5"
                 .value=${String(a.strokeWidth)}
                 @input=${(e: Event) => {
-                  this._updateAnnotation(i, {
+                  this._updateOverlay(i, {
                     strokeWidth: parseFloat((e.target as HTMLInputElement).value) || 2,
                   });
                 }}
@@ -921,7 +1011,7 @@ export class ProtspacePublishModal extends LitElement {
                 step="0.5"
                 .value=${String(a.strokeWidth)}
                 @change=${(e: Event) => {
-                  this._updateAnnotation(i, {
+                  this._updateOverlay(i, {
                     strokeWidth: parseFloat((e.target as HTMLInputElement).value) || 2,
                   });
                 }}
@@ -943,7 +1033,7 @@ export class ProtspacePublishModal extends LitElement {
                 step="0.5"
                 .value=${String(a.width)}
                 @input=${(e: Event) => {
-                  this._updateAnnotation(i, {
+                  this._updateOverlay(i, {
                     width: parseFloat((e.target as HTMLInputElement).value) || 2,
                   });
                 }}
@@ -956,7 +1046,7 @@ export class ProtspacePublishModal extends LitElement {
                 step="0.5"
                 .value=${String(a.width)}
                 @change=${(e: Event) => {
-                  this._updateAnnotation(i, {
+                  this._updateOverlay(i, {
                     width: parseFloat((e.target as HTMLInputElement).value) || 2,
                   });
                 }}
@@ -975,7 +1065,7 @@ export class ProtspacePublishModal extends LitElement {
               style="width: 8rem; text-align: left;"
               .value=${a.text}
               @change=${(e: Event) => {
-                this._updateAnnotation(i, {
+                this._updateOverlay(i, {
                   text: (e.target as HTMLInputElement).value || 'Label',
                 });
               }}
@@ -992,7 +1082,7 @@ export class ProtspacePublishModal extends LitElement {
                 step="1"
                 .value=${String(a.fontSize)}
                 @input=${(e: Event) => {
-                  this._updateAnnotation(i, {
+                  this._updateOverlay(i, {
                     fontSize: parseFloat((e.target as HTMLInputElement).value) || 16,
                   });
                 }}
@@ -1005,7 +1095,7 @@ export class ProtspacePublishModal extends LitElement {
                 step="1"
                 .value=${String(a.fontSize)}
                 @change=${(e: Event) => {
-                  this._updateAnnotation(i, {
+                  this._updateOverlay(i, {
                     fontSize: parseFloat((e.target as HTMLInputElement).value) || 16,
                   });
                 }}

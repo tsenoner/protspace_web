@@ -15,7 +15,7 @@ describe('publish-state', () => {
       expect(state.dpi).toBe(300);
       expect(state.format).toBe('png');
       expect(state.background).toBe('white');
-      expect(state.annotations).toEqual([]);
+      expect(state.overlays).toEqual([]);
       expect(state.insets).toEqual([]);
     });
 
@@ -66,8 +66,8 @@ describe('publish-state', () => {
     });
   });
 
-  describe('annotation coordinate normalisation', () => {
-    it('circle annotation coordinates stay valid across preset changes', () => {
+  describe('overlay coordinate normalisation', () => {
+    it('circle overlay coordinates stay valid across preset changes', () => {
       const circle = {
         type: 'circle' as const,
         cx: 0.5,
