@@ -924,7 +924,7 @@ export class ProtspacePublishModal extends LitElement {
             this._highlightedItem?.kind === 'overlay' && this._highlightedItem.index === i;
           return html`
             <div
-              class="publish-annotation-item ${isHi ? 'highlighted' : ''}"
+              class="publish-overlay-item ${isHi ? 'highlighted' : ''}"
               style="flex-direction: column; align-items: stretch; gap: 4px;"
               @mouseenter=${() => {
                 this._highlightedItem = { kind: 'overlay', index: i };
@@ -1022,7 +1022,7 @@ export class ProtspacePublishModal extends LitElement {
         ${ins.map(
           (inset, i) => html`
             <div
-              class="publish-annotation-item ${this._highlightedItem?.kind === 'inset' &&
+              class="publish-overlay-item ${this._highlightedItem?.kind === 'inset' &&
               this._highlightedItem.index === i
                 ? 'highlighted'
                 : ''}"

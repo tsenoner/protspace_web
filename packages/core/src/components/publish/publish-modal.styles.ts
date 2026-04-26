@@ -381,8 +381,8 @@ export const publishModalStyles = css`
     font-size: var(--text-sm);
   }
 
-  /* ─── Annotations list ──────────────────────────────────── */
-  .publish-annotation-item {
+  /* ─── Overlays list ─────────────────────────────────────── */
+  .publish-overlay-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -396,17 +396,17 @@ export const publishModalStyles = css`
     transition: var(--transition-fast);
   }
 
-  .publish-annotation-item:hover {
+  .publish-overlay-item:hover {
     background: var(--hover-bg);
     border-color: var(--border-hover);
   }
 
-  .publish-annotation-item.highlighted {
+  .publish-overlay-item.highlighted {
     background: var(--primary-light);
     border-color: var(--primary);
   }
 
-  .publish-annotation-item .delete-btn {
+  .publish-overlay-item .delete-btn {
     width: 20px;
     height: 20px;
     padding: 0;
@@ -420,12 +420,12 @@ export const publishModalStyles = css`
     border-radius: var(--radius);
   }
 
-  .publish-annotation-item .delete-btn:hover {
+  .publish-overlay-item .delete-btn:hover {
     background: var(--hover-bg);
     color: var(--danger);
   }
 
-  .publish-annotation-item .delete-btn svg {
+  .publish-overlay-item .delete-btn svg {
     width: 12px;
     height: 12px;
     stroke: currentColor;
