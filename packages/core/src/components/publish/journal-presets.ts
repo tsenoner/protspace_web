@@ -6,6 +6,8 @@
  * Slide presets use standard presentation resolutions.
  */
 
+import { mmToPx } from './dimension-utils';
+
 export interface JournalPreset {
   readonly id: string;
   readonly label: string;
@@ -52,16 +54,6 @@ export const JOURNAL_PRESETS = [
   // ── Flexible ─────────────────────────────────────────────
   { id: 'flexible', label: 'Flexible', widthPx: 2048, heightPx: 1024, dpi: 300 },
 ] as const;
-
-/** Convert millimetres to pixels at the given DPI. */
-export function mmToPx(mm: number, dpi: number): number {
-  return Math.round((mm * dpi) / 25.4);
-}
-
-/** Convert pixels to millimetres at the given DPI. */
-export function pxToMm(px: number, dpi: number): number {
-  return (px * 25.4) / dpi;
-}
 
 /** Look up a preset by its id. Returns `undefined` for unknown ids. */
 export function getPreset(id: string): JournalPreset | undefined {

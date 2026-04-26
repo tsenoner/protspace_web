@@ -9,15 +9,11 @@ export type {
   LegendFreePosition,
 } from './publish-state';
 export type { PresetId, JournalPreset } from './journal-presets';
-export {
-  JOURNAL_PRESETS,
-  mmToPx,
-  pxToMm,
-  getPreset,
-  resolvePresetDimensions,
-} from './journal-presets';
+export { JOURNAL_PRESETS, getPreset, resolvePresetDimensions } from './journal-presets';
 export { createDefaultPublishState } from './publish-state';
 export {
+  pxToMm,
+  mmToPx,
   adjustDpiForWidthMm,
   adjustWidthPxForDpi,
   clampHeight,

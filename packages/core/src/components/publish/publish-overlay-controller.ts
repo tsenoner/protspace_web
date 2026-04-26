@@ -764,7 +764,6 @@ export class PublishOverlayController {
   /** Draw in-progress drag indicator (rubber-band) on a separate overlay ctx. */
   drawDragIndicator(ctx: CanvasRenderingContext2D) {
     if (!this.drag.active) return;
-    const pr = this.callbacks.getPlotRect();
     const rect = this.canvas.getBoundingClientRect();
     const scaleX = this.canvas.width / rect.width;
     const scaleY = this.canvas.height / rect.height;
@@ -811,7 +810,6 @@ export class PublishOverlayController {
     }
 
     ctx.restore();
-    void pr; // used for coord space reference
   }
 
   /** Draw resize/rotate handles when an overlay or inset is selected. */

@@ -75,6 +75,7 @@ export default defineConfig({
           { text: 'Control Bar Features', link: '/explore/control-bar' },
           { text: 'Viewing 3D Structures', link: '/explore/structures' },
           { text: 'Exporting Results', link: '/explore/exporting' },
+          { text: 'Figure Editor', link: '/explore/figure-editor' },
         ],
       },
       {

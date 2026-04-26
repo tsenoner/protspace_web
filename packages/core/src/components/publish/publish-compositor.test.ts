@@ -1,5 +1,8 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { describe, it, expect } from 'vitest';
-import { computeLayout, computeInsetBoost } from './publish-compositor';
+import { computeLayout, computeInsetBoost, capturePlotCanvas } from './publish-compositor';
 import type { LegendLayout } from './publish-state';
 
 function makeLegend(overrides: Partial<LegendLayout> = {}): LegendLayout {
@@ -77,6 +80,20 @@ describe('publish-compositor', () => {
       expect(legendRect!.y + legendRect!.h).toBe(H);
     });
 
+    it('br corner places legend in bottom-right', () => {
+      const { legendRect } = computeLayout(W, H, makeLegend({ position: 'br' }));
+      expect(legendRect).not.toBeNull();
+      expect(legendRect!.x + legendRect!.w).toBe(W);
+      expect(legendRect!.y + legendRect!.h).toBe(H);
+    });
+
+    it('tl corner places legend in top-left', () => {
+      const { legendRect } = computeLayout(W, H, makeLegend({ position: 'tl' }));
+      expect(legendRect).not.toBeNull();
+      expect(legendRect!.x).toBe(0);
+      expect(legendRect!.y).toBe(0);
+    });
+
     it('none position returns null legendRect', () => {
       const { plotRect, legendRect } = computeLayout(W, H, makeLegend({ position: 'none' }));
       expect(legendRect).toBeNull();
@@ -97,6 +114,62 @@ describe('publish-compositor', () => {
       );
       expect(legendRect).not.toBeNull();
       expect(legendRect!.w).toBe(Math.round(W * 0.3));
+    });
+
+    it('top position uses widthPercent as height fraction', () => {
+      const pct = 25;
+      const { legendRect } = computeLayout(
+        W,
+        H,
+        makeLegend({ position: 'top', widthPercent: pct }),
+      );
+      expect(legendRect).not.toBeNull();
+      expect(legendRect!.h).toBe(Math.round(H * (pct / 100)));
+      expect(legendRect!.w).toBe(W);
+    });
+
+    it('bottom position uses widthPercent as height fraction', () => {
+      const pct = 30;
+      const { legendRect } = computeLayout(
+        W,
+        H,
+        makeLegend({ position: 'bottom', widthPercent: pct }),
+      );
+      expect(legendRect).not.toBeNull();
+      expect(legendRect!.h).toBe(Math.round(H * (pct / 100)));
+    });
+
+    it('all side positions correctly sum to full width/height', () => {
+      for (const pos of ['right', 'left'] as const) {
+        const { plotRect, legendRect } = computeLayout(W, H, makeLegend({ position: pos }));
+        expect(plotRect.w + legendRect!.w).toBe(W);
+        expect(plotRect.h).toBe(H);
+        expect(legendRect!.h).toBe(H);
+      }
+      for (const pos of ['top', 'bottom'] as const) {
+        const { plotRect, legendRect } = computeLayout(W, H, makeLegend({ position: pos }));
+        expect(plotRect.h + legendRect!.h).toBe(H);
+        expect(plotRect.w).toBe(W);
+        expect(legendRect!.w).toBe(W);
+      }
+    });
+
+    it('corner legend height uses visibleItemCount when provided', () => {
+      const { legendRect: noCount } = computeLayout(
+        W,
+        H,
+        makeLegend({ position: 'tr', widthPercent: 20 }),
+      );
+      const { legendRect: withCount } = computeLayout(
+        W,
+        H,
+        makeLegend({ position: 'tr', widthPercent: 20 }),
+        3,
+      );
+      expect(noCount).not.toBeNull();
+      expect(withCount).not.toBeNull();
+      // With only 3 items, the legend should be shorter (tight) than the fallback 50%
+      expect(withCount!.h).toBeLessThanOrEqual(noCount!.h);
     });
   });
 
@@ -136,6 +209,18 @@ describe('publish-compositor', () => {
       expect(legendRect).not.toBeNull();
       const expectedW = Math.round(2000 * 0.2);
       expect(legendRect!.x).toBe(Math.round((2000 - expectedW) / 2));
+    });
+
+    it('free legend uses tight height with visibleItemCount', () => {
+      const { legendRect } = computeLayout(
+        2000,
+        1000,
+        makeLegend({ position: 'free', widthPercent: 20 }),
+        5,
+      );
+      expect(legendRect).not.toBeNull();
+      // Should be tighter than 50% of canvas
+      expect(legendRect!.h).toBeLessThan(500);
     });
   });
 
@@ -188,6 +273,51 @@ describe('publish-compositor', () => {
       ];
       // First: 0.3/0.2 = 1.5x, Second: 0.4/0.1 = 4x → boost = 4
       expect(computeInsetBoost(insets)).toBe(4);
+    });
+
+    it('uses max of width and height ratios', () => {
+      const insets = [
+        {
+          sourceRect: { x: 0, y: 0, w: 0.1, h: 0.2 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.2, h: 0.6 },
+          border: 2,
+          connector: 'lines' as const,
+        },
+      ];
+      // width ratio: 0.2/0.1 = 2x, height ratio: 0.6/0.2 = 3x → boost = 3
+      expect(computeInsetBoost(insets)).toBe(3);
+    });
+
+    it('returns 1 when target is smaller than source', () => {
+      const insets = [
+        {
+          sourceRect: { x: 0, y: 0, w: 0.5, h: 0.5 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.1, h: 0.1 },
+          border: 2,
+          connector: 'lines' as const,
+        },
+      ];
+      expect(computeInsetBoost(insets)).toBe(1);
+    });
+  });
+
+  describe('capturePlotCanvas', () => {
+    it('uses captureAtResolution when available', () => {
+      const mockCanvas = document.createElement('canvas');
+      mockCanvas.width = 800;
+      mockCanvas.height = 400;
+
+      const plotEl = document.createElement('div') as HTMLElement & {
+        captureAtResolution?: () => HTMLCanvasElement;
+      };
+      plotEl.captureAtResolution = () => mockCanvas;
+
+      const result = capturePlotCanvas(plotEl, {
+        width: 800,
+        height: 400,
+        backgroundColor: '#ffffff',
+      });
+      expect(result).toBe(mockCanvas);
     });
   });
 });

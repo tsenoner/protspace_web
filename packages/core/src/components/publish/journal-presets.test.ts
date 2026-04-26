@@ -1,47 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import {
-  JOURNAL_PRESETS,
-  mmToPx,
-  pxToMm,
-  getPreset,
-  resolvePresetDimensions,
-} from './journal-presets';
+import { JOURNAL_PRESETS, getPreset, resolvePresetDimensions } from './journal-presets';
+import { mmToPx } from './dimension-utils';
 
 describe('journal-presets', () => {
-  describe('mmToPx', () => {
-    it('converts 25.4mm at 300 DPI to 300px', () => {
-      expect(mmToPx(25.4, 300)).toBe(300);
-    });
-
-    it('converts 89mm at 300 DPI correctly', () => {
-      // 89 * 300 / 25.4 ≈ 1051
-      expect(mmToPx(89, 300)).toBe(1051);
-    });
-
-    it('converts 183mm at 300 DPI correctly', () => {
-      // 183 * 300 / 25.4 ≈ 2161
-      expect(mmToPx(183, 300)).toBe(2161);
-    });
-
-    it('converts at 96 DPI correctly', () => {
-      // 25.4mm at 96 DPI = 96px
-      expect(mmToPx(25.4, 96)).toBe(96);
-    });
-  });
-
-  describe('pxToMm', () => {
-    it('converts 300px at 300 DPI to 25.4mm', () => {
-      expect(pxToMm(300, 300)).toBeCloseTo(25.4, 1);
-    });
-
-    it('is the inverse of mmToPx', () => {
-      const mm = 89;
-      const dpi = 300;
-      const px = mmToPx(mm, dpi);
-      expect(pxToMm(px, dpi)).toBeCloseTo(mm, 0);
-    });
-  });
-
   describe('getPreset', () => {
     it('returns a preset by id', () => {
       const preset = getPreset('nature-1col');

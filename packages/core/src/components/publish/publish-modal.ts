@@ -34,6 +34,16 @@ import {
 } from './publish-compositor';
 import { PublishOverlayController } from './publish-overlay-controller';
 
+// ── Types ─────────────────────────────────────────────────────
+
+interface CaptureablePlotElement extends HTMLElement {
+  captureAtResolution?: (
+    w: number,
+    h: number,
+    opts: { dpr?: number; backgroundColor?: string },
+  ) => HTMLCanvasElement;
+}
+
 // ── Legend data reader (mirrors export-utils pattern) ─────────
 
 interface LegendExportState {
@@ -240,13 +250,7 @@ export class ProtspacePublishModal extends LitElement {
     // Capture plot (cache when dimensions and key state haven't changed)
     const visibleCount = this._legendItems.filter((it) => it.isVisible).length;
     const { plotRect } = computeLayout(previewW, previewH, s.legend, visibleCount);
-    const plotEl = this.plotElement as HTMLElement & {
-      captureAtResolution?: (
-        w: number,
-        h: number,
-        opts: { dpr?: number; backgroundColor?: string },
-      ) => HTMLCanvasElement;
-    };
+    const plotEl = this.plotElement as CaptureablePlotElement;
     const bgColor = s.background === 'white' ? '#ffffff' : 'rgba(0,0,0,0)';
 
     const cacheKey = `${plotRect.w}x${plotRect.h}`;
@@ -418,13 +422,7 @@ export class ProtspacePublishModal extends LitElement {
     const s = this._state;
     const visibleCount = this._legendItems.filter((it) => it.isVisible).length;
     const { plotRect } = computeLayout(s.widthPx, s.heightPx, s.legend, visibleCount);
-    const plotEl = this.plotElement as HTMLElement & {
-      captureAtResolution?: (
-        w: number,
-        h: number,
-        opts: { dpr?: number; backgroundColor?: string },
-      ) => HTMLCanvasElement;
-    };
+    const plotEl = this.plotElement as CaptureablePlotElement;
     const bgColor = s.background === 'white' ? '#ffffff' : 'rgba(0,0,0,0)';
 
     const plotCanvas = capturePlotCanvas(plotEl, {
@@ -477,27 +475,24 @@ export class ProtspacePublishModal extends LitElement {
   }
 
   private _handleReset() {
-    this._state = createDefaultPublishState();
-    if (this.currentProjection) {
-      this._state = { ...this._state, viewFingerprint: this.currentProjection };
-    }
-    this._tool = 'select';
-    this._highlightedItem = null;
-    this._showFingerprintWarning = false;
-    this._plotCacheKey = '';
-    this._insetCacheKey = '';
-    this._overlayController?.destroy();
-    this._overlayController = null;
-    this.updateComplete.then(() => this._setupOverlay());
+    const state = createDefaultPublishState();
+    this._applyStateAndRebuild({
+      ...state,
+      viewFingerprint: this.currentProjection ?? undefined,
+    });
   }
 
   private _handleNewFigure() {
-    this._state = {
+    this._applyStateAndRebuild({
       ...this._state,
       overlays: [],
       insets: [],
       viewFingerprint: this.currentProjection ?? undefined,
-    };
+    });
+  }
+
+  private _applyStateAndRebuild(newState: PublishState) {
+    this._state = newState;
     this._tool = 'select';
     this._highlightedItem = null;
     this._showFingerprintWarning = false;
@@ -600,6 +595,44 @@ export class ProtspacePublishModal extends LitElement {
   private _onOverlayClick = () => {
     this._handleClose();
   };
+
+  // ── Shared UI helpers ──────────────────────────────
+
+  private _renderSliderInput(opts: {
+    min: number;
+    max: number;
+    step?: number;
+    value: number;
+    unit?: string;
+    onChange: (v: number) => void;
+  }) {
+    const { min, max, step, value, unit, onChange } = opts;
+    const stepAttr = step ?? 1;
+    const parse = step && step < 1 ? parseFloat : parseInt;
+    return html`
+      <div class="publish-input-group">
+        <input
+          type="range"
+          class="publish-slider"
+          min=${min}
+          max=${max}
+          step=${stepAttr}
+          .value=${String(value)}
+          @input=${(e: Event) => onChange(parse((e.target as HTMLInputElement).value) || value)}
+        />
+        <input
+          type="number"
+          class="publish-row-input"
+          min=${min}
+          max=${max}
+          step=${stepAttr}
+          .value=${String(value)}
+          @change=${(e: Event) => onChange(parse((e.target as HTMLInputElement).value) || value)}
+        />
+        ${unit ? html`<span class="publish-unit">${unit}</span>` : nothing}
+      </div>
+    `;
+  }
 
   // ── Toolbar ────────────────────────────────────────
 
@@ -844,98 +877,34 @@ export class ProtspacePublishModal extends LitElement {
 
               <div class="publish-row">
                 <label>Size %</label>
-                <div class="publish-input-group">
-                  <input
-                    type="range"
-                    class="publish-slider"
-                    min="10"
-                    max="100"
-                    .value=${String(leg.widthPercent)}
-                    @input=${(e: Event) => {
-                      this._updateLegend({
-                        widthPercent:
-                          parseInt((e.target as HTMLInputElement).value) || leg.widthPercent,
-                      });
-                    }}
-                  />
-                  <input
-                    type="number"
-                    class="publish-row-input"
-                    min="10"
-                    max="100"
-                    .value=${String(leg.widthPercent)}
-                    @change=${(e: Event) => {
-                      this._updateLegend({
-                        widthPercent:
-                          parseInt((e.target as HTMLInputElement).value) || leg.widthPercent,
-                      });
-                    }}
-                  />
-                  <span class="publish-unit">%</span>
-                </div>
+                ${this._renderSliderInput({
+                  min: 10,
+                  max: 100,
+                  value: leg.widthPercent,
+                  unit: '%',
+                  onChange: (v) => this._updateLegend({ widthPercent: v }),
+                })}
               </div>
 
               <div class="publish-row">
                 <label>Font size</label>
-                <div class="publish-input-group">
-                  <input
-                    type="range"
-                    class="publish-slider"
-                    min="8"
-                    max="120"
-                    .value=${String(leg.fontSizePx)}
-                    @input=${(e: Event) => {
-                      this._updateLegend({
-                        fontSizePx:
-                          parseInt((e.target as HTMLInputElement).value) || leg.fontSizePx,
-                      });
-                    }}
-                  />
-                  <input
-                    type="number"
-                    class="publish-row-input"
-                    min="8"
-                    max="120"
-                    .value=${String(leg.fontSizePx)}
-                    @change=${(e: Event) => {
-                      this._updateLegend({
-                        fontSizePx:
-                          parseInt((e.target as HTMLInputElement).value) || leg.fontSizePx,
-                      });
-                    }}
-                  />
-                  <span class="publish-unit">px</span>
-                </div>
+                ${this._renderSliderInput({
+                  min: 8,
+                  max: 120,
+                  value: leg.fontSizePx,
+                  unit: 'px',
+                  onChange: (v) => this._updateLegend({ fontSizePx: v }),
+                })}
               </div>
 
               <div class="publish-row">
                 <label>Columns</label>
-                <div class="publish-input-group">
-                  <input
-                    type="range"
-                    class="publish-slider"
-                    min="1"
-                    max="6"
-                    .value=${String(leg.columns)}
-                    @input=${(e: Event) => {
-                      this._updateLegend({
-                        columns: parseInt((e.target as HTMLInputElement).value) || leg.columns,
-                      });
-                    }}
-                  />
-                  <input
-                    type="number"
-                    class="publish-row-input"
-                    min="1"
-                    max="6"
-                    .value=${String(leg.columns)}
-                    @change=${(e: Event) => {
-                      this._updateLegend({
-                        columns: parseInt((e.target as HTMLInputElement).value) || leg.columns,
-                      });
-                    }}
-                  />
-                </div>
+                ${this._renderSliderInput({
+                  min: 1,
+                  max: 6,
+                  value: leg.columns,
+                  onChange: (v) => this._updateLegend({ columns: v }),
+                })}
               </div>
             `
           : nothing}
@@ -989,70 +958,28 @@ export class ProtspacePublishModal extends LitElement {
         return html`
           <div class="publish-row" style="margin-bottom: 0;">
             <label>Stroke</label>
-            <div class="publish-input-group">
-              <input
-                type="range"
-                class="publish-slider"
-                min="0.5"
-                max="10"
-                step="0.5"
-                .value=${String(a.strokeWidth)}
-                @input=${(e: Event) => {
-                  this._updateOverlay(i, {
-                    strokeWidth: parseFloat((e.target as HTMLInputElement).value) || 2,
-                  });
-                }}
-              />
-              <input
-                type="number"
-                class="publish-row-input"
-                min="0.5"
-                max="10"
-                step="0.5"
-                .value=${String(a.strokeWidth)}
-                @change=${(e: Event) => {
-                  this._updateOverlay(i, {
-                    strokeWidth: parseFloat((e.target as HTMLInputElement).value) || 2,
-                  });
-                }}
-              />
-              <span class="publish-unit">px</span>
-            </div>
+            ${this._renderSliderInput({
+              min: 0.5,
+              max: 10,
+              step: 0.5,
+              value: a.strokeWidth,
+              unit: 'px',
+              onChange: (v) => this._updateOverlay(i, { strokeWidth: v }),
+            })}
           </div>
         `;
       case 'arrow':
         return html`
           <div class="publish-row" style="margin-bottom: 0;">
             <label>Stroke</label>
-            <div class="publish-input-group">
-              <input
-                type="range"
-                class="publish-slider"
-                min="0.5"
-                max="10"
-                step="0.5"
-                .value=${String(a.width)}
-                @input=${(e: Event) => {
-                  this._updateOverlay(i, {
-                    width: parseFloat((e.target as HTMLInputElement).value) || 2,
-                  });
-                }}
-              />
-              <input
-                type="number"
-                class="publish-row-input"
-                min="0.5"
-                max="10"
-                step="0.5"
-                .value=${String(a.width)}
-                @change=${(e: Event) => {
-                  this._updateOverlay(i, {
-                    width: parseFloat((e.target as HTMLInputElement).value) || 2,
-                  });
-                }}
-              />
-              <span class="publish-unit">px</span>
-            </div>
+            ${this._renderSliderInput({
+              min: 0.5,
+              max: 10,
+              step: 0.5,
+              value: a.width,
+              unit: 'px',
+              onChange: (v) => this._updateOverlay(i, { width: v }),
+            })}
           </div>
         `;
       case 'label':
@@ -1073,35 +1000,13 @@ export class ProtspacePublishModal extends LitElement {
           </div>
           <div class="publish-row" style="margin-bottom: 0;">
             <label>Size</label>
-            <div class="publish-input-group">
-              <input
-                type="range"
-                class="publish-slider"
-                min="8"
-                max="72"
-                step="1"
-                .value=${String(a.fontSize)}
-                @input=${(e: Event) => {
-                  this._updateOverlay(i, {
-                    fontSize: parseFloat((e.target as HTMLInputElement).value) || 16,
-                  });
-                }}
-              />
-              <input
-                type="number"
-                class="publish-row-input"
-                min="8"
-                max="72"
-                step="1"
-                .value=${String(a.fontSize)}
-                @change=${(e: Event) => {
-                  this._updateOverlay(i, {
-                    fontSize: parseFloat((e.target as HTMLInputElement).value) || 16,
-                  });
-                }}
-              />
-              <span class="publish-unit">px</span>
-            </div>
+            ${this._renderSliderInput({
+              min: 8,
+              max: 72,
+              value: a.fontSize,
+              unit: 'px',
+              onChange: (v) => this._updateOverlay(i, { fontSize: v }),
+            })}
           </div>
         `;
     }
@@ -1137,35 +1042,14 @@ export class ProtspacePublishModal extends LitElement {
               </div>
               <div class="publish-row" style="margin-bottom: 0;">
                 <label>Border</label>
-                <div class="publish-input-group">
-                  <input
-                    type="range"
-                    class="publish-slider"
-                    min="0.5"
-                    max="10"
-                    step="0.5"
-                    .value=${String(inset.border)}
-                    @input=${(e: Event) => {
-                      this._updateInset(i, {
-                        border: parseFloat((e.target as HTMLInputElement).value) || 2,
-                      });
-                    }}
-                  />
-                  <input
-                    type="number"
-                    class="publish-row-input"
-                    min="0.5"
-                    max="10"
-                    step="0.5"
-                    .value=${String(inset.border)}
-                    @change=${(e: Event) => {
-                      this._updateInset(i, {
-                        border: parseFloat((e.target as HTMLInputElement).value) || 2,
-                      });
-                    }}
-                  />
-                  <span class="publish-unit">px</span>
-                </div>
+                ${this._renderSliderInput({
+                  min: 0.5,
+                  max: 10,
+                  step: 0.5,
+                  value: inset.border,
+                  unit: 'px',
+                  onChange: (v) => this._updateInset(i, { border: v }),
+                })}
               </div>
             </div>
           `,
