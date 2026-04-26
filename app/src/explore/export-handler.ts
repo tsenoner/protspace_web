@@ -61,10 +61,8 @@ export function createExportHandler({
   // ── Publish editor handler ─────────────────────────
 
   function getCurrentProjection(): { projection: string; dimensionality: number } | null {
-    const sp = plotElement as unknown as {
-      selectedProjection?: string;
-    };
-    if (!sp.selectedProjection) return null;
+    const sp = plotElement as Record<string, unknown>;
+    if (typeof sp.selectedProjection !== 'string' || !sp.selectedProjection) return null;
     const name = sp.selectedProjection;
     const dimensionality = name.toLowerCase().includes('3d') ? 3 : 2;
     // Extract projection method (e.g., "UMAP_2D" → "UMAP")
@@ -86,9 +84,13 @@ export function createExportHandler({
         modal.currentProjection = getCurrentProjection();
 
         // Restore saved publish state: bundle > localStorage > defaults
-        const bundleSettings = (
-          plotElement as unknown as { bundleSettings?: { publishState?: Record<string, unknown> } }
-        ).bundleSettings;
+        const plotEl = plotElement as Record<string, unknown>;
+        const bundleSettings =
+          'bundleSettings' in plotEl &&
+          typeof plotEl.bundleSettings === 'object' &&
+          plotEl.bundleSettings !== null
+            ? (plotEl.bundleSettings as { publishState?: Record<string, unknown> })
+            : undefined;
         if (bundleSettings?.publishState) {
           modal.savedPublishState = bundleSettings.publishState;
         } else {
