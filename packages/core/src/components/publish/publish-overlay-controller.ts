@@ -271,6 +271,31 @@ export class PublishOverlayController {
     return null;
   }
 
+  /**
+   * Compute the pixel aspect ratio (w/h) of a NormRect, accounting for
+   * the non-square plot area.  Used to lock the target rect to the source's
+   * proportions.
+   */
+  private insetPixelAspect(r: NormRect): number {
+    const pr = this.callbacks.getPlotRect();
+    const pw = r.w * pr.w;
+    const ph = r.h * pr.h;
+    return ph > 0 ? pw / ph : 1;
+  }
+
+  /**
+   * Constrain a NormRect so its pixel aspect ratio matches `aspect` (w/h).
+   * Keeps the rect anchored at its current (x, y) and adjusts height.
+   */
+  private constrainRectAspect(r: NormRect, aspect: number): NormRect {
+    const pr = this.callbacks.getPlotRect();
+    // Desired pixel width and height
+    const pw = r.w * pr.w;
+    const desiredPh = pw / aspect;
+    const h = desiredPh / pr.h;
+    return { x: r.x, y: r.y, w: r.w, h };
+  }
+
   /** Resize an inset source or target rect by dragging a corner handle. */
   private applyInsetHandleDrag() {
     if (!this.selected || this.selected.kind !== 'inset' || !this.handleMode) return;
@@ -309,10 +334,25 @@ export class PublishOverlayController {
     // Enforce minimum size
     if (newRect.w < 0.01 || newRect.h < 0.01) return;
 
-    const updated = isSource
-      ? { ...inset, sourceRect: newRect }
-      : { ...inset, targetRect: newRect };
-    this.callbacks.onInsetUpdated(this.selected.index, updated);
+    if (isSource) {
+      // Source resized — also adjust target to match the new aspect ratio
+      const aspect = this.insetPixelAspect(newRect);
+      const adjusted = this.constrainRectAspect(inset.targetRect, aspect);
+      this.callbacks.onInsetUpdated(this.selected.index, {
+        ...inset,
+        sourceRect: newRect,
+        targetRect: adjusted,
+      });
+    } else {
+      // Target resized — constrain to source's aspect ratio
+      const aspect = this.insetPixelAspect(inset.sourceRect);
+      const constrained = this.constrainRectAspect(newRect, aspect);
+      if (constrained.h < 0.01) return;
+      this.callbacks.onInsetUpdated(this.selected.index, {
+        ...inset,
+        targetRect: constrained,
+      });
+    }
   }
 
   private moveSelected(nx: number, ny: number) {
@@ -748,11 +788,14 @@ export class PublishOverlayController {
     const x = Math.min(start.nx, end.nx);
     const y = Math.min(start.ny, end.ny);
     const w = Math.abs(end.nx - start.nx);
-    const h = Math.abs(end.ny - start.ny);
-    if (w < 0.01 || h < 0.01) return;
+    if (w < 0.01) return;
+    // Lock target aspect ratio to source
+    const aspect = this.insetPixelAspect(this.pendingInsetSource);
+    const targetRect = this.constrainRectAspect({ x, y, w, h: 0 }, aspect);
+    if (targetRect.h < 0.01) return;
     const inset: Inset = {
       sourceRect: this.pendingInsetSource,
-      targetRect: { x, y, w, h },
+      targetRect,
       border: 2,
       connector: 'lines',
     };
@@ -796,8 +839,7 @@ export class PublishOverlayController {
         ctx.stroke();
         break;
       }
-      case 'inset-source':
-      case 'inset-target': {
+      case 'inset-source': {
         const x = Math.min(sx, cx);
         const y = Math.min(sy, cy);
         const w = Math.abs(cx - sx);
@@ -805,6 +847,27 @@ export class PublishOverlayController {
         ctx.fillStyle = 'rgba(0, 163, 224, 0.1)';
         ctx.fillRect(x, y, w, h);
         ctx.strokeRect(x, y, w, h);
+        break;
+      }
+      case 'inset-target': {
+        // Constrain rubber-band to source aspect ratio
+        const rawW = Math.abs(cx - sx);
+        let drawW = rawW;
+        let drawH: number;
+        if (this.pendingInsetSource) {
+          const pr = this.callbacks.getPlotRect();
+          const srcPw = this.pendingInsetSource.w * pr.w;
+          const srcPh = this.pendingInsetSource.h * pr.h;
+          const aspect = srcPh > 0 ? srcPw / srcPh : 1;
+          drawH = drawW / aspect;
+        } else {
+          drawH = Math.abs(cy - sy);
+        }
+        const x = Math.min(sx, sx + (cx < sx ? -drawW : 0));
+        const y = Math.min(sy, sy + (cy < sy ? -drawH : 0));
+        ctx.fillStyle = 'rgba(0, 163, 224, 0.1)';
+        ctx.fillRect(x, y, drawW, drawH);
+        ctx.strokeRect(x, y, drawW, drawH);
         break;
       }
     }

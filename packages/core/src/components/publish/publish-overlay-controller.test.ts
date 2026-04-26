@@ -250,6 +250,31 @@ describe('PublishOverlayController', () => {
       expect(callbacks.onInsetAdded).not.toHaveBeenCalled();
     });
 
+    it('constrains target aspect ratio to match source', () => {
+      controller.tool = 'inset-source';
+
+      // Draw a square source: 200x200 px on a 1000x500 canvas
+      // In norm coords: w=0.2, h=0.4 → pixel aspect = (0.2*1000)/(0.4*500) = 200/200 = 1.0
+      canvas.dispatchEvent(pointerEvent('pointerdown', 100, 50));
+      canvas.dispatchEvent(pointerEvent('pointerup', 300, 250));
+
+      expect(controller.tool).toBe('inset-target');
+
+      // Draw target wider than source would allow
+      canvas.dispatchEvent(pointerEvent('pointerdown', 600, 50));
+      canvas.dispatchEvent(pointerEvent('pointerup', 900, 350));
+
+      expect(callbacks.onInsetAdded).toHaveBeenCalledTimes(1);
+      const inset = callbacks.onInsetAdded.mock.calls[0][0];
+
+      // Pixel aspect ratios should match
+      const plotW = 1000;
+      const plotH = 500;
+      const srcAspect = (inset.sourceRect.w * plotW) / (inset.sourceRect.h * plotH);
+      const tgtAspect = (inset.targetRect.w * plotW) / (inset.targetRect.h * plotH);
+      expect(tgtAspect).toBeCloseTo(srcAspect, 2);
+    });
+
     it('normalizes source rect regardless of drag direction', () => {
       controller.tool = 'inset-source';
 
