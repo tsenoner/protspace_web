@@ -70,8 +70,8 @@ function readLegendExportState(): LegendExportState | null {
       const s = el.getLegendExportData();
       if (s && Array.isArray(s.items)) return s;
     }
-  } catch {
-    /* ignore */
+  } catch (e) {
+    console.warn('Failed to read legend export state:', e);
   }
   return null;
 }
