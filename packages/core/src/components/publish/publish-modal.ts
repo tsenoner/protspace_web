@@ -99,7 +99,7 @@ export class ProtspacePublishModal extends LitElement {
   @state() private _highlightedItem: { kind: 'overlay' | 'inset'; index: number } | null = null;
   @state() private _showFingerprintWarning = false;
   @state() private _legendItems: LegendItem[] = [];
-  @state() private _annotationName = 'Legend';
+  @state() private _legendTitle = 'Legend';
   @state() private _includeShapes = false;
 
   @query('.publish-preview-canvas') private _previewCanvas!: HTMLCanvasElement;
@@ -156,7 +156,7 @@ export class ProtspacePublishModal extends LitElement {
   private _readLegend() {
     const legendState = readLegendExportState();
     if (legendState) {
-      this._annotationName = legendState.annotation;
+      this._legendTitle = legendState.annotation;
       this._includeShapes = legendState.includeShapes;
       this._legendItems = legendState.items.map((it) => ({
         value: it.value,
@@ -283,7 +283,7 @@ export class ProtspacePublishModal extends LitElement {
       state: s,
       plotCanvas: this._cachedPlotCanvas,
       legendItems: this._legendItems,
-      annotationName: this._annotationName,
+      legendTitle: this._legendTitle,
       includeShapes: this._includeShapes,
       highlightedItem: this._highlightedItem,
       displayScale:
@@ -450,7 +450,7 @@ export class ProtspacePublishModal extends LitElement {
       state: s,
       plotCanvas,
       legendItems: this._legendItems,
-      annotationName: this._annotationName,
+      legendTitle: this._legendTitle,
       includeShapes: this._includeShapes,
       insetPlotCanvas,
     });

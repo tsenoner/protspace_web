@@ -77,7 +77,7 @@ interface LegendRenderOptions {
   height: number;
   fontSizePx: number;
   columns: number;
-  annotationName: string;
+  legendTitle: string;
   includeShapes: boolean;
   backgroundColor: string;
 }
@@ -176,7 +176,7 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
   ctx.font = `600 ${headerFontSize}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  const headerText = (opts.annotationName || 'Legend').replace(/_/g, ' ');
+  const headerText = (opts.legendTitle || 'Legend').replace(/_/g, ' ');
   ctx.fillText(headerText, padding, padding + headerHeight / 2);
 
   // Items — distribute across columns with variable row heights
@@ -746,7 +746,7 @@ interface CompositeOptions {
   state: PublishState;
   plotCanvas: HTMLCanvasElement;
   legendItems: LegendItem[];
-  annotationName: string;
+  legendTitle: string;
   includeShapes: boolean;
   /** When set, draw a highlight outline around this item on the preview. */
   highlightedItem?: { kind: 'overlay' | 'inset'; index: number } | null;
@@ -761,7 +761,7 @@ interface CompositeOptions {
  * This is the **single renderer** used by both the live preview and final export.
  */
 export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptions): void {
-  const { state, plotCanvas, legendItems, annotationName, includeShapes } = opts;
+  const { state, plotCanvas, legendItems, legendTitle, includeShapes } = opts;
   const ctx = outCanvas.getContext('2d')!;
   const W = outCanvas.width;
   const H = outCanvas.height;
@@ -790,7 +790,7 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
       height: legendRect.h,
       fontSizePx: state.legend.fontSizePx,
       columns: state.legend.columns,
-      annotationName,
+      legendTitle,
       includeShapes,
       backgroundColor: isCorner
         ? 'rgba(255,255,255,0.85)'
