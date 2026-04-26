@@ -6,6 +6,7 @@
  * and composites everything onto a single output canvas.
  */
 
+import { SHAPE_PATH_GENERATORS, renderPathOnCanvas } from '@protspace/utils';
 import type { Overlay, Inset, LegendLayout, PublishState } from './publish-state';
 
 // ── Legend item type (mirrors export-utils LegendExportItem) ─────────
@@ -241,7 +242,22 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
     const cy = y + thisItemH / 2;
 
     // Symbol — centered vertically in the item
-    drawColoredCircle(ctx, it.color, xBase + symbolSize / 2, cy, symbolSize / 2);
+    if (opts.includeShapes) {
+      const shapeKey = (it.shape || 'circle').toLowerCase();
+      const gen = SHAPE_PATH_GENERATORS[shapeKey] || SHAPE_PATH_GENERATORS.circle;
+      const pathString = gen(symbolSize);
+      renderPathOnCanvas(
+        ctx,
+        pathString,
+        xBase + symbolSize / 2,
+        cy,
+        it.color || '#888',
+        '#394150',
+        1,
+      );
+    } else {
+      drawColoredCircle(ctx, it.color, xBase + symbolSize / 2, cy, symbolSize / 2);
+    }
 
     // Label — centered vertically in the item
     ctx.fillStyle = '#1f2937';
