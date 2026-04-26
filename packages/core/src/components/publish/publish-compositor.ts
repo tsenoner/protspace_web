@@ -82,6 +82,19 @@ interface LegendRenderOptions {
   backgroundColor: string;
 }
 
+/** Base sizes (at fontSizePx=24) for legend layout. Multiply by scale = fontSizePx/BASE_FONT. */
+const LEGEND_BASE_FONT = 24;
+const LEGEND_PADDING = 24;
+const LEGEND_HEADER_HEIGHT = 60;
+const LEGEND_ITEM_HEIGHT = 56;
+const LEGEND_SYMBOL_SIZE = 28;
+const LEGEND_HEADER_FONT_SIZE = 28;
+const LEGEND_ITEM_FONT_SIZE = 24;
+const LEGEND_TEXT_OFFSET = 8;
+const LEGEND_COL_GAP = 16;
+const LEGEND_COUNT_WIDTH = 48;
+const LEGEND_ITEM_PADDING = 8;
+
 /**
  * Count how many lines text would need when wrapped to maxWidth.
  * Uses the current font set on ctx for measurement.
@@ -153,13 +166,13 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
   canvas.height = Math.max(100, Math.floor(opts.height));
   const ctx = canvas.getContext('2d')!;
 
-  const scale = opts.fontSizePx / 24;
-  const padding = 24 * scale;
-  const headerHeight = 60 * scale;
-  const itemHeight = 56 * scale;
-  const symbolSize = 28 * scale;
-  const headerFontSize = 28 * scale;
-  const itemFontSize = 24 * scale;
+  const scale = opts.fontSizePx / LEGEND_BASE_FONT;
+  const padding = LEGEND_PADDING * scale;
+  const headerHeight = LEGEND_HEADER_HEIGHT * scale;
+  const itemHeight = LEGEND_ITEM_HEIGHT * scale;
+  const symbolSize = LEGEND_SYMBOL_SIZE * scale;
+  const headerFontSize = LEGEND_HEADER_FONT_SIZE * scale;
+  const itemFontSize = LEGEND_ITEM_FONT_SIZE * scale;
 
   // Background
   ctx.fillStyle = opts.backgroundColor;
@@ -182,11 +195,11 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
   // Items — distribute across columns with variable row heights
   const colWidth = (canvas.width - padding * 2) / columns;
   const itemsPerCol = Math.ceil(renderItems.length / columns);
-  const textOffset = 8 * scale;
-  const colGap = 16 * scale;
-  const countWidth = 48 * scale;
+  const textOffset = LEGEND_TEXT_OFFSET * scale;
+  const colGap = LEGEND_COL_GAP * scale;
+  const countWidth = LEGEND_COUNT_WIDTH * scale;
   const lineHeight = itemFontSize * 1.2;
-  const itemPadding = 8 * scale; // vertical padding around each item
+  const itemPadding = LEGEND_ITEM_PADDING * scale; // vertical padding around each item
 
   // Pre-measure line counts for label wrapping
   ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
