@@ -78,7 +78,6 @@ interface LegendRenderOptions {
   fontSizePx: number;
   columns: number;
   legendTitle: string;
-  includeShapes: boolean;
   backgroundColor: string;
 }
 
@@ -254,23 +253,19 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
     const thisItemH = Math.max(itemHeight, lines * lineHeight + itemPadding * 2);
     const cy = y + thisItemH / 2;
 
-    // Symbol — centered vertically in the item
-    if (opts.includeShapes) {
-      const shapeKey = (it.shape || 'circle').toLowerCase();
-      const gen = SHAPE_PATH_GENERATORS[shapeKey] || SHAPE_PATH_GENERATORS.circle;
-      const pathString = gen(symbolSize);
-      renderPathOnCanvas(
-        ctx,
-        pathString,
-        xBase + symbolSize / 2,
-        cy,
-        it.color || '#888',
-        '#394150',
-        1,
-      );
-    } else {
-      drawColoredCircle(ctx, it.color, xBase + symbolSize / 2, cy, symbolSize / 2);
-    }
+    // Symbol — render the item's shape (custom shapes from legend settings, default is circle)
+    const shapeKey = (it.shape || 'circle').toLowerCase();
+    const gen = SHAPE_PATH_GENERATORS[shapeKey] || SHAPE_PATH_GENERATORS.circle;
+    const pathString = gen(symbolSize);
+    renderPathOnCanvas(
+      ctx,
+      pathString,
+      xBase + symbolSize / 2,
+      cy,
+      it.color || '#888',
+      '#394150',
+      1,
+    );
 
     // Label — centered vertically in the item
     ctx.fillStyle = '#1f2937';
@@ -300,24 +295,6 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
 
   ctx.restore();
   return canvas;
-}
-
-function drawColoredCircle(
-  ctx: CanvasRenderingContext2D,
-  color: string,
-  cx: number,
-  cy: number,
-  radius: number,
-) {
-  ctx.save();
-  ctx.fillStyle = color || '#888';
-  ctx.strokeStyle = '#394150';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
 }
 
 // ── Layout helpers ───────────────────────────────────────────────────
@@ -760,7 +737,6 @@ interface CompositeOptions {
   plotCanvas: HTMLCanvasElement;
   legendItems: LegendItem[];
   legendTitle: string;
-  includeShapes: boolean;
   /** When set, draw a highlight outline around this item on the preview. */
   highlightedItem?: { kind: 'overlay' | 'inset'; index: number } | null;
   /** Ratio of canvas pixels to display pixels — used to keep highlights at constant screen size. */
@@ -774,7 +750,7 @@ interface CompositeOptions {
  * This is the **single renderer** used by both the live preview and final export.
  */
 export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptions): void {
-  const { state, plotCanvas, legendItems, legendTitle, includeShapes } = opts;
+  const { state, plotCanvas, legendItems, legendTitle } = opts;
   const ctx = outCanvas.getContext('2d')!;
   const W = outCanvas.width;
   const H = outCanvas.height;
@@ -804,7 +780,6 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
       fontSizePx: state.legend.fontSizePx,
       columns: state.legend.columns,
       legendTitle,
-      includeShapes,
       backgroundColor: isCorner
         ? 'rgba(255,255,255,0.85)'
         : state.background === 'white'
