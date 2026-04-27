@@ -10,12 +10,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import { tokens } from '../../styles/tokens';
 import { buttonMixin } from '../../styles/mixins';
 import { publishModalStyles } from './publish-modal.styles';
-import {
-  JOURNAL_PRESETS,
-  resolvePresetDimensions,
-  getPreset,
-  type PresetId,
-} from './journal-presets';
+import { JOURNAL_PRESETS, type PresetId } from './journal-presets';
 import {
   createDefaultPublishState,
   type PublishState,
@@ -24,7 +19,7 @@ import {
   type Overlay,
   type Inset,
 } from './publish-state';
-import { pxToMm, mmToPx, adjustDpiForWidthMm } from './dimension-utils';
+import { pxToMm, mmToPx } from './dimension-utils';
 import {
   capturePlotCanvas,
   composeFigure,
@@ -33,6 +28,14 @@ import {
   type LegendItem,
 } from './publish-compositor';
 import { PublishOverlayController } from './publish-overlay-controller';
+import {
+  getActivePresetConstraints,
+  computeWidthUpdate,
+  computeHeightUpdate,
+  computeDpiUpdate,
+  computePresetApplication,
+  shouldShowFingerprintWarning,
+} from './publish-modal-helpers';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -124,12 +127,10 @@ export class ProtspacePublishModal extends LitElement {
       this._state = { ...this._state, viewFingerprint: this.currentProjection };
     }
     // Check for fingerprint mismatch
-    if (this._state.viewFingerprint && this.currentProjection) {
-      const fp = this._state.viewFingerprint;
-      const cp = this.currentProjection;
-      this._showFingerprintWarning =
-        fp.projection !== cp.projection || fp.dimensionality !== cp.dimensionality;
-    }
+    this._showFingerprintWarning = shouldShowFingerprintWarning(
+      this._state.viewFingerprint,
+      this.currentProjection,
+    );
     this._readLegend();
   }
 
@@ -318,68 +319,35 @@ export class ProtspacePublishModal extends LitElement {
   }
 
   /** Return the active preset's mm constraints, or null for px-based / custom. */
-  private _getActivePresetConstraints(): {
-    widthMm: number;
-    maxHeightMm: number | undefined;
-  } | null {
-    const preset = getPreset(this._state.preset);
-    if (!preset || preset.widthMm === undefined) return null;
-    return { widthMm: preset.widthMm, maxHeightMm: preset.maxHeightMm };
+  private _getActivePresetConstraints() {
+    return getActivePresetConstraints(this._state);
   }
 
   private _updateWidthPx(widthPx: number) {
-    const c = this._getActivePresetConstraints();
-    if (c) {
-      // Constrained: adjust DPI to keep mm constant
-      const dpi = adjustDpiForWidthMm(widthPx, c.widthMm);
-      const heightPx = c.maxHeightMm
-        ? Math.min(this._state.heightPx, mmToPx(c.maxHeightMm, dpi))
-        : this._state.heightPx;
-      this._state = { ...this._state, widthPx, dpi, heightPx };
-    } else {
-      this._state = { ...this._state, widthPx, preset: 'custom' };
-    }
+    this._state = { ...this._state, ...computeWidthUpdate(this._state, widthPx) };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
   }
 
   private _updateHeightPx(heightPx: number) {
-    const c = this._getActivePresetConstraints();
-    if (c?.maxHeightMm) {
-      const maxPx = mmToPx(c.maxHeightMm, this._state.dpi);
-      heightPx = Math.min(heightPx, maxPx);
-    }
-    this._state = { ...this._state, heightPx };
+    this._state = { ...this._state, ...computeHeightUpdate(this._state, heightPx) };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
   }
 
   private _updateDpi(dpi: number) {
-    const c = this._getActivePresetConstraints();
-    if (c) {
-      // Constrained: adjust px to keep mm constant
-      const widthPx = mmToPx(c.widthMm, dpi);
-      const heightPx = c.maxHeightMm
-        ? Math.min(this._state.heightPx, mmToPx(c.maxHeightMm, dpi))
-        : this._state.heightPx;
-      this._state = { ...this._state, dpi, widthPx, heightPx };
-    } else {
-      this._state = { ...this._state, dpi, preset: 'custom' };
-    }
+    this._state = { ...this._state, ...computeDpiUpdate(this._state, dpi) };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
   }
 
   private _applyPreset(presetId: PresetId) {
-    const preset = getPreset(presetId);
-    if (!preset) return;
-    const dims = resolvePresetDimensions(preset);
+    const patch = computePresetApplication(presetId);
+    if (!patch) return;
     this._state = {
       ...this._state,
-      preset: presetId,
-      widthPx: dims.widthPx,
-      heightPx: dims.heightPx ?? this._state.heightPx,
-      dpi: preset.dpi,
+      ...patch,
+      heightPx: patch.heightPx ?? this._state.heightPx,
     };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
