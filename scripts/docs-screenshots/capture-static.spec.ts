@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import {
   IMAGES_DIR,
+  dismissProductTour,
   waitForDataLoad,
   waitForLegend,
   waitForStructureViewer,
@@ -60,6 +61,7 @@ async function waitForControlBar(
 test.describe('Interface Overview Screenshots', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/explore');
+    await dismissProductTour(page);
     await waitForDataLoad(page);
     await waitForLegend(page);
     await waitForControlBar(page);
@@ -129,6 +131,7 @@ test.describe('Interface Overview Screenshots', () => {
 test.describe('Control Bar Screenshots', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/explore');
+    await dismissProductTour(page);
     await waitForDataLoad(page);
     await waitForControlBar(page);
   });

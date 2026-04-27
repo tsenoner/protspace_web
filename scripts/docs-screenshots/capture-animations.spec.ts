@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import {
   TEMP_VIDEOS_DIR,
+  dismissProductTour,
   waitForDataLoad,
   waitForLegend,
   toggleLegendItem,
@@ -95,6 +96,7 @@ test.describe('Zoom Animation', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/explore');
+    await dismissProductTour(page);
     await waitForDataLoad(page);
     await waitForLegend(page);
   });
@@ -185,6 +187,7 @@ test.describe('Zoom Animation', () => {
 test.describe('Scatterplot Animation Captures', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/explore');
+    await dismissProductTour(page);
     await waitForDataLoad(page);
     await waitForLegend(page);
   });
@@ -514,6 +517,7 @@ test.describe('Scatterplot Animation Captures', () => {
 test.describe('Legend Animation Captures', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/explore');
+    await dismissProductTour(page);
     await waitForDataLoad(page);
     await waitForLegend(page);
   });

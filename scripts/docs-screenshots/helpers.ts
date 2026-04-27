@@ -8,6 +8,20 @@ export const IMAGES_DIR = path.join(__dirname, '../../docs/explore/images');
 export const TEMP_VIDEOS_DIR = path.join(__dirname, '../../temp-videos');
 
 /**
+ * Dismiss the product tour by setting the localStorage flag that marks it as
+ * completed.  Must be called **after** `page.goto()` (so the origin is set)
+ * but **before** data finishes loading (which triggers the tour).
+ *
+ * A simple approach: navigate first, inject the key, then reload so the page
+ * starts fresh with the flag already in place.  Alternatively, call this
+ * right after goto and before waitForDataLoad — the tour checks localStorage
+ * synchronously before calling `driverObj.drive()`.
+ */
+export async function dismissProductTour(page: Page): Promise<void> {
+  await page.evaluate(() => localStorage.setItem('driver.overviewTour', 'true'));
+}
+
+/**
  * Wait for the scatterplot to finish loading data.
  * Waits for the data-loaded event and for points to be rendered.
  */
