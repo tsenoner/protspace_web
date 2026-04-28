@@ -2,7 +2,12 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect } from 'vitest';
-import { computeLayout, computeInsetBoost, capturePlotCanvas } from './publish-compositor';
+import {
+  computeLayout,
+  computeInsetBoost,
+  capturePlotCanvas,
+  MAX_CANVAS_PIXELS,
+} from './publish-compositor';
 import type { LegendLayout } from './publish-state';
 
 function makeLegend(overrides: Partial<LegendLayout> = {}): LegendLayout {
@@ -298,6 +303,49 @@ describe('publish-compositor', () => {
         },
       ];
       expect(computeInsetBoost(insets)).toBe(1);
+    });
+
+    it('clamps boost so plotPixelArea * boost² stays under MAX_CANVAS_PIXELS', () => {
+      const insets = [
+        {
+          sourceRect: { x: 0, y: 0, w: 0.05, h: 0.05 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
+          border: 2,
+          connector: 'lines' as const,
+        },
+      ];
+      // Without area cap, this would return 4. A 6000×3000 plot (18M pixels)
+      // at boost=4 would need 18M × 16 = 288M pixels — over the cap.
+      const plotPixelArea = 6000 * 3000;
+      const boost = computeInsetBoost(insets, 4, plotPixelArea);
+      expect(boost).toBeLessThan(4);
+      expect(plotPixelArea * boost * boost).toBeLessThanOrEqual(MAX_CANVAS_PIXELS);
+    });
+
+    it('does not clamp below 1 even on huge plots', () => {
+      const insets = [
+        {
+          sourceRect: { x: 0, y: 0, w: 0.1, h: 0.1 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.4, h: 0.4 },
+          border: 2,
+          connector: 'lines' as const,
+        },
+      ];
+      const huge = 50_000 * 50_000;
+      expect(computeInsetBoost(insets, 4, huge)).toBe(1);
+    });
+
+    it('keeps boost when plot area is within budget', () => {
+      const insets = [
+        {
+          sourceRect: { x: 0, y: 0, w: 0.1, h: 0.1 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.3, h: 0.3 },
+          border: 2,
+          connector: 'lines' as const,
+        },
+      ];
+      // 1024×1024 ≈ 1M pixels; boost=3 → 9M, well under cap.
+      expect(computeInsetBoost(insets, 4, 1024 * 1024)).toBe(3);
     });
   });
 

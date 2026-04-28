@@ -19,6 +19,7 @@ import {
   type Overlay,
   type Inset,
 } from './publish-state';
+import { validatePublishState } from './publish-state-validate';
 import { pxToMm, mmToPx } from './dimension-utils';
 import {
   capturePlotCanvas,
@@ -117,7 +118,12 @@ export class ProtspacePublishModal extends LitElement {
     super.connectedCallback();
     if (this.savedPublishState) {
       const defaults = createDefaultPublishState();
-      this._state = { ...defaults, ...this.savedPublishState } as PublishState;
+      const validated = validatePublishState(this.savedPublishState);
+      this._state = {
+        ...defaults,
+        ...validated,
+        legend: { ...defaults.legend, ...(validated.legend ?? {}) },
+      };
     } else {
       this._state = createDefaultPublishState();
     }
@@ -264,7 +270,7 @@ export class ProtspacePublishModal extends LitElement {
 
     // Boosted capture for crisp inset rendering
     let insetPlotCanvas: HTMLCanvasElement | undefined;
-    const boost = computeInsetBoost(s.insets);
+    const boost = computeInsetBoost(s.insets, 4, plotRect.w * plotRect.h);
     if (boost > 1) {
       const insetKey = `${plotRect.w * boost}x${plotRect.h * boost}`;
       if (insetKey !== this._insetCacheKey || !this._cachedInsetCanvas) {
@@ -381,9 +387,18 @@ export class ProtspacePublishModal extends LitElement {
 
   // ── Export ─────────────────────────────────────────
 
-  private _handleExport() {
+  private async _handleExport() {
     // Re-render at full resolution for export
     if (!this.plotElement) return;
+    // Wait for any pending webfonts so the first export doesn't render with a
+    // fallback face. Cheap when fonts are already loaded.
+    if (typeof document !== 'undefined' && document.fonts?.ready) {
+      try {
+        await document.fonts.ready;
+      } catch {
+        // Non-fatal — proceed with whatever fonts are loaded.
+      }
+    }
     const s = this._state;
     const visibleCount = this._legendItems.filter((it) => it.isVisible).length;
     const { plotRect } = computeLayout(s.widthPx, s.heightPx, s.legend, visibleCount);
@@ -398,7 +413,7 @@ export class ProtspacePublishModal extends LitElement {
 
     // Boosted capture for crisp inset rendering
     let insetPlotCanvas: HTMLCanvasElement | undefined;
-    const boost = computeInsetBoost(s.insets);
+    const boost = computeInsetBoost(s.insets, 4, plotRect.w * plotRect.h);
     if (boost > 1) {
       insetPlotCanvas = capturePlotCanvas(plotEl, {
         width: plotRect.w * boost,

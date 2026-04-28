@@ -449,10 +449,11 @@ describe('PublishOverlayController', () => {
     it('removes event listeners on destroy', () => {
       const spy = vi.spyOn(canvas, 'removeEventListener');
       controller.destroy();
-      expect(spy).toHaveBeenCalledTimes(3);
+      expect(spy).toHaveBeenCalledTimes(4);
       expect(spy).toHaveBeenCalledWith('pointerdown', expect.any(Function));
       expect(spy).toHaveBeenCalledWith('pointermove', expect.any(Function));
       expect(spy).toHaveBeenCalledWith('pointerup', expect.any(Function));
+      expect(spy).toHaveBeenCalledWith('pointercancel', expect.any(Function));
     });
   });
 
@@ -488,6 +489,49 @@ describe('PublishOverlayController', () => {
       canvas.dispatchEvent(pointerEvent('pointerup', 200, 200));
 
       expect(callbacks.requestRedraw).toHaveBeenCalled();
+    });
+  });
+
+  describe('pointer lifecycle', () => {
+    it('releases pointer capture on pointerup', () => {
+      controller.tool = 'circle';
+      canvas.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      expect(canvas.setPointerCapture).toHaveBeenCalledWith(1);
+      canvas.dispatchEvent(pointerEvent('pointerup', 200, 200));
+      expect(canvas.releasePointerCapture).toHaveBeenCalledWith(1);
+    });
+
+    it('aborts drag and releases capture on pointercancel', () => {
+      controller.tool = 'circle';
+      canvas.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      expect(canvas.setPointerCapture).toHaveBeenCalledWith(1);
+      callbacks.requestRedraw.mockClear();
+      canvas.dispatchEvent(pointerEvent('pointercancel', 0, 0));
+      expect(canvas.releasePointerCapture).toHaveBeenCalledWith(1);
+      expect(callbacks.requestRedraw).toHaveBeenCalled();
+      // Subsequent pointermove must NOT mutate state
+      canvas.dispatchEvent(pointerEvent('pointermove', 500, 500));
+      // No overlay was created (drag was cancelled before pointerup)
+      canvas.dispatchEvent(pointerEvent('pointerup', 500, 500));
+      expect(callbacks.onOverlayAdded).not.toHaveBeenCalled();
+    });
+
+    it('destroy() releases pointer capture and removes listeners', () => {
+      controller.tool = 'circle';
+      canvas.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      expect(canvas.setPointerCapture).toHaveBeenCalledWith(1);
+
+      controller.destroy();
+      expect(canvas.releasePointerCapture).toHaveBeenCalledWith(1);
+
+      // After destroy, dispatching events should not call any callbacks
+      callbacks.onOverlayAdded.mockClear();
+      callbacks.requestRedraw.mockClear();
+      canvas.dispatchEvent(pointerEvent('pointermove', 500, 500));
+      canvas.dispatchEvent(pointerEvent('pointerup', 500, 500));
+      canvas.dispatchEvent(pointerEvent('pointercancel', 0, 0));
+      expect(callbacks.onOverlayAdded).not.toHaveBeenCalled();
+      expect(callbacks.requestRedraw).not.toHaveBeenCalled();
     });
   });
 });

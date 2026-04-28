@@ -70,6 +70,7 @@ export class PublishOverlayController {
     | 'inset-tgt-br'
     | null = null;
   private legendDragging = false;
+  private _capturedPointerId: number | null = null;
 
   constructor(canvas: HTMLCanvasElement, callbacks: OverlayCallbacks) {
     this.canvas = canvas;
@@ -77,6 +78,7 @@ export class PublishOverlayController {
     this.canvas.addEventListener('pointerdown', this.onPointerDown);
     this.canvas.addEventListener('pointermove', this.onPointerMove);
     this.canvas.addEventListener('pointerup', this.onPointerUp);
+    this.canvas.addEventListener('pointercancel', this.onPointerCancel);
   }
 
   get tool(): OverlayTool {
@@ -88,24 +90,55 @@ export class PublishOverlayController {
     this.canvas.style.cursor = value === 'select' ? 'default' : 'crosshair';
   }
 
+  /** Reset transient drag/handle state without re-rendering. */
+  private _resetTransientState() {
+    this.drag.active = false;
+    this.handleMode = null;
+    this.legendDragging = false;
+  }
+
+  /** Release captured pointer if we still hold one. Safe if already released. */
+  private _releaseCapturedPointer() {
+    if (this._capturedPointerId === null) return;
+    try {
+      this.canvas.releasePointerCapture(this._capturedPointerId);
+    } catch {
+      // ignore — already released
+    }
+    this._capturedPointerId = null;
+  }
+
   destroy() {
+    this._releaseCapturedPointer();
+    this._resetTransientState();
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
+    this.canvas.removeEventListener('pointercancel', this.onPointerCancel);
   }
 
-  /** Convert canvas-pixel coord to normalised 0–1 within the plot rect */
-  private toNorm(canvasX: number, canvasY: number): { nx: number; ny: number } {
+  /**
+   * Convert canvas-pixel coord to normalised 0–1 within the plot rect.
+   * `clamp` defaults to true (creation paths). Pass `false` for handle drags
+   * so dragging past the plot edge doesn't snap the dragged endpoint to the
+   * boundary and collapse the overlay's dimensions.
+   */
+  private toNorm(
+    canvasX: number,
+    canvasY: number,
+    opts: { clamp?: boolean } = {},
+  ): { nx: number; ny: number } {
+    const { clamp = true } = opts;
     const pr = this.callbacks.getPlotRect();
     const rect = this.canvas.getBoundingClientRect();
     const scaleX = this.canvas.width / rect.width;
     const scaleY = this.canvas.height / rect.height;
     const px = canvasX * scaleX;
     const py = canvasY * scaleY;
-    return {
-      nx: Math.max(0, Math.min(1, (px - pr.x) / pr.w)),
-      ny: Math.max(0, Math.min(1, (py - pr.y) / pr.h)),
-    };
+    const nx = (px - pr.x) / pr.w;
+    const ny = (py - pr.y) / pr.h;
+    if (!clamp) return { nx, ny };
+    return { nx: Math.max(0, Math.min(1, nx)), ny: Math.max(0, Math.min(1, ny)) };
   }
 
   private hitTestOverlay(nx: number, ny: number, a: Overlay): boolean {
@@ -303,7 +336,7 @@ export class PublishOverlayController {
     const inset = insets[this.selected.index];
     if (!inset) return;
 
-    const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
+    const norm = this.toNorm(this.drag.currentX, this.drag.currentY, { clamp: false });
     const isSource = this.handleMode.startsWith('inset-src-');
     const rect = isSource ? inset.sourceRect : inset.targetRect;
     const corner = this.handleMode.slice(-2); // 'tl', 'tr', 'bl', 'br'
@@ -410,7 +443,7 @@ export class PublishOverlayController {
       a.type === 'arrow' &&
       (this.handleMode === 'arrow-start' || this.handleMode === 'arrow-end')
     ) {
-      const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
+      const norm = this.toNorm(this.drag.currentX, this.drag.currentY, { clamp: false });
       if (this.handleMode === 'arrow-start') {
         this.callbacks.onOverlayUpdated(this.selected.index, { ...a, x1: norm.nx, y1: norm.ny });
       } else {
@@ -474,6 +507,7 @@ export class PublishOverlayController {
     const y = e.clientY - rect.top;
     this.drag = { active: true, startX: x, startY: y, currentX: x, currentY: y };
     this.canvas.setPointerCapture(e.pointerId);
+    this._capturedPointerId = e.pointerId;
 
     if (this._tool === 'select') {
       const norm = this.toNorm(x, y);
@@ -675,9 +709,20 @@ export class PublishOverlayController {
     this.callbacks.requestRedraw();
   };
 
+  private onPointerCancel = (_e: PointerEvent) => {
+    if (!this.drag.active && this._capturedPointerId === null) return;
+    this._releaseCapturedPointer();
+    this._resetTransientState();
+    this.callbacks.requestRedraw();
+  };
+
   private onPointerUp = (e: PointerEvent) => {
-    if (!this.drag.active) return;
+    if (!this.drag.active) {
+      this._releaseCapturedPointer();
+      return;
+    }
     this.drag.active = false;
+    this._releaseCapturedPointer();
 
     const rect = this.canvas.getBoundingClientRect();
     const endX = e.clientX - rect.left;
