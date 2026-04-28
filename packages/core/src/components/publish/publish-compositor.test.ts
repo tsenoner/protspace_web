@@ -5,9 +5,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   computeLayout,
   computeInsetBoost,
+  MAX_CANVAS_PIXELS,
   capturePlotCanvas,
-  clampCaptureSize,
-  MAX_CANVAS_DIM,
   waitForFonts,
 } from './publish-compositor';
 import type { LegendLayout } from './publish-state';
@@ -329,25 +328,34 @@ describe('publish-compositor', () => {
   });
 });
 
-describe('clampCaptureSize', () => {
-  it('passes through dimensions that are within limits', () => {
-    expect(clampCaptureSize(2048, 1024)).toEqual({ width: 2048, height: 1024, scaledDown: false });
+describe('computeInsetBoost area cap', () => {
+  const inset = (zoom: number) => ({
+    sourceRect: { x: 0, y: 0, w: 1 / zoom, h: 1 / zoom },
+    targetRect: { x: 0, y: 0, w: 1, h: 1 },
+    border: 0,
+    connector: 'lines' as const,
   });
 
-  it('clamps a single dimension above MAX_CANVAS_DIM', () => {
-    const result = clampCaptureSize(MAX_CANVAS_DIM + 5000, 1024);
-    expect(result.width).toBeLessThanOrEqual(MAX_CANVAS_DIM);
-    expect(result.scaledDown).toBe(true);
-    // Aspect ratio preserved
-    expect(result.width / result.height).toBeCloseTo((MAX_CANVAS_DIM + 5000) / 1024, 1);
+  it('passes boost through unchanged when plotPixelArea is small', () => {
+    const boost = computeInsetBoost([inset(4)], 4, 1_000_000);
+    expect(boost).toBe(4);
   });
 
-  it('returns positive integer dimensions', () => {
-    const result = clampCaptureSize(20000, 30000);
-    expect(Number.isInteger(result.width)).toBe(true);
-    expect(Number.isInteger(result.height)).toBe(true);
-    expect(result.width).toBeGreaterThan(0);
-    expect(result.height).toBeGreaterThan(0);
+  it('caps boost when plotPixelArea * boost² would exceed MAX_CANVAS_PIXELS', () => {
+    // 8192² = ~67M; with boost 4 that's ~67M × 16 ≈ 1.07B > 256M.
+    const boost = computeInsetBoost([inset(4)], 4, 8192 * 8192);
+    expect(boost).toBeLessThan(4);
+    expect(boost * boost * 8192 * 8192).toBeLessThanOrEqual(MAX_CANVAS_PIXELS);
+  });
+
+  it('returns at least 1 even at extreme plotPixelArea', () => {
+    const boost = computeInsetBoost([inset(4)], 4, 100_000_000_000);
+    expect(boost).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ignores plotPixelArea when undefined or zero', () => {
+    expect(computeInsetBoost([inset(4)], 4, undefined)).toBe(4);
+    expect(computeInsetBoost([inset(4)], 4, 0)).toBe(4);
   });
 });
 

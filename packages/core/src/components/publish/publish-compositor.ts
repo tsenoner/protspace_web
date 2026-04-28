@@ -20,26 +20,6 @@ export interface LegendItem {
   isVisible: boolean;
 }
 
-// ── Canvas size clamping ─────────────────────────────────────────────
-
-/** Browser-safe canvas dimension limit. Most engines cap at ~16384 per side. */
-export const MAX_CANVAS_DIM = 16384;
-
-/**
- * Clamp `(width, height)` to fit within the browser per-side canvas limit while
- * preserving aspect ratio. Returns the (possibly scaled-down) dimensions and a
- * flag indicating whether scaling occurred.
- */
-export function clampCaptureSize(
-  width: number,
-  height: number,
-): { width: number; height: number; scaledDown: boolean } {
-  const scale = Math.min(1, MAX_CANVAS_DIM / Math.max(width, height));
-  const w = Math.max(1, Math.floor(width * scale));
-  const h = Math.max(1, Math.floor(height * scale));
-  return { width: w, height: h, scaledDown: scale < 1 };
-}
-
 /**
  * Wait until webfonts are ready before canvas rendering. Canvas falls back to the next
  * font in the stack silently if the requested font hasn't loaded — this prevents that.
@@ -458,11 +438,26 @@ export function computeLayout(
 // ── Inset helpers ────────────────────────────────────────────────────
 
 /**
+ * Browsers cap canvas total area at roughly 16384² ≈ 268M pixels. Beyond that,
+ * `getContext('2d')` may return null or draw to a zero-sized canvas silently.
+ * We pick a slightly conservative cap below the lowest known limit so the
+ * boosted capture stays well inside the safe envelope.
+ */
+export const MAX_CANVAS_PIXELS = 256_000_000;
+
+/**
  * Compute how much to boost the plot capture resolution so inset source
  * regions have enough pixels to fill their target rects without upscaling.
  * Returns 1 when there are no insets.
+ *
+ * If `plotPixelArea` is provided, the returned boost is also capped so that
+ * `plotPixelArea * boost²` stays under {@link MAX_CANVAS_PIXELS}.
  */
-export function computeInsetBoost(insets: readonly Inset[], maxBoost = 4): number {
+export function computeInsetBoost(
+  insets: readonly Inset[],
+  maxBoost = 4,
+  plotPixelArea?: number,
+): number {
   if (insets.length === 0) return 1;
   let maxZoom = 1;
   for (const inset of insets) {
@@ -470,7 +465,12 @@ export function computeInsetBoost(insets: readonly Inset[], maxBoost = 4): numbe
     const zy = inset.targetRect.h / inset.sourceRect.h;
     maxZoom = Math.max(maxZoom, zx, zy);
   }
-  return Math.min(Math.ceil(maxZoom), maxBoost);
+  let boost = Math.min(Math.ceil(maxZoom), maxBoost);
+  if (plotPixelArea && plotPixelArea > 0) {
+    const maxBoostByArea = Math.sqrt(MAX_CANVAS_PIXELS / plotPixelArea);
+    if (boost > maxBoostByArea) boost = Math.max(1, Math.floor(maxBoostByArea));
+  }
+  return boost;
 }
 
 // ── Inset rendering ──────────────────────────────────────────────────

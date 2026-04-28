@@ -26,7 +26,6 @@ import {
   composeFigure,
   computeInsetBoost,
   computeLayout,
-  clampCaptureSize,
   waitForFonts,
   type LegendItem,
 } from './publish-compositor';
@@ -273,17 +272,13 @@ export class ProtspacePublishModal extends LitElement {
 
     // Boosted capture for crisp inset rendering
     let insetPlotCanvas: HTMLCanvasElement | undefined;
-    const boost = computeInsetBoost(s.insets);
+    const boost = computeInsetBoost(s.insets, 4, plotRect.w * plotRect.h);
     if (boost > 1) {
-      const { width: capW, height: capH } = clampCaptureSize(
-        plotRect.w * boost,
-        plotRect.h * boost,
-      );
-      const insetKey = `${capW}x${capH}`;
+      const insetKey = `${plotRect.w * boost}x${plotRect.h * boost}`;
       if (insetKey !== this._insetCacheKey || !this._cachedInsetCanvas) {
         this._cachedInsetCanvas = capturePlotCanvas(plotEl, {
-          width: capW,
-          height: capH,
+          width: plotRect.w * boost,
+          height: plotRect.h * boost,
           backgroundColor: bgColor,
         });
         this._insetCacheKey = insetKey;
@@ -404,21 +399,19 @@ export class ProtspacePublishModal extends LitElement {
     const plotEl = this.plotElement as CaptureablePlotElement;
     const bgColor = s.background === 'white' ? '#ffffff' : 'rgba(0,0,0,0)';
 
-    const plotSize = clampCaptureSize(plotRect.w, plotRect.h);
     const plotCanvas = capturePlotCanvas(plotEl, {
-      width: plotSize.width,
-      height: plotSize.height,
+      width: plotRect.w,
+      height: plotRect.h,
       backgroundColor: bgColor,
     });
 
     // Boosted capture for crisp inset rendering
     let insetPlotCanvas: HTMLCanvasElement | undefined;
-    const boost = computeInsetBoost(s.insets);
+    const boost = computeInsetBoost(s.insets, 4, plotRect.w * plotRect.h);
     if (boost > 1) {
-      const insetSize = clampCaptureSize(plotRect.w * boost, plotRect.h * boost);
       insetPlotCanvas = capturePlotCanvas(plotEl, {
-        width: insetSize.width,
-        height: insetSize.height,
+        width: plotRect.w * boost,
+        height: plotRect.h * boost,
         backgroundColor: bgColor,
       });
     }
