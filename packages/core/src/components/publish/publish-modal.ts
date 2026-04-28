@@ -20,6 +20,7 @@ import {
   type Inset,
 } from './publish-state';
 import { pxToMm, mmToPx } from './dimension-utils';
+import { sanitizePublishState } from './publish-state-validator';
 import {
   capturePlotCanvas,
   composeFigure,
@@ -115,12 +116,9 @@ export class ProtspacePublishModal extends LitElement {
 
   override connectedCallback() {
     super.connectedCallback();
-    if (this.savedPublishState) {
-      const defaults = createDefaultPublishState();
-      this._state = { ...defaults, ...this.savedPublishState } as PublishState;
-    } else {
-      this._state = createDefaultPublishState();
-    }
+    this._state = this.savedPublishState
+      ? sanitizePublishState(this.savedPublishState)
+      : createDefaultPublishState();
     // Set fingerprint on first use (no saved state)
     if (!this._state.viewFingerprint && this.currentProjection) {
       this._state = { ...this._state, viewFingerprint: this.currentProjection };

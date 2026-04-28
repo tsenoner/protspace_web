@@ -11,6 +11,7 @@ export type {
 export type { PresetId, JournalPreset } from './journal-presets';
 export { JOURNAL_PRESETS, getPreset, resolvePresetDimensions } from './journal-presets';
 export { createDefaultPublishState } from './publish-state';
+export { sanitizePublishState } from './publish-state-validator';
 export {
   pxToMm,
   mmToPx,
