@@ -81,6 +81,7 @@ export function createExportHandler({
 
         const modal = new ProtspacePublishModal();
         modal.plotElement = plotElement as unknown as HTMLElement;
+        modal.legendElement = legendElement as unknown as HTMLElement;
         modal.currentProjection = getCurrentProjection();
 
         // Restore saved publish state: bundle > localStorage > defaults

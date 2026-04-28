@@ -8,7 +8,8 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import { tokens } from '../../styles/tokens';
-import { buttonMixin } from '../../styles/mixins';
+import { buttonMixin, inputMixin } from '../../styles/mixins';
+import { overlayMixins } from '../../styles/overlay-mixins';
 import { publishModalStyles } from './publish-modal.styles';
 import { JOURNAL_PRESETS, type PresetId } from './journal-presets';
 import {
@@ -67,15 +68,13 @@ interface LegendExportState {
   }>;
 }
 
-function readLegendExportState(): LegendExportState | null {
-  const el = document.querySelector('protspace-legend') as
-    | (Element & { getLegendExportData?: () => LegendExportState })
-    | null;
+function readLegendExportState(
+  el: (Element & { getLegendExportData?: () => LegendExportState }) | null,
+): LegendExportState | null {
+  if (!el || typeof el.getLegendExportData !== 'function') return null;
   try {
-    if (el && typeof el.getLegendExportData === 'function') {
-      const s = el.getLegendExportData();
-      if (s && Array.isArray(s.items)) return s;
-    }
+    const s = el.getLegendExportData();
+    if (s && Array.isArray(s.items)) return s;
   } catch (e) {
     console.warn('Failed to read legend export state:', e);
   }
@@ -86,10 +85,14 @@ function readLegendExportState(): LegendExportState | null {
 
 @customElement('protspace-publish-modal')
 export class ProtspacePublishModal extends LitElement {
-  static override styles = [tokens, buttonMixin, publishModalStyles];
+  static override styles = [tokens, buttonMixin, inputMixin, overlayMixins, publishModalStyles];
 
   /** Plot element to capture from */
   @property({ attribute: false }) plotElement: HTMLElement | null = null;
+
+  /** Legend element to read export state from. Optional — falls back to document.querySelector. */
+  @property({ attribute: false })
+  legendElement: (HTMLElement & { getLegendExportData?: () => unknown }) | null = null;
 
   /** Saved publish state from parquetbundle or localStorage, used to restore on open. */
   @property({ attribute: false }) savedPublishState: Record<string, unknown> | null = null;
@@ -154,7 +157,14 @@ export class ProtspacePublishModal extends LitElement {
   // ── Legend data ────────────────────────────────────
 
   private _readLegend() {
-    const legendState = readLegendExportState();
+    const el =
+      (this.legendElement as
+        | (Element & { getLegendExportData?: () => LegendExportState })
+        | null) ??
+      (document.querySelector('protspace-legend') as
+        | (Element & { getLegendExportData?: () => LegendExportState })
+        | null);
+    const legendState = readLegendExportState(el);
     if (legendState) {
       this._legendTitle = legendState.annotation;
       this._legendItems = legendState.items.map((it) => ({
