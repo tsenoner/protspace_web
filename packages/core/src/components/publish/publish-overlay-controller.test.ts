@@ -523,6 +523,44 @@ describe('PublishOverlayController', () => {
     });
   });
 
+  describe('inset handle drag', () => {
+    it('does not clamp inset corner coords past plot edge', () => {
+      // Place an inset source rect (small one near the right edge)
+      controller.tool = 'inset-source';
+      canvas.dispatchEvent(pointerEvent('pointerdown', 800, 100));
+      canvas.dispatchEvent(pointerEvent('pointermove', 900, 200));
+      canvas.dispatchEvent(pointerEvent('pointerup', 900, 200));
+      // Place its target rect to commit the inset
+      controller.tool = 'inset-target';
+      canvas.dispatchEvent(pointerEvent('pointerdown', 100, 300));
+      canvas.dispatchEvent(pointerEvent('pointermove', 300, 400));
+      canvas.dispatchEvent(pointerEvent('pointerup', 300, 400));
+      expect(callbacks.onInsetAdded).toHaveBeenCalledTimes(1);
+
+      const inset = callbacks.onInsetAdded.mock.calls[0][0];
+      callbacks.getInsets.mockReturnValue([inset]);
+
+      // Select the inset by clicking inside its source rect
+      controller.tool = 'select';
+      canvas.dispatchEvent(pointerEvent('pointerdown', 850, 150));
+      canvas.dispatchEvent(pointerEvent('pointerup', 850, 150));
+
+      // Drag the source's bottom-right corner past the right edge
+      const cornerX = (inset.sourceRect.x + inset.sourceRect.w) * 1000;
+      const cornerY = (inset.sourceRect.y + inset.sourceRect.h) * 500;
+      canvas.dispatchEvent(pointerEvent('pointerdown', cornerX, cornerY));
+      canvas.dispatchEvent(pointerEvent('pointermove', 1500, cornerY));
+      canvas.dispatchEvent(pointerEvent('pointerup', 1500, cornerY));
+
+      // Last update call should have an x or w that puts the corner past 1
+      const updates = callbacks.onInsetUpdated.mock.calls;
+      expect(updates.length).toBeGreaterThan(0);
+      const lastInset = updates[updates.length - 1][1];
+      const rightEdge = lastInset.sourceRect.x + lastInset.sourceRect.w;
+      expect(rightEdge).toBeGreaterThan(1);
+    });
+  });
+
   describe('arrow handle drag', () => {
     it('does not clamp arrow endpoint coords past plot edge', () => {
       controller.tool = 'arrow';

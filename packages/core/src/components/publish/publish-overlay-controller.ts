@@ -113,29 +113,28 @@ export class PublishOverlayController {
     this.pendingInsetSource = null;
   }
 
-  /** Convert canvas-pixel coord to normalised 0–1 within the plot rect */
-  private toNorm(canvasX: number, canvasY: number): { nx: number; ny: number } {
+  /**
+   * Convert canvas-pixel coord to normalised 0–1 within the plot rect.
+   * `clamp` defaults to true. Pass `{ clamp: false }` from handle drags so
+   * dragging past the plot edge doesn't snap the dragged endpoint to the
+   * boundary and collapse the overlay's dimensions.
+   */
+  private toNorm(
+    canvasX: number,
+    canvasY: number,
+    opts: { clamp?: boolean } = {},
+  ): { nx: number; ny: number } {
+    const { clamp = true } = opts;
     const pr = this.callbacks.getPlotRect();
     const rect = this.canvas.getBoundingClientRect();
     const scaleX = this.canvas.width / rect.width;
     const scaleY = this.canvas.height / rect.height;
     const px = canvasX * scaleX;
     const py = canvasY * scaleY;
-    return {
-      nx: Math.max(0, Math.min(1, (px - pr.x) / pr.w)),
-      ny: Math.max(0, Math.min(1, (py - pr.y) / pr.h)),
-    };
-  }
-
-  /** Like `toNorm` but without clamping — used during handle drags so the user can pull past the plot edge. */
-  private toNormUnclamped(canvasX: number, canvasY: number): { nx: number; ny: number } {
-    const pr = this.callbacks.getPlotRect();
-    const rect = this.canvas.getBoundingClientRect();
-    const scaleX = this.canvas.width / rect.width;
-    const scaleY = this.canvas.height / rect.height;
-    const px = canvasX * scaleX;
-    const py = canvasY * scaleY;
-    return { nx: (px - pr.x) / pr.w, ny: (py - pr.y) / pr.h };
+    const nx = (px - pr.x) / pr.w;
+    const ny = (py - pr.y) / pr.h;
+    if (!clamp) return { nx, ny };
+    return { nx: Math.max(0, Math.min(1, nx)), ny: Math.max(0, Math.min(1, ny)) };
   }
 
   private hitTestOverlay(nx: number, ny: number, a: Overlay): boolean {
@@ -333,7 +332,7 @@ export class PublishOverlayController {
     const inset = insets[this.selected.index];
     if (!inset) return;
 
-    const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
+    const norm = this.toNorm(this.drag.currentX, this.drag.currentY, { clamp: false });
     const isSource = this.handleMode.startsWith('inset-src-');
     const rect = isSource ? inset.sourceRect : inset.targetRect;
     const corner = this.handleMode.slice(-2); // 'tl', 'tr', 'bl', 'br'
@@ -440,7 +439,7 @@ export class PublishOverlayController {
       a.type === 'arrow' &&
       (this.handleMode === 'arrow-start' || this.handleMode === 'arrow-end')
     ) {
-      const norm = this.toNormUnclamped(this.drag.currentX, this.drag.currentY);
+      const norm = this.toNorm(this.drag.currentX, this.drag.currentY, { clamp: false });
       if (this.handleMode === 'arrow-start') {
         this.callbacks.onOverlayUpdated(this.selected.index, { ...a, x1: norm.nx, y1: norm.ny });
       } else {
