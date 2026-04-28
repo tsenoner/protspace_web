@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect } from 'vitest';
-import { computeLayout, computeInsetBoost, capturePlotCanvas } from './publish-compositor';
+import {
+  computeLayout,
+  computeInsetBoost,
+  capturePlotCanvas,
+  clampCaptureSize,
+  MAX_CANVAS_DIM,
+  MAX_CANVAS_PIXELS,
+} from './publish-compositor';
 import type { LegendLayout } from './publish-state';
 
 function makeLegend(overrides: Partial<LegendLayout> = {}): LegendLayout {
@@ -319,5 +326,53 @@ describe('publish-compositor', () => {
       });
       expect(result).toBe(mockCanvas);
     });
+  });
+});
+
+describe('clampCaptureSize', () => {
+  it('passes through dimensions that are within limits', () => {
+    expect(clampCaptureSize(2048, 1024)).toEqual({ width: 2048, height: 1024, scaledDown: false });
+  });
+
+  it('clamps a single dimension above MAX_CANVAS_DIM', () => {
+    const result = clampCaptureSize(MAX_CANVAS_DIM + 5000, 1024);
+    expect(result.width).toBeLessThanOrEqual(MAX_CANVAS_DIM);
+    expect(result.scaledDown).toBe(true);
+    // Aspect ratio preserved
+    expect(result.width / result.height).toBeCloseTo((MAX_CANVAS_DIM + 5000) / 1024, 1);
+  });
+
+  it('clamps total area above MAX_CANVAS_PIXELS', () => {
+    const w = 20000;
+    const h = 20000;
+    const result = clampCaptureSize(w, h);
+    expect(result.width * result.height).toBeLessThanOrEqual(MAX_CANVAS_PIXELS);
+    expect(result.scaledDown).toBe(true);
+  });
+
+  it('returns positive integer dimensions', () => {
+    const result = clampCaptureSize(20000, 30000);
+    expect(Number.isInteger(result.width)).toBe(true);
+    expect(Number.isInteger(result.height)).toBe(true);
+    expect(result.width).toBeGreaterThan(0);
+    expect(result.height).toBeGreaterThan(0);
+  });
+});
+
+describe('waitForFonts', () => {
+  it('resolves immediately when document.fonts.ready resolves', async () => {
+    // jsdom doesn't ship a real FontFaceSet; we stub one.
+    Object.defineProperty(document, 'fonts', {
+      value: { ready: Promise.resolve() },
+      configurable: true,
+    });
+    const { waitForFonts } = await import('./publish-compositor');
+    await expect(waitForFonts()).resolves.toBeUndefined();
+  });
+
+  it('resolves when document.fonts is missing', async () => {
+    Object.defineProperty(document, 'fonts', { value: undefined, configurable: true });
+    const { waitForFonts } = await import('./publish-compositor');
+    await expect(waitForFonts()).resolves.toBeUndefined();
   });
 });

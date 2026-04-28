@@ -26,6 +26,8 @@ import {
   composeFigure,
   computeInsetBoost,
   computeLayout,
+  clampCaptureSize,
+  waitForFonts,
   type LegendItem,
 } from './publish-compositor';
 import { PublishOverlayController } from './publish-overlay-controller';
@@ -264,11 +266,15 @@ export class ProtspacePublishModal extends LitElement {
     let insetPlotCanvas: HTMLCanvasElement | undefined;
     const boost = computeInsetBoost(s.insets);
     if (boost > 1) {
-      const insetKey = `${plotRect.w * boost}x${plotRect.h * boost}`;
+      const { width: capW, height: capH } = clampCaptureSize(
+        plotRect.w * boost,
+        plotRect.h * boost,
+      );
+      const insetKey = `${capW}x${capH}`;
       if (insetKey !== this._insetCacheKey || !this._cachedInsetCanvas) {
         this._cachedInsetCanvas = capturePlotCanvas(plotEl, {
-          width: plotRect.w * boost,
-          height: plotRect.h * boost,
+          width: capW,
+          height: capH,
           backgroundColor: bgColor,
         });
         this._insetCacheKey = insetKey;
@@ -379,18 +385,20 @@ export class ProtspacePublishModal extends LitElement {
 
   // ── Export ─────────────────────────────────────────
 
-  private _handleExport() {
+  private async _handleExport() {
     // Re-render at full resolution for export
     if (!this.plotElement) return;
+    await waitForFonts();
     const s = this._state;
     const visibleCount = this._legendItems.filter((it) => it.isVisible).length;
     const { plotRect } = computeLayout(s.widthPx, s.heightPx, s.legend, visibleCount);
     const plotEl = this.plotElement as CaptureablePlotElement;
     const bgColor = s.background === 'white' ? '#ffffff' : 'rgba(0,0,0,0)';
 
+    const plotSize = clampCaptureSize(plotRect.w, plotRect.h);
     const plotCanvas = capturePlotCanvas(plotEl, {
-      width: plotRect.w,
-      height: plotRect.h,
+      width: plotSize.width,
+      height: plotSize.height,
       backgroundColor: bgColor,
     });
 
@@ -398,9 +406,10 @@ export class ProtspacePublishModal extends LitElement {
     let insetPlotCanvas: HTMLCanvasElement | undefined;
     const boost = computeInsetBoost(s.insets);
     if (boost > 1) {
+      const insetSize = clampCaptureSize(plotRect.w * boost, plotRect.h * boost);
       insetPlotCanvas = capturePlotCanvas(plotEl, {
-        width: plotRect.w * boost,
-        height: plotRect.h * boost,
+        width: insetSize.width,
+        height: insetSize.height,
         backgroundColor: bgColor,
       });
     }

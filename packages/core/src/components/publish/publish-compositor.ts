@@ -20,6 +20,44 @@ export interface LegendItem {
   isVisible: boolean;
 }
 
+// ── Canvas size clamping ─────────────────────────────────────────────
+
+/** Browser-safe canvas limits. Most engines cap at ~16384 per side and ~268M total px. */
+export const MAX_CANVAS_DIM = 16384;
+export const MAX_CANVAS_PIXELS = 268_435_456; // 16384²
+
+/**
+ * Clamp `(width, height)` to fit within browser canvas limits while preserving aspect ratio.
+ * Returns the (possibly scaled-down) dimensions and a flag indicating whether scaling occurred.
+ */
+export function clampCaptureSize(
+  width: number,
+  height: number,
+): { width: number; height: number; scaledDown: boolean } {
+  const dimScale = Math.min(1, MAX_CANVAS_DIM / Math.max(width, height));
+  const w1 = width * dimScale;
+  const h1 = height * dimScale;
+  const areaScale = Math.min(1, Math.sqrt(MAX_CANVAS_PIXELS / (w1 * h1)));
+  const w2 = Math.max(1, Math.floor(w1 * areaScale));
+  const h2 = Math.max(1, Math.floor(h1 * areaScale));
+  return { width: w2, height: h2, scaledDown: dimScale < 1 || areaScale < 1 };
+}
+
+/**
+ * Wait until webfonts are ready before canvas rendering. Canvas falls back to the next
+ * font in the stack silently if the requested font hasn't loaded — this prevents that.
+ */
+export async function waitForFonts(): Promise<void> {
+  const fonts = (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts;
+  if (fonts?.ready) {
+    try {
+      await fonts.ready;
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 // ── Scatterplot capture ──────────────────────────────────────────────
 
 interface CaptureOptions {
