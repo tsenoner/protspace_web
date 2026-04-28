@@ -22,25 +22,22 @@ export interface LegendItem {
 
 // ── Canvas size clamping ─────────────────────────────────────────────
 
-/** Browser-safe canvas limits. Most engines cap at ~16384 per side and ~268M total px. */
+/** Browser-safe canvas dimension limit. Most engines cap at ~16384 per side. */
 export const MAX_CANVAS_DIM = 16384;
-export const MAX_CANVAS_PIXELS = 268_435_456; // 16384²
 
 /**
- * Clamp `(width, height)` to fit within browser canvas limits while preserving aspect ratio.
- * Returns the (possibly scaled-down) dimensions and a flag indicating whether scaling occurred.
+ * Clamp `(width, height)` to fit within the browser per-side canvas limit while
+ * preserving aspect ratio. Returns the (possibly scaled-down) dimensions and a
+ * flag indicating whether scaling occurred.
  */
 export function clampCaptureSize(
   width: number,
   height: number,
 ): { width: number; height: number; scaledDown: boolean } {
-  const dimScale = Math.min(1, MAX_CANVAS_DIM / Math.max(width, height));
-  const w1 = width * dimScale;
-  const h1 = height * dimScale;
-  const areaScale = Math.min(1, Math.sqrt(MAX_CANVAS_PIXELS / (w1 * h1)));
-  const w2 = Math.max(1, Math.floor(w1 * areaScale));
-  const h2 = Math.max(1, Math.floor(h1 * areaScale));
-  return { width: w2, height: h2, scaledDown: dimScale < 1 || areaScale < 1 };
+  const scale = Math.min(1, MAX_CANVAS_DIM / Math.max(width, height));
+  const w = Math.max(1, Math.floor(width * scale));
+  const h = Math.max(1, Math.floor(height * scale));
+  return { width: w, height: h, scaledDown: scale < 1 };
 }
 
 /**

@@ -1,14 +1,14 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   computeLayout,
   computeInsetBoost,
   capturePlotCanvas,
   clampCaptureSize,
   MAX_CANVAS_DIM,
-  MAX_CANVAS_PIXELS,
+  waitForFonts,
 } from './publish-compositor';
 import type { LegendLayout } from './publish-state';
 
@@ -342,14 +342,6 @@ describe('clampCaptureSize', () => {
     expect(result.width / result.height).toBeCloseTo((MAX_CANVAS_DIM + 5000) / 1024, 1);
   });
 
-  it('clamps total area above MAX_CANVAS_PIXELS', () => {
-    const w = 20000;
-    const h = 20000;
-    const result = clampCaptureSize(w, h);
-    expect(result.width * result.height).toBeLessThanOrEqual(MAX_CANVAS_PIXELS);
-    expect(result.scaledDown).toBe(true);
-  });
-
   it('returns positive integer dimensions', () => {
     const result = clampCaptureSize(20000, 30000);
     expect(Number.isInteger(result.width)).toBe(true);
@@ -360,19 +352,30 @@ describe('clampCaptureSize', () => {
 });
 
 describe('waitForFonts', () => {
+  let originalFonts: PropertyDescriptor | undefined;
+
+  beforeEach(() => {
+    originalFonts = Object.getOwnPropertyDescriptor(document, 'fonts');
+  });
+
+  afterEach(() => {
+    if (originalFonts) {
+      Object.defineProperty(document, 'fonts', originalFonts);
+    } else {
+      delete (document as Document & { fonts?: unknown }).fonts;
+    }
+  });
+
   it('resolves immediately when document.fonts.ready resolves', async () => {
-    // jsdom doesn't ship a real FontFaceSet; we stub one.
     Object.defineProperty(document, 'fonts', {
       value: { ready: Promise.resolve() },
       configurable: true,
     });
-    const { waitForFonts } = await import('./publish-compositor');
     await expect(waitForFonts()).resolves.toBeUndefined();
   });
 
   it('resolves when document.fonts is missing', async () => {
     Object.defineProperty(document, 'fonts', { value: undefined, configurable: true });
-    const { waitForFonts } = await import('./publish-compositor');
     await expect(waitForFonts()).resolves.toBeUndefined();
   });
 });
