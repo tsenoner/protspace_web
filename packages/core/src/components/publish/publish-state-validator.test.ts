@@ -33,7 +33,7 @@ describe('sanitizePublishState', () => {
     expect(result.overlays[0].type).toBe('circle');
   });
 
-  it('clamps overlay coords to [0,1]', () => {
+  it('drops overlays with coords outside [0,1]', () => {
     const result = sanitizePublishState({
       overlays: [
         {
@@ -46,9 +46,92 @@ describe('sanitizePublishState', () => {
           color: '#000',
           strokeWidth: 2,
         },
+        {
+          type: 'circle',
+          cx: 0.5,
+          cy: 0.5,
+          rx: 0.1,
+          ry: 0.1,
+          rotation: 0,
+          color: '#000',
+          strokeWidth: 2,
+        },
       ],
     });
-    expect(result.overlays[0]).toMatchObject({ cx: 1, cy: 0 });
+    expect(result.overlays).toHaveLength(1);
+    expect(result.overlays[0]).toMatchObject({ cx: 0.5, cy: 0.5 });
+  });
+
+  it('drops overlays with non-positive size fields', () => {
+    const result = sanitizePublishState({
+      overlays: [
+        {
+          type: 'circle',
+          cx: 0.5,
+          cy: 0.5,
+          rx: 0,
+          ry: 0.1,
+          rotation: 0,
+          color: '#000',
+          strokeWidth: 2,
+        },
+        {
+          type: 'circle',
+          cx: 0.5,
+          cy: 0.5,
+          rx: 0.1,
+          ry: 0.1,
+          rotation: 0,
+          color: '#000',
+          strokeWidth: 0,
+        },
+        { type: 'arrow', x1: 0.1, y1: 0.1, x2: 0.5, y2: 0.5, color: '#000', width: -1 },
+        { type: 'label', x: 0.5, y: 0.5, text: 'x', fontSize: 0, rotation: 0, color: '#000' },
+      ],
+    });
+    expect(result.overlays).toHaveLength(0);
+  });
+
+  it('drops insets whose rects extend past plot bounds', () => {
+    const result = sanitizePublishState({
+      insets: [
+        {
+          sourceRect: { x: 0.9, y: 0, w: 0.5, h: 0.5 },
+          targetRect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+          border: 1,
+          connector: 'lines',
+        },
+        {
+          sourceRect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.3, h: 0.3 },
+          border: 1,
+          connector: 'lines',
+        },
+      ],
+    });
+    expect(result.insets).toHaveLength(1);
+  });
+
+  it('drops insets with unknown connector', () => {
+    const result = sanitizePublishState({
+      insets: [
+        {
+          sourceRect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.3, h: 0.3 },
+          border: 1,
+          connector: 'rainbow',
+        },
+      ],
+    });
+    expect(result.insets).toHaveLength(0);
+  });
+
+  it('rejects non-positive widthPx/heightPx/dpi and falls back to defaults', () => {
+    const defaults = createDefaultPublishState();
+    const result = sanitizePublishState({ widthPx: 0, heightPx: -10, dpi: 0 });
+    expect(result.widthPx).toBe(defaults.widthPx);
+    expect(result.heightPx).toBe(defaults.heightPx);
+    expect(result.dpi).toBe(defaults.dpi);
   });
 
   it('drops overlays whose required fields are not finite numbers', () => {

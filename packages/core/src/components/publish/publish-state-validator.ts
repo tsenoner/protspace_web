@@ -1,10 +1,9 @@
 /**
  * Runtime sanitiser for `PublishState` values that arrive from outside the modal:
  * parquet bundles, localStorage, hand-edited JSON. Drops malformed overlays/insets
- * and clamps out-of-range coordinates rather than crashing the compositor.
+ * and out-of-range coordinates rather than crashing the compositor.
  */
 
-import { clamp01 } from '@protspace/utils';
 import {
   createDefaultPublishState,
   type PublishState,
@@ -21,6 +20,10 @@ const isString = (s: unknown): s is string => typeof s === 'string';
 const isObject = (o: unknown): o is Record<string, unknown> =>
   typeof o === 'object' && o !== null && !Array.isArray(o);
 
+function inUnit(v: unknown): v is number {
+  return isFiniteNumber(v) && v >= 0 && v <= 1;
+}
+
 function isValidPreset(value: unknown): value is PublishState['preset'] {
   if (value === 'custom') return true;
   return typeof value === 'string' && JOURNAL_PRESETS.some((p) => p.id === value);
@@ -30,54 +33,49 @@ function sanitizeOverlay(raw: unknown): Overlay | null {
   if (!isObject(raw)) return null;
   const type = raw.type;
   if (type === 'circle') {
-    if (
-      !isFiniteNumber(raw.cx) ||
-      !isFiniteNumber(raw.cy) ||
-      !isFiniteNumber(raw.rx) ||
-      !isFiniteNumber(raw.ry)
-    ) {
+    if (!inUnit(raw.cx) || !inUnit(raw.cy)) return null;
+    if (!isFiniteNumber(raw.rx) || !isFiniteNumber(raw.ry) || raw.rx <= 0 || raw.ry <= 0)
       return null;
-    }
+    if (!isString(raw.color)) return null;
+    if (!isFiniteNumber(raw.strokeWidth) || raw.strokeWidth <= 0) return null;
     return {
       type: 'circle',
-      cx: clamp01(raw.cx),
-      cy: clamp01(raw.cy),
-      rx: clamp01(raw.rx),
-      ry: clamp01(raw.ry),
+      cx: raw.cx,
+      cy: raw.cy,
+      rx: raw.rx,
+      ry: raw.ry,
       rotation: isFiniteNumber(raw.rotation) ? raw.rotation : 0,
-      color: isString(raw.color) ? raw.color : '#000000',
-      strokeWidth: isFiniteNumber(raw.strokeWidth) ? raw.strokeWidth : 2,
+      color: raw.color,
+      strokeWidth: raw.strokeWidth,
     };
   }
   if (type === 'arrow') {
-    if (
-      !isFiniteNumber(raw.x1) ||
-      !isFiniteNumber(raw.y1) ||
-      !isFiniteNumber(raw.x2) ||
-      !isFiniteNumber(raw.y2)
-    ) {
-      return null;
-    }
+    if (!inUnit(raw.x1) || !inUnit(raw.y1) || !inUnit(raw.x2) || !inUnit(raw.y2)) return null;
+    if (!isString(raw.color)) return null;
+    if (!isFiniteNumber(raw.width) || raw.width <= 0) return null;
     return {
       type: 'arrow',
-      x1: clamp01(raw.x1),
-      y1: clamp01(raw.y1),
-      x2: clamp01(raw.x2),
-      y2: clamp01(raw.y2),
-      color: isString(raw.color) ? raw.color : '#000000',
-      width: isFiniteNumber(raw.width) ? raw.width : 2,
+      x1: raw.x1,
+      y1: raw.y1,
+      x2: raw.x2,
+      y2: raw.y2,
+      color: raw.color,
+      width: raw.width,
     };
   }
   if (type === 'label') {
-    if (!isFiniteNumber(raw.x) || !isFiniteNumber(raw.y)) return null;
+    if (!inUnit(raw.x) || !inUnit(raw.y)) return null;
+    if (!isString(raw.text)) return null;
+    if (!isFiniteNumber(raw.fontSize) || raw.fontSize <= 0) return null;
+    if (!isString(raw.color)) return null;
     return {
       type: 'label',
-      x: clamp01(raw.x),
-      y: clamp01(raw.y),
-      text: isString(raw.text) ? raw.text : 'Label',
-      fontSize: isFiniteNumber(raw.fontSize) ? raw.fontSize : 16,
+      x: raw.x,
+      y: raw.y,
+      text: raw.text,
+      fontSize: raw.fontSize,
       rotation: isFiniteNumber(raw.rotation) ? raw.rotation : 0,
-      color: isString(raw.color) ? raw.color : '#000000',
+      color: raw.color,
     };
   }
   return null;
@@ -85,28 +83,21 @@ function sanitizeOverlay(raw: unknown): Overlay | null {
 
 function sanitizeNormRect(raw: unknown): NormRect | null {
   if (!isObject(raw)) return null;
-  if (
-    !isFiniteNumber(raw.x) ||
-    !isFiniteNumber(raw.y) ||
-    !isFiniteNumber(raw.w) ||
-    !isFiniteNumber(raw.h)
-  ) {
-    return null;
-  }
-  return { x: clamp01(raw.x), y: clamp01(raw.y), w: clamp01(raw.w), h: clamp01(raw.h) };
+  if (!inUnit(raw.x) || !inUnit(raw.y)) return null;
+  if (!isFiniteNumber(raw.w) || !isFiniteNumber(raw.h)) return null;
+  if (raw.w <= 0 || raw.h <= 0) return null;
+  if (raw.x + raw.w > 1.001 || raw.y + raw.h > 1.001) return null;
+  return { x: raw.x, y: raw.y, w: raw.w, h: raw.h };
 }
 
 function sanitizeInset(raw: unknown): Inset | null {
   if (!isObject(raw)) return null;
-  const source = sanitizeNormRect(raw.sourceRect);
-  const target = sanitizeNormRect(raw.targetRect);
-  if (!source || !target) return null;
-  return {
-    sourceRect: source,
-    targetRect: target,
-    border: isFiniteNumber(raw.border) ? raw.border : 1,
-    connector: raw.connector === 'none' ? 'none' : 'lines',
-  };
+  const sourceRect = sanitizeNormRect(raw.sourceRect);
+  const targetRect = sanitizeNormRect(raw.targetRect);
+  if (!sourceRect || !targetRect) return null;
+  if (!isFiniteNumber(raw.border) || raw.border < 0) return null;
+  if (raw.connector !== 'lines' && raw.connector !== 'none') return null;
+  return { sourceRect, targetRect, border: raw.border, connector: raw.connector };
 }
 
 const VALID_LEGEND_POSITIONS: LegendPosition[] = [
@@ -130,23 +121,30 @@ function sanitizeLegend(raw: unknown, fallback: LegendLayout): LegendLayout {
   return {
     visible: typeof raw.visible === 'boolean' ? raw.visible : fallback.visible,
     position,
-    widthPercent: isFiniteNumber(raw.widthPercent) ? raw.widthPercent : fallback.widthPercent,
-    fontSizePx: isFiniteNumber(raw.fontSizePx) ? raw.fontSizePx : fallback.fontSizePx,
-    columns: isFiniteNumber(raw.columns) ? Math.max(1, Math.round(raw.columns)) : fallback.columns,
+    widthPercent:
+      isFiniteNumber(raw.widthPercent) && raw.widthPercent > 0 && raw.widthPercent <= 100
+        ? raw.widthPercent
+        : fallback.widthPercent,
+    fontSizePx:
+      isFiniteNumber(raw.fontSizePx) && raw.fontSizePx > 0 ? raw.fontSizePx : fallback.fontSizePx,
+    columns:
+      isFiniteNumber(raw.columns) && Number.isInteger(raw.columns) && raw.columns > 0
+        ? raw.columns
+        : fallback.columns,
     overflow:
       raw.overflow === 'scale' || raw.overflow === 'truncate' || raw.overflow === 'multi-column'
         ? raw.overflow
         : fallback.overflow,
     freePos:
-      isObject(raw.freePos) && isFiniteNumber(raw.freePos.nx) && isFiniteNumber(raw.freePos.ny)
-        ? { nx: clamp01(raw.freePos.nx), ny: clamp01(raw.freePos.ny) }
+      isObject(raw.freePos) && inUnit(raw.freePos.nx) && inUnit(raw.freePos.ny)
+        ? { nx: raw.freePos.nx, ny: raw.freePos.ny }
         : fallback.freePos,
   };
 }
 
 /**
  * Take an unknown blob and return a fully-valid `PublishState`.
- * Unknown overlay types and out-of-range coords are dropped/clamped silently.
+ * Unknown overlay types and out-of-range coords are dropped silently.
  */
 export function sanitizePublishState(input: unknown): PublishState {
   const defaults = createDefaultPublishState();
@@ -168,17 +166,19 @@ export function sanitizePublishState(input: unknown): PublishState {
       input.sizeMode === 'flexible'
         ? input.sizeMode
         : defaults.sizeMode,
-    widthPx: isFiniteNumber(input.widthPx) ? input.widthPx : defaults.widthPx,
-    heightPx: isFiniteNumber(input.heightPx) ? input.heightPx : defaults.heightPx,
-    dpi: isFiniteNumber(input.dpi) ? input.dpi : defaults.dpi,
+    widthPx: isFiniteNumber(input.widthPx) && input.widthPx > 0 ? input.widthPx : defaults.widthPx,
+    heightPx:
+      isFiniteNumber(input.heightPx) && input.heightPx > 0 ? input.heightPx : defaults.heightPx,
+    dpi: isFiniteNumber(input.dpi) && input.dpi > 0 ? input.dpi : defaults.dpi,
     format: input.format === 'pdf' ? 'pdf' : 'png',
     legend: sanitizeLegend(input.legend, defaults.legend),
     background: input.background === 'transparent' ? 'transparent' : 'white',
     overlays,
     insets,
-    referenceWidth: isFiniteNumber(input.referenceWidth)
-      ? input.referenceWidth
-      : defaults.referenceWidth,
+    referenceWidth:
+      isFiniteNumber(input.referenceWidth) && input.referenceWidth > 0
+        ? input.referenceWidth
+        : defaults.referenceWidth,
     viewFingerprint:
       isObject(input.viewFingerprint) &&
       isString(input.viewFingerprint.projection) &&
