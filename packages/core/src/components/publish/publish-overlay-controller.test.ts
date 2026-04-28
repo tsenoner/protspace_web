@@ -449,10 +449,11 @@ describe('PublishOverlayController', () => {
     it('removes event listeners on destroy', () => {
       const spy = vi.spyOn(canvas, 'removeEventListener');
       controller.destroy();
-      expect(spy).toHaveBeenCalledTimes(3);
+      expect(spy).toHaveBeenCalledTimes(4);
       expect(spy).toHaveBeenCalledWith('pointerdown', expect.any(Function));
       expect(spy).toHaveBeenCalledWith('pointermove', expect.any(Function));
       expect(spy).toHaveBeenCalledWith('pointerup', expect.any(Function));
+      expect(spy).toHaveBeenCalledWith('pointercancel', expect.any(Function));
     });
   });
 
@@ -488,6 +489,69 @@ describe('PublishOverlayController', () => {
       canvas.dispatchEvent(pointerEvent('pointerup', 200, 200));
 
       expect(callbacks.requestRedraw).toHaveBeenCalled();
+    });
+  });
+
+  describe('pointer lifecycle', () => {
+    it('aborts drag and releases pointer capture on pointercancel', () => {
+      controller.tool = 'circle';
+      canvas.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      canvas.dispatchEvent(pointerEvent('pointermove', 200, 200));
+
+      const cancel = pointerEvent('pointercancel', 200, 200);
+      canvas.dispatchEvent(cancel);
+
+      // Subsequent pointermove must not mutate state
+      canvas.dispatchEvent(pointerEvent('pointermove', 400, 400));
+      canvas.dispatchEvent(pointerEvent('pointerup', 400, 400));
+
+      expect(callbacks.onOverlayAdded).not.toHaveBeenCalled();
+      expect(canvas.releasePointerCapture).toHaveBeenCalledWith(1);
+    });
+
+    it('destroy() releases pointer capture and clears drag state mid-drag', () => {
+      controller.tool = 'circle';
+      canvas.dispatchEvent(pointerEvent('pointerdown', 100, 100));
+      canvas.dispatchEvent(pointerEvent('pointermove', 200, 200));
+
+      controller.destroy();
+
+      expect(canvas.releasePointerCapture).toHaveBeenCalledWith(1);
+      // Further events are no-ops because listeners were removed
+      canvas.dispatchEvent(pointerEvent('pointerup', 400, 400));
+      expect(callbacks.onOverlayAdded).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('arrow handle drag', () => {
+    it('does not clamp arrow endpoint coords past plot edge', () => {
+      controller.tool = 'arrow';
+      // Create an arrow well inside the plot
+      canvas.dispatchEvent(pointerEvent('pointerdown', 200, 200));
+      canvas.dispatchEvent(pointerEvent('pointermove', 400, 300));
+      canvas.dispatchEvent(pointerEvent('pointerup', 400, 300));
+      expect(callbacks.onOverlayAdded).toHaveBeenCalledTimes(1);
+
+      // Seed callbacks.getOverlays with the created arrow + select it
+      const arrow = callbacks.onOverlayAdded.mock.calls[0][0];
+      callbacks.getOverlays.mockReturnValue([arrow]);
+      controller.tool = 'select';
+
+      // First click: select the arrow (its line is hit at the endpoint)
+      canvas.dispatchEvent(pointerEvent('pointerdown', 400, 300));
+      canvas.dispatchEvent(pointerEvent('pointerup', 400, 300));
+
+      // Second click hits the end handle (now that arrow is selected)
+      canvas.dispatchEvent(pointerEvent('pointerdown', 400, 300));
+      // Drag past the right edge (canvas width = 1000, plot ends at 1000)
+      canvas.dispatchEvent(pointerEvent('pointermove', 1500, 300));
+      canvas.dispatchEvent(pointerEvent('pointerup', 1500, 300));
+
+      // Last update call should have nx > 1 (unclamped during drag)
+      const updates = callbacks.onOverlayUpdated.mock.calls;
+      expect(updates.length).toBeGreaterThan(0);
+      const last = updates[updates.length - 1][1];
+      expect(last.x2).toBeGreaterThan(1);
     });
   });
 });

@@ -70,6 +70,7 @@ export class PublishOverlayController {
     | 'inset-tgt-br'
     | null = null;
   private legendDragging = false;
+  private activePointerId: number | null = null;
 
   constructor(canvas: HTMLCanvasElement, callbacks: OverlayCallbacks) {
     this.canvas = canvas;
@@ -77,6 +78,7 @@ export class PublishOverlayController {
     this.canvas.addEventListener('pointerdown', this.onPointerDown);
     this.canvas.addEventListener('pointermove', this.onPointerMove);
     this.canvas.addEventListener('pointerup', this.onPointerUp);
+    this.canvas.addEventListener('pointercancel', this.onPointerCancel);
   }
 
   get tool(): OverlayTool {
@@ -89,9 +91,26 @@ export class PublishOverlayController {
   }
 
   destroy() {
+    if (this.activePointerId !== null) {
+      try {
+        this.canvas.releasePointerCapture(this.activePointerId);
+      } catch {
+        /* capture may already be lost */
+      }
+      this.activePointerId = null;
+    }
+    this.resetDragState();
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
+    this.canvas.removeEventListener('pointercancel', this.onPointerCancel);
+  }
+
+  private resetDragState() {
+    this.drag.active = false;
+    this.handleMode = null;
+    this.legendDragging = false;
+    this.pendingInsetSource = null;
   }
 
   /** Convert canvas-pixel coord to normalised 0–1 within the plot rect */
@@ -106,6 +125,17 @@ export class PublishOverlayController {
       nx: Math.max(0, Math.min(1, (px - pr.x) / pr.w)),
       ny: Math.max(0, Math.min(1, (py - pr.y) / pr.h)),
     };
+  }
+
+  /** Like `toNorm` but without clamping — used during handle drags so the user can pull past the plot edge. */
+  private toNormUnclamped(canvasX: number, canvasY: number): { nx: number; ny: number } {
+    const pr = this.callbacks.getPlotRect();
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+    const px = canvasX * scaleX;
+    const py = canvasY * scaleY;
+    return { nx: (px - pr.x) / pr.w, ny: (py - pr.y) / pr.h };
   }
 
   private hitTestOverlay(nx: number, ny: number, a: Overlay): boolean {
@@ -410,7 +440,7 @@ export class PublishOverlayController {
       a.type === 'arrow' &&
       (this.handleMode === 'arrow-start' || this.handleMode === 'arrow-end')
     ) {
-      const norm = this.toNorm(this.drag.currentX, this.drag.currentY);
+      const norm = this.toNormUnclamped(this.drag.currentX, this.drag.currentY);
       if (this.handleMode === 'arrow-start') {
         this.callbacks.onOverlayUpdated(this.selected.index, { ...a, x1: norm.nx, y1: norm.ny });
       } else {
@@ -474,6 +504,7 @@ export class PublishOverlayController {
     const y = e.clientY - rect.top;
     this.drag = { active: true, startX: x, startY: y, currentX: x, currentY: y };
     this.canvas.setPointerCapture(e.pointerId);
+    this.activePointerId = e.pointerId;
 
     if (this._tool === 'select') {
       const norm = this.toNorm(x, y);
@@ -676,6 +707,12 @@ export class PublishOverlayController {
   };
 
   private onPointerUp = (e: PointerEvent) => {
+    try {
+      this.canvas.releasePointerCapture(e.pointerId);
+    } catch {
+      /* capture may already be lost */
+    }
+    this.activePointerId = null;
     if (!this.drag.active) return;
     this.drag.active = false;
 
@@ -719,6 +756,17 @@ export class PublishOverlayController {
         break;
     }
 
+    this.callbacks.requestRedraw();
+  };
+
+  private onPointerCancel = (e: PointerEvent) => {
+    try {
+      this.canvas.releasePointerCapture(e.pointerId);
+    } catch {
+      /* capture may already be lost */
+    }
+    this.activePointerId = null;
+    this.resetDragState();
     this.callbacks.requestRedraw();
   };
 
