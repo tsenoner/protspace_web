@@ -8,8 +8,7 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import { tokens } from '../../styles/tokens';
-import { buttonMixin, inputMixin } from '../../styles/mixins';
-import { overlayMixins } from '../../styles/overlay-mixins';
+import { buttonMixin } from '../../styles/mixins';
 import { publishModalStyles } from './publish-modal.styles';
 import { JOURNAL_PRESETS, type PresetId } from './journal-presets';
 import {
@@ -85,7 +84,7 @@ function readLegendExportState(
 
 @customElement('protspace-publish-modal')
 export class ProtspacePublishModal extends LitElement {
-  static override styles = [tokens, buttonMixin, inputMixin, overlayMixins, publishModalStyles];
+  static override styles = [tokens, buttonMixin, publishModalStyles];
 
   /** Plot element to capture from */
   @property({ attribute: false }) plotElement: HTMLElement | null = null;

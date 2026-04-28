@@ -26,6 +26,12 @@ describe('<protspace-publish-modal> legend reader', () => {
     document.body.appendChild(modal);
     await modal.updateComplete;
 
-    expect(modal).toBeDefined();
+    const internals = modal as unknown as {
+      _legendItems: Array<{ value: string }>;
+      _legendTitle: string;
+    };
+    expect(internals._legendTitle).toBe('family');
+    expect(internals._legendItems).toHaveLength(1);
+    expect(internals._legendItems[0].value).toBe('A');
   });
 });
