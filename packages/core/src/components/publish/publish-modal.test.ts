@@ -11,7 +11,7 @@ describe('<protspace-publish-modal> legend reader', () => {
   });
 
   it('reads legend state from legendElement property when provided', async () => {
-    const legend = document.createElement('div') as HTMLElement & {
+    const legend = document.createElement('div') as unknown as HTMLElement & {
       getLegendExportData: () => unknown;
     };
     legend.getLegendExportData = () => ({
