@@ -4,6 +4,7 @@
  * and clamps out-of-range coordinates rather than crashing the compositor.
  */
 
+import { clamp01 } from '@protspace/utils';
 import {
   createDefaultPublishState,
   type PublishState,
@@ -13,12 +14,17 @@ import {
   type LegendLayout,
   type LegendPosition,
 } from './publish-state';
+import { JOURNAL_PRESETS } from './journal-presets';
 
-const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 const isFiniteNumber = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
 const isString = (s: unknown): s is string => typeof s === 'string';
 const isObject = (o: unknown): o is Record<string, unknown> =>
   typeof o === 'object' && o !== null && !Array.isArray(o);
+
+function isValidPreset(value: unknown): value is PublishState['preset'] {
+  if (value === 'custom') return true;
+  return typeof value === 'string' && JOURNAL_PRESETS.some((p) => p.id === value);
+}
 
 function sanitizeOverlay(raw: unknown): Overlay | null {
   if (!isObject(raw)) return null;
@@ -155,7 +161,7 @@ export function sanitizePublishState(input: unknown): PublishState {
     : defaults.insets;
 
   return {
-    preset: isString(input.preset) ? (input.preset as PublishState['preset']) : defaults.preset,
+    preset: isValidPreset(input.preset) ? input.preset : defaults.preset,
     sizeMode:
       input.sizeMode === '1-column' ||
       input.sizeMode === '2-column' ||

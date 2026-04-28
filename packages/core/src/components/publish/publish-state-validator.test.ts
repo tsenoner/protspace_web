@@ -87,4 +87,15 @@ describe('sanitizePublishState', () => {
     expect(result.widthPx).toBe(defaults.widthPx);
     expect(result.heightPx).toBe(defaults.heightPx);
   });
+
+  it('drops unknown preset strings and falls back to default', () => {
+    const result = sanitizePublishState({ preset: 'hacker-mode' });
+    expect(result.preset).toBe('flexible'); // createDefaultPublishState's default
+  });
+
+  it('preserves valid preset ids', () => {
+    expect(sanitizePublishState({ preset: 'nature-1col' }).preset).toBe('nature-1col');
+    expect(sanitizePublishState({ preset: 'cell-1p5col' }).preset).toBe('cell-1p5col');
+    expect(sanitizePublishState({ preset: 'custom' }).preset).toBe('custom');
+  });
 });
