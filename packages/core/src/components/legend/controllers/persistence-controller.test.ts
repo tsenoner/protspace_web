@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ReactiveControllerHost } from 'lit';
 import { PersistenceController, type PersistenceCallbacks } from './persistence-controller';
 import type { LegendItem } from '../types';
-import { LEGEND_VALUES } from '../config';
+import { LEGEND_VALUES, NA_VALUE } from '../config';
 
 function createTestItem(value: string, zOrder: number): LegendItem {
   return {
@@ -26,9 +26,9 @@ vi.mock('@protspace/utils', () => ({
   removeAllStorageItemsByHash: vi.fn(),
   LEGEND_VALUES: {
     OTHER: 'Other',
-    NA_DISPLAY: 'N/A',
-    NA_VALUE: '__NA__',
   },
+  NA_VALUE: '__NA__',
+  NA_DISPLAY: 'N/A',
 }));
 
 import {
@@ -205,7 +205,7 @@ describe('PersistenceController', () => {
 
       mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
         { value: 'cat1', zOrder: 0, color: '#f00', shape: 'circle' },
-        { value: LEGEND_VALUES.NA_VALUE, zOrder: 1, color: '#888', shape: 'circle' },
+        { value: NA_VALUE, zOrder: 1, color: '#888', shape: 'circle' },
         { value: 'Other', zOrder: 2, color: '#888', shape: 'circle' },
       ]);
       mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['hidden1']);
@@ -229,7 +229,7 @@ describe('PersistenceController', () => {
         hiddenValues: ['hidden1'],
         categories: {
           cat1: { zOrder: 0, color: '#f00', shape: 'circle' },
-          [LEGEND_VALUES.NA_VALUE]: { zOrder: 1, color: '#888', shape: 'circle' },
+          [NA_VALUE]: { zOrder: 1, color: '#888', shape: 'circle' },
         },
         enableDuplicateStackUI: true,
         selectedPaletteId: 'kellys',
@@ -290,7 +290,7 @@ describe('PersistenceController', () => {
       mockCallbacks.shouldPersistCategories = vi.fn().mockReturnValue(false);
       mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
         { value: 'cat1', zOrder: 0, color: '#f00', shape: 'circle' },
-        { value: LEGEND_VALUES.NA_VALUE, zOrder: 1, color: '#888', shape: 'circle' },
+        { value: NA_VALUE, zOrder: 1, color: '#888', shape: 'circle' },
       ]);
 
       controller.saveSettings();
@@ -433,7 +433,7 @@ describe('PersistenceController', () => {
         createTestItem('cat1', 0),
         createTestItem('cat2', 1),
         createTestItem('cat3', 2),
-        createTestItem(LEGEND_VALUES.NA_VALUE, 3),
+        createTestItem(NA_VALUE, 3),
       ];
 
       const result = controller.applyPendingZOrder(items);
@@ -457,7 +457,7 @@ describe('PersistenceController', () => {
         hiddenValues: [],
         categories: {
           cat1: { zOrder: 1, color: '#f00', shape: 'circle' },
-          [LEGEND_VALUES.NA_VALUE]: { zOrder: 0, color: '#888', shape: 'circle' }, // N/A with __NA__ key
+          [NA_VALUE]: { zOrder: 0, color: '#888', shape: 'circle' }, // N/A with __NA__ key
         },
         enableDuplicateStackUI: false,
       });
@@ -465,7 +465,7 @@ describe('PersistenceController', () => {
 
       const items = [
         createTestItem('cat1', 0),
-        createTestItem(LEGEND_VALUES.NA_VALUE, 1), // N/A item with __NA__ value
+        createTestItem(NA_VALUE, 1), // N/A item with __NA__ value
       ];
 
       const result = controller.applyPendingZOrder(items);

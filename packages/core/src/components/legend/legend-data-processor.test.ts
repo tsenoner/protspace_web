@@ -6,7 +6,7 @@ import {
 } from './legend-data-processor';
 import { getVisualEncoding } from './visual-encoding';
 import type { LegendItem } from './types';
-import { LEGEND_VALUES } from './config';
+import { LEGEND_VALUES, NA_VALUE } from './config';
 
 describe('legend-data-processor', () => {
   let ctx: LegendProcessorContext;
@@ -80,7 +80,7 @@ describe('legend-data-processor', () => {
       const result = LegendDataProcessor.countAnnotationFrequencies(values, false, [], new Set());
       expect(result.get('a')).toBe(2);
       // Null values are converted to '__NA__' internally
-      expect(result.get(LEGEND_VALUES.NA_VALUE)).toBe(2);
+      expect(result.get(NA_VALUE)).toBe(2);
     });
 
     it('filters by indices in isolation mode', () => {
@@ -150,24 +150,24 @@ describe('legend-data-processor', () => {
     it('handles N/A values in sorting (uses __NA__)', () => {
       const freq = new Map<string, number>([
         ['a', 10],
-        [LEGEND_VALUES.NA_VALUE, 5],
+        [NA_VALUE, 5],
         ['b', 8],
       ]);
       const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'size-desc');
-      expect(result.topItems.some(([v]) => v === LEGEND_VALUES.NA_VALUE)).toBe(true);
+      expect(result.topItems.some(([v]) => v === NA_VALUE)).toBe(true);
     });
 
     it('N/A sorts last in all sort modes', () => {
       const freq = new Map<string, number>([
         ['a', 10],
-        [LEGEND_VALUES.NA_VALUE, 50],
+        [NA_VALUE, 50],
         ['b', 8],
       ]);
       // N/A has count 50 (highest) — would sort first in size-desc without special handling
       for (const mode of ['size-desc', 'size-asc', 'alpha-asc', 'alpha-desc'] as const) {
         const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, mode);
         const lastItem = result.topItems[result.topItems.length - 1];
-        expect(lastItem[0]).toBe(LEGEND_VALUES.NA_VALUE);
+        expect(lastItem[0]).toBe(NA_VALUE);
       }
     });
 
@@ -241,25 +241,25 @@ describe('legend-data-processor', () => {
     it('sorts N/A last in alpha-asc mode', () => {
       const freq = new Map<string, number>([
         ['zebra', 5],
-        [LEGEND_VALUES.NA_VALUE, 10],
+        [NA_VALUE, 10],
         ['alpha', 3],
       ]);
       const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
       expect(result.topItems[0][0]).toBe('alpha');
       expect(result.topItems[1][0]).toBe('zebra');
-      expect(result.topItems[2][0]).toBe(LEGEND_VALUES.NA_VALUE);
+      expect(result.topItems[2][0]).toBe(NA_VALUE);
     });
 
     it('sorts N/A last in alpha-desc mode', () => {
       const freq = new Map<string, number>([
         ['zebra', 5],
-        [LEGEND_VALUES.NA_VALUE, 10],
+        [NA_VALUE, 10],
         ['alpha', 3],
       ]);
       const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-desc');
       expect(result.topItems[0][0]).toBe('zebra');
       expect(result.topItems[1][0]).toBe('alpha');
-      expect(result.topItems[2][0]).toBe(LEGEND_VALUES.NA_VALUE);
+      expect(result.topItems[2][0]).toBe(NA_VALUE);
     });
 
     it('sorts numeric interval labels by lower bound in alpha-asc mode', () => {
@@ -383,7 +383,7 @@ describe('legend-data-processor', () => {
     it('handles N/A extraction via pendingExtract', () => {
       const freq = new Map<string, number>([
         ['a', 10],
-        [LEGEND_VALUES.NA_VALUE, 5],
+        [NA_VALUE, 5],
       ]);
       const visibleValues = new Set(['a']);
       const result = LegendDataProcessor.sortAndLimitItems(
@@ -395,17 +395,17 @@ describe('legend-data-processor', () => {
         visibleValues,
         new Map(),
         true,
-        LEGEND_VALUES.NA_VALUE, // Extract N/A
+        NA_VALUE, // Extract N/A
       );
-      expect(result.topItems.map(([v]) => v)).toContain(LEGEND_VALUES.NA_VALUE);
+      expect(result.topItems.map(([v]) => v)).toContain(NA_VALUE);
     });
 
     it('handles N/A merge via pendingMerge', () => {
       const freq = new Map<string, number>([
         ['a', 10],
-        [LEGEND_VALUES.NA_VALUE, 5],
+        [NA_VALUE, 5],
       ]);
-      const visibleValues = new Set(['a', LEGEND_VALUES.NA_VALUE]);
+      const visibleValues = new Set(['a', NA_VALUE]);
       const result = LegendDataProcessor.sortAndLimitItems(
         freq,
         10,
@@ -416,9 +416,9 @@ describe('legend-data-processor', () => {
         new Map(),
         true,
         undefined,
-        LEGEND_VALUES.NA_VALUE, // Merge N/A back
+        NA_VALUE, // Merge N/A back
       );
-      expect(result.topItems.map(([v]) => v)).not.toContain(LEGEND_VALUES.NA_VALUE);
+      expect(result.topItems.map(([v]) => v)).not.toContain(NA_VALUE);
     });
 
     it('uses existing zOrders for manual sort mode', () => {
@@ -654,9 +654,9 @@ describe('legend-data-processor', () => {
     });
 
     it('applies persisted colors to N/A items using __NA__ key', () => {
-      const topItems: Array<[string, number]> = [[LEGEND_VALUES.NA_VALUE, 10]];
+      const topItems: Array<[string, number]> = [[NA_VALUE, 10]];
       const persistedCategories = {
-        [LEGEND_VALUES.NA_VALUE]: { zOrder: 0, color: '#na-color', shape: 'circle' },
+        [NA_VALUE]: { zOrder: 0, color: '#na-color', shape: 'circle' },
       };
       const items = LegendDataProcessor.createLegendItems(
         ctx,
@@ -699,7 +699,7 @@ describe('legend-data-processor', () => {
     it('keeps reserved N/A color even when another category uses the same color', () => {
       const topItems: Array<[string, number]> = [
         ['category1', 10],
-        [LEGEND_VALUES.NA_VALUE, 8],
+        [NA_VALUE, 8],
       ];
       const persistedCategories = {
         category1: { zOrder: 0, color: '#DDDDDD', shape: 'circle' },
@@ -716,7 +716,7 @@ describe('legend-data-processor', () => {
         persistedCategories,
       );
 
-      const naItem = items.find((item) => item.value === LEGEND_VALUES.NA_VALUE);
+      const naItem = items.find((item) => item.value === NA_VALUE);
       expect(naItem?.color).toBe('#DDDDDD');
     });
 
@@ -1296,7 +1296,7 @@ describe('legend-data-processor', () => {
         'size-desc',
         false,
       );
-      const naItem = result.legendItems.find((i) => i.value === LEGEND_VALUES.NA_VALUE);
+      const naItem = result.legendItems.find((i) => i.value === NA_VALUE);
       expect(naItem).toBeDefined();
       expect(naItem?.count).toBe(2);
     });

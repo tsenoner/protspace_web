@@ -1,6 +1,6 @@
 import type { LegendItem, OtherItem, LegendSortMode, PersistedCategoryData } from './types';
 import { getVisualEncoding, SlotTracker } from './visual-encoding';
-import { LEGEND_VALUES, toInternalValue, isNAValue, toDisplayValue } from './config';
+import { LEGEND_VALUES, NA_VALUE, toInternalValue, isNAValue, toDisplayValue } from './config';
 
 /**
  * Context object for legend data processing.
@@ -62,7 +62,7 @@ export class LegendDataProcessor {
 
   /**
    * Count frequencies of annotation values.
-   * Raw null/empty values are converted to LEGEND_VALUES.NA_VALUE.
+   * Raw null/empty values are converted to NA_VALUE.
    */
   static countAnnotationFrequencies(
     annotationValues: (string | null)[],
@@ -161,8 +161,8 @@ export class LegendDataProcessor {
     let topItems: Array<[string, number]>;
 
     // Check if N/A is being extracted or merged
-    const extractingNA = pendingExtract === LEGEND_VALUES.NA_VALUE;
-    const mergingNA = pendingMerge === LEGEND_VALUES.NA_VALUE;
+    const extractingNA = pendingExtract === NA_VALUE;
+    const mergingNA = pendingMerge === NA_VALUE;
 
     if (workingVisible.size > 0) {
       // Filter to visible items, handling N/A specially

@@ -1,5 +1,5 @@
 import type { VisualizationData, PlotDataPoint, NumericAnnotationType } from '../types.js';
-import { toInternalValue } from './shapes.js';
+import { normalizeMissingValue, toInternalValue } from './missing-values.js';
 import * as d3 from 'd3';
 import { getNumericBinLabelMap } from './numeric-binning.js';
 
@@ -39,10 +39,16 @@ export class DataProcessor {
             ? []
             : [annotationIndicesData];
 
+        // TEMPORARY (Task 2 of NA-handling redesign): the data-loader does not
+        // yet run normalizeMissingValue at ingestion. Wrap toInternalValue with
+        // it here so missing-value spellings ('NA', 'N/A', 'NaN', 'None',
+        // 'missing', empty/whitespace, non-finite numbers) collapse to the
+        // __NA__ legend key. Drop the wrapping once Task 3 normalizes at
+        // ingestion-time in conversion.ts; then call toInternalValue directly.
         annotationValues[annotationKey] = Array.isArray(annotation.values)
           ? annotationIndices
               .filter((i): i is number => typeof i === 'number' && Number.isFinite(i))
-              .map((i) => toInternalValue(annotation.values[i]))
+              .map((i) => toInternalValue(normalizeMissingValue(annotation.values[i])))
           : [];
         annotationDisplayValues[annotationKey] = annotationValues[annotationKey].map(
           (value) => numericLabelMap.get(value) ?? value,

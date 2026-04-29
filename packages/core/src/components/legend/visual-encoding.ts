@@ -11,7 +11,7 @@
  */
 
 import { COLOR_SCHEMES } from '@protspace/utils';
-import { LEGEND_VALUES } from './config';
+import { LEGEND_VALUES, NA_DISPLAY, NA_DEFAULT_COLOR } from './config';
 
 const KELLYS_COLORS = COLOR_SCHEMES.kellys;
 const SHAPES = ['circle', 'square', 'diamond', 'plus', 'triangle-up', 'triangle-down'] as const;
@@ -24,7 +24,7 @@ export const SPECIAL_SLOTS = {
 /** Special colors for reserved categories */
 const SPECIAL_COLORS: Record<string, string> = {
   [LEGEND_VALUES.OTHER]: '#999999',
-  [LEGEND_VALUES.NA_DISPLAY]: LEGEND_VALUES.NA_COLOR,
+  [NA_DISPLAY]: NA_DEFAULT_COLOR,
 };
 
 interface VisualEncoding {
@@ -58,8 +58,8 @@ export function getVisualEncoding(
 
   // Regular categories: cycle shapes; keep N/A color fixed.
   const color =
-    categoryName === LEGEND_VALUES.NA_DISPLAY
-      ? SPECIAL_COLORS[LEGEND_VALUES.NA_DISPLAY]
+    categoryName === NA_DISPLAY
+      ? SPECIAL_COLORS[NA_DISPLAY]
       : KELLYS_COLORS[slot % KELLYS_COLORS.length];
   const shape = shapesEnabled ? SHAPES[slot % SHAPES.length] : 'circle';
 

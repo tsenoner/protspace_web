@@ -1,6 +1,23 @@
 import { NEUTRAL_VALUE_COLOR } from './config';
 import type { PlotDataPoint, VisualizationData } from '@protspace/utils';
-import { isNumericAnnotation, normalizeShapeName, toInternalValue } from '@protspace/utils';
+import {
+  isNumericAnnotation,
+  normalizeMissingValue,
+  normalizeShapeName,
+  toInternalValue,
+} from '@protspace/utils';
+
+// TEMPORARY (Task 2 of NA-handling redesign): callers here pass raw annotation
+// cells that have not yet been routed through ingestion-time normalization.
+// Apply normalizeMissingValue at each call site so missing-value spellings
+// ('NA', 'N/A', 'NaN', 'None', 'missing', empty, whitespace, non-finite numbers)
+// collapse to the __NA__ legend key. This expands on the prior behavior, which
+// only mapped null/undefined/empty/whitespace to __NA__ via toInternalValue
+// alone. Remove this helper once Task 3 normalizes at ingestion in
+// conversion.ts; then call toInternalValue directly.
+function toLegendKey(value: string | number | null | undefined): string {
+  return toInternalValue(normalizeMissingValue(value));
+}
 
 export interface StyleConfig {
   selectedProteinIds: string[];
@@ -41,7 +58,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   const selectedIdsSet = new Set(styleConfig.selectedProteinIds);
   const highlightedIdsSet = new Set(styleConfig.highlightedProteinIds);
   const hiddenKeysSet = new Set(
-    (styleConfig.hiddenAnnotationValues || []).map((v) => toInternalValue(v)),
+    (styleConfig.hiddenAnnotationValues || []).map((v) => toLegendKey(v)),
   );
   const otherValuesSet = new Set(styleConfig.otherAnnotationValues || []);
 
@@ -67,7 +84,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     // Fallback to annotation.colors from data
     for (let i = 0; i < annotation.values.length; i++) {
       const v = annotation.values[i];
-      const k = toInternalValue(v);
+      const k = toLegendKey(v);
       const color = annotation.colors?.[i];
       if (color) valueToColor.set(k, color);
     }
@@ -83,7 +100,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     // Fallback to annotation.shapes from data (only when useShapes is enabled)
     for (let i = 0; i < annotation.values.length; i++) {
       const v = annotation.values[i];
-      const k = toInternalValue(v);
+      const k = toLegendKey(v);
       if (annotation.shapes && annotation.shapes[i]) {
         valueToShape.set(k, normalizeShapeName(annotation.shapes[i]));
       }
@@ -97,7 +114,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     if (!annotation || !Array.isArray(annotation.values)) return false;
     const hidden = new Set(styleConfig.hiddenAnnotationValues);
     if (hidden.size === 0) return false;
-    const normalizedKeys = annotation.values.map((v) => toInternalValue(v));
+    const normalizedKeys = annotation.values.map((v) => toLegendKey(v));
     return normalizedKeys.length > 0 && normalizedKeys.every((k) => hidden.has(k));
   };
 
@@ -122,7 +139,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     const annotationValue = annotationValueArray[0];
     if (annotationValue && otherValuesSet.has(annotationValue)) return 'circle';
 
-    const k = toInternalValue(annotationValue);
+    const k = toLegendKey(annotationValue);
     // Check if we have a custom shape from the legend mapping
     const customShape = valueToShape.get(k);
     if (customShape) return customShape;
@@ -144,9 +161,9 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
 
     const colors = annotationValueArray
       .map((v) => {
-        if (hiddenKeysSet.has(toInternalValue(v))) return undefined;
+        if (hiddenKeysSet.has(toLegendKey(v))) return undefined;
         if (otherValuesSet.has(v)) return NEUTRAL_VALUE_COLOR;
-        return valueToColor.get(toInternalValue(v)) ?? NEUTRAL_VALUE_COLOR;
+        return valueToColor.get(toLegendKey(v)) ?? NEUTRAL_VALUE_COLOR;
       })
       .filter((v) => v !== undefined);
 
@@ -177,7 +194,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     const annotationValue = point.annotationValues[styleConfig.selectedAnnotation];
 
     if (!allHidden && annotationValue) {
-      if (annotationValue.every((f) => hiddenKeysSet.has(toInternalValue(f)))) return 0;
+      if (annotationValue.every((f) => hiddenKeysSet.has(toLegendKey(f)))) return 0;
     }
 
     return getBaseOpacity(point);
@@ -217,7 +234,7 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
           key = 'Other';
         } else {
           const raw = annotationValueArray[0];
-          key = toInternalValue(raw);
+          key = toLegendKey(raw);
         }
       } else {
         // Defensive fallback — shouldn't happen since DataProcessor normalizes nulls

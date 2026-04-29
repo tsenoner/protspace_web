@@ -1,5 +1,5 @@
 import { sampleColorSchemeColor } from './color-scheme';
-import { LEGEND_VALUES } from './shapes';
+import { NA_VALUE, NA_DEFAULT_COLOR } from './missing-values';
 import type {
   Annotation,
   NumericBinningStrategy,
@@ -724,8 +724,8 @@ export function materializeNumericAnnotation(
 
   if (hasMissingValues) {
     const naIndex = finalValues.length;
-    finalValues.push(LEGEND_VALUES.NA_VALUE);
-    finalColors.push(LEGEND_VALUES.NA_COLOR);
+    finalValues.push(NA_VALUE);
+    finalColors.push(NA_DEFAULT_COLOR);
     finalShapes.push('circle');
 
     for (let i = 0; i < annotationData.length; i++) {

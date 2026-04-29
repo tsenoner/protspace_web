@@ -1,37 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { toInternalValue, LEGEND_VALUES } from './shapes';
+import { toDisplayValue, LEGEND_VALUES } from './shapes';
+import { NA_VALUE, NA_DISPLAY } from './missing-values';
 
-describe('toInternalValue', () => {
-  it('converts null to __NA__', () => {
-    expect(toInternalValue(null)).toBe(LEGEND_VALUES.NA_VALUE);
+describe('toDisplayValue', () => {
+  it('returns NA_DISPLAY for the internal NA token', () => {
+    expect(toDisplayValue(NA_VALUE)).toBe(NA_DISPLAY);
+    expect(toDisplayValue('__NA__')).toBe('N/A');
   });
 
-  it('converts undefined to __NA__', () => {
-    expect(toInternalValue(undefined)).toBe(LEGEND_VALUES.NA_VALUE);
+  it('returns the value unchanged for regular categories', () => {
+    expect(toDisplayValue('Hemoglobin')).toBe('Hemoglobin');
+    expect(toDisplayValue('TP53')).toBe('TP53');
   });
 
-  it('converts empty string to __NA__', () => {
-    expect(toInternalValue('')).toBe(LEGEND_VALUES.NA_VALUE);
+  it('returns "Other" unchanged when otherItemsCount is undefined or zero', () => {
+    expect(toDisplayValue(LEGEND_VALUES.OTHER)).toBe('Other');
+    expect(toDisplayValue(LEGEND_VALUES.OTHER, 0)).toBe('Other');
   });
 
-  it('converts whitespace-only strings to __NA__', () => {
-    expect(toInternalValue('   ')).toBe(LEGEND_VALUES.NA_VALUE);
-    expect(toInternalValue('\t')).toBe(LEGEND_VALUES.NA_VALUE);
-    expect(toInternalValue('\n')).toBe(LEGEND_VALUES.NA_VALUE);
-  });
-
-  it('preserves regular string values', () => {
-    expect(toInternalValue('human')).toBe('human');
-    expect(toInternalValue('Other')).toBe('Other');
-    expect(toInternalValue('0')).toBe('0');
-  });
-
-  it('preserves __NA__ without double-conversion', () => {
-    expect(toInternalValue(LEGEND_VALUES.NA_VALUE)).toBe(LEGEND_VALUES.NA_VALUE);
-  });
-
-  it('stringifies non-string values', () => {
-    expect(toInternalValue(42)).toBe('42');
-    expect(toInternalValue(true)).toBe('true');
+  it('appends category count to "Other" when otherItemsCount is positive', () => {
+    expect(toDisplayValue(LEGEND_VALUES.OTHER, 3)).toBe('Other (3 categories)');
+    expect(toDisplayValue(LEGEND_VALUES.OTHER, 17)).toBe('Other (17 categories)');
   });
 });

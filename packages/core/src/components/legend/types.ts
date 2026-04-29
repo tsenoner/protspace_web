@@ -2,7 +2,7 @@ import type { LegendErrorEventDetail, LegendErrorSource } from './legend.events'
 
 /**
  * A legend item representing a category.
- * N/A items use LEGEND_VALUES.NA_VALUE ('__NA__') as their value.
+ * N/A items use NA_VALUE ('__NA__') as their value.
  */
 export interface LegendItem {
   /** Category value. N/A items use '__NA__', "Other" uses 'Other' */

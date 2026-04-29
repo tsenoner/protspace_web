@@ -1,4 +1,5 @@
 import type { PointShape } from '../types.js';
+import { isNAValue, NA_DISPLAY } from './missing-values';
 
 /**
  * Shape utilities for consistent rendering across WebGL, Canvas, and SVG
@@ -14,28 +15,7 @@ import type { PointShape } from '../types.js';
 export const LEGEND_VALUES = {
   /** Synthetic "Other" category that groups items beyond maxVisibleValues */
   OTHER: 'Other',
-  /** Display text for N/A items */
-  NA_DISPLAY: 'N/A',
-  /** Internal value used to represent N/A items (null, empty string, whitespace) */
-  NA_VALUE: '__NA__',
-  /** Color for N/A items — used in both legend and numeric binning */
-  NA_COLOR: '#DDDDDD',
 } as const;
-
-// ============================================================================
-// Legend Value Normalization
-// ============================================================================
-
-/**
- * Convert a raw value to its internal legend key.
- * N/A values (null, undefined, empty string, whitespace) become LEGEND_VALUES.NA_VALUE.
- * All other values are stringified.
- */
-export function toInternalValue(value: unknown): string {
-  if (value === null || value === undefined) return LEGEND_VALUES.NA_VALUE;
-  if (typeof value === 'string' && value.trim() === '') return LEGEND_VALUES.NA_VALUE;
-  return String(value);
-}
 
 // ============================================================================
 // Legend Display Text Utilities
@@ -50,14 +30,12 @@ export function toInternalValue(value: unknown): string {
  * before calling this function. Raw null/empty values should be __NA__.
  */
 export function toDisplayValue(value: string, otherItemsCount?: number): string {
-  // Handle __NA__ internal value
-  if (value === LEGEND_VALUES.NA_VALUE) {
-    return LEGEND_VALUES.NA_DISPLAY;
+  if (isNAValue(value)) {
+    return NA_DISPLAY;
   }
 
   let displayText = value;
 
-  // For "Other" items, append the number of categories if provided
   if (value === LEGEND_VALUES.OTHER && otherItemsCount !== undefined && otherItemsCount > 0) {
     displayText = `${displayText} (${otherItemsCount} categories)`;
   }

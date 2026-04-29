@@ -4,7 +4,7 @@ import {
   materializeVisualizationData,
   resolveNumericAnnotationDisplaySettings,
 } from './numeric-binning';
-import { LEGEND_VALUES } from './shapes';
+import { NA_VALUE, NA_DEFAULT_COLOR } from './missing-values';
 import type { VisualizationData } from '../types';
 
 describe('numeric-binning', () => {
@@ -455,9 +455,9 @@ describe('numeric-binning', () => {
 
     // binCount=3 with missing values → 2 numeric bins + 1 N/A = 3 total
     expect(result.annotation.values).toHaveLength(3);
-    const naIndex = result.annotation.values.indexOf(LEGEND_VALUES.NA_VALUE);
+    const naIndex = result.annotation.values.indexOf(NA_VALUE);
     expect(naIndex).toBe(2); // N/A is last
-    expect(result.annotation.colors[naIndex]).toBe(LEGEND_VALUES.NA_COLOR);
+    expect(result.annotation.colors[naIndex]).toBe(NA_DEFAULT_COLOR);
     expect(result.annotation.shapes[naIndex]).toBe('circle');
 
     // Gradient uses full spectrum across the 2 numeric bins
@@ -482,7 +482,7 @@ describe('numeric-binning', () => {
       'int',
     );
 
-    expect(result.annotation.values).not.toContain(LEGEND_VALUES.NA_VALUE);
+    expect(result.annotation.values).not.toContain(NA_VALUE);
     // Full 3 bins used for numeric data
     expect(result.annotation.values).toHaveLength(3);
   });
@@ -495,9 +495,9 @@ describe('numeric-binning', () => {
     );
 
     // binCount=3 → 2 numeric bins + 1 N/A = 3 total
-    const naIndex = result.annotation.values.indexOf(LEGEND_VALUES.NA_VALUE);
+    const naIndex = result.annotation.values.indexOf(NA_VALUE);
     expect(naIndex).toBeGreaterThan(0);
-    expect(result.annotation.colors[naIndex]).toBe(LEGEND_VALUES.NA_COLOR);
+    expect(result.annotation.colors[naIndex]).toBe(NA_DEFAULT_COLOR);
     // Reversed gradient: first bin should be viridis end, not start
     expect(result.annotation.colors[0]).toBe('#FDE725');
   });
@@ -521,7 +521,7 @@ describe('numeric-binning', () => {
 
     // Total values must fit within binCount (9 numeric + 1 N/A = 10)
     expect(result.annotation.values).toHaveLength(binCount);
-    expect(result.annotation.values).toContain(LEGEND_VALUES.NA_VALUE);
+    expect(result.annotation.values).toContain(NA_VALUE);
 
     // Every data point must be assigned to a bin (no empty annotationData)
     for (let i = 0; i < values.length; i++) {
@@ -531,11 +531,11 @@ describe('numeric-binning', () => {
     // The highest value (49.5) must be in one of the numeric bins, not lost
     const lastDataIndex = 99; // index of value 49.5
     const lastBinIdx = result.annotationData[lastDataIndex][0];
-    expect(result.annotation.values[lastBinIdx]).not.toBe(LEGEND_VALUES.NA_VALUE);
+    expect(result.annotation.values[lastBinIdx]).not.toBe(NA_VALUE);
 
     // The gradient must use the full color spectrum
     const numericColors = result.annotation.colors.filter(
-      (_, i) => result.annotation.values[i] !== LEGEND_VALUES.NA_VALUE,
+      (_, i) => result.annotation.values[i] !== NA_VALUE,
     );
     const firstNumericBinPosition = result.annotation.numericMetadata?.bins[0]?.colorPosition ?? -1;
     const lastNumericBinPosition =
@@ -554,7 +554,7 @@ describe('numeric-binning', () => {
 
     // binCount=1 cannot be reduced further, so 1 numeric bin + 1 N/A = 2 total
     expect(result.annotation.values).toHaveLength(2);
-    const numericBins = result.annotation.values.filter((v) => v !== LEGEND_VALUES.NA_VALUE);
+    const numericBins = result.annotation.values.filter((v) => v !== NA_VALUE);
     expect(numericBins).toHaveLength(1);
 
     // All data points still assigned

@@ -23,6 +23,7 @@ import {
   LEGEND_STYLES,
   LEGEND_VALUES,
   LEGEND_EVENTS,
+  NA_VALUE,
   toDisplayValue,
   toInternalValue,
   SHAPE_PATH_GENERATORS,
@@ -1171,7 +1172,7 @@ export class ProtspaceLegend extends LitElement {
 
     const labelMap = this._getNumericDisplayLabelMap();
     this._legendItems = this._legendItems.map((item) =>
-      item.value === LEGEND_VALUES.OTHER || item.value === LEGEND_VALUES.NA_VALUE
+      item.value === LEGEND_VALUES.OTHER || item.value === NA_VALUE
         ? item
         : { ...item, displayValue: labelMap.get(item.value) ?? item.displayValue ?? item.value },
     );
@@ -1188,7 +1189,7 @@ export class ProtspaceLegend extends LitElement {
     );
 
     this._legendItems = this._legendItems.map((item) => {
-      if (item.value === LEGEND_VALUES.OTHER || item.value === LEGEND_VALUES.NA_VALUE) {
+      if (item.value === LEGEND_VALUES.OTHER || item.value === NA_VALUE) {
         return item;
       }
       const derivedColor = derivedColors.get(item.value);
@@ -2015,7 +2016,7 @@ export class ProtspaceLegend extends LitElement {
     // Apply palette colors to all legend items (excluding special categories like "Others" and "N/A")
     this._legendItems = this._legendItems.map((item, index) => {
       // Skip special categories (Other, N/A) as they have fixed colors
-      if (item.value === LEGEND_VALUES.OTHER || item.value === LEGEND_VALUES.NA_VALUE) {
+      if (item.value === LEGEND_VALUES.OTHER || item.value === NA_VALUE) {
         return item;
       }
 

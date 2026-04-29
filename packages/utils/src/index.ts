@@ -9,6 +9,8 @@ export {
   NA_DISPLAY,
   NA_DEFAULT_COLOR,
   normalizeMissingValue,
+  isNAValue,
+  toInternalValue,
 } from './visualization/missing-values';
 export * from './visualization/scales';
 export * from './visualization/export-utils';
