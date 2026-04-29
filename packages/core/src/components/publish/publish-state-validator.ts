@@ -29,6 +29,13 @@ function isValidPreset(value: unknown): value is PublishState['preset'] {
   return typeof value === 'string' && JOURNAL_PRESETS.some((p) => p.id === value);
 }
 
+/** Matches the UI's per-axis cap for figure dimensions. Anything larger is rejected
+ *  so corrupt state can't carry oversized canvases past the validator boundary. */
+const MAX_CANVAS_PIXEL_DIM = 8192;
+function isValidPixelDim(v: unknown): v is number {
+  return isFiniteNumber(v) && v > 0 && v <= MAX_CANVAS_PIXEL_DIM;
+}
+
 function sanitizeOverlay(raw: unknown): Overlay | null {
   if (!isObject(raw)) return null;
   const type = raw.type;
@@ -166,19 +173,17 @@ export function sanitizePublishState(input: unknown): PublishState {
       input.sizeMode === 'flexible'
         ? input.sizeMode
         : defaults.sizeMode,
-    widthPx: isFiniteNumber(input.widthPx) && input.widthPx > 0 ? input.widthPx : defaults.widthPx,
-    heightPx:
-      isFiniteNumber(input.heightPx) && input.heightPx > 0 ? input.heightPx : defaults.heightPx,
+    widthPx: isValidPixelDim(input.widthPx) ? input.widthPx : defaults.widthPx,
+    heightPx: isValidPixelDim(input.heightPx) ? input.heightPx : defaults.heightPx,
     dpi: isFiniteNumber(input.dpi) && input.dpi > 0 ? input.dpi : defaults.dpi,
     format: input.format === 'pdf' ? 'pdf' : 'png',
     legend: sanitizeLegend(input.legend, defaults.legend),
     background: input.background === 'transparent' ? 'transparent' : 'white',
     overlays,
     insets,
-    referenceWidth:
-      isFiniteNumber(input.referenceWidth) && input.referenceWidth > 0
-        ? input.referenceWidth
-        : defaults.referenceWidth,
+    referenceWidth: isValidPixelDim(input.referenceWidth)
+      ? input.referenceWidth
+      : defaults.referenceWidth,
     viewFingerprint:
       isObject(input.viewFingerprint) &&
       isString(input.viewFingerprint.projection) &&

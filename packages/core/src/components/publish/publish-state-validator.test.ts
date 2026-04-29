@@ -134,6 +134,24 @@ describe('sanitizePublishState', () => {
     expect(result.dpi).toBe(defaults.dpi);
   });
 
+  it('rejects widthPx/heightPx/referenceWidth above the canvas dim cap', () => {
+    const defaults = createDefaultPublishState();
+    const result = sanitizePublishState({
+      widthPx: 50_000,
+      heightPx: 16_385,
+      referenceWidth: 100_000,
+    });
+    expect(result.widthPx).toBe(defaults.widthPx);
+    expect(result.heightPx).toBe(defaults.heightPx);
+    expect(result.referenceWidth).toBe(defaults.referenceWidth);
+  });
+
+  it('preserves widthPx/heightPx exactly at the cap', () => {
+    const result = sanitizePublishState({ widthPx: 8192, heightPx: 8192 });
+    expect(result.widthPx).toBe(8192);
+    expect(result.heightPx).toBe(8192);
+  });
+
   it('drops overlays whose required fields are not finite numbers', () => {
     const result = sanitizePublishState({
       overlays: [{ type: 'arrow', x1: NaN, y1: 0.2, x2: 0.5, y2: 0.5, color: '#000', width: 2 }],
