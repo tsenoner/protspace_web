@@ -1,5 +1,5 @@
 import type { Annotation, VisualizationData } from '@protspace/utils';
-import { COLOR_SCHEMES, sanitizeValue } from '@protspace/utils';
+import { COLOR_SCHEMES, sanitizeValue, normalizeMissingValue } from '@protspace/utils';
 import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
 import type { Rows } from './types';
@@ -48,36 +48,6 @@ interface AnnotationInferenceResult {
   numericValues: (number | null)[];
 }
 
-/**
- * Strings that represent explicit missing/unavailable values in scientific data.
- * Compared case-insensitively. These do NOT force a numeric column to categorical.
- */
-const MISSING_VALUE_MARKERS = new Set([
-  'nan',
-  'na',
-  'n/a',
-  'null',
-  'none',
-  '-',
-  '.',
-  'infinity',
-  '-infinity',
-  '+infinity',
-  'inf',
-  '-inf',
-  '+inf',
-]);
-
-function isMissingValueMarker(rawValue: unknown): boolean {
-  if (rawValue == null) return true;
-  if (typeof rawValue === 'number') return !Number.isFinite(rawValue);
-  if (typeof rawValue === 'string') {
-    const trimmed = rawValue.trim();
-    return MISSING_VALUE_MARKERS.has(trimmed.toLowerCase());
-  }
-  return false;
-}
-
 function parseNumericAnnotationValue(rawValue: unknown): number | null {
   if (typeof rawValue === 'number') {
     return Number.isFinite(rawValue) ? rawValue : null;
@@ -107,30 +77,19 @@ function inferAnnotationType(values: Iterable<unknown>): AnnotationInferenceResu
   let sawNonIntegerValue = false;
 
   for (const rawValue of values) {
-    if (rawValue == null) {
+    // Apply the boundary normalization first: every flavor of "missing" becomes null.
+    const normalized = normalizeMissingValue(rawValue);
+
+    if (normalized == null) {
       numericValues.push(null);
       continue;
     }
 
-    if (typeof rawValue === 'string') {
-      const trimmed = rawValue.trim();
-      if (trimmed === '') {
-        numericValues.push(null);
-        continue;
-      }
-    }
-
-    // Explicit missing markers (NaN, NA, N/A, null, none, -, ., Infinity, etc.)
-    // are treated as gaps — they do not force categorical fallback.
-    if (isMissingValueMarker(rawValue)) {
-      numericValues.push(null);
-      continue;
-    }
-
-    const parsed = parseNumericAnnotationValue(rawValue);
+    const parsed = parseNumericAnnotationValue(normalized);
     numericValues.push(parsed);
 
     if (parsed == null) {
+      // Non-numeric, non-missing value — column is categorical.
       return { inferredType: 'string', numericValues };
     }
 
@@ -227,12 +186,15 @@ export const parseAnnotationValue = (
 };
 
 function splitCategoricalAnnotationValues(rawValue: unknown): string[] {
-  if (rawValue == null) return [];
+  // First-level: normalize the whole cell. Returns null if the entire cell is missing.
+  const cellNormalized = normalizeMissingValue(rawValue);
+  if (cellNormalized == null) return [];
 
-  const stringValue = String(rawValue);
-  if (stringValue.trim() === '') return [];
-
-  return stringValue.split(';').filter((value) => value.trim() !== '');
+  // Split, trim, drop empty tokens, and drop tokens that normalize to missing.
+  return String(cellNormalized)
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part !== '' && normalizeMissingValue(part) !== null);
 }
 
 /**
@@ -428,8 +390,9 @@ function convertBundleFormatData(
       numeric_annotation_data[annotationCol] = uniqueProteinIds.map((proteinId) => {
         const row = baseRowsByProteinId.get(proteinId);
         const rawValue = row?.[annotationCol];
-        if (rawValue == null) return null;
-        return parseNumericAnnotationValue(rawValue);
+        const normalized = normalizeMissingValue(rawValue);
+        if (normalized == null) return null;
+        return parseNumericAnnotationValue(normalized);
       });
       annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
       continue;

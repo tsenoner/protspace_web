@@ -145,17 +145,28 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(optimizedResult.annotation_data.length).toEqual([[], [], []]);
   });
 
-  it('treats NaN and Infinity strings as missing values, preserving numeric inference', () => {
-    const result = convertParquetToVisualizationData([
+  it("treats 'NaN' strings as missing while 'Infinity' strings demote the column to categorical", () => {
+    // 'NaN' is in the missing-value token set; 'Infinity' is not.
+    // A column mixing numeric ints with 'NaN' stays numeric.
+    const numericResult = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, length: '1', family: 'A' },
+      { identifier: 'P2', x: 1, y: 1, length: 'NaN', family: 'B' },
+      { identifier: 'P3', x: 2, y: 2, length: 2, family: 'A' },
+    ]);
+
+    expect(numericResult.annotations.length.kind).toBe('numeric');
+    expect(numericResult.annotations.length.numericType).toBe('int');
+    expect(numericResult.numeric_annotation_data?.length).toEqual([1, null, 2]);
+    expect(numericResult.annotation_data.length).toBeUndefined();
+
+    // 'Infinity' is no longer treated as missing — it forces categorical fallback.
+    const categoricalResult = convertParquetToVisualizationData([
       { identifier: 'P1', x: 0, y: 0, length: '1', family: 'A' },
       { identifier: 'P2', x: 1, y: 1, length: 'NaN', family: 'B' },
       { identifier: 'P3', x: 2, y: 2, length: 'Infinity', family: 'A' },
     ]);
 
-    expect(result.annotations.length.kind).toBe('numeric');
-    expect(result.annotations.length.numericType).toBe('int');
-    expect(result.numeric_annotation_data?.length).toEqual([1, null, null]);
-    expect(result.annotation_data.length).toBeUndefined();
+    expect(categoricalResult.annotations.length.kind).toBe('categorical');
   });
 
   it('falls back to categorical for semicolon and pipe-delimited strings', () => {
@@ -229,7 +240,6 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
       'edge_all_zeros',
       'edge_density_boundary',
       'edge_density_below',
-      'cat_nan_inf_strings',
     ];
     const expectedFloatAnnotations = [
       'num_random_float',
@@ -249,6 +259,9 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
       'cat_pipe_delimited',
       'cat_semicolon_delimited',
       'edge_all_nan',
+      // 'Infinity' strings are no longer treated as missing markers; this column
+      // (which mixes ints with NaN and Infinity strings) now demotes to categorical.
+      'cat_nan_inf_strings',
     ];
     const expectedAnnotationNames = [
       ...expectedIntAnnotations,
@@ -325,7 +338,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(result.numeric_annotation_data?.score).toEqual([1.5, null, 2.5, null, null, null]);
   });
 
-  it('treats dash and dot as missing values in numeric columns', () => {
+  it("does NOT treat '-' or '.' as missing — they demote a numeric column to categorical", () => {
     const result = convertParquetToVisualizationData([
       { identifier: 'P1', x: 0, y: 0, length: 100 },
       { identifier: 'P2', x: 1, y: 1, length: '-' },
@@ -333,9 +346,12 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
       { identifier: 'P4', x: 3, y: 3, length: 200 },
     ]);
 
-    expect(result.annotations.length.kind).toBe('numeric');
-    expect(result.annotations.length.numericType).toBe('int');
-    expect(result.numeric_annotation_data?.length).toEqual([100, null, null, 200]);
+    // With '-' and '.' no longer in the missing set, the column is no longer
+    // unambiguously numeric. It falls back to categorical with all four values present.
+    expect(result.annotations.length.kind).toBe('categorical');
+    expect(result.annotations.length.values).toEqual(
+      expect.arrayContaining(['100', '-', '.', '200']),
+    );
   });
 
   it('treats numeric NaN and Infinity values as missing', () => {
@@ -384,5 +400,90 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(result.annotations.val.kind).toBe('numeric');
     expect(result.annotations.val.numericType).toBe('int');
     expect(result.numeric_annotation_data?.val).toEqual([5, null, null, null, null, 10]);
+  });
+});
+
+describe('categorical NA normalization', () => {
+  it('collapses null, empty, NA, N/A, NaN, None, null, missing into a single NA category', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, species: 'human' },
+      { identifier: 'P2', x: 1, y: 1, species: null },
+      { identifier: 'P3', x: 2, y: 2, species: 'NA' },
+      { identifier: 'P4', x: 3, y: 3, species: 'N/A' },
+      { identifier: 'P5', x: 4, y: 4, species: 'NaN' },
+      { identifier: 'P6', x: 5, y: 5, species: 'None' },
+      { identifier: 'P7', x: 6, y: 6, species: 'null' },
+      { identifier: 'P8', x: 7, y: 7, species: 'missing' },
+      { identifier: 'P9', x: 8, y: 8, species: '' },
+      { identifier: 'P10', x: 9, y: 9, species: 'mouse' },
+    ]);
+
+    expect(result.annotations.species.kind).toBe('categorical');
+    expect(result.annotations.species.values).toEqual(expect.arrayContaining(['human', 'mouse']));
+    expect(result.annotations.species.values).toHaveLength(2);
+
+    const data = result.annotation_data?.species;
+    expect(data).toBeDefined();
+    expect(data!).toHaveLength(10);
+    // P1 = human, P10 = mouse, all middle entries are empty (NA)
+    expect(data![0]).toEqual([result.annotations.species.values.indexOf('human')]);
+    expect(data![9]).toEqual([result.annotations.species.values.indexOf('mouse')]);
+    for (let i = 1; i <= 8; i++) {
+      expect(data![i]).toEqual([]);
+    }
+  });
+
+  it('matches NA spellings case-insensitively', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, status: 'na' },
+      { identifier: 'P2', x: 1, y: 1, status: 'NA' },
+      { identifier: 'P3', x: 2, y: 2, status: 'Na' },
+      { identifier: 'P4', x: 3, y: 3, status: 'nA' },
+      { identifier: 'P5', x: 4, y: 4, status: 'real' },
+    ]);
+
+    expect(result.annotations.status.values).toEqual(['real']);
+    const data = result.annotation_data?.status;
+    expect(data).toBeDefined();
+    expect(data![0]).toEqual([]);
+    expect(data![1]).toEqual([]);
+    expect(data![2]).toEqual([]);
+    expect(data![3]).toEqual([]);
+    expect(data![4]).toEqual([0]);
+  });
+
+  it('keeps - and . as real categorical values (regression for the strict contract)', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, gap: '-' },
+      { identifier: 'P2', x: 1, y: 1, gap: '.' },
+      { identifier: 'P3', x: 2, y: 2, gap: 'A' },
+      { identifier: 'P4', x: 3, y: 3, gap: 'B' },
+    ]);
+
+    expect(result.annotations.gap.kind).toBe('categorical');
+    expect(result.annotations.gap.values).toEqual(expect.arrayContaining(['-', '.', 'A', 'B']));
+    expect(result.annotations.gap.values).toHaveLength(4);
+  });
+
+  it('drops NA tokens within multi-valued categorical cells', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, tags: 'BRCA1;NA;TP53' },
+      { identifier: 'P2', x: 1, y: 1, tags: 'BRCA1' },
+      { identifier: 'P3', x: 2, y: 2, tags: 'NA;TP53' },
+    ]);
+
+    expect(result.annotations.tags.values).toEqual(expect.arrayContaining(['BRCA1', 'TP53']));
+    expect(result.annotations.tags.values).toHaveLength(2);
+
+    const data = result.annotation_data?.tags;
+    expect(data).toBeDefined();
+    const brca1Idx = result.annotations.tags.values.indexOf('BRCA1');
+    const tp53Idx = result.annotations.tags.values.indexOf('TP53');
+    // P1: ['BRCA1', 'TP53'] (NA dropped)
+    expect(data![0].sort()).toEqual([brca1Idx, tp53Idx].sort());
+    // P2: ['BRCA1']
+    expect(data![1]).toEqual([brca1Idx]);
+    // P3: ['TP53'] (NA dropped)
+    expect(data![2]).toEqual([tp53Idx]);
   });
 });

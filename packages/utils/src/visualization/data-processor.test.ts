@@ -3,12 +3,12 @@ import { DataProcessor } from './data-processor';
 import type { VisualizationData } from '../types';
 
 describe('DataProcessor N/A normalization', () => {
-  const makeData = (values: (string | null)[]): VisualizationData => ({
+  const makeData = (values: (string | null | undefined)[]): VisualizationData => ({
     protein_ids: values.map((_, i) => `p${i}`),
     projections: [{ name: 'test', data: values.map((_, i) => [i, i] as [number, number]) }],
     annotations: {
       species: {
-        values,
+        values: values as (string | null)[],
         colors: values.map(() => '#ccc'),
         shapes: values.map(() => 'circle'),
       },
@@ -22,13 +22,13 @@ describe('DataProcessor N/A normalization', () => {
     expect(result[1].annotationValues.species).toEqual(['__NA__']);
   });
 
-  it('should normalize empty string to __NA__', () => {
-    const result = DataProcessor.processVisualizationData(makeData(['']), 0);
+  it('should normalize a single null value to __NA__', () => {
+    const result = DataProcessor.processVisualizationData(makeData([null]), 0);
     expect(result[0].annotationValues.species).toEqual(['__NA__']);
   });
 
-  it('should normalize whitespace-only string to __NA__', () => {
-    const result = DataProcessor.processVisualizationData(makeData(['   ']), 0);
+  it('should normalize undefined to __NA__', () => {
+    const result = DataProcessor.processVisualizationData(makeData([undefined]), 0);
     expect(result[0].annotationValues.species).toEqual(['__NA__']);
   });
 
