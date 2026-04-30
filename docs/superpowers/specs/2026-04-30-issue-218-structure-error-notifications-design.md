@@ -1,6 +1,6 @@
 # Structure Error Notification De-duplication - Design Spec
 
-**Issue:** [#218 - Remove notification banner for non-existing structure proteins](https://github.com/tsenoner/protspace_web/issues/218)  
+**Issue:** [#218 - Remove notification banner for non-existing structure proteins](https://github.com/tsenoner/protspace_web/issues/218)
 **Date:** 2026-04-30
 
 ## Problem
