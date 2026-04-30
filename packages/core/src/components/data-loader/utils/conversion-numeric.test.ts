@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { NA_VALUE, NA_DEFAULT_COLOR } from '@protspace/utils';
 import {
   convertParquetToVisualizationData,
   convertParquetToVisualizationDataOptimized,
@@ -99,7 +100,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(result.annotation_data.length).toBeUndefined();
   });
 
-  it('falls back to empty categorical rows when every value is null, undefined, or empty', async () => {
+  it('falls back to a synthetic NA category when every value is null, undefined, or empty', async () => {
     const result = convertParquetToVisualizationData([
       { identifier: 'P1', x: 0, y: 0, length: null, family: 'A' },
       { identifier: 'P2', x: 1, y: 1, length: undefined, family: 'B' },
@@ -110,7 +111,8 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(result.annotations.length.numericType).toBeUndefined();
     expect(result.numeric_annotation_data?.length).toBeUndefined();
     expect(result.annotation_data.length).toBeDefined();
-    expect(result.annotation_data.length).toEqual([[], [], []]);
+    expect(result.annotations.length.values).toEqual([NA_VALUE]);
+    expect(result.annotation_data.length).toEqual([[0], [0], [0]]);
 
     const bundleResult = convertParquetToVisualizationData(
       [
@@ -123,7 +125,8 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
 
     expect(bundleResult.annotations.length.kind).toBe('categorical');
     expect(bundleResult.numeric_annotation_data?.length).toBeUndefined();
-    expect(bundleResult.annotation_data.length).toEqual([[], [], []]);
+    expect(bundleResult.annotations.length.values).toEqual([NA_VALUE]);
+    expect(bundleResult.annotation_data.length).toEqual([[0], [0], [0]]);
 
     const optimizedRows = Array.from({ length: 10000 }, (_, index) => {
       const proteinIndex = index % 3;
@@ -142,7 +145,8 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
 
     expect(optimizedResult.annotations.length.kind).toBe('categorical');
     expect(optimizedResult.numeric_annotation_data?.length).toBeUndefined();
-    expect(optimizedResult.annotation_data.length).toEqual([[], [], []]);
+    expect(optimizedResult.annotations.length.values).toEqual([NA_VALUE]);
+    expect(optimizedResult.annotation_data.length).toEqual([[0], [0], [0]]);
   });
 
   it("treats 'NaN' strings as missing while 'Infinity' strings demote the column to categorical", () => {
@@ -419,17 +423,24 @@ describe('categorical NA normalization', () => {
     ]);
 
     expect(result.annotations.species.kind).toBe('categorical');
-    expect(result.annotations.species.values).toEqual(expect.arrayContaining(['human', 'mouse']));
-    expect(result.annotations.species.values).toHaveLength(2);
+    expect(result.annotations.species.values).toEqual(
+      expect.arrayContaining(['human', 'mouse', NA_VALUE]),
+    );
+    expect(result.annotations.species.values).toHaveLength(3);
 
     const data = result.annotation_data?.species;
     expect(data).toBeDefined();
     expect(data!).toHaveLength(10);
-    // P1 = human, P10 = mouse, all middle entries are empty (NA)
-    expect(data![0]).toEqual([result.annotations.species.values.indexOf('human')]);
-    expect(data![9]).toEqual([result.annotations.species.values.indexOf('mouse')]);
+
+    const humanIdx = result.annotations.species.values.indexOf('human');
+    const mouseIdx = result.annotations.species.values.indexOf('mouse');
+    const naIdx = result.annotations.species.values.indexOf(NA_VALUE);
+
+    // P1 = human, P10 = mouse, all middle entries point to the synthetic NA
+    expect(data![0]).toEqual([humanIdx]);
+    expect(data![9]).toEqual([mouseIdx]);
     for (let i = 1; i <= 8; i++) {
-      expect(data![i]).toEqual([]);
+      expect(data![i]).toEqual([naIdx]);
     }
   });
 
@@ -442,14 +453,18 @@ describe('categorical NA normalization', () => {
       { identifier: 'P5', x: 4, y: 4, status: 'real' },
     ]);
 
-    expect(result.annotations.status.values).toEqual(['real']);
+    expect(result.annotations.status.values).toEqual(expect.arrayContaining(['real', NA_VALUE]));
+    expect(result.annotations.status.values).toHaveLength(2);
+
     const data = result.annotation_data?.status;
     expect(data).toBeDefined();
-    expect(data![0]).toEqual([]);
-    expect(data![1]).toEqual([]);
-    expect(data![2]).toEqual([]);
-    expect(data![3]).toEqual([]);
-    expect(data![4]).toEqual([0]);
+    const realIdx = result.annotations.status.values.indexOf('real');
+    const naIdx = result.annotations.status.values.indexOf(NA_VALUE);
+    expect(data![0]).toEqual([naIdx]);
+    expect(data![1]).toEqual([naIdx]);
+    expect(data![2]).toEqual([naIdx]);
+    expect(data![3]).toEqual([naIdx]);
+    expect(data![4]).toEqual([realIdx]);
   });
 
   it('keeps - and . as real categorical values (regression for the strict contract)', () => {
@@ -485,5 +500,35 @@ describe('categorical NA normalization', () => {
     expect(data![1]).toEqual([brca1Idx]);
     // P3: ['TP53'] (NA dropped)
     expect(data![2]).toEqual([tp53Idx]);
+  });
+
+  it('adds synthetic NA category when a multi-valued cell is fully missing', () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, tags: 'BRCA1;NA;TP53' }, // mixed — NA dropped
+      { identifier: 'P2', x: 1, y: 1, tags: 'NA' }, // fully missing → synthetic NA
+      { identifier: 'P3', x: 2, y: 2, tags: 'BRCA1' },
+    ]);
+
+    expect(result.annotations.tags.values).toEqual(
+      expect.arrayContaining(['BRCA1', 'TP53', NA_VALUE]),
+    );
+    expect(result.annotations.tags.values).toHaveLength(3);
+
+    const data = result.annotation_data?.tags;
+    expect(data).toBeDefined();
+    const naIdx = result.annotations.tags.values.indexOf(NA_VALUE);
+    expect(data![1]).toEqual([naIdx]); // fully-missing cell points to synthetic NA
+  });
+
+  it("seeds the synthetic NA category with NA_DEFAULT_COLOR and 'circle'", () => {
+    const result = convertParquetToVisualizationData([
+      { identifier: 'P1', x: 0, y: 0, kind: 'A' },
+      { identifier: 'P2', x: 1, y: 1, kind: null },
+    ]);
+
+    const naIdx = result.annotations.kind.values.indexOf(NA_VALUE);
+    expect(naIdx).toBeGreaterThanOrEqual(0);
+    expect(result.annotations.kind.colors[naIdx]).toBe(NA_DEFAULT_COLOR);
+    expect(result.annotations.kind.shapes[naIdx]).toBe('circle');
   });
 });

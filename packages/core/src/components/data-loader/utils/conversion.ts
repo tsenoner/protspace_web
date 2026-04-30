@@ -1,5 +1,11 @@
 import type { Annotation, VisualizationData } from '@protspace/utils';
-import { COLOR_SCHEMES, sanitizeValue, normalizeMissingValue } from '@protspace/utils';
+import {
+  COLOR_SCHEMES,
+  sanitizeValue,
+  normalizeMissingValue,
+  NA_VALUE,
+  NA_DEFAULT_COLOR,
+} from '@protspace/utils';
 import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
 import type { Rows } from './types';
@@ -462,6 +468,22 @@ function convertBundleFormatData(
       );
     }
 
+    // Append synthetic __NA__ category when any cells have no real values.
+    // Mirrors materializeNumericAnnotation in numeric-binning.ts: missing-value
+    // proteins get a single legend row to live in instead of being orphaned.
+    const hasMissingValues = annotationDataArray.some((arr) => arr.length === 0);
+    if (hasMissingValues) {
+      const naIndex = uniqueValues.length;
+      uniqueValues.push(NA_VALUE);
+      colors.push(NA_DEFAULT_COLOR);
+      shapes.push('circle');
+      for (let p = 0; p < annotationDataArray.length; p++) {
+        if (annotationDataArray[p].length === 0) {
+          annotationDataArray[p] = [naIndex];
+        }
+      }
+    }
+
     annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;
   }
@@ -656,6 +678,22 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
     const annotationDataArray = labelsByRow.map((valueArray) =>
       valueArray.map((v) => valueToIndex.get(v) ?? -1),
     );
+
+    // Append synthetic __NA__ category when any cells have no real values.
+    // Mirrors materializeNumericAnnotation in numeric-binning.ts: missing-value
+    // proteins get a single legend row to live in instead of being orphaned.
+    const hasMissingValues = annotationDataArray.some((arr) => arr.length === 0);
+    if (hasMissingValues) {
+      const naIndex = uniqueValues.length;
+      uniqueValues.push(NA_VALUE);
+      colors.push(NA_DEFAULT_COLOR);
+      shapes.push('circle');
+      for (let p = 0; p < annotationDataArray.length; p++) {
+        if (annotationDataArray[p].length === 0) {
+          annotationDataArray[p] = [naIndex];
+        }
+      }
+    }
 
     annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;
@@ -945,6 +983,22 @@ async function extractAnnotationsOptimized(
         annotationDataArray[p] = [];
         if (scoresArray) scoresArray[p] = [];
         if (evidenceArray) evidenceArray[p] = [];
+      }
+    }
+
+    // Append synthetic __NA__ category when any cells have no real values.
+    // Mirrors materializeNumericAnnotation in numeric-binning.ts: missing-value
+    // proteins get a single legend row to live in instead of being orphaned.
+    const hasMissingValues = annotationDataArray.some((arr) => arr.length === 0);
+    if (hasMissingValues) {
+      const naIndex = uniqueValues.length;
+      uniqueValues.push(NA_VALUE);
+      colors.push(NA_DEFAULT_COLOR);
+      shapes.push('circle');
+      for (let p = 0; p < annotationDataArray.length; p++) {
+        if (annotationDataArray[p].length === 0) {
+          annotationDataArray[p] = [naIndex];
+        }
       }
     }
 
