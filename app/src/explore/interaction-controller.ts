@@ -8,7 +8,7 @@ import type {
 } from '@protspace/core';
 import type { VisualizationData } from '@protspace/utils';
 import { notify } from '../lib/notify';
-import { getLegendErrorNotification, getStructureErrorNotification } from './notifications';
+import { getLegendErrorNotification } from './notifications';
 
 interface InteractionControllerOptions {
   legendElement: ProtspaceLegend;
@@ -140,7 +140,6 @@ export function createInteractionController({
     handleStructureError(event) {
       const customEvent = event as CustomEvent<StructureErrorEventDetail>;
       console.warn('Structure viewer error:', customEvent.detail);
-      notify.error(getStructureErrorNotification(customEvent.detail));
     },
     handleStructureClose(event) {
       const customEvent = event as CustomEvent<{ proteinId?: string }>;
