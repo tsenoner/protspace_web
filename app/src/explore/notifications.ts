@@ -2,7 +2,6 @@ import type {
   DataErrorEventDetail,
   LegendErrorEventDetail,
   SelectionDisabledNotificationDetail,
-  StructureErrorEventDetail,
 } from '@protspace/core';
 import type { NotifyOptions } from '../lib/notify';
 
@@ -108,14 +107,5 @@ export function getLegendErrorNotification(detail: LegendErrorEventDetail): Noti
     description: detail.message,
     durationMs: 10_000,
     dedupeKey: `legend-error:${detail.source}:${detail.message}`,
-  };
-}
-
-export function getStructureErrorNotification(detail: StructureErrorEventDetail): NotifyOptions {
-  return {
-    title: 'Structure could not be loaded.',
-    description: detail.message,
-    durationMs: 8_000,
-    dedupeKey: `structure-error:${detail.context?.proteinId ?? 'unknown'}:${detail.message}`,
   };
 }
