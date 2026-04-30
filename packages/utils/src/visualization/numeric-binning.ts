@@ -722,6 +722,10 @@ export function materializeNumericAnnotation(
   const finalColors = [...colors];
   const finalShapes = [...shapes];
 
+  // Numeric NA pseudo-bin: color and shape are intentionally LOCKED to defaults.
+  // Numeric annotations are palette-driven (no per-item user customization), and
+  // NA inherits that contract. The legend processor enforces the lock at render
+  // time by ignoring persistedCategories[NA_VALUE] for numeric annotations.
   if (hasMissingValues) {
     const naIndex = finalValues.length;
     finalValues.push(NA_VALUE);

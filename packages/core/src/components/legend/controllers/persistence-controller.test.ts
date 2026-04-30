@@ -29,6 +29,7 @@ vi.mock('@protspace/utils', () => ({
   },
   NA_VALUE: '__NA__',
   NA_DISPLAY: 'N/A',
+  isNAValue: (value: unknown) => value === '__NA__',
 }));
 
 import {
@@ -281,6 +282,28 @@ describe('PersistenceController', () => {
           reverseGradient: false,
         },
       });
+    });
+
+    it('does not persist NA color/shape for numeric annotations', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedAnnotation('annotation1');
+
+      mockCallbacks.isNumericAnnotation = vi.fn().mockReturnValue(true);
+      mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
+        { value: 'bin-0', zOrder: 0, color: '#F3C300', shape: 'circle' },
+        { value: NA_VALUE, zOrder: 1, color: '#DDDDDD', shape: 'circle' },
+      ]);
+
+      controller.saveSettings();
+
+      expect(setStorageItem).toHaveBeenCalledWith(
+        'legend_hash_protein1_annotation1',
+        expect.objectContaining({
+          categories: {
+            'bin-0': { zOrder: 0, color: '#F3C300', shape: 'circle' },
+          },
+        }),
+      );
     });
 
     it('omits persisted categories entirely when category state is derived', () => {

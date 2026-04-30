@@ -225,6 +225,7 @@ export class ProtspaceLegend extends LitElement {
     getHiddenValues: () => this._hiddenValues,
     shouldPersistCategories: () => !this._isCurrentAnnotationNumeric(),
     shouldPersistCategoryEncodings: () => !this._isCurrentAnnotationNumeric(),
+    isNumericAnnotation: () => this._isCurrentAnnotationNumeric(),
     getCurrentSettings: () => {
       const isNumericAnnotation = this._isCurrentAnnotationNumeric();
       return {
@@ -1198,7 +1199,9 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _updateLegendItems(): void {
-    const isNumericAnnotation = this._isNumericAnnotation();
+    // Aligned with PersistenceController's isNumericAnnotation callback so the
+    // processor and the persistence layer agree on numeric-ness in transient states.
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
     if (
       !this.annotationData?.values?.length ||
       (!isNumericAnnotation && !this.annotationValues?.length)
@@ -1269,6 +1272,7 @@ export class ProtspaceLegend extends LitElement {
         pendingExtract,
         pendingMerge,
         knownValues,
+        isNumericAnnotation,
       );
 
       // Apply hidden values
