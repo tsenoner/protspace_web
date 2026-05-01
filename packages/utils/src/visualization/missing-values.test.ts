@@ -16,12 +16,15 @@ describe('MISSING_VALUE_TOKENS', () => {
     expect(MISSING_VALUE_TOKENS.has('nan')).toBe(true);
     expect(MISSING_VALUE_TOKENS.has('null')).toBe(true);
     expect(MISSING_VALUE_TOKENS.has('none')).toBe(true);
-    expect(MISSING_VALUE_TOKENS.has('missing')).toBe(true);
   });
 
   it('does NOT contain - or .', () => {
     expect(MISSING_VALUE_TOKENS.has('-')).toBe(false);
     expect(MISSING_VALUE_TOKENS.has('.')).toBe(false);
+  });
+
+  it('does NOT contain "missing" — only canonical NA/null spellings collapse', () => {
+    expect(MISSING_VALUE_TOKENS.has('missing')).toBe(false);
   });
 
   it('does NOT contain numeric infinity tokens (those are handled by Number.isFinite)', () => {
@@ -77,12 +80,14 @@ describe('normalizeMissingValue', () => {
       'null',
       'None',
       'none',
-      'Missing',
-      'missing',
-      'MISSING',
     ]) {
       expect(normalizeMissingValue(token)).toBe(null);
     }
+  });
+
+  it('keeps "missing" as a real categorical value', () => {
+    expect(normalizeMissingValue('missing')).toBe('missing');
+    expect(normalizeMissingValue('Missing')).toBe('Missing');
   });
 
   it('handles surrounding whitespace on marker strings', () => {

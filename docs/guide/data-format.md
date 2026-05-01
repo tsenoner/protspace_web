@@ -106,13 +106,7 @@ canonical "N/A" legend category:
 - Empty or whitespace-only strings (`""`, `"   "`)
 - Non-finite numbers (`NaN`, `Infinity`, `-Infinity`)
 - These string spellings (case-insensitive, trimmed): `"NA"`, `"N/A"`, `"NaN"`,
-  `"null"`, `"None"`, `"missing"`
-
-The strings `"-"` and `"."` are **not** treated as missing — they appear as
-their own categorical values. Likewise the string forms `"Infinity"` / `"inf"`
-are not in the missing-value set (numeric `±Infinity` is still treated as
-missing via `Number.isFinite`). If your data uses any of these as missing
-markers, preprocess them to `null` before exporting the `.parquetbundle`.
+  `"null"`, `"None"`
 
 The single "N/A" legend row covers every missing-value protein. Its default
 color is light grey (`#DDDDDD`) and circle shape, matching every other

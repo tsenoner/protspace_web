@@ -142,6 +142,34 @@ function createCategoricalAnnotation(
 }
 
 /**
+ * If any cell has no real values, append a synthetic `__NA__` category to the
+ * unique-values / colors / shapes arrays and route the empty cells to it. Mirrors
+ * `materializeNumericAnnotation` in numeric-binning.ts: missing-value proteins
+ * get a single legend row to live in instead of being orphaned.
+ *
+ * Mutates the input arrays in place.
+ */
+function appendSyntheticNACategory(
+  uniqueValues: string[],
+  colors: string[],
+  shapes: string[],
+  annotationDataArray: number[][],
+): void {
+  const hasMissingValues = annotationDataArray.some((arr) => arr.length === 0);
+  if (!hasMissingValues) return;
+
+  const naIndex = uniqueValues.length;
+  uniqueValues.push(NA_VALUE);
+  colors.push(NA_DEFAULT_COLOR);
+  shapes.push('circle');
+  for (let p = 0; p < annotationDataArray.length; p++) {
+    if (annotationDataArray[p].length === 0) {
+      annotationDataArray[p] = [naIndex];
+    }
+  }
+}
+
+/**
  * Parse an annotation value that may contain a pipe-separated score or evidence code suffix.
  * Format: `label|score`, `label|score1,score2,...`, or `label|EVIDENCE_CODE`
  * If the part after the last `|` is numeric → scores.
@@ -468,21 +496,7 @@ function convertBundleFormatData(
       );
     }
 
-    // Append synthetic __NA__ category when any cells have no real values.
-    // Mirrors materializeNumericAnnotation in numeric-binning.ts: missing-value
-    // proteins get a single legend row to live in instead of being orphaned.
-    const hasMissingValues = annotationDataArray.some((arr) => arr.length === 0);
-    if (hasMissingValues) {
-      const naIndex = uniqueValues.length;
-      uniqueValues.push(NA_VALUE);
-      colors.push(NA_DEFAULT_COLOR);
-      shapes.push('circle');
-      for (let p = 0; p < annotationDataArray.length; p++) {
-        if (annotationDataArray[p].length === 0) {
-          annotationDataArray[p] = [naIndex];
-        }
-      }
-    }
+    appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
 
     annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;
@@ -679,21 +693,7 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
       valueArray.map((v) => valueToIndex.get(v) ?? -1),
     );
 
-    // Append synthetic __NA__ category when any cells have no real values.
-    // Mirrors materializeNumericAnnotation in numeric-binning.ts: missing-value
-    // proteins get a single legend row to live in instead of being orphaned.
-    const hasMissingValues = annotationDataArray.some((arr) => arr.length === 0);
-    if (hasMissingValues) {
-      const naIndex = uniqueValues.length;
-      uniqueValues.push(NA_VALUE);
-      colors.push(NA_DEFAULT_COLOR);
-      shapes.push('circle');
-      for (let p = 0; p < annotationDataArray.length; p++) {
-        if (annotationDataArray[p].length === 0) {
-          annotationDataArray[p] = [naIndex];
-        }
-      }
-    }
+    appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
 
     annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;
@@ -986,21 +986,7 @@ async function extractAnnotationsOptimized(
       }
     }
 
-    // Append synthetic __NA__ category when any cells have no real values.
-    // Mirrors materializeNumericAnnotation in numeric-binning.ts: missing-value
-    // proteins get a single legend row to live in instead of being orphaned.
-    const hasMissingValues = annotationDataArray.some((arr) => arr.length === 0);
-    if (hasMissingValues) {
-      const naIndex = uniqueValues.length;
-      uniqueValues.push(NA_VALUE);
-      colors.push(NA_DEFAULT_COLOR);
-      shapes.push('circle');
-      for (let p = 0; p < annotationDataArray.length; p++) {
-        if (annotationDataArray[p].length === 0) {
-          annotationDataArray[p] = [naIndex];
-        }
-      }
-    }
+    appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
 
     annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;

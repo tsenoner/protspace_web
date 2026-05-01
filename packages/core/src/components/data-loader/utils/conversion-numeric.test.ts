@@ -408,7 +408,7 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
 });
 
 describe('categorical NA normalization', () => {
-  it('collapses null, empty, NA, N/A, NaN, None, null, missing into a single NA category', () => {
+  it('collapses null, empty, NA, N/A, NaN, None, null into a single NA category', () => {
     const result = convertParquetToVisualizationData([
       { identifier: 'P1', x: 0, y: 0, species: 'human' },
       { identifier: 'P2', x: 1, y: 1, species: null },
@@ -417,9 +417,8 @@ describe('categorical NA normalization', () => {
       { identifier: 'P5', x: 4, y: 4, species: 'NaN' },
       { identifier: 'P6', x: 5, y: 5, species: 'None' },
       { identifier: 'P7', x: 6, y: 6, species: 'null' },
-      { identifier: 'P8', x: 7, y: 7, species: 'missing' },
-      { identifier: 'P9', x: 8, y: 8, species: '' },
-      { identifier: 'P10', x: 9, y: 9, species: 'mouse' },
+      { identifier: 'P8', x: 7, y: 7, species: '' },
+      { identifier: 'P9', x: 8, y: 8, species: 'mouse' },
     ]);
 
     expect(result.annotations.species.kind).toBe('categorical');
@@ -430,16 +429,16 @@ describe('categorical NA normalization', () => {
 
     const data = result.annotation_data?.species;
     expect(data).toBeDefined();
-    expect(data!).toHaveLength(10);
+    expect(data!).toHaveLength(9);
 
     const humanIdx = result.annotations.species.values.indexOf('human');
     const mouseIdx = result.annotations.species.values.indexOf('mouse');
     const naIdx = result.annotations.species.values.indexOf(NA_VALUE);
 
-    // P1 = human, P10 = mouse, all middle entries point to the synthetic NA
+    // P1 = human, P9 = mouse, all middle entries point to the synthetic NA
     expect(data![0]).toEqual([humanIdx]);
-    expect(data![9]).toEqual([mouseIdx]);
-    for (let i = 1; i <= 8; i++) {
+    expect(data![8]).toEqual([mouseIdx]);
+    for (let i = 1; i <= 7; i++) {
       expect(data![i]).toEqual([naIdx]);
     }
   });

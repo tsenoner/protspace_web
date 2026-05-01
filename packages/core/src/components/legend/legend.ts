@@ -262,8 +262,11 @@ export class ProtspaceLegend extends LitElement {
     setLegendItems: (items) => {
       this._legendItems = items;
       if (this._isNumericAnnotation()) {
+        // Exclude Other (synthetic) and NA (locked to legend end regardless of
+        // sort) from the persisted manual order — they have no observable
+        // position effect and would clutter the saved state.
         const orderedIds = [...items]
-          .filter((item) => item.value !== LEGEND_VALUES.OTHER)
+          .filter((item) => item.value !== LEGEND_VALUES.OTHER && item.value !== NA_VALUE)
           .sort((left, right) => left.zOrder - right.zOrder)
           .map((item) => item.value);
         this._setNumericManualOrderIds(this.selectedAnnotation, orderedIds);
@@ -1160,7 +1163,7 @@ export class ProtspaceLegend extends LitElement {
     }
 
     const visibleIds = [...this._legendItems]
-      .filter((item) => item.value !== LEGEND_VALUES.OTHER)
+      .filter((item) => item.value !== LEGEND_VALUES.OTHER && item.value !== NA_VALUE)
       .sort((left, right) => left.zOrder - right.zOrder)
       .map((item) => item.value);
 

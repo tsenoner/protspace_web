@@ -16,7 +16,6 @@ export const MISSING_VALUE_TOKENS: ReadonlySet<string> = new Set([
   'nan',
   'null',
   'none',
-  'missing',
 ]);
 
 /** Internal identity token for NA after ingestion. Never displayed to users. */
