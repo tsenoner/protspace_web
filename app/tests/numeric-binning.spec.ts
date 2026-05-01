@@ -156,9 +156,15 @@ async function loadDemoDataset(page: Page): Promise<void> {
       | null;
     return typeof plot?.getCurrentData === 'function' && Boolean(plot?.data?.annotations);
   });
-  await waitForAnnotationAvailable(page, 'ec');
-  await selectAnnotation(page, 'ec');
-  await waitForLegendAnnotation(page, 'ec');
+  // 'order' is a clean Taxonomy categorical (18 values, no NAs) and uses the
+  // default size-desc sort, which suits the legend keyboard/pointer-drag tests.
+  // The previous pick was 'ec', but the demo bundle bakes a curated manual sort
+  // for ec/pfam/superfamily/protein_families/cath — that breaks tests asserting
+  // "keeps non-manual sorting". The substring match for selectAnnotation also
+  // collided with 'species' (contains "ec"); that's been fixed in the helper.
+  await waitForAnnotationAvailable(page, 'order');
+  await selectAnnotation(page, 'order');
+  await waitForLegendAnnotation(page, 'order');
 }
 
 async function waitForAnnotationAvailable(page: Page, annotation: string): Promise<void> {
@@ -330,9 +336,13 @@ async function openLegendSettings(page: Page): Promise<void> {
 async function selectAnnotation(page: Page, annotation: string): Promise<void> {
   await dismissTourIfPresent(page);
   await page.locator('protspace-control-bar protspace-annotation-select .dropdown-trigger').click();
+  // Anchored regex with surrounding-whitespace tolerance. A bare `hasText: 'ec'`
+  // is a substring match and would land on e.g. "species"; a tight `^ec$` won't
+  // match because Lit templates introduce whitespace around the interpolation.
+  const escaped = annotation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   await page
     .locator('protspace-control-bar protspace-annotation-select .dropdown-item')
-    .filter({ hasText: annotation })
+    .filter({ hasText: new RegExp(`^\\s*${escaped}\\s*$`) })
     .first()
     .click();
 
@@ -1595,7 +1605,7 @@ test('categorical pointer drag from alphabetical reverse promotes to manual orde
 }) => {
   await loadDemoDataset(page);
   await openLegendSettings(page);
-  await setSortMode(page, 'ec', 'alpha');
+  await setSortMode(page, 'order', 'alpha');
   await clickDialogButton(page, 'Save');
   await waitForDialogClosed(page);
   await clickLegendReverseButton(page);

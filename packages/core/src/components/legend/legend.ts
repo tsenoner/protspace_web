@@ -411,6 +411,17 @@ export class ProtspaceLegend extends LitElement {
         this._handleSettingsClose();
         return;
       }
+      // Cancel active keyboard reorder. The drag-handle's own Escape handler
+      // works only while focus stays on that handle, but Lit re-renders during
+      // ArrowDown can briefly move focus to <body> before rAF restores it —
+      // catching Escape here makes cancel robust to that focus gap.
+      if (this._keyboardDragValue !== null) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        this._restoreKeyboardReorderSnapshot();
+        this._announceStatus('Reordering canceled.');
+        return;
+      }
     }
   };
 
@@ -736,14 +747,18 @@ export class ProtspaceLegend extends LitElement {
   }
 
   updated(changedProperties: Map<string, unknown>): void {
-    // Handle keyboard events for dialogs and color picker
+    // Handle keyboard events for dialogs, color picker, and active keyboard reorder
     const dialogsChanged =
       changedProperties.has('_showSettingsDialog') ||
       changedProperties.has('_showOtherDialog') ||
-      changedProperties.has('_colorPickerItem');
+      changedProperties.has('_colorPickerItem') ||
+      changedProperties.has('_keyboardDragValue');
     if (dialogsChanged) {
       const anyDialogOpen =
-        this._showSettingsDialog || this._showOtherDialog || this._colorPickerItem !== null;
+        this._showSettingsDialog ||
+        this._showOtherDialog ||
+        this._colorPickerItem !== null ||
+        this._keyboardDragValue !== null;
       if (anyDialogOpen) {
         window.addEventListener('keydown', this._onWindowKeydownCapture, true);
       } else {
