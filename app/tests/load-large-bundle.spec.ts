@@ -1,7 +1,11 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { test, expect } from '@playwright/test';
-import { dismissTourIfPresent, waitForExploreDataLoad } from './helpers/explore';
+import {
+  dismissTourIfPresent,
+  waitForExploreDataLoad,
+  getFirstLegendItemValue,
+} from './helpers/explore';
 
 const SPEC_DIR = path.dirname(new URL(import.meta.url).pathname);
 const SPROT_FIXTURE = path.resolve(SPEC_DIR, 'fixtures/sprot_50.parquetbundle');
@@ -25,9 +29,9 @@ test.describe('large bundle load (sprot_50, 573k proteins)', () => {
     page.on('console', (msg) => {
       if (msg.type() !== 'error') return;
       const text = msg.text();
-      // Ignore Lit dev-mode warnings and third-party analytics CORS errors.
+      // Ignore Lit dev-mode banner and third-party analytics CORS errors.
       if (
-        text.includes('Lit') ||
+        text.includes('Lit is in dev mode') ||
         text.includes('cloudflareinsights') ||
         text.includes('ERR_FAILED') ||
         text.includes('ERR_BLOCKED')
@@ -66,13 +70,14 @@ test.describe('large bundle load (sprot_50, 573k proteins)', () => {
     });
     expect(proteinCount).toBe(573_649);
 
-    // The legend must be visible and rendering.
-    const legend = page.locator('protspace-legend');
-    await expect(legend).toBeVisible();
+    // The legend must be populated (not just upgraded) — :host { display: flex }
+    // would let toBeVisible() pass on an empty legend, so check for a real item.
+    const initialLegendItem = await getFirstLegendItemValue(page);
+    expect(initialLegendItem.length, 'legend item value should be non-empty').toBeGreaterThan(0);
 
     // Switch the selected annotation across categorical (kingdom),
     // multi-valued (pfam), high-card (gene_name), and numeric (annotation_score)
-    // and verify the legend stays visible after each switch.
+    // and verify the legend stays populated after each switch.
     for (const annotation of ['kingdom', 'pfam', 'gene_name', 'annotation_score']) {
       await page.evaluate((name) => {
         const plot = document.querySelector('#myPlot') as
@@ -92,7 +97,74 @@ test.describe('large bundle load (sprot_50, 573k proteins)', () => {
         { timeout: 10_000, polling: 200 },
       );
 
-      await expect(legend).toBeVisible();
+      const legendItem = await getFirstLegendItemValue(page);
+      expect(
+        legendItem.length,
+        `legend item value should be non-empty after switching to ${annotation}`,
+      ).toBeGreaterThan(0);
+
+      // After switching to gene_name (the annotation that exercises the
+      // tooltip header), synthesize a hover and verify the buildTooltipView
+      // path renders non-empty content into the tooltip element.
+      if (annotation === 'gene_name') {
+        const tooltipText = await page.evaluate(() => {
+          const plot = document.querySelector('protspace-scatterplot') as
+            | (HTMLElement & {
+                _plotData?: Array<{ originalIndex: number; id: string }>;
+                _handleMouseOver?: (evt: MouseEvent, point: unknown) => void;
+                shadowRoot: ShadowRoot | null;
+              })
+            | null;
+          if (!plot?._plotData?.length) return null;
+          const point = plot._plotData[0];
+          const rect = plot.getBoundingClientRect();
+          const evt = new MouseEvent('mouseover', {
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+            bubbles: true,
+          });
+          plot._handleMouseOver?.(evt, point);
+          const tooltip = plot.shadowRoot?.querySelector('protspace-protein-tooltip') as
+            | (HTMLElement & { shadowRoot: ShadowRoot | null })
+            | null;
+          return tooltip?.shadowRoot?.textContent ?? null;
+        });
+
+        // The tooltip element is mounted lazily on first hover via the
+        // _tooltipData state; if Lit hasn't flushed yet, give it a tick.
+        if (!tooltipText) {
+          await page.waitForFunction(
+            () => {
+              const plot = document.querySelector('protspace-scatterplot') as
+                | (HTMLElement & { shadowRoot: ShadowRoot | null })
+                | null;
+              const tooltip = plot?.shadowRoot?.querySelector('protspace-protein-tooltip') as
+                | (HTMLElement & { shadowRoot: ShadowRoot | null })
+                | null;
+              const text = tooltip?.shadowRoot?.textContent ?? '';
+              return text.trim().length > 0;
+            },
+            undefined,
+            { timeout: 5_000, polling: 100 },
+          );
+        }
+
+        const finalTooltipText = await page.evaluate(() => {
+          const plot = document.querySelector('protspace-scatterplot') as
+            | (HTMLElement & { shadowRoot: ShadowRoot | null })
+            | null;
+          const tooltip = plot?.shadowRoot?.querySelector('protspace-protein-tooltip') as
+            | (HTMLElement & { shadowRoot: ShadowRoot | null })
+            | null;
+          return tooltip?.shadowRoot?.textContent ?? null;
+        });
+
+        expect(finalTooltipText, 'tooltip should render after hover').toBeTruthy();
+        expect(
+          finalTooltipText!.trim().length,
+          'tooltip should have non-empty text',
+        ).toBeGreaterThan(0);
+      }
     }
   });
 });
