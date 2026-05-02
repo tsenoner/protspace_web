@@ -26,7 +26,9 @@
     },
     "app": {
       // Keep the runtime graph rooted from App and layer Playwright specs on top.
-      "entry": ["src/App.tsx", "tests/**/*.spec.ts"],
+      // recovery-banner is wired in Task 5; listed here so knip doesn't flag it
+      // as unused until that PR lands.
+      "entry": ["src/App.tsx", "src/explore/recovery-banner.ts", "tests/**/*.spec.ts"],
       "project": ["src/**/*.{ts,tsx}", "tests/**/*.ts"],
       "ignore": [
         "src/custom-elements.d.ts",
