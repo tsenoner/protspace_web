@@ -1,7 +1,10 @@
 const STORE_DIRECTORY_NAME = 'protspace-last-import';
 const DATA_FILENAME = 'dataset.bin';
 const METADATA_FILENAME = 'metadata.json';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+
+/** @public */
+export type LastLoadStatus = 'pending' | 'success' | 'error';
 
 interface StoredDatasetMetadata {
   schemaVersion: number;
@@ -10,6 +13,9 @@ interface StoredDatasetMetadata {
   size: number;
   lastModified: number;
   storedAt: string;
+  lastLoadStatus: LastLoadStatus;
+  lastError?: string;
+  failedAttempts: number;
 }
 
 export class StoredDatasetCorruptError extends Error {
@@ -46,20 +52,84 @@ async function getStoreDirectory(create: boolean): Promise<FileSystemDirectoryHa
   }
 }
 
-function isValidMetadata(value: unknown): value is StoredDatasetMetadata {
-  if (typeof value !== 'object' || value === null) {
-    return false;
+function isValidMetadata(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) return false;
+  const m = value as Record<string, unknown>;
+  if (typeof m.name !== 'string') return false;
+  if (typeof m.type !== 'string') return false;
+  if (typeof m.size !== 'number') return false;
+  if (typeof m.lastModified !== 'number') return false;
+  if (typeof m.storedAt !== 'string') return false;
+  if (m.schemaVersion !== 1 && m.schemaVersion !== 2) return false;
+  return true;
+}
+
+function migrateMetadata(raw: Record<string, unknown>): StoredDatasetMetadata {
+  if (raw.schemaVersion === 2) {
+    return {
+      schemaVersion: 2,
+      name: String(raw.name),
+      type: String(raw.type),
+      size: Number(raw.size),
+      lastModified: Number(raw.lastModified),
+      storedAt: String(raw.storedAt),
+      lastLoadStatus:
+        raw.lastLoadStatus === 'pending' ||
+        raw.lastLoadStatus === 'success' ||
+        raw.lastLoadStatus === 'error'
+          ? raw.lastLoadStatus
+          : 'success',
+      lastError: typeof raw.lastError === 'string' ? raw.lastError : undefined,
+      failedAttempts:
+        typeof raw.failedAttempts === 'number' && raw.failedAttempts >= 0 ? raw.failedAttempts : 0,
+    };
+  }
+  // v1 → v2: silent migration. Anyone with v1 metadata loaded successfully under prior versions.
+  return {
+    schemaVersion: 2,
+    name: String(raw.name),
+    type: String(raw.type),
+    size: Number(raw.size),
+    lastModified: Number(raw.lastModified),
+    storedAt: String(raw.storedAt),
+    lastLoadStatus: 'success',
+    failedAttempts: 0,
+  };
+}
+
+async function readMetadata(): Promise<StoredDatasetMetadata | null> {
+  const directory = await getStoreDirectory(false);
+  if (!directory) return null;
+
+  let metadataText: string;
+  try {
+    const handle = await directory.getFileHandle(METADATA_FILENAME);
+    metadataText = await (await handle.getFile()).text();
+  } catch {
+    return null;
   }
 
-  const metadata = value as Record<string, unknown>;
-  return (
-    metadata.schemaVersion === SCHEMA_VERSION &&
-    typeof metadata.name === 'string' &&
-    typeof metadata.type === 'string' &&
-    typeof metadata.size === 'number' &&
-    typeof metadata.lastModified === 'number' &&
-    typeof metadata.storedAt === 'string'
-  );
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(metadataText);
+  } catch {
+    await clearStoreDirectory();
+    throw new StoredDatasetCorruptError('Stored dataset metadata could not be parsed.');
+  }
+
+  if (!isValidMetadata(parsed)) {
+    await clearStoreDirectory();
+    throw new StoredDatasetCorruptError('Stored dataset metadata is invalid.');
+  }
+
+  return migrateMetadata(parsed);
+}
+
+async function writeMetadata(
+  directory: FileSystemDirectoryHandle,
+  metadata: StoredDatasetMetadata,
+): Promise<void> {
+  await writeTextFile(directory, METADATA_FILENAME, JSON.stringify(metadata));
 }
 
 async function writeTextFile(
@@ -122,11 +192,13 @@ export async function saveLastImportedFile(file: File): Promise<void> {
     size: file.size,
     lastModified: file.lastModified,
     storedAt: new Date().toISOString(),
+    lastLoadStatus: 'pending',
+    failedAttempts: 0,
   };
 
   try {
     await writeBlobFile(directory, DATA_FILENAME, file);
-    await writeTextFile(directory, METADATA_FILENAME, JSON.stringify(metadata));
+    await writeMetadata(directory, metadata);
   } catch (error) {
     await clearStoreDirectory();
     throw error instanceof Error ? error : new Error('Failed to save imported dataset.');
@@ -143,29 +215,19 @@ export async function loadLastImportedFile(): Promise<File | null> {
     return null;
   }
 
-  let metadataText = '';
-
+  let metadata: StoredDatasetMetadata | null;
   try {
-    const metadataHandle = await directory.getFileHandle(METADATA_FILENAME);
-    metadataText = await (await metadataHandle.getFile()).text();
-  } catch {
-    await clearStoreDirectory();
-    return null;
-  }
-
-  let metadata: StoredDatasetMetadata;
-  try {
-    const parsed = JSON.parse(metadataText);
-    if (!isValidMetadata(parsed)) {
-      throw new StoredDatasetCorruptError('Stored dataset metadata is invalid.');
-    }
-    metadata = parsed;
+    metadata = await readMetadata();
   } catch (error) {
-    await clearStoreDirectory();
     if (error instanceof StoredDatasetCorruptError) {
       throw error;
     }
-    throw new StoredDatasetCorruptError('Stored dataset metadata could not be parsed.');
+    return null;
+  }
+
+  if (!metadata) {
+    await clearStoreDirectory();
+    return null;
   }
 
   try {
@@ -179,6 +241,50 @@ export async function loadLastImportedFile(): Promise<File | null> {
     await clearStoreDirectory();
     return null;
   }
+}
+
+export async function markLastLoadStatus(
+  status: LastLoadStatus,
+  options?: { error?: string },
+): Promise<void> {
+  const directory = await getStoreDirectory(false);
+  if (!directory) return;
+
+  let current: StoredDatasetMetadata | null = null;
+  try {
+    current = await readMetadata();
+  } catch {
+    return;
+  }
+  if (!current) return;
+
+  const next: StoredDatasetMetadata = {
+    ...current,
+    lastLoadStatus: status,
+    lastError: status === 'error' ? options?.error : undefined,
+    failedAttempts:
+      status === 'success'
+        ? 0
+        : status === 'pending' || status === 'error'
+          ? current.failedAttempts + 1
+          : current.failedAttempts,
+  };
+
+  await writeMetadata(directory, next);
+}
+
+export async function readLastLoadStatus(): Promise<{
+  status: LastLoadStatus;
+  lastError?: string;
+  failedAttempts: number;
+} | null> {
+  const metadata = await readMetadata();
+  if (!metadata) return null;
+  return {
+    status: metadata.lastLoadStatus,
+    lastError: metadata.lastError,
+    failedAttempts: metadata.failedAttempts,
+  };
 }
 
 export async function clearLastImportedFile(): Promise<void> {
