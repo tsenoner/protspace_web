@@ -1,6 +1,11 @@
 import { NEUTRAL_VALUE_COLOR } from './config';
 import type { PlotDataPoint, VisualizationData } from '@protspace/utils';
-import { isNumericAnnotation, normalizeShapeName, toInternalValue } from '@protspace/utils';
+import {
+  getProteinAnnotationValues,
+  isNumericAnnotation,
+  normalizeShapeName,
+  toInternalValue,
+} from '@protspace/utils';
 
 export interface StyleConfig {
   selectedProteinIds: string[];
@@ -118,7 +123,11 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     if (!data || !styleConfig.selectedAnnotation) return 'circle';
     if (isNumeric) return 'circle';
 
-    const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
+    const annotationValueArray = getProteinAnnotationValues(
+      data,
+      point.originalIndex,
+      styleConfig.selectedAnnotation,
+    );
 
     // multilabel points only support circle for now
     if (annotationValueArray.length > 1) return 'circle';
@@ -140,7 +149,11 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   const getColors = (point: PlotDataPoint): string[] => {
     if (!data || !styleConfig.selectedAnnotation) return [NEUTRAL_VALUE_COLOR];
 
-    const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
+    const annotationValueArray = getProteinAnnotationValues(
+      data,
+      point.originalIndex,
+      styleConfig.selectedAnnotation,
+    );
 
     // Defensive guard
     if (annotationValueArray.length === 0) return [NEUTRAL_VALUE_COLOR];
@@ -181,7 +194,13 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
   };
 
   const getOpacity = (point: PlotDataPoint): number => {
-    const annotationValue = point.annotationValues[styleConfig.selectedAnnotation];
+    if (!data || !styleConfig.selectedAnnotation) return getBaseOpacity(point);
+
+    const annotationValue = getProteinAnnotationValues(
+      data,
+      point.originalIndex,
+      styleConfig.selectedAnnotation,
+    );
 
     if (!allHidden && annotationValue) {
       if (annotationValue.every((f) => hiddenKeysSet.has(toInternalValue(f)))) return 0;
@@ -213,8 +232,12 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
     // Base depth in [0,1]: higher opacity -> smaller depth -> wins with LESS
     let depth = 1 - Math.min(1, Math.max(0, opacity));
 
-    if (zMap && styleConfig.selectedAnnotation) {
-      const annotationValueArray = point.annotationValues[styleConfig.selectedAnnotation];
+    if (data && zMap && styleConfig.selectedAnnotation) {
+      const annotationValueArray = getProteinAnnotationValues(
+        data,
+        point.originalIndex,
+        styleConfig.selectedAnnotation,
+      );
       let key: string;
 
       if (annotationValueArray && annotationValueArray.length > 0) {

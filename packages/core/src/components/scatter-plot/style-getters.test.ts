@@ -28,14 +28,14 @@ describe('style-getters', () => {
       },
     });
 
-    const createMockPoint = (annotationValue: string | null): PlotDataPoint => ({
-      id: 'test_protein',
+    const createMockPoint = (id: string, originalIndex: number): PlotDataPoint => ({
+      id,
       x: 0,
       y: 0,
       z: 0,
-      originalIndex: 0,
+      originalIndex,
       annotationValues: {
-        test_annotation: annotationValue === null ? ['__NA__'] : [annotationValue],
+        test_annotation: [], // unused after migration; kept for type compat until Task 4
       },
     });
 
@@ -62,7 +62,7 @@ describe('style-getters', () => {
         });
 
         const getters = createStyleGetters(data, config);
-        const nullPoint = createMockPoint(null);
+        const nullPoint = createMockPoint('protein_0', 0);
 
         expect(getters.getOpacity(nullPoint)).toBe(0);
       });
@@ -74,7 +74,7 @@ describe('style-getters', () => {
         });
 
         const getters = createStyleGetters(data, config);
-        const regularPoint = createMockPoint('value1');
+        const regularPoint = createMockPoint('protein_1', 1);
 
         expect(getters.getOpacity(regularPoint)).toBe(1);
       });
@@ -86,7 +86,7 @@ describe('style-getters', () => {
         });
 
         const getters = createStyleGetters(data, config);
-        const nullPoint = createMockPoint(null);
+        const nullPoint = createMockPoint('protein_0', 0);
 
         expect(getters.getOpacity(nullPoint)).toBe(1);
       });
@@ -103,7 +103,7 @@ describe('style-getters', () => {
         });
 
         const getters = createStyleGetters(data, config);
-        const nullPoint = createMockPoint(null);
+        const nullPoint = createMockPoint('protein_0', 0);
 
         expect(getters.getColors(nullPoint)).toEqual(['#dddddd']);
       });
@@ -120,7 +120,7 @@ describe('style-getters', () => {
         });
 
         const getters = createStyleGetters(data, config);
-        const naPoint = createMockPoint(null);
+        const naPoint = createMockPoint('protein_0', 0);
 
         expect(getters.getPointShape(naPoint)).toBe('square');
       });
@@ -138,8 +138,8 @@ describe('style-getters', () => {
         });
 
         const getters = createStyleGetters(data, config);
-        const nullPoint = createMockPoint(null);
-        const value1Point = createMockPoint('value1');
+        const nullPoint = createMockPoint('protein_0', 0);
+        const value1Point = createMockPoint('protein_1', 1);
 
         // Lower z-order (0) should result in smaller depth value (rendered on top)
         const nullDepth = getters.getDepth(nullPoint);
@@ -158,7 +158,7 @@ describe('style-getters', () => {
         });
 
         const getters = createStyleGetters(data, config);
-        const naStringPoint = createMockPoint('__NA__');
+        const naStringPoint = createMockPoint('protein_0', 0);
 
         // __NA__ string should be hidden when __NA__ is in hiddenAnnotationValues
         expect(getters.getOpacity(naStringPoint)).toBe(0);
@@ -182,14 +182,14 @@ describe('style-getters', () => {
       },
     });
 
-    const createMockPoint = (id: string, annotationValue: string): PlotDataPoint => ({
+    const createMockPoint = (id: string, originalIndex: number): PlotDataPoint => ({
       id,
       x: 0,
       y: 0,
       z: 0,
-      originalIndex: 0,
+      originalIndex,
       annotationValues: {
-        test_annotation: [annotationValue],
+        test_annotation: [],
       },
     });
 
@@ -210,7 +210,7 @@ describe('style-getters', () => {
 
     it('should return the same depth for a point regardless of hidden state', () => {
       const data = createMockData(['categoryA', 'categoryB', 'categoryC']);
-      const point = createMockPoint('p0', 'categoryA');
+      const point = createMockPoint('p0', 0);
 
       // Depth with nothing hidden
       const gettersVisible = createStyleGetters(
@@ -232,8 +232,8 @@ describe('style-getters', () => {
 
     it('should return the same depth with z-order mapping regardless of hidden state', () => {
       const data = createMockData(['categoryA', 'categoryB', 'categoryC']);
-      const pointA = createMockPoint('p0', 'categoryA');
-      const pointB = createMockPoint('p1', 'categoryB');
+      const pointA = createMockPoint('p0', 0);
+      const pointB = createMockPoint('p1', 1);
 
       const zOrderMapping = { categoryA: 0, categoryB: 1, categoryC: 2 };
 
@@ -256,7 +256,7 @@ describe('style-getters', () => {
 
     it('should still return opacity=0 for hidden points', () => {
       const data = createMockData(['categoryA', 'categoryB']);
-      const point = createMockPoint('p0', 'categoryA');
+      const point = createMockPoint('p0', 0);
 
       const getters = createStyleGetters(
         data,
@@ -286,14 +286,14 @@ describe('style-getters', () => {
       },
     });
 
-    const createMockPoint = (annotationValue: string): PlotDataPoint => ({
+    const createMockPoint = (originalIndex: number): PlotDataPoint => ({
       id: 'test_protein',
       x: 0,
       y: 0,
       z: 0,
-      originalIndex: 0,
+      originalIndex,
       annotationValues: {
-        test_annotation: [annotationValue],
+        test_annotation: [],
       },
     });
 
@@ -314,9 +314,9 @@ describe('style-getters', () => {
 
     it('should produce different depth values when zOrderMapping changes', () => {
       const data = createMockData(['categoryA', 'categoryB', 'categoryC']);
-      const pointA = createMockPoint('categoryA');
-      const pointB = createMockPoint('categoryB');
-      const pointC = createMockPoint('categoryC');
+      const pointA = createMockPoint(0);
+      const pointB = createMockPoint(1);
+      const pointC = createMockPoint(2);
 
       // First z-order: A=0, B=1, C=2
       const config1 = createDefaultStyleConfig({
@@ -359,7 +359,7 @@ describe('style-getters', () => {
 
     it('should produce consistent depth values for the same configuration', () => {
       const data = createMockData(['categoryA', 'categoryB', 'categoryC']);
-      const point = createMockPoint('categoryA');
+      const point = createMockPoint(0);
 
       const config = createDefaultStyleConfig({
         zOrderMapping: {
@@ -381,9 +381,9 @@ describe('style-getters', () => {
 
     it('should maintain z-order ordering across all points', () => {
       const data = createMockData(['categoryA', 'categoryB', 'categoryC']);
-      const pointA = createMockPoint('categoryA');
-      const pointB = createMockPoint('categoryB');
-      const pointC = createMockPoint('categoryC');
+      const pointA = createMockPoint(0);
+      const pointB = createMockPoint(1);
+      const pointC = createMockPoint(2);
 
       const config = createDefaultStyleConfig({
         zOrderMapping: {
@@ -407,8 +407,8 @@ describe('style-getters', () => {
 
     it('should handle null zOrderMapping gracefully', () => {
       const data = createMockData(['categoryA', 'categoryB']);
-      const pointA = createMockPoint('categoryA');
-      const pointB = createMockPoint('categoryB');
+      const pointA = createMockPoint(0);
+      const pointB = createMockPoint(1);
 
       const config = createDefaultStyleConfig({
         zOrderMapping: null,
