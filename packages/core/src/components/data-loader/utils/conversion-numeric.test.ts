@@ -146,7 +146,9 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(optimizedResult.annotations.length.kind).toBe('categorical');
     expect(optimizedResult.numeric_annotation_data?.length).toBeUndefined();
     expect(optimizedResult.annotations.length.values).toEqual([NA_VALUE]);
-    expect(optimizedResult.annotation_data.length).toEqual([[0], [0], [0]]);
+    // Optimized path emits Int32Array for strictly single-valued columns
+    expect(optimizedResult.annotation_data.length).toBeInstanceOf(Int32Array);
+    expect(Array.from(optimizedResult.annotation_data.length as Int32Array)).toEqual([0, 0, 0]);
   });
 
   it("treats 'NaN' strings as missing while 'Infinity' strings demote the column to categorical", () => {
@@ -529,5 +531,52 @@ describe('categorical NA normalization', () => {
     expect(naIdx).toBeGreaterThanOrEqual(0);
     expect(result.annotations.kind.colors[naIdx]).toBe(NA_DEFAULT_COLOR);
     expect(result.annotations.kind.shapes[naIdx]).toBe('circle');
+  });
+});
+
+describe('annotation_data storage shape', () => {
+  it('emits Int32Array for strictly single-valued categorical columns', async () => {
+    const kingdoms = ['Bacillati', 'Pseudomonadati', '', 'Bacillati'];
+    const rows = Array.from({ length: 10000 }, (_, i) => ({
+      projection_name: 'UMAP',
+      identifier: `P${i + 1}`,
+      x: i,
+      y: i,
+      kingdom: kingdoms[i % kingdoms.length],
+    }));
+
+    const result = await convertParquetToVisualizationDataOptimized(rows, [
+      { projection_name: 'UMAP', dimensions: 2 },
+    ]);
+
+    expect(result.annotation_data.kingdom).toBeInstanceOf(Int32Array);
+    expect(result.annotations.kingdom.kind).toBe('categorical');
+    // Every protein gets exactly one index (the column is single-valued)
+    const data = result.annotation_data.kingdom as Int32Array;
+    expect(data.length).toBe(result.protein_ids.length);
+    // All indices are valid (no -1 sentinel left: missing proteins mapped to NA)
+    expect(Array.from(data).every((v) => v >= 0)).toBe(true);
+  });
+
+  it('keeps number[][] storage for multi-valued columns', async () => {
+    const rows = Array.from({ length: 10000 }, (_, i) => ({
+      projection_name: 'UMAP',
+      identifier: `P${i + 1}`,
+      x: i,
+      y: i,
+      pfam: i % 3 === 0 ? 'PF01;PF02' : 'PF03',
+    }));
+
+    const result = await convertParquetToVisualizationDataOptimized(rows, [
+      { projection_name: 'UMAP', dimensions: 2 },
+    ]);
+
+    // Multi-valued column must stay as a regular array
+    expect(Array.isArray(result.annotation_data.pfam)).toBe(true);
+    expect(result.annotation_data.pfam).not.toBeInstanceOf(Int32Array);
+    // Multi-valued proteins get two indices
+    const pfamData = result.annotation_data.pfam as readonly (readonly number[])[];
+    const multiValuedEntry = pfamData.find((row) => row.length === 2);
+    expect(multiValuedEntry).toBeDefined();
   });
 });

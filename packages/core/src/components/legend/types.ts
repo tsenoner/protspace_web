@@ -1,4 +1,5 @@
 import type { LegendErrorEventDetail, LegendErrorSource } from './legend.events';
+import type { AnnotationData } from '@protspace/utils';
 
 /**
  * A legend item representing a category.
@@ -39,7 +40,7 @@ export interface ScatterplotData {
       numericMetadata?: LegendAnnotationData['numericMetadata'];
     }
   >;
-  annotation_data: Record<string, (number | number[])[]>;
+  annotation_data: Record<string, AnnotationData>;
   numeric_annotation_data?: Record<string, (number | null)[]>;
   projections?: Array<{ name: string }>;
 }

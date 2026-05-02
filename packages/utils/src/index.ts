@@ -1,5 +1,6 @@
 export * from './types';
 export * from './visualization/shapes';
+export * from './visualization/annotation-data-access';
 export * from './visualization/data-processor';
 export * from './visualization/color-scheme';
 export * from './visualization/numeric-binning';

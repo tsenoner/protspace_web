@@ -12,6 +12,7 @@ import {
   materializeNumericAnnotation,
   normalizeNumericPaletteId,
   resolveNumericAnnotationDisplaySettings,
+  getProteinAnnotationIndices,
   type NumericBinningStrategy,
   type NumericAnnotationDisplaySettingsMap,
 } from '@protspace/utils';
@@ -1075,11 +1076,9 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _updateAnnotationValues(data: ScatterplotData, selectedAnnotation: string): void {
+    const colData = data.annotation_data[selectedAnnotation];
     const annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
-      const annotationIdxData = data.annotation_data[selectedAnnotation][index];
-      const annotationIdxArray = Array.isArray(annotationIdxData)
-        ? annotationIdxData
-        : [annotationIdxData];
+      const annotationIdxArray = getProteinAnnotationIndices(colData, index);
       return annotationIdxArray.map((annotationIdx: number) =>
         toInternalValue(data.annotations[selectedAnnotation].values[annotationIdx]),
       );

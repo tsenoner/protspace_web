@@ -1,4 +1,4 @@
-import type { Annotation, VisualizationData } from '@protspace/utils';
+import type { Annotation, AnnotationData, VisualizationData } from '@protspace/utils';
 import {
   COLOR_SCHEMES,
   sanitizeValue,
@@ -407,7 +407,7 @@ function convertBundleFormatData(
   const annotationColumns = columnNames.filter((col) => !allIdColumns.has(col));
 
   const annotations: Record<string, Annotation> = {};
-  const annotation_data: Record<string, number[][]> = {};
+  const annotation_data: Record<string, AnnotationData> = {};
   const numeric_annotation_data: Record<string, (number | null)[]> = {};
   const annotation_scores: Record<string, (number[] | null)[][]> = {};
   const annotation_evidence: Record<string, (string | null)[][]> = {};
@@ -644,7 +644,7 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
   const annotationColumns = columnNames.filter((col) => !usedColumns.has(col));
 
   const annotations: Record<string, Annotation> = {};
-  const annotation_data: Record<string, number[][]> = {};
+  const annotation_data: Record<string, AnnotationData> = {};
   const numeric_annotation_data: Record<string, (number | null)[]> = {};
   const annotation_scores: Record<string, (number[] | null)[][]> = {};
   const annotation_evidence: Record<string, (string | null)[][]> = {};
@@ -854,7 +854,7 @@ async function extractAnnotationsOptimized(
   uniqueProteinIds: string[],
 ): Promise<{
   annotations: Record<string, Annotation>;
-  annotation_data: Record<string, number[][]>;
+  annotation_data: Record<string, AnnotationData>;
   numeric_annotation_data: Record<string, (number | null)[]>;
   annotation_scores: Record<string, (number[] | null)[][]>;
   annotation_evidence: Record<string, (string | null)[][]>;
@@ -863,7 +863,7 @@ async function extractAnnotationsOptimized(
   const annotationColumns = columnNames.filter((c) => !allIdColumns.has(c));
 
   const annotations: Record<string, Annotation> = {};
-  const annotation_data: Record<string, number[][]> = {};
+  const annotation_data: Record<string, AnnotationData> = {};
   const numeric_annotation_data: Record<string, (number | null)[]> = {};
   const annotation_scores: Record<string, (number[] | null)[][]> = {};
   const annotation_evidence: Record<string, (string | null)[][]> = {};
@@ -917,11 +917,15 @@ async function extractAnnotationsOptimized(
     const valueCountMap = new Map<string, number>();
     let columnHasScores = false;
     let columnHasEvidence = false;
+    let maxValuesPerProtein = 0;
 
     for (let i = 0; i < rows.length; i += chunkSize) {
       const end = Math.min(i + chunkSize, rows.length);
       for (let r = i; r < end; r++) {
         const rawValues = splitCategoricalAnnotationValues(rows[r][annotationCol]);
+        if (rawValues.length > maxValuesPerProtein) {
+          maxValuesPerProtein = rawValues.length;
+        }
         for (const raw of rawValues) {
           const parsed = parseAnnotationValue(raw);
           valueCountMap.set(parsed.label, (valueCountMap.get(parsed.label) || 0) + 1);
@@ -943,8 +947,12 @@ async function extractAnnotationsOptimized(
     const colors = generateColors(uniqueValues.length);
     const shapes = generateShapes(uniqueValues.length);
 
-    // === Pass 2: Build output arrays directly (no intermediate string arrays) ===
-    const annotationDataArray = new Array<number[]>(numProteins);
+    // === Pass 2: Build output arrays. Use Int32Array for strict single-valued
+    //     columns to avoid the per-protein number[] allocation cliff. ===
+    const useTypedStorage = maxValuesPerProtein <= 1 && !columnHasScores && !columnHasEvidence;
+
+    const annotationDataTyped = useTypedStorage ? new Int32Array(numProteins).fill(-1) : null;
+    const annotationDataArray = useTypedStorage ? null : new Array<number[]>(numProteins);
     const scoresArray = columnHasScores ? new Array<(number[] | null)[]>(numProteins) : null;
     const evidenceArray = columnHasEvidence ? new Array<(string | null)[]>(numProteins) : null;
 
@@ -959,37 +967,62 @@ async function extractAnnotationsOptimized(
         const rawValues = splitCategoricalAnnotationValues(row[annotationCol]);
         if (rawValues.length === 0) continue;
 
-        const indices: number[] = [];
-        const scores: (number[] | null)[] | null = scoresArray ? [] : null;
-        const evidences: (string | null)[] | null = evidenceArray ? [] : null;
+        if (annotationDataTyped) {
+          // Single-valued: write the one index directly into the typed array.
+          const parsed = parseAnnotationValue(rawValues[0]);
+          annotationDataTyped[idx] = valueToIndex.get(parsed.label) ?? -1;
+        } else {
+          const indices: number[] = [];
+          const scores: (number[] | null)[] | null = scoresArray ? [] : null;
+          const evidences: (string | null)[] | null = evidenceArray ? [] : null;
 
-        for (const raw of rawValues) {
-          const parsed = parseAnnotationValue(raw);
-          indices.push(valueToIndex.get(parsed.label) ?? -1);
-          if (scores) scores.push(parsed.scores.length > 0 ? parsed.scores : null);
-          if (evidences) evidences.push(parsed.evidence);
+          for (const raw of rawValues) {
+            const parsed = parseAnnotationValue(raw);
+            indices.push(valueToIndex.get(parsed.label) ?? -1);
+            if (scores) scores.push(parsed.scores.length > 0 ? parsed.scores : null);
+            if (evidences) evidences.push(parsed.evidence);
+          }
+
+          annotationDataArray![idx] = indices;
+          if (scoresArray && scores) scoresArray[idx] = scores;
+          if (evidenceArray && evidences) evidenceArray[idx] = evidences;
         }
-
-        annotationDataArray[idx] = indices;
-        if (scoresArray && scores) scoresArray[idx] = scores;
-        if (evidenceArray && evidences) evidenceArray[idx] = evidences;
       }
       await fastYield();
     }
 
-    // Fill empty arrays for proteins not found in this column's rows
-    for (let p = 0; p < numProteins; p++) {
-      if (annotationDataArray[p] === undefined) {
-        annotationDataArray[p] = [];
-        if (scoresArray) scoresArray[p] = [];
-        if (evidenceArray) evidenceArray[p] = [];
+    // Fill empty slots for proteins not found in this column's rows
+    if (annotationDataArray) {
+      for (let p = 0; p < numProteins; p++) {
+        if (annotationDataArray[p] === undefined) {
+          annotationDataArray[p] = [];
+          if (scoresArray) scoresArray[p] = [];
+          if (evidenceArray) evidenceArray[p] = [];
+        }
       }
     }
 
-    appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
+    if (annotationDataArray) {
+      appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
+    } else if (annotationDataTyped) {
+      // For Int32Array, missing slots are already -1 — append the NA category
+      // to uniqueValues and re-map -1 to the new NA index.
+      const hasAnyMissing = annotationDataTyped.some((v) => v < 0);
+      if (hasAnyMissing) {
+        const naIndex = uniqueValues.length;
+        uniqueValues.push(NA_VALUE);
+        colors.push(NA_DEFAULT_COLOR);
+        shapes.push('circle');
+        for (let p = 0; p < annotationDataTyped.length; p++) {
+          if (annotationDataTyped[p] < 0) {
+            annotationDataTyped[p] = naIndex;
+          }
+        }
+      }
+    }
 
     annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
-    annotation_data[annotationCol] = annotationDataArray;
+    annotation_data[annotationCol] = (annotationDataTyped ?? annotationDataArray)!;
     if (scoresArray) annotation_scores[annotationCol] = scoresArray;
     if (evidenceArray) annotation_evidence[annotationCol] = evidenceArray;
   }

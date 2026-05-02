@@ -2,6 +2,7 @@ import type { VisualizationData, PlotDataPoint, NumericAnnotationType } from '..
 import { toInternalValue } from './missing-values.js';
 import * as d3 from 'd3';
 import { getNumericBinLabelMap } from './numeric-binning.js';
+import { getProteinAnnotationIndices } from './annotation-data-access.js';
 
 export class DataProcessor {
   static processVisualizationData(
@@ -28,20 +29,16 @@ export class DataProcessor {
       Object.keys(data.annotations).forEach((annotationKey) => {
         const annotation = data.annotations[annotationKey];
         const annotationRows = data.annotation_data?.[annotationKey];
-        const annotationIndicesData = annotationRows ? annotationRows[index] : undefined;
         const numericValue = data.numeric_annotation_data?.[annotationKey]?.[index] ?? null;
         const numericLabelMap = getNumericBinLabelMap(annotation);
 
-        // Handle array/single/undefined cases
-        const annotationIndices: unknown[] = Array.isArray(annotationIndicesData)
-          ? annotationIndicesData
-          : annotationIndicesData == null
-            ? []
-            : [annotationIndicesData];
+        const annotationIndices: readonly number[] = annotationRows
+          ? getProteinAnnotationIndices(annotationRows, index)
+          : [];
 
         annotationValues[annotationKey] = Array.isArray(annotation.values)
           ? annotationIndices
-              .filter((i): i is number => typeof i === 'number' && Number.isFinite(i))
+              .filter((i) => Number.isFinite(i))
               .map((i) => toInternalValue(annotation.values[i]))
           : [];
         annotationDisplayValues[annotationKey] = annotationValues[annotationKey].map(

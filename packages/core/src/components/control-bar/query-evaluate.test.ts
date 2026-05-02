@@ -40,11 +40,11 @@ describe('resolveAnnotationValue', () => {
     expect(resolveAnnotationValue(99, 'organism', data)).toBeNull();
   });
 
-  it('handles number[] format (flat array)', () => {
+  it('handles Int32Array format (single-valued columns)', () => {
     const data: ProtspaceData = {
       protein_ids: ['P1', 'P2'],
       annotations: { organism: { values: ['Human', 'Mouse'] } },
-      annotation_data: { organism: [0, 1] as unknown as number[][] },
+      annotation_data: { organism: Int32Array.from([0, 1]) },
     };
     expect(resolveAnnotationValue(0, 'organism', data)).toBe('Human');
     expect(resolveAnnotationValue(1, 'organism', data)).toBe('Mouse');

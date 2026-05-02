@@ -6,12 +6,15 @@ import type {
   PlotDataPoint,
   ScatterplotConfig,
   NumericAnnotationDisplaySettingsMap,
+  AnnotationData,
 } from '@protspace/utils';
 import {
   DataProcessor,
   getNumericBinLabelMap,
   materializeVisualizationData,
   toInternalValue,
+  getProteinAnnotationIndices,
+  sliceAnnotationData,
 } from '@protspace/utils';
 import type { LegendSortMode } from '../legend/types';
 import { scatterplotStyles } from './scatter-plot.styles';
@@ -627,15 +630,10 @@ export class ProtspaceScatterplot extends LitElement {
     const numericLabelMap = getNumericBinLabelMap(annotation);
 
     for (const point of this._plotData) {
-      const annotationIndicesData = annotationRows[point.originalIndex];
-      const annotationIndices: unknown[] = Array.isArray(annotationIndicesData)
-        ? annotationIndicesData
-        : annotationIndicesData == null
-          ? []
-          : [annotationIndicesData];
+      const annotationIndices = getProteinAnnotationIndices(annotationRows, point.originalIndex);
 
       point.annotationValues[annotationName] = annotationIndices
-        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+        .filter((value) => Number.isFinite(value))
         .map((value) => toInternalValue(annotation.values[value]));
       if (point.annotationDisplayValues) {
         point.annotationDisplayValues[annotationName] = point.annotationValues[annotationName].map(
@@ -749,7 +747,7 @@ export class ProtspaceScatterplot extends LitElement {
       annotation_data: Object.fromEntries(
         Object.entries(materializedData.annotation_data).map(([annotationName, rows]) => [
           annotationName,
-          keptIndices.map((index) => rows[index]),
+          sliceAnnotationData(rows, keptIndices),
         ]),
       ),
       numeric_annotation_data: materializedData.numeric_annotation_data
@@ -2306,20 +2304,13 @@ export class ProtspaceScatterplot extends LitElement {
       });
 
       // Filter annotation data to match current protein IDs
-      const filteredAnnotationData: { [key: string]: number[][] } = {};
+      const filteredAnnotationData: Record<string, AnnotationData> = {};
       const filteredNumericAnnotationData: { [key: string]: (number | null)[] } = {};
 
       for (const [annotationName, annotationValues] of Object.entries(
         currentDisplayData.annotation_data,
       )) {
-        filteredAnnotationData[annotationName] = [];
-
-        // Map original indices to current indices
-        currentDisplayData.protein_ids.forEach((proteinId, originalIndex) => {
-          if (currentProteinIdsSet.has(proteinId)) {
-            filteredAnnotationData[annotationName].push(annotationValues[originalIndex]);
-          }
-        });
+        filteredAnnotationData[annotationName] = sliceAnnotationData(annotationValues, keptIndices);
       }
 
       for (const [annotationName, annotationValues] of Object.entries(
