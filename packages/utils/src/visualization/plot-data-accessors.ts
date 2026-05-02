@@ -18,11 +18,9 @@ export function getProteinAnnotationValues(
   if (!annotation || !annotationRows || !Array.isArray(annotation.values)) return [];
   const indices = getProteinAnnotationIndices(annotationRows, proteinIdx);
   if (indices.length === 0) return [];
-  const out: string[] = [];
-  for (const i of indices) {
-    if (Number.isFinite(i)) {
-      out.push(toInternalValue(annotation.values[i]));
-    }
+  const out: string[] = new Array(indices.length);
+  for (let k = 0; k < indices.length; k++) {
+    out[k] = toInternalValue(annotation.values[indices[k]]);
   }
   return out;
 }
