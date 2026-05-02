@@ -99,6 +99,7 @@ export function getProteinEvidence(
 
 // Tooltip view — assembled once per hover, never per-protein.
 export interface TooltipView {
+  proteinId: string; // for the tooltip header (replaces protein.id read)
   geneName: string[]; // from annotationValues.gene_name / 'Gene name'
   proteinName: string[]; // from annotationValues.protein_name / 'Protein name'
   uniprotKbId: string[]; // from annotationValues.uniprot_kb_id
@@ -232,14 +233,21 @@ Header reads use the updated tooltip-helpers, passed `this.view`.
 
 ### 7.5 `packages/core/src/components/scatter-plot/scatter-plot.ts`
 
-In `_handleProteinHovered` (or wherever the tooltip is opened), build the view once:
+In `_handleMouseOver` (the hover handler at `scatter-plot.ts:1817`), build the view once and update the `_tooltipData` state shape from `{ x, y, protein: PlotDataPoint }` to `{ x, y, view: TooltipView }`:
 
 ```ts
-const view = buildTooltipView(this._data, point.originalIndex, this._selectedAnnotation);
-this._tooltipView = view;
+private _handleMouseOver(event: MouseEvent, point: PlotDataPoint) {
+  if (!this.data) return;
+  const { x, y } = this._getLocalPointerPosition(event);
+  const view = buildTooltipView(this.data, point.originalIndex, this.selectedAnnotation);
+  this._tooltipData = { x, y, view };
+  // dispatch protein-hover event as before
+}
 ```
 
-Replace any `protein={...}` prop wiring on `<protein-tooltip>` with `view={...}`. The `_hoveredPoint: { protein: PlotDataPoint; ... }` shape can stay — `protein` here is just for retaining the WebGL hit-test result; the tooltip itself reads from `_tooltipView`.
+Replace the `protein={...}` prop wiring on `<protein-tooltip>` with `view={...}`.
+
+Also delete `_createDisplayPoint` (`scatter-plot.ts:1853-1860`) — it reads `point.annotationDisplayValues` to build a copy for the `protein-hover` / `protein-click` event detail. After Phase 2.5, those events dispatch `point` directly (consumers only read `event.detail.proteinId`; none read `event.detail.point`).
 
 ## 8. Files touched
 
