@@ -48,6 +48,14 @@ export default defineConfig({
       testMatch: /dataset-reload\.spec\.ts/,
     },
     {
+      name: 'dataset-recovery',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /dataset-recovery\.spec\.ts/,
+    },
+    {
       name: 'numeric-binning',
       use: {
         ...devices['Desktop Chrome'],
