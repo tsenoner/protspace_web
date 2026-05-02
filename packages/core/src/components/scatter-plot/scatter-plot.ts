@@ -618,17 +618,13 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _refreshSelectedAnnotationValues(dataToUse: VisualizationData) {
     const annotationName = this.selectedAnnotation;
-    const annotation = dataToUse.annotations[annotationName];
-    const annotationRows = dataToUse.annotation_data?.[annotationName];
-
-    if (!annotation || !annotationRows) {
+    if (!dataToUse.annotations[annotationName] || !dataToUse.annotation_data?.[annotationName]) {
       this._processData();
       return;
     }
 
-    // Trigger a re-render. Style-getters read annotation values lazily via
-    // getProteinAnnotationValues(data, point.originalIndex, key), so changing
-    // the selected annotation only requires invalidating downstream caches.
+    // Style-getters read annotation values lazily via getProteinAnnotationValues —
+    // changing the selected annotation only requires re-render + cache invalidation.
     this._plotData = [...this._plotData];
     this._lastDataRef = dataToUse;
     this._invalidateVirtualizationCache();

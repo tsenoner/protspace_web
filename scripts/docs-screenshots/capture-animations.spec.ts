@@ -107,7 +107,7 @@ test.describe('Zoom Animation', () => {
     // Find the centroid of the dense "three-finger toxin" cluster, ignoring outliers
     const clusterCenter = await page.evaluate(() => {
       const plot = document.querySelector('#myPlot') as any;
-      if (!plot?._plotData?.length || !plot._scales) return null;
+      if (!plot?._plotData?.length || !plot._scales || !plot.data) return null;
 
       const plotData = plot._plotData;
       const scales = plot._scales;
@@ -115,10 +115,32 @@ test.describe('Zoom Animation', () => {
       const plotRect = plot.getBoundingClientRect();
       const annotation = plot.selectedAnnotation;
 
+      // Read annotation values directly from plot.data — points are bare lazy objects.
+      const annotationDef = plot.data.annotations?.[annotation];
+      const annotationRows = plot.data.annotation_data?.[annotation];
+      if (!annotationDef || !annotationRows) return null;
+      const annotationValues: Array<string | null> = annotationDef.values;
+
+      const readValuesAt = (originalIndex: number): string[] => {
+        let indices: number[];
+        if (annotationRows instanceof Int32Array) {
+          const i = annotationRows[originalIndex];
+          indices = i < 0 ? [] : [i];
+        } else {
+          indices = annotationRows[originalIndex] ?? [];
+        }
+        const out: string[] = [];
+        for (const i of indices) {
+          const v = annotationValues[i];
+          if (v != null) out.push(v);
+        }
+        return out;
+      };
+
       // Collect screen coordinates of all target family points
       const targetPoints: Array<{ sx: number; sy: number }> = [];
       for (const point of plotData) {
-        const values = point.annotationValues?.[annotation] || [];
+        const values = readValuesAt(point.originalIndex);
         if (values.some((v: string) => v?.includes('three-finger toxin'))) {
           const px = scales.x(point.x) * transform.k + transform.x;
           const py = scales.y(point.y) * transform.k + transform.y;
@@ -387,7 +409,7 @@ test.describe('Scatterplot Animation Captures', () => {
     // Find the bounding box of the dense "phospholipase A2" cluster, ignoring outliers
     const clusterBBox = await page.evaluate(() => {
       const plot = document.querySelector('#myPlot') as any;
-      if (!plot?._plotData?.length || !plot._scales) return null;
+      if (!plot?._plotData?.length || !plot._scales || !plot.data) return null;
 
       const plotData = plot._plotData;
       const scales = plot._scales;
@@ -395,10 +417,32 @@ test.describe('Scatterplot Animation Captures', () => {
       const plotRect = plot.getBoundingClientRect();
       const annotation = plot.selectedAnnotation;
 
+      // Read annotation values directly from plot.data — points are bare lazy objects.
+      const annotationDef = plot.data.annotations?.[annotation];
+      const annotationRows = plot.data.annotation_data?.[annotation];
+      if (!annotationDef || !annotationRows) return null;
+      const annotationValues: Array<string | null> = annotationDef.values;
+
+      const readValuesAt = (originalIndex: number): string[] => {
+        let indices: number[];
+        if (annotationRows instanceof Int32Array) {
+          const i = annotationRows[originalIndex];
+          indices = i < 0 ? [] : [i];
+        } else {
+          indices = annotationRows[originalIndex] ?? [];
+        }
+        const out: string[] = [];
+        for (const i of indices) {
+          const v = annotationValues[i];
+          if (v != null) out.push(v);
+        }
+        return out;
+      };
+
       // Collect screen coordinates of all target family points
       const targetPoints: Array<{ sx: number; sy: number }> = [];
       for (const point of plotData) {
-        const values = point.annotationValues?.[annotation] || [];
+        const values = readValuesAt(point.originalIndex);
         if (values.some((v: string) => v?.includes('phospholipase A2'))) {
           const sx = plotRect.left + scales.x(point.x) * transform.k + transform.x;
           const sy = plotRect.top + scales.y(point.y) * transform.k + transform.y;
