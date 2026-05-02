@@ -1,4 +1,4 @@
-import { LEGEND_VALUES } from '@protspace/utils';
+import { NA_VALUE } from '@protspace/utils';
 
 /**
  * Filter annotation values, removing N/A entries and empty/whitespace strings.
@@ -7,7 +7,7 @@ import { LEGEND_VALUES } from '@protspace/utils';
 export function filterAnnotationValues(values: string[] | undefined): string | null {
   if (!values || values.length === 0) return null;
   const filtered = values
-    .filter((value) => value !== LEGEND_VALUES.NA_VALUE)
+    .filter((value) => value !== NA_VALUE)
     .map((value) => value.trim())
     .filter((value) => value.length > 0);
   if (filtered.length === 0) return null;

@@ -1,5 +1,11 @@
 import type { Annotation, VisualizationData } from '@protspace/utils';
-import { COLOR_SCHEMES, sanitizeValue } from '@protspace/utils';
+import {
+  COLOR_SCHEMES,
+  sanitizeValue,
+  normalizeMissingValue,
+  NA_VALUE,
+  NA_DEFAULT_COLOR,
+} from '@protspace/utils';
 import { validateRowsBasic } from './validation';
 import { findColumn } from './bundle';
 import type { Rows } from './types';
@@ -40,9 +46,13 @@ const METADATA_EXCLUDED_KEYS = new Set(['projection_name', 'name', 'info_json'])
 
 /** Match GO/ECO evidence codes: 2–5 uppercase letters OR ECO:NNNNNNN */
 const EVIDENCE_CODE_RE = /^(?:[A-Z]{2,5}|ECO:\d+)$/;
-const STRING_NUMERIC_DENSITY_THRESHOLD = 0.1;
-const STRING_NUMERIC_MIN_DISTINCT_VALUES = 8;
-const MAX_STRING_NUMERIC_DENSITY_DECIMALS = 6;
+
+type InferredAnnotationType = 'int' | 'float' | 'string';
+
+interface AnnotationInferenceResult {
+  inferredType: InferredAnnotationType;
+  numericValues: (number | null)[];
+}
 
 function parseNumericAnnotationValue(rawValue: unknown): number | null {
   if (typeof rawValue === 'number') {
@@ -67,94 +77,51 @@ function parseNumericAnnotationValue(rawValue: unknown): number | null {
   return null;
 }
 
-function countNumericStringDecimalPlaces(rawValue: string): number {
-  const trimmed = rawValue.trim().toLowerCase();
-  if (!trimmed) {
-    return 0;
-  }
-
-  const scientificMatch = trimmed.match(/^[-+]?\d+(?:\.(\d+))?[e]([-+]?\d+)$/);
-  if (scientificMatch) {
-    const fractionalDigits = scientificMatch[1]?.length ?? 0;
-    const exponent = Number(scientificMatch[2]);
-    return Number.isFinite(exponent) ? Math.max(0, fractionalDigits - exponent) : 0;
-  }
-
-  const decimalIndex = trimmed.indexOf('.');
-  return decimalIndex === -1 ? 0 : trimmed.length - decimalIndex - 1;
-}
-
-function isScalarNumericAnnotationColumn(values: unknown[]): boolean {
+function inferAnnotationType(values: Iterable<unknown>): AnnotationInferenceResult {
+  const numericValues: (number | null)[] = [];
   let sawNumericValue = false;
-  let sawTypedNumericValue = false;
-  let sawStringValue = false;
-  const distinctNumericStringValues = new Set<number>();
-  let maxStringDecimalPlaces = 0;
+  let sawNonIntegerValue = false;
 
   for (const rawValue of values) {
-    if (rawValue == null) {
+    // Apply the boundary normalization first: every flavor of "missing" becomes null.
+    const normalized = normalizeMissingValue(rawValue);
+
+    if (normalized == null) {
+      numericValues.push(null);
       continue;
     }
 
-    if (typeof rawValue === 'string') {
-      const trimmed = rawValue.trim();
-      if (trimmed === '') {
-        continue;
-      }
-      sawStringValue = true;
-    }
+    const parsed = parseNumericAnnotationValue(normalized);
+    numericValues.push(parsed);
 
-    const parsed = parseNumericAnnotationValue(rawValue);
     if (parsed == null) {
-      return false;
-    }
-
-    if (typeof rawValue === 'string') {
-      distinctNumericStringValues.add(parsed);
-      maxStringDecimalPlaces = Math.max(
-        maxStringDecimalPlaces,
-        countNumericStringDecimalPlaces(rawValue),
-      );
-    } else {
-      sawTypedNumericValue = true;
+      // Non-numeric, non-missing value — column is categorical.
+      return { inferredType: 'string', numericValues };
     }
 
     sawNumericValue = true;
+    if (!Number.isInteger(parsed)) {
+      sawNonIntegerValue = true;
+    }
   }
 
   if (!sawNumericValue) {
-    return false;
+    return { inferredType: 'string', numericValues };
   }
 
-  if (!sawStringValue) {
-    return true;
-  }
-
-  if (sawTypedNumericValue) {
-    return true;
-  }
-
-  if (distinctNumericStringValues.size < STRING_NUMERIC_MIN_DISTINCT_VALUES) {
-    return false;
-  }
-
-  const scale = 10 ** Math.min(maxStringDecimalPlaces, MAX_STRING_NUMERIC_DENSITY_DECIMALS);
-  const sortedValues = [...distinctNumericStringValues]
-    .map((value) => Math.round(value * scale))
-    .sort((left, right) => left - right);
-  const minValue = sortedValues[0];
-  const maxValue = sortedValues[sortedValues.length - 1];
-  const rangeWidth = maxValue - minValue + 1;
-  const density = rangeWidth > 0 ? sortedValues.length / rangeWidth : 1;
-
-  // Keep sparse numeric-looking string columns categorical by default so
-  // code-style identifiers do not flip to numeric only because cardinality grows.
-  return density >= STRING_NUMERIC_DENSITY_THRESHOLD;
+  return { inferredType: sawNonIntegerValue ? 'float' : 'int', numericValues };
 }
 
-function createNumericAnnotation(): Annotation {
+function* valuesForColumn(rows: Rows, column: string): Iterable<unknown> {
+  for (const row of rows) {
+    yield row[column];
+  }
+}
+
+function createNumericAnnotation(numericType: 'int' | 'float'): Annotation {
   return {
     kind: 'numeric',
+    numericType,
     values: [],
     colors: [],
     shapes: [],
@@ -172,6 +139,34 @@ function createCategoricalAnnotation(
     colors,
     shapes,
   };
+}
+
+/**
+ * If any cell has no real values, append a synthetic `__NA__` category to the
+ * unique-values / colors / shapes arrays and route the empty cells to it. Mirrors
+ * `materializeNumericAnnotation` in numeric-binning.ts: missing-value proteins
+ * get a single legend row to live in instead of being orphaned.
+ *
+ * Mutates the input arrays in place.
+ */
+function appendSyntheticNACategory(
+  uniqueValues: string[],
+  colors: string[],
+  shapes: string[],
+  annotationDataArray: number[][],
+): void {
+  const hasMissingValues = annotationDataArray.some((arr) => arr.length === 0);
+  if (!hasMissingValues) return;
+
+  const naIndex = uniqueValues.length;
+  uniqueValues.push(NA_VALUE);
+  colors.push(NA_DEFAULT_COLOR);
+  shapes.push('circle');
+  for (let p = 0; p < annotationDataArray.length; p++) {
+    if (annotationDataArray[p].length === 0) {
+      annotationDataArray[p] = [naIndex];
+    }
+  }
 }
 
 /**
@@ -223,6 +218,18 @@ export const parseAnnotationValue = (
   const label = trimmed.substring(0, lastPipe).trim();
   return { label, scores, evidence: null };
 };
+
+function splitCategoricalAnnotationValues(rawValue: unknown): string[] {
+  // First-level: normalize the whole cell. Returns null if the entire cell is missing.
+  const cellNormalized = normalizeMissingValue(rawValue);
+  if (cellNormalized == null) return [];
+
+  // Split, trim, drop empty tokens, and drop tokens that normalize to missing.
+  return String(cellNormalized)
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part !== '' && normalizeMissingValue(part) !== null);
+}
 
 /**
  * Parses the info_json field and returns its contents as sanitized metadata fields.
@@ -412,14 +419,16 @@ function convertBundleFormatData(
   }
 
   for (const annotationCol of annotationColumns) {
-    if (isScalarNumericAnnotationColumn(baseProjectionData.map((row) => row[annotationCol]))) {
+    const inference = inferAnnotationType(valuesForColumn(baseProjectionData, annotationCol));
+    if (inference.inferredType !== 'string') {
       numeric_annotation_data[annotationCol] = uniqueProteinIds.map((proteinId) => {
         const row = baseRowsByProteinId.get(proteinId);
         const rawValue = row?.[annotationCol];
-        if (rawValue == null) return null;
-        return parseNumericAnnotationValue(rawValue);
+        const normalized = normalizeMissingValue(rawValue);
+        if (normalized == null) return null;
+        return parseNumericAnnotationValue(normalized);
       });
-      annotations[annotationCol] = createNumericAnnotation();
+      annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
       continue;
     }
 
@@ -432,16 +441,15 @@ function convertBundleFormatData(
 
     for (const row of baseProjectionData) {
       const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-      const rawValue = row[annotationCol];
+      const rawValues = splitCategoricalAnnotationValues(row[annotationCol]);
 
-      if (rawValue == null) {
+      if (rawValues.length === 0) {
         annotationMap.set(proteinId, []);
         annotationScoreMap.set(proteinId, []);
         annotationEvidenceMap.set(proteinId, []);
         continue;
       }
 
-      const rawValues = String(rawValue).split(';');
       const labels: string[] = [];
       const scores: (number[] | null)[] = [];
       const evidences: (string | null)[] = [];
@@ -487,6 +495,8 @@ function convertBundleFormatData(
         (proteinId) => annotationEvidenceMap.get(proteinId) ?? [],
       );
     }
+
+    appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
 
     annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;
@@ -640,22 +650,16 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
   const annotation_evidence: Record<string, (string | null)[][]> = {};
 
   for (const annotationCol of annotationColumns) {
-    if (isScalarNumericAnnotationColumn(rows.map((row) => row[annotationCol]))) {
-      const numericValues = rows.map((row) => {
-        const rawValue = row[annotationCol];
-        if (rawValue == null) return null;
-        return parseNumericAnnotationValue(rawValue);
-      });
-
-      annotations[annotationCol] = createNumericAnnotation();
-      numeric_annotation_data[annotationCol] = numericValues;
+    const inference = inferAnnotationType(valuesForColumn(rows, annotationCol));
+    if (inference.inferredType !== 'string') {
+      annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
+      numeric_annotation_data[annotationCol] = inference.numericValues;
       continue;
     }
 
-    const rawValues: string[][] = rows.map((row) => {
-      const v = row[annotationCol];
-      return v == null ? [] : String(v).split(';');
-    });
+    const rawValues: string[][] = rows.map((row) =>
+      splitCategoricalAnnotationValues(row[annotationCol]),
+    );
 
     let columnHasScores = false;
     let columnHasEvidence = false;
@@ -688,6 +692,8 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
     const annotationDataArray = labelsByRow.map((valueArray) =>
       valueArray.map((v) => valueToIndex.get(v) ?? -1),
     );
+
+    appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
 
     annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;
@@ -885,7 +891,8 @@ async function extractAnnotationsOptimized(
   for (let colIdx = 0; colIdx < annotationColumns.length; colIdx++) {
     const annotationCol = annotationColumns[colIdx];
 
-    if (isScalarNumericAnnotationColumn(rows.map((row) => row[annotationCol]))) {
+    const inference = inferAnnotationType(valuesForColumn(rows, annotationCol));
+    if (inference.inferredType !== 'string') {
       const numericValues: (number | null)[] = new Array(numProteins).fill(null);
 
       for (let i = 0; i < rows.length; i += chunkSize) {
@@ -896,18 +903,12 @@ async function extractAnnotationsOptimized(
           const idx = idToIndex.get(proteinId);
           if (idx === undefined) continue;
 
-          const rawValue = row[annotationCol];
-          if (rawValue == null) {
-            numericValues[idx] = null;
-            continue;
-          }
-
-          numericValues[idx] = parseNumericAnnotationValue(rawValue);
+          numericValues[idx] = inference.numericValues[r];
         }
         await fastYield();
       }
 
-      annotations[annotationCol] = createNumericAnnotation();
+      annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
       numeric_annotation_data[annotationCol] = numericValues;
       continue;
     }
@@ -920,10 +921,7 @@ async function extractAnnotationsOptimized(
     for (let i = 0; i < rows.length; i += chunkSize) {
       const end = Math.min(i + chunkSize, rows.length);
       for (let r = i; r < end; r++) {
-        const rawValue = rows[r][annotationCol];
-        if (rawValue == null) continue;
-
-        const rawValues = String(rawValue).split(';');
+        const rawValues = splitCategoricalAnnotationValues(rows[r][annotationCol]);
         for (const raw of rawValues) {
           const parsed = parseAnnotationValue(raw);
           valueCountMap.set(parsed.label, (valueCountMap.get(parsed.label) || 0) + 1);
@@ -958,10 +956,9 @@ async function extractAnnotationsOptimized(
         const idx = idToIndex.get(proteinId);
         if (idx === undefined) continue;
 
-        const rawValue = row[annotationCol];
-        if (rawValue == null) continue;
+        const rawValues = splitCategoricalAnnotationValues(row[annotationCol]);
+        if (rawValues.length === 0) continue;
 
-        const rawValues = String(rawValue).split(';');
         const indices: number[] = [];
         const scores: (number[] | null)[] | null = scoresArray ? [] : null;
         const evidences: (string | null)[] | null = evidenceArray ? [] : null;
@@ -988,6 +985,8 @@ async function extractAnnotationsOptimized(
         if (evidenceArray) evidenceArray[p] = [];
       }
     }
+
+    appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
 
     annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
     annotation_data[annotationCol] = annotationDataArray;

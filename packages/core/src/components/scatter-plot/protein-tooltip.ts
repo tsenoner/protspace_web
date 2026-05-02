@@ -1,7 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { toDisplayValue, toInternalValue } from '@protspace/utils';
-import type { PlotDataPoint } from '@protspace/utils';
+import type { NumericAnnotationType, PlotDataPoint } from '@protspace/utils';
 import { proteinTooltipStyles } from './protein-tooltip.styles';
 import {
   getAnnotationHeaderType,
@@ -28,6 +28,29 @@ const SUPERSCRIPT_DIGITS: Record<string, string> = {
   '9': '\u2079',
   '-': '\u207B',
 };
+
+const RAW_FLOAT_VALUE_FORMATTER = new Intl.NumberFormat('en-US', {
+  useGrouping: true,
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 6,
+});
+
+function shouldUseTinyFloatFormat(value: number): boolean {
+  const abs = Math.abs(value);
+  return abs > 0 && abs < 0.001;
+}
+
+export function formatRawNumericTooltipValue(
+  value: number,
+  numericType: NumericAnnotationType = 'float',
+): string {
+  if (!Number.isFinite(value)) return String(value);
+  if (numericType === 'int') return String(Math.trunc(value));
+  if (shouldUseTinyFloatFormat(value)) {
+    return Number(value.toPrecision(6)).toString();
+  }
+  return RAW_FLOAT_VALUE_FORMATTER.format(value);
+}
 
 function formatScore(value: number): string {
   const abs = Math.abs(value);
@@ -62,6 +85,8 @@ class ProtspaceProteinTooltip extends LitElement {
     const uniprotKbId = getUniprotKbId(displayValues);
     const tooltipAnnotationValues = displayValues[this.selectedAnnotation] ?? [];
     const rawNumericValue = this.protein.numericAnnotationValues?.[this.selectedAnnotation] ?? null;
+    const rawNumericType =
+      this.protein.numericAnnotationTypes?.[this.selectedAnnotation] ?? 'float';
     const tooltipAnnotationScores = this.protein.annotationScores?.[this.selectedAnnotation] ?? [];
     const tooltipAnnotationEvidence =
       this.protein.annotationEvidence?.[this.selectedAnnotation] ?? [];
@@ -91,7 +116,8 @@ class ProtspaceProteinTooltip extends LitElement {
             : ''}
           ${rawNumericValue !== null
             ? html`<div class="tooltip-gene-name">
-                <span class="label">Raw value:</span> ${rawNumericValue}
+                <span class="label">Raw value:</span>
+                ${formatRawNumericTooltipValue(rawNumericValue, rawNumericType)}
               </div>`
             : ''}
           <div class="tooltip-annotations">

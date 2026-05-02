@@ -1,5 +1,7 @@
 export type AnnotationKind = 'categorical' | 'numeric';
 
+export type NumericAnnotationType = 'int' | 'float';
+
 export type NumericBinningStrategy = 'linear' | 'quantile' | 'logarithmic';
 
 export interface NumericBinDefinition {
@@ -14,6 +16,7 @@ export interface NumericBinDefinition {
 export interface NumericAnnotationMetadata {
   strategy: NumericBinningStrategy;
   binCount: number;
+  numericType?: NumericAnnotationType;
   signature: string;
   topologySignature: string;
   logSupported: boolean;
@@ -26,6 +29,7 @@ export interface Annotation {
   colors: string[];
   shapes: string[];
   sourceKind?: AnnotationKind;
+  numericType?: NumericAnnotationType;
   numericMetadata?: NumericAnnotationMetadata;
 }
 
@@ -54,6 +58,7 @@ export interface PlotDataPoint {
   annotationValues: Record<string, string[]>;
   annotationDisplayValues?: Record<string, string[]>;
   numericAnnotationValues?: Record<string, number | null>;
+  numericAnnotationTypes?: Record<string, NumericAnnotationType>;
   annotationScores?: Record<string, (number[] | null)[]>;
   annotationEvidence?: Record<string, (string | null)[]>;
   originalIndex: number;

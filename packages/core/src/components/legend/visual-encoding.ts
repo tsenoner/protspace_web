@@ -5,8 +5,9 @@
  * Key principles:
  * - Visible items always get the most distinct colors (slots 0, 1, 2, ...)
  * - Items in "Other" bucket don't consume slots
- * - Other has fixed color and always uses a circle
- * - N/A has a fixed color but participates in normal shape assignment
+ * - "Other" has a fixed color and always uses a circle
+ * - NA participates in regular slot assignment; the legend processor
+ *   overrides NA's default color to NA_DEFAULT_COLOR before conflict resolution.
  * - Slot recycling ensures extracted items get available slots
  */
 
@@ -21,11 +22,8 @@ export const SPECIAL_SLOTS = {
   OTHER: -1,
 } as const;
 
-/** Special colors for reserved categories */
-const SPECIAL_COLORS: Record<string, string> = {
-  [LEGEND_VALUES.OTHER]: '#999999',
-  [LEGEND_VALUES.NA_DISPLAY]: '#DDDDDD',
-};
+/** Fixed color for the synthetic "Other" category. */
+const OTHER_COLOR = '#999999';
 
 interface VisualEncoding {
   color: string;
@@ -34,33 +32,20 @@ interface VisualEncoding {
 
 /**
  * Get visual encoding for a category based on its slot.
+ *
+ * NA color is NOT special-cased here — that's the legend processor's job.
+ * This function only knows about "Other" (fixed) vs slot-indexed regulars.
  */
 export function getVisualEncoding(
   slot: number,
   shapesEnabled: boolean,
   categoryName?: string,
 ): VisualEncoding {
-  // "Other" remains a fixed visual encoding.
   if (categoryName === LEGEND_VALUES.OTHER) {
-    return {
-      color: SPECIAL_COLORS[categoryName],
-      shape: 'circle',
-    };
+    return { color: OTHER_COLOR, shape: 'circle' };
   }
 
-  // Handle negative slots (special categories) - shouldn't normally reach here
-  if (slot < 0) {
-    return {
-      color: '#999999',
-      shape: 'circle',
-    };
-  }
-
-  // Regular categories: cycle shapes; keep N/A color fixed.
-  const color =
-    categoryName === LEGEND_VALUES.NA_DISPLAY
-      ? SPECIAL_COLORS[LEGEND_VALUES.NA_DISPLAY]
-      : KELLYS_COLORS[slot % KELLYS_COLORS.length];
+  const color = KELLYS_COLORS[slot % KELLYS_COLORS.length];
   const shape = shapesEnabled ? SHAPES[slot % SHAPES.length] : 'circle';
 
   return { color, shape };

@@ -214,24 +214,36 @@ export class ProtspaceScatterplot extends LitElement {
   private _getMaterializedData(): VisualizationData | null {
     if (!this.data) return null;
 
+    const sourceData = this.data;
     const selectedNumericValues = this.selectedAnnotation
-      ? this.data.numeric_annotation_data?.[this.selectedAnnotation]
+      ? sourceData.numeric_annotation_data?.[this.selectedAnnotation]
       : undefined;
+    const selectedNumericValuesCacheRef = this.selectedAnnotation
+      ? (this.data.numeric_annotation_data?.[this.selectedAnnotation] ?? null)
+      : null;
     const selectedNumericSettings = this.selectedAnnotation
       ? this.numericAnnotationSettings?.[this.selectedAnnotation]
       : undefined;
+    const selectedNumericAnnotation = this.selectedAnnotation
+      ? sourceData.annotations[this.selectedAnnotation]
+      : undefined;
+    const selectedNumericType =
+      selectedNumericAnnotation?.numericType ??
+      selectedNumericAnnotation?.numericMetadata?.numericType ??
+      null;
 
     const cacheKey = JSON.stringify({
       dataRef: this.data.protein_ids.length,
       selectedAnnotation: this.selectedAnnotation,
       selectedNumericValuesLength: selectedNumericValues?.length ?? 0,
+      selectedNumericType,
       numericAnnotationSettings: selectedNumericSettings ?? null,
-      annotationKeys: Object.keys(this.data.annotations),
+      annotationKeys: Object.keys(sourceData.annotations),
     });
 
     if (
       this._lastMaterializedSource === this.data &&
-      this._lastMaterializedNumericValues === (selectedNumericValues ?? null) &&
+      this._lastMaterializedNumericValues === selectedNumericValuesCacheRef &&
       this._materializedDataCacheKey === cacheKey &&
       this._materializedDataCache
     ) {
@@ -239,13 +251,13 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     this._materializedDataCache = materializeVisualizationData(
-      this.data,
+      sourceData,
       this.numericAnnotationSettings,
       10,
       this.selectedAnnotation,
     );
     this._lastMaterializedSource = this.data;
-    this._lastMaterializedNumericValues = selectedNumericValues ?? null;
+    this._lastMaterializedNumericValues = selectedNumericValuesCacheRef;
     this._materializedDataCacheKey = cacheKey;
     return this._materializedDataCache;
   }

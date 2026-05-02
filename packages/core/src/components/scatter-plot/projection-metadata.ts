@@ -1,6 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { Projection } from '@protspace/utils';
+import { NA_DISPLAY } from '@protspace/utils';
 import { projectionMetadataStyles } from './projection-metadata.styles';
 
 @customElement('protspace-projection-metadata')
@@ -122,7 +123,7 @@ class ProtspaceProjectionMetadata extends LitElement {
    * Format metadata value with appropriate precision
    */
   private _formatMetadataValue(value: unknown, key: string): string {
-    if (value == null) return 'N/A';
+    if (value == null) return NA_DISPLAY;
 
     const lowerKey = key.toLowerCase();
     const isVarianceRatio =

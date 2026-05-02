@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ReactiveControllerHost } from 'lit';
 import { PersistenceController, type PersistenceCallbacks } from './persistence-controller';
 import type { LegendItem } from '../types';
-import { LEGEND_VALUES } from '../config';
+import { LEGEND_VALUES, NA_VALUE } from '../config';
 
 function createTestItem(value: string, zOrder: number): LegendItem {
   return {
@@ -26,9 +26,10 @@ vi.mock('@protspace/utils', () => ({
   removeAllStorageItemsByHash: vi.fn(),
   LEGEND_VALUES: {
     OTHER: 'Other',
-    NA_DISPLAY: 'N/A',
-    NA_VALUE: '__NA__',
   },
+  NA_VALUE: '__NA__',
+  NA_DISPLAY: 'N/A',
+  isNAValue: (value: unknown) => value === '__NA__',
 }));
 
 import {
@@ -205,7 +206,7 @@ describe('PersistenceController', () => {
 
       mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
         { value: 'cat1', zOrder: 0, color: '#f00', shape: 'circle' },
-        { value: LEGEND_VALUES.NA_VALUE, zOrder: 1, color: '#888', shape: 'circle' },
+        { value: NA_VALUE, zOrder: 1, color: '#888', shape: 'circle' },
         { value: 'Other', zOrder: 2, color: '#888', shape: 'circle' },
       ]);
       mockCallbacks.getHiddenValues = vi.fn().mockReturnValue(['hidden1']);
@@ -229,7 +230,7 @@ describe('PersistenceController', () => {
         hiddenValues: ['hidden1'],
         categories: {
           cat1: { zOrder: 0, color: '#f00', shape: 'circle' },
-          [LEGEND_VALUES.NA_VALUE]: { zOrder: 1, color: '#888', shape: 'circle' },
+          [NA_VALUE]: { zOrder: 1, color: '#888', shape: 'circle' },
         },
         enableDuplicateStackUI: true,
         selectedPaletteId: 'kellys',
@@ -283,6 +284,28 @@ describe('PersistenceController', () => {
       });
     });
 
+    it('does not persist NA color/shape for numeric annotations', () => {
+      controller.updateDatasetHash(['protein1']);
+      controller.updateSelectedAnnotation('annotation1');
+
+      mockCallbacks.isNumericAnnotation = vi.fn().mockReturnValue(true);
+      mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
+        { value: 'bin-0', zOrder: 0, color: '#F3C300', shape: 'circle' },
+        { value: NA_VALUE, zOrder: 1, color: '#DDDDDD', shape: 'circle' },
+      ]);
+
+      controller.saveSettings();
+
+      expect(setStorageItem).toHaveBeenCalledWith(
+        'legend_hash_protein1_annotation1',
+        expect.objectContaining({
+          categories: {
+            'bin-0': { zOrder: 0, color: '#F3C300', shape: 'circle' },
+          },
+        }),
+      );
+    });
+
     it('omits persisted categories entirely when category state is derived', () => {
       controller.updateDatasetHash(['protein1']);
       controller.updateSelectedAnnotation('annotation1');
@@ -290,7 +313,7 @@ describe('PersistenceController', () => {
       mockCallbacks.shouldPersistCategories = vi.fn().mockReturnValue(false);
       mockCallbacks.getLegendItems = vi.fn().mockReturnValue([
         { value: 'cat1', zOrder: 0, color: '#f00', shape: 'circle' },
-        { value: LEGEND_VALUES.NA_VALUE, zOrder: 1, color: '#888', shape: 'circle' },
+        { value: NA_VALUE, zOrder: 1, color: '#888', shape: 'circle' },
       ]);
 
       controller.saveSettings();
@@ -433,7 +456,7 @@ describe('PersistenceController', () => {
         createTestItem('cat1', 0),
         createTestItem('cat2', 1),
         createTestItem('cat3', 2),
-        createTestItem(LEGEND_VALUES.NA_VALUE, 3),
+        createTestItem(NA_VALUE, 3),
       ];
 
       const result = controller.applyPendingZOrder(items);
@@ -457,7 +480,7 @@ describe('PersistenceController', () => {
         hiddenValues: [],
         categories: {
           cat1: { zOrder: 1, color: '#f00', shape: 'circle' },
-          [LEGEND_VALUES.NA_VALUE]: { zOrder: 0, color: '#888', shape: 'circle' }, // N/A with __NA__ key
+          [NA_VALUE]: { zOrder: 0, color: '#888', shape: 'circle' }, // N/A with __NA__ key
         },
         enableDuplicateStackUI: false,
       });
@@ -465,7 +488,7 @@ describe('PersistenceController', () => {
 
       const items = [
         createTestItem('cat1', 0),
-        createTestItem(LEGEND_VALUES.NA_VALUE, 1), // N/A item with __NA__ value
+        createTestItem(NA_VALUE, 1), // N/A item with __NA__ value
       ];
 
       const result = controller.applyPendingZOrder(items);
@@ -712,6 +735,49 @@ describe('PersistenceController', () => {
           cat1: { zOrder: 0, color: '#f00', shape: 'circle' },
         });
         expect(settings.categories['Other']).toBeUndefined();
+      });
+
+      it('strips legacy annotation type overrides from stored annotations during export', () => {
+        controller.updateDatasetHash(['protein1']);
+        controller.updateSelectedAnnotation('selected');
+        mockCallbacks.getCurrentSettings = vi.fn().mockReturnValue({
+          maxVisibleValues: 10,
+          includeShapes: false,
+          shapeSize: 16,
+          sortMode: 'size-desc' as const,
+          enableDuplicateStackUI: false,
+          selectedPaletteId: 'kellys',
+        });
+        vi.mocked(getStorageItem).mockImplementation((key: string) =>
+          key === 'legend_hash_protein1_other'
+            ? {
+                maxVisibleValues: 5,
+                includeShapes: false,
+                shapeSize: 20,
+                sortMode: 'alpha-asc' as const,
+                hiddenValues: [],
+                categories: {},
+                enableDuplicateStackUI: false,
+                selectedPaletteId: 'cividis',
+                annotationTypeOverride: 'numeric',
+              }
+            : {},
+        );
+
+        const settings = controller.getAllSettingsForExport(['selected', 'other']);
+
+        expect(settings.other).toEqual({
+          maxVisibleValues: 5,
+          includeShapes: false,
+          shapeSize: 20,
+          sortMode: 'alpha-asc',
+          hiddenValues: [],
+          categories: {},
+          enableDuplicateStackUI: false,
+          selectedPaletteId: 'cividis',
+          numericSettings: undefined,
+        });
+        expect('annotationTypeOverride' in settings.other).toBe(false);
       });
     });
   });

@@ -1,5 +1,5 @@
-import type { VisualizationData, PlotDataPoint } from '../types.js';
-import { toInternalValue } from './shapes.js';
+import type { VisualizationData, PlotDataPoint, NumericAnnotationType } from '../types.js';
+import { toInternalValue } from './missing-values.js';
 import * as d3 from 'd3';
 import { getNumericBinLabelMap } from './numeric-binning.js';
 
@@ -22,6 +22,7 @@ export class DataProcessor {
       const annotationValues: Record<string, string[]> = {};
       const annotationDisplayValues: Record<string, string[]> = {};
       const numericAnnotationValues: Record<string, number | null> = {};
+      const numericAnnotationTypes: Record<string, NumericAnnotationType> = {};
       const annotationScores: Record<string, (number[] | null)[]> = {};
       const annotationEvidence: Record<string, (string | null)[]> = {};
       Object.keys(data.annotations).forEach((annotationKey) => {
@@ -47,6 +48,8 @@ export class DataProcessor {
           (value) => numericLabelMap.get(value) ?? value,
         );
         numericAnnotationValues[annotationKey] = numericValue;
+        numericAnnotationTypes[annotationKey] =
+          annotation.numericType ?? annotation.numericMetadata?.numericType ?? 'float';
 
         // Map annotation scores if available
         const scoresForAnnotation = data.annotation_scores?.[annotationKey]?.[index];
@@ -71,6 +74,7 @@ export class DataProcessor {
         annotationValues,
         annotationDisplayValues,
         numericAnnotationValues,
+        numericAnnotationTypes,
         annotationScores,
         annotationEvidence,
         originalIndex: index,

@@ -81,7 +81,7 @@ For numeric annotations:
 - the selected distribution can be `linear`, `quantile`, or `logarithmic`
 - numeric palettes are sequential gradients, not categorical swatches
 - the gradient direction can also be reversed and is persisted as part of the numeric settings
-- unsupported numeric palette IDs are normalized to `cividis` on import/load
+- unsupported numeric palette IDs are normalized to `batlow` on import/load
 
 ### Numeric Edge Cases
 
@@ -99,9 +99,24 @@ Numeric legend labels are summaries of the observed values in each realized bin.
 
 ### Missing Values
 
-Proteins with missing, empty, or whitespace-only annotation values are displayed as **N/A** in
-the legend and tooltip. N/A items receive a dedicated color (#DDDDDD) and can be toggled,
-isolated, or reordered in the legend like any other category.
+The following are recognized as missing values and collapse into a single
+canonical "N/A" legend category:
+
+- JS `null` / `undefined`
+- Empty or whitespace-only strings (`""`, `"   "`)
+- Non-finite numbers (`NaN`, `Infinity`, `-Infinity`)
+- These string spellings (case-insensitive, trimmed): `"NA"`, `"N/A"`, `"NaN"`,
+  `"null"`, `"None"`
+
+The single "N/A" legend row covers every missing-value protein. Its default
+color is light grey (`#DDDDDD`) and circle shape, matching every other
+category in the system. For categorical annotations the color and shape are
+user-overridable through the legend customizer; for numeric annotations they
+are locked.
+
+For numeric annotations, the gradient is preserved when missing values are
+present, and one bin slot is reserved for N/A (e.g., requesting 10 bins
+yields 9 numeric bins + 1 N/A).
 
 ### Scored Annotations
 

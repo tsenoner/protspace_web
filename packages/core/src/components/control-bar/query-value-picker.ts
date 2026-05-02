@@ -4,7 +4,7 @@ import type { ProtspaceData } from './types';
 import type { LogicalOp } from './query-types';
 import { toInternalValue } from '../legend/config';
 import { resolveAnnotationValue } from './query-evaluate';
-import { LEGEND_VALUES } from '@protspace/utils';
+import { NA_VALUE, NA_DISPLAY } from '@protspace/utils';
 import { queryBuilderStyles } from './query-builder.styles';
 
 /**
@@ -62,7 +62,7 @@ class ProtspaceQueryValuePicker extends LitElement {
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   private _displayValue(value: string): string {
-    return value === LEGEND_VALUES.NA_VALUE ? LEGEND_VALUES.NA_DISPLAY : value;
+    return value === NA_VALUE ? NA_DISPLAY : value;
   }
 
   /**

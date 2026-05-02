@@ -6,8 +6,9 @@ import type { VisualizationData, PlotDataPoint } from '@protspace/utils';
 /**
  * Tests for style-getters.ts focusing on N/A value handling.
  *
- * The legend uses '__NA__' internally to represent N/A values (null, empty string, whitespace).
- * These tests ensure the scatterplot's style getters correctly handle this convention.
+ * The legend uses '__NA__' internally to represent N/A values. After ingestion-time
+ * normalization, missing values reach style-getters as `null` (or are absent), so these
+ * tests focus on the canonical null → '__NA__' lookup contract.
  */
 
 describe('style-getters', () => {
@@ -66,30 +67,6 @@ describe('style-getters', () => {
         expect(getters.getOpacity(nullPoint)).toBe(0);
       });
 
-      it('should hide points with empty string annotation values when __NA__ is hidden', () => {
-        const data = createMockData(['', 'value1', 'value2']);
-        const config = createDefaultStyleConfig({
-          hiddenAnnotationValues: ['__NA__'],
-        });
-
-        const getters = createStyleGetters(data, config);
-        const emptyStringPoint = createMockPoint('');
-
-        expect(getters.getOpacity(emptyStringPoint)).toBe(0);
-      });
-
-      it('should hide points with whitespace-only annotation values when __NA__ is hidden', () => {
-        const data = createMockData(['   ', 'value1', 'value2']);
-        const config = createDefaultStyleConfig({
-          hiddenAnnotationValues: ['__NA__'],
-        });
-
-        const getters = createStyleGetters(data, config);
-        const whitespacePoint = createMockPoint('   ');
-
-        expect(getters.getOpacity(whitespacePoint)).toBe(0);
-      });
-
       it('should NOT hide non-N/A points when __NA__ is hidden', () => {
         const data = createMockData([null, 'value1', 'value2']);
         const config = createDefaultStyleConfig({
@@ -130,21 +107,6 @@ describe('style-getters', () => {
 
         expect(getters.getColors(nullPoint)).toEqual(['#dddddd']);
       });
-
-      it('should use color from colorMapping for empty string annotation values', () => {
-        const data = createMockData(['', 'value1']);
-        const config = createDefaultStyleConfig({
-          colorMapping: {
-            __NA__: '#dddddd',
-            value1: '#ff0000',
-          },
-        });
-
-        const getters = createStyleGetters(data, config);
-        const emptyStringPoint = createMockPoint('');
-
-        expect(getters.getColors(emptyStringPoint)).toEqual(['#dddddd']);
-      });
     });
 
     describe('getPointShape with N/A shape mapping', () => {
@@ -184,26 +146,6 @@ describe('style-getters', () => {
         const value1Depth = getters.getDepth(value1Point);
 
         expect(nullDepth).toBeLessThan(value1Depth);
-      });
-
-      it('should use z-order from zOrderMapping for empty string annotation values', () => {
-        const data = createMockData(['', 'value1', 'value2']);
-        const config = createDefaultStyleConfig({
-          zOrderMapping: {
-            __NA__: 0,
-            value1: 1,
-            value2: 2,
-          },
-        });
-
-        const getters = createStyleGetters(data, config);
-        const emptyStringPoint = createMockPoint('');
-        const value2Point = createMockPoint('value2');
-
-        const emptyDepth = getters.getDepth(emptyStringPoint);
-        const value2Depth = getters.getDepth(value2Point);
-
-        expect(emptyDepth).toBeLessThan(value2Depth);
       });
     });
 

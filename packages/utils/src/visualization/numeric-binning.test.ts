@@ -4,15 +4,20 @@ import {
   materializeVisualizationData,
   resolveNumericAnnotationDisplaySettings,
 } from './numeric-binning';
+import { NA_VALUE, NA_DEFAULT_COLOR } from './missing-values';
 import type { VisualizationData } from '../types';
 
 describe('numeric-binning', () => {
   it('creates linear bins with distribution-aware gradient colors', () => {
-    const result = materializeNumericAnnotation([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], {
-      binCount: 5,
-      strategy: 'linear',
-      paletteId: 'viridis',
-    });
+    const result = materializeNumericAnnotation(
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      {
+        binCount: 5,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'int',
+    );
 
     expect(result.annotation.sourceKind).toBe('numeric');
     expect(result.annotation.numericMetadata?.strategy).toBe('linear');
@@ -55,7 +60,7 @@ describe('numeric-binning', () => {
         },
       ],
       annotations: {
-        length: { kind: 'numeric', values: [], colors: [], shapes: [] },
+        length: { kind: 'numeric', numericType: 'int', values: [], colors: [], shapes: [] },
       },
       annotation_data: {},
       numeric_annotation_data: {
@@ -87,6 +92,132 @@ describe('numeric-binning', () => {
       2, 2, 2,
     ]);
     expect(materialized.annotation_data.length).toEqual([[0], [0], [1], [1], [2], [2]]);
+  });
+
+  it('formats int labels without grouping or decimals and preserves numeric type metadata', () => {
+    const result = materializeNumericAnnotation(
+      [1200, 2500, 3900],
+      {
+        binCount: 3,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'int',
+    );
+
+    expect(result.annotation.numericType).toBe('int');
+    expect(result.annotation.numericMetadata?.numericType).toBe('int');
+    expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual([
+      '1200',
+      '2500',
+      '3900',
+    ]);
+  });
+
+  it('formats float labels with grouping and decimals and preserves numeric type metadata', () => {
+    const result = materializeNumericAnnotation(
+      [1200.5, 2500.25, 3900.75],
+      {
+        binCount: 3,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'float',
+    );
+
+    expect(result.annotation.numericType).toBe('float');
+    expect(result.annotation.numericMetadata?.numericType).toBe('float');
+    expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual([
+      '1,200.5',
+      '2,500.25',
+      '3,900.75',
+    ]);
+  });
+
+  it('preserves meaningful precision for tiny float labels', () => {
+    const result = materializeNumericAnnotation(
+      [-1.2e-7, 1.2e-7],
+      {
+        binCount: 2,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'float',
+    );
+
+    expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual([
+      '-1.2e-7',
+      '1.2e-7',
+    ]);
+  });
+
+  it('infers int labels for omitted numeric subtype when all values are integers', () => {
+    const result = materializeNumericAnnotation([1, 2], {
+      binCount: 1,
+      strategy: 'linear',
+      paletteId: 'viridis',
+    });
+
+    expect(result.annotation.numericType).toBe('int');
+    expect(result.annotation.numericMetadata?.numericType).toBe('int');
+    expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual(['1 - 2']);
+  });
+
+  it('honors explicit float subtype for integer-valued float annotations', () => {
+    const result = materializeNumericAnnotation(
+      [1, 2],
+      {
+        binCount: 1,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'float',
+    );
+
+    expect(result.annotation.numericType).toBe('float');
+    expect(result.annotation.numericMetadata?.numericType).toBe('float');
+    expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual(['1.0 - 2.0']);
+  });
+
+  it('carries annotation numericType into materialized annotation metadata', () => {
+    const data: VisualizationData = {
+      protein_ids: ['P1', 'P2', 'P3'],
+      projections: [
+        {
+          name: 'UMAP',
+          data: [
+            [0, 0],
+            [1, 1],
+            [2, 2],
+          ],
+        },
+      ],
+      annotations: {
+        abundance: {
+          kind: 'numeric',
+          numericType: 'int',
+          values: [],
+          colors: [],
+          shapes: [],
+        },
+      },
+      annotation_data: {},
+      numeric_annotation_data: {
+        abundance: [1200, 2500, 3900],
+      },
+    };
+
+    const materialized = materializeVisualizationData(
+      data,
+      { abundance: { binCount: 3, strategy: 'linear', paletteId: 'viridis' } },
+      10,
+    );
+
+    expect(materialized.annotations.abundance.numericType).toBe('int');
+    expect(materialized.annotations.abundance.numericMetadata?.numericType).toBe('int');
+    expect(
+      materialized.annotations.abundance.numericMetadata?.bins.map((bin) => bin.label),
+    ).toEqual(['1200', '2500', '3900']);
   });
 
   it('can materialize only the requested numeric annotations without touching others', () => {
@@ -142,15 +273,20 @@ describe('numeric-binning', () => {
     });
 
     expect(result.annotation.numericMetadata?.logSupported).toBe(false);
+    // log → default (quantile) → linear (4 distinct values ≤ binCount 4)
     expect(result.annotation.numericMetadata?.strategy).toBe('linear');
   });
 
   it('creates logarithmic bins when all values are positive', () => {
-    const result = materializeNumericAnnotation([1, 10, 100, 1000], {
-      binCount: 4,
-      strategy: 'logarithmic',
-      paletteId: 'viridis',
-    });
+    const result = materializeNumericAnnotation(
+      [1, 10, 100, 1000],
+      {
+        binCount: 4,
+        strategy: 'logarithmic',
+        paletteId: 'viridis',
+      },
+      'int',
+    );
 
     expect(result.annotation.numericMetadata?.strategy).toBe('logarithmic');
     expect(result.annotation.values).toEqual(
@@ -181,15 +317,15 @@ describe('numeric-binning', () => {
     expect(result.annotation.colors).toHaveLength(1);
   });
 
-  it('normalizes non-gradient numeric palettes to cividis', () => {
+  it('normalizes non-gradient numeric palettes to batlow', () => {
     const result = materializeNumericAnnotation([1, 2, 3, 4], {
       binCount: 2,
       strategy: 'linear',
       paletteId: 'kellys',
     });
 
-    expect(result.annotation.colors[0]).toBe('#00224E');
-    expect(result.annotation.colors[1]).toBe('#FEE838');
+    expect(result.annotation.colors[0]).toBe('#011959');
+    expect(result.annotation.colors[1]).toBe('#FACCFA');
   });
 
   it('reverses numeric gradient colors without changing bin topology', () => {
@@ -262,11 +398,15 @@ describe('numeric-binning', () => {
   });
 
   it('assigns shared linear boundaries to the upper bin while keeping the final bin inclusive', () => {
-    const result = materializeNumericAnnotation([0, 5, 10], {
-      binCount: 2,
-      strategy: 'linear',
-      paletteId: 'viridis',
-    });
+    const result = materializeNumericAnnotation(
+      [0, 5, 10],
+      {
+        binCount: 2,
+        strategy: 'linear',
+        paletteId: 'viridis',
+      },
+      'int',
+    );
 
     expect(result.annotation.numericMetadata?.bins.map((bin) => bin.label)).toEqual([
       '0',
@@ -304,5 +444,122 @@ describe('numeric-binning', () => {
       paletteId: 'cividis',
       reverseGradient: true,
     });
+  });
+
+  it('appends N/A pseudo-bin for null values, reserving one slot from binCount', () => {
+    const result = materializeNumericAnnotation(
+      [1, null, 3, null, 5],
+      { binCount: 3, strategy: 'linear', paletteId: 'viridis', reverseGradient: false },
+      'int',
+    );
+
+    // binCount=3 with missing values → 2 numeric bins + 1 N/A = 3 total
+    expect(result.annotation.values).toHaveLength(3);
+    const naIndex = result.annotation.values.indexOf(NA_VALUE);
+    expect(naIndex).toBe(2); // N/A is last
+    expect(result.annotation.colors[naIndex]).toBe(NA_DEFAULT_COLOR);
+    expect(result.annotation.shapes[naIndex]).toBe('circle');
+
+    // Gradient uses full spectrum across the 2 numeric bins
+    expect(result.annotation.colors[0]).toBe('#440154'); // viridis start
+    expect(result.annotation.colors[1]).toBe('#FDE725'); // viridis end
+
+    // Missing-value proteins assigned to N/A index
+    expect(result.annotationData[1]).toEqual([naIndex]);
+    expect(result.annotationData[3]).toEqual([naIndex]);
+
+    // Non-missing proteins assigned to numeric bins
+    expect(result.annotationData[0].length).toBe(1);
+    expect(result.annotationData[0][0]).not.toBe(naIndex);
+    expect(result.annotationData[4].length).toBe(1);
+    expect(result.annotationData[4][0]).not.toBe(naIndex);
+  });
+
+  it('does not append N/A bin when there are no missing values', () => {
+    const result = materializeNumericAnnotation(
+      [1, 2, 3],
+      { binCount: 3, strategy: 'linear', paletteId: 'viridis', reverseGradient: false },
+      'int',
+    );
+
+    expect(result.annotation.values).not.toContain(NA_VALUE);
+    // Full 3 bins used for numeric data
+    expect(result.annotation.values).toHaveLength(3);
+  });
+
+  it('N/A color is not affected by gradient reversal', () => {
+    const result = materializeNumericAnnotation(
+      [1, null, 3],
+      { binCount: 3, strategy: 'linear', paletteId: 'viridis', reverseGradient: true },
+      'int',
+    );
+
+    // binCount=3 → 2 numeric bins + 1 N/A = 3 total
+    const naIndex = result.annotation.values.indexOf(NA_VALUE);
+    expect(naIndex).toBeGreaterThan(0);
+    expect(result.annotation.colors[naIndex]).toBe(NA_DEFAULT_COLOR);
+    // Reversed gradient: first bin should be viridis end, not start
+    expect(result.annotation.colors[0]).toBe('#FDE725');
+  });
+
+  it('N/A does not push out the last numeric bin — all data must be covered', () => {
+    // Regression: N/A used to be appended as an extra value WITHOUT reducing
+    // binCount, so the total exceeded maxVisibleValues and the last bin was
+    // cut off by sortAndLimitItems, losing data coverage.
+    const values = [
+      ...Array.from({ length: 100 }, (_, i) => i * 0.5), // 0..49.5
+      null,
+      null,
+      null,
+    ];
+    const binCount = 10;
+    const result = materializeNumericAnnotation(
+      values,
+      { binCount, strategy: 'linear', paletteId: 'cividis', reverseGradient: false },
+      'float',
+    );
+
+    // Total values must fit within binCount (9 numeric + 1 N/A = 10)
+    expect(result.annotation.values).toHaveLength(binCount);
+    expect(result.annotation.values).toContain(NA_VALUE);
+
+    // Every data point must be assigned to a bin (no empty annotationData)
+    for (let i = 0; i < values.length; i++) {
+      expect(result.annotationData[i].length).toBe(1);
+    }
+
+    // The highest value (49.5) must be in one of the numeric bins, not lost
+    const lastDataIndex = 99; // index of value 49.5
+    const lastBinIdx = result.annotationData[lastDataIndex][0];
+    expect(result.annotation.values[lastBinIdx]).not.toBe(NA_VALUE);
+
+    // The gradient must use the full color spectrum
+    const numericColors = result.annotation.colors.filter(
+      (_, i) => result.annotation.values[i] !== NA_VALUE,
+    );
+    const firstNumericBinPosition = result.annotation.numericMetadata?.bins[0]?.colorPosition ?? -1;
+    const lastNumericBinPosition =
+      result.annotation.numericMetadata?.bins.at(-1)?.colorPosition ?? -1;
+    expect(firstNumericBinPosition).toBe(0);
+    expect(lastNumericBinPosition).toBe(1);
+    expect(numericColors[0]).not.toBe(numericColors.at(-1));
+  });
+
+  it('N/A does not reduce binCount when binCount is 1', () => {
+    const result = materializeNumericAnnotation(
+      [10, null, 20],
+      { binCount: 1, strategy: 'linear', paletteId: 'viridis', reverseGradient: false },
+      'int',
+    );
+
+    // binCount=1 cannot be reduced further, so 1 numeric bin + 1 N/A = 2 total
+    expect(result.annotation.values).toHaveLength(2);
+    const numericBins = result.annotation.values.filter((v) => v !== NA_VALUE);
+    expect(numericBins).toHaveLength(1);
+
+    // All data points still assigned
+    for (const data of result.annotationData) {
+      expect(data.length).toBe(1);
+    }
   });
 });
