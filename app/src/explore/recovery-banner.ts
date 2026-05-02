@@ -1,12 +1,12 @@
 import { type RecoveryBannerCopy, getLoadRecoveryCopy } from './notifications';
 
-export interface RecoveryBannerHandlers {
+interface RecoveryBannerHandlers {
   onRetry(): Promise<void> | void;
   onLoadDefault(): Promise<void> | void;
   onClear(): Promise<void> | void;
 }
 
-export interface ShowRecoveryBannerParams {
+interface ShowRecoveryBannerParams {
   fileName: string;
   failedAttempts: number;
   lastError?: string;
