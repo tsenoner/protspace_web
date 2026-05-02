@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-02
 **Author:** Tobias Senoner (with Claude Opus 4.7)
-**Status:** 🔜 Designed; implementation pending. Branch target: `fix/load-reliability-phase-2`. Ships as part of PR-2 alongside Phase 2.
+**Status:** ✅ Implemented on `fix/load-reliability-phase-2` (commits `9ac2c64`…`02813fc`). Playwright spec for sprot_50 (573,649 proteins) passes — render-side OOM fixed. Manual heap-snapshot verification still pending before PR-2 opens.
 
 **Parent spec:** [2026-05-02-load-reliability-design.md](./2026-05-02-load-reliability-design.md) §11.
 

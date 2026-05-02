@@ -6,7 +6,7 @@
 
 - **Phase 1** — ✅ SHIPPED in PR [#240](https://github.com/tsenoner/protspace_web/pull/240), merged at `2297acf`. Crash-loop guard works.
 - **Phase 2** — implementation ⚠️ INCOMPLETE on branch `fix/load-reliability-phase-2`: §6.1, §6.2, §6.3, §6.4 committed (5 commits — see plan); §6.6 (sprot_50 Playwright spec) deferred (stashed locally) until Phase 2.5 lands.
-- **Phase 2.5** — 🔜 NEW, not yet designed. Phase 2's wins fix conversion-layer memory but `sprot_50` still OOMs at the render layer in `DataProcessor.processVisualizationData` (eagerly materializes ~3.4 GB of per-point annotation Records for 573k proteins). A separate design doc will cover lazy `PlotDataPoint` materialization.
+- **Phase 2.5** — ✅ Implemented. Stripped per-point annotation Records from `PlotDataPoint`; consumers read on-demand via new `plot-data-accessors` module. Playwright spec loading sprot_50 (573,649 proteins) passes without renderer crash. See [`2026-05-02-render-lazy-materialization-design.md`](./2026-05-02-render-lazy-materialization-design.md). Commits `9ac2c64`…`02813fc` on `fix/load-reliability-phase-2`.
 - **Phase 3** — tracked at [#239](https://github.com/tsenoner/protspace_web/issues/239); unchanged scope (worker-based decode + lazy column materialization + search/filter UI).
 
 **Scope of this doc:** Phase 1 + Phase 2 only. The render-layer OOM discovery (Phase 2.5) is recorded in §11 as a follow-up; full Phase 2.5 design will be a separate spec.
