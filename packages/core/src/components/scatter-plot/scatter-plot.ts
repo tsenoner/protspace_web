@@ -12,11 +12,7 @@ import type {
 import {
   DataProcessor,
   buildTooltipView,
-  getFirstAnnotationIndex,
-  getNumericBinLabelMap,
   materializeVisualizationData,
-  toInternalValue,
-  getProteinAnnotationIndices,
   sliceAnnotationData,
 } from '@protspace/utils';
 import type { LegendSortMode } from '../legend/types';
@@ -630,27 +626,9 @@ export class ProtspaceScatterplot extends LitElement {
       return;
     }
 
-    const numericLabelMap = getNumericBinLabelMap(annotation);
-
-    for (const point of this._plotData) {
-      if (annotationRows instanceof Int32Array) {
-        // Single-valued storage: use the allocation-free accessor.
-        const idx = getFirstAnnotationIndex(annotationRows, point.originalIndex);
-        point.annotationValues[annotationName] =
-          idx < 0 ? [] : [toInternalValue(annotation.values[idx])];
-      } else {
-        const annotationIndices = getProteinAnnotationIndices(annotationRows, point.originalIndex);
-        point.annotationValues[annotationName] = annotationIndices
-          .filter((value) => Number.isFinite(value))
-          .map((value) => toInternalValue(annotation.values[value]));
-      }
-      if (point.annotationDisplayValues) {
-        point.annotationDisplayValues[annotationName] = point.annotationValues[annotationName].map(
-          (value) => numericLabelMap.get(value) ?? value,
-        );
-      }
-    }
-
+    // Trigger a re-render. Style-getters read annotation values lazily via
+    // getProteinAnnotationValues(data, point.originalIndex, key), so changing
+    // the selected annotation only requires invalidating downstream caches.
     this._plotData = [...this._plotData];
     this._lastDataRef = dataToUse;
     this._invalidateVirtualizationCache();

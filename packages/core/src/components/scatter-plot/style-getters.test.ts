@@ -34,9 +34,6 @@ describe('style-getters', () => {
       y: 0,
       z: 0,
       originalIndex,
-      annotationValues: {
-        test_annotation: [], // unused after migration; kept for type compat until Task 4
-      },
     });
 
     const createDefaultStyleConfig = (overrides: Partial<StyleConfig> = {}): StyleConfig => ({
@@ -188,9 +185,6 @@ describe('style-getters', () => {
       y: 0,
       z: 0,
       originalIndex,
-      annotationValues: {
-        test_annotation: [],
-      },
     });
 
     const createDefaultStyleConfig = (overrides: Partial<StyleConfig> = {}): StyleConfig => ({
@@ -292,9 +286,6 @@ describe('style-getters', () => {
       y: 0,
       z: 0,
       originalIndex,
-      annotationValues: {
-        test_annotation: [],
-      },
     });
 
     const createDefaultStyleConfig = (overrides: Partial<StyleConfig> = {}): StyleConfig => ({
