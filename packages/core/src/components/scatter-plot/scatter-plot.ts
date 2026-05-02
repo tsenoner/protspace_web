@@ -627,6 +627,7 @@ export class ProtspaceScatterplot extends LitElement {
     // changing the selected annotation only requires re-render + cache invalidation.
     this._plotData = [...this._plotData];
     this._lastDataRef = dataToUse;
+    this._styleGettersCache = null;
     this._invalidateVirtualizationCache();
   }
 

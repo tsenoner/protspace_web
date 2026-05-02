@@ -262,6 +262,45 @@ describe('style-getters', () => {
       // But depth is based on base opacity (not 0)
       expect(getters.getDepth(point)).toBeLessThan(1);
     });
+
+    it('reads annotation values correctly from Int32Array storage', () => {
+      // Phase 2's converter produces Int32Array for single-valued columns;
+      // ensure style getters resolve through it (production hot path).
+      const data: VisualizationData = {
+        protein_ids: ['p0', 'p1', 'p2'],
+        projections: [
+          {
+            name: 'test',
+            data: [
+              [0, 0, 0],
+              [1, 1, 0],
+              [2, 2, 0],
+            ],
+          },
+        ],
+        annotations: {
+          test_annotation: {
+            kind: 'categorical',
+            values: ['categoryA', 'categoryB', 'categoryC'],
+            colors: ['#ff0000', '#00ff00', '#0000ff'],
+            shapes: ['circle', 'circle', 'circle'],
+          },
+        },
+        annotation_data: {
+          test_annotation: Int32Array.of(0, 1, 2),
+        },
+      };
+      const config = createDefaultStyleConfig({
+        colorMapping: {
+          categoryA: '#aa0000',
+          categoryB: '#00aa00',
+          categoryC: '#0000aa',
+        },
+      });
+      const getters = createStyleGetters(data, config);
+      const point = createMockPoint('p1', 1);
+      expect(getters.getColors(point)).toEqual(['#00aa00']);
+    });
   });
 
   describe('z-order change consistency', () => {
