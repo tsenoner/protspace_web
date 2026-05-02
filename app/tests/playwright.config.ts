@@ -95,6 +95,14 @@ export default defineConfig({
       },
       testMatch: /url-view-state\.spec\.ts/,
     },
+    {
+      name: 'load-large-bundle',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /load-large-bundle\.spec\.ts/,
+    },
   ],
 
   outputDir: '../test-results/',
