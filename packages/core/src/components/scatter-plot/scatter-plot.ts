@@ -10,6 +10,7 @@ import type {
 } from '@protspace/utils';
 import {
   DataProcessor,
+  getFirstAnnotationIndex,
   getNumericBinLabelMap,
   materializeVisualizationData,
   toInternalValue,
@@ -630,11 +631,17 @@ export class ProtspaceScatterplot extends LitElement {
     const numericLabelMap = getNumericBinLabelMap(annotation);
 
     for (const point of this._plotData) {
-      const annotationIndices = getProteinAnnotationIndices(annotationRows, point.originalIndex);
-
-      point.annotationValues[annotationName] = annotationIndices
-        .filter((value) => Number.isFinite(value))
-        .map((value) => toInternalValue(annotation.values[value]));
+      if (annotationRows instanceof Int32Array) {
+        // Single-valued storage: use the allocation-free accessor.
+        const idx = getFirstAnnotationIndex(annotationRows, point.originalIndex);
+        point.annotationValues[annotationName] =
+          idx < 0 ? [] : [toInternalValue(annotation.values[idx])];
+      } else {
+        const annotationIndices = getProteinAnnotationIndices(annotationRows, point.originalIndex);
+        point.annotationValues[annotationName] = annotationIndices
+          .filter((value) => Number.isFinite(value))
+          .map((value) => toInternalValue(annotation.values[value]));
+      }
       if (point.annotationDisplayValues) {
         point.annotationDisplayValues[annotationName] = point.annotationValues[annotationName].map(
           (value) => numericLabelMap.get(value) ?? value,

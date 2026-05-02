@@ -12,6 +12,7 @@ import {
   materializeNumericAnnotation,
   normalizeNumericPaletteId,
   resolveNumericAnnotationDisplaySettings,
+  getFirstAnnotationIndex,
   getProteinAnnotationIndices,
   type NumericBinningStrategy,
   type NumericAnnotationDisplaySettingsMap,
@@ -1077,12 +1078,22 @@ export class ProtspaceLegend extends LitElement {
 
   private _updateAnnotationValues(data: ScatterplotData, selectedAnnotation: string): void {
     const colData = data.annotation_data[selectedAnnotation];
-    const annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
-      const annotationIdxArray = getProteinAnnotationIndices(colData, index);
-      return annotationIdxArray.map((annotationIdx: number) =>
-        toInternalValue(data.annotations[selectedAnnotation].values[annotationIdx]),
-      );
-    });
+    const values = data.annotations[selectedAnnotation].values;
+    let annotationValues: string[];
+    if (colData instanceof Int32Array) {
+      // Single-valued storage: use the allocation-free accessor.
+      annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
+        const idx = getFirstAnnotationIndex(colData, index);
+        return idx < 0 ? [] : [toInternalValue(values[idx])];
+      });
+    } else {
+      annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
+        const annotationIdxArray = getProteinAnnotationIndices(colData, index);
+        return annotationIdxArray.map((annotationIdx: number) =>
+          toInternalValue(values[annotationIdx]),
+        );
+      });
+    }
     this.annotationValues = annotationValues;
   }
 

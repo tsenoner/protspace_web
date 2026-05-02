@@ -556,6 +556,16 @@ describe('annotation_data storage shape', () => {
     expect(data.length).toBe(result.protein_ids.length);
     // All indices are valid (no -1 sentinel left: missing proteins mapped to NA)
     expect(Array.from(data).every((v) => v >= 0)).toBe(true);
+
+    // Content assertions: verify protein → label round-trips correctly.
+    // rows cycle: i%4=0→'Bacillati', i%4=1→'Pseudomonadati', i%4=2→''→NA, i%4=3→'Bacillati'
+    const values = result.annotations.kingdom.values;
+    const p1Idx = result.protein_ids.indexOf('P1'); // i=0, kingdom='Bacillati'
+    const p2Idx = result.protein_ids.indexOf('P2'); // i=1, kingdom='Pseudomonadati'
+    const p3Idx = result.protein_ids.indexOf('P3'); // i=2, kingdom='' → NA_VALUE
+    expect(values[data[p1Idx]]).toBe('Bacillati');
+    expect(values[data[p2Idx]]).toBe('Pseudomonadati');
+    expect(values[data[p3Idx]]).toBe(NA_VALUE);
   });
 
   it('keeps number[][] storage for multi-valued columns', async () => {
@@ -578,5 +588,18 @@ describe('annotation_data storage shape', () => {
     const pfamData = result.annotation_data.pfam as readonly (readonly number[])[];
     const multiValuedEntry = pfamData.find((row) => row.length === 2);
     expect(multiValuedEntry).toBeDefined();
+
+    // Content assertions: verify index → label round-trips correctly.
+    // rows: i%3=0→'PF01;PF02', otherwise→'PF03'
+    const values = result.annotations.pfam.values;
+    const p1Idx = result.protein_ids.indexOf('P1'); // i=0, pfam='PF01;PF02'
+    const p2Idx = result.protein_ids.indexOf('P2'); // i=1, pfam='PF03'
+    // P1: two indices, both resolve to 'PF01' and 'PF02'
+    expect(pfamData[p1Idx]).toHaveLength(2);
+    expect(pfamData[p1Idx].every((i) => i >= 0)).toBe(true);
+    expect(pfamData[p1Idx].map((i) => values[i]).sort()).toEqual(['PF01', 'PF02']);
+    // P2: single index, resolves to 'PF03'
+    expect(pfamData[p2Idx]).toHaveLength(1);
+    expect(values[pfamData[p2Idx][0]]).toBe('PF03');
   });
 });
