@@ -203,6 +203,48 @@ describe('plot-data-accessors', () => {
       expect(view.proteinName).toEqual(['BRCA1 protein']);
     });
 
+    it('prefers gene_name over "Gene name" / protein_name over "Protein name" when both are present', () => {
+      const data: VisualizationData = {
+        protein_ids: ['p0'],
+        projections: [{ name: 't', data: [[0, 0]] }],
+        annotations: {
+          gene_name: {
+            kind: 'categorical',
+            values: ['BRCA1'],
+            colors: ['#000'],
+            shapes: ['circle'],
+          },
+          'Gene name': {
+            kind: 'categorical',
+            values: ['DUPLICATE'],
+            colors: ['#000'],
+            shapes: ['circle'],
+          },
+          protein_name: {
+            kind: 'categorical',
+            values: ['BRCA1 protein'],
+            colors: ['#000'],
+            shapes: ['circle'],
+          },
+          'Protein name': {
+            kind: 'categorical',
+            values: ['DUPLICATE'],
+            colors: ['#000'],
+            shapes: ['circle'],
+          },
+        },
+        annotation_data: {
+          gene_name: Int32Array.of(0),
+          'Gene name': Int32Array.of(0),
+          protein_name: Int32Array.of(0),
+          'Protein name': Int32Array.of(0),
+        },
+      };
+      const view = buildTooltipView(data, 0, null);
+      expect(view.geneName).toEqual(['BRCA1']);
+      expect(view.proteinName).toEqual(['BRCA1 protein']);
+    });
+
     it('returns empty selected-annotation fields when selectedAnnotation is null', () => {
       const view = buildTooltipView(baseData(), 0, null);
       expect(view.displayValues).toEqual([]);

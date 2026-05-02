@@ -52,10 +52,6 @@ describe('getGeneName', () => {
     expect(getGeneName(['BRCA1'])).toBe('BRCA1');
   });
 
-  // Snake_case-vs-spaced-key fallback priority is now handled by buildTooltipView
-  // (covered in plot-data-accessors.test.ts). Helpers only filter the resolved array.
-  it.skip('prefers gene_name over "Gene name" (covered by buildTooltipView tests)', () => {});
-
   it('returns null when gene annotation is all __NA__', () => {
     expect(getGeneName([NA_VALUE])).toBeNull();
   });
@@ -69,10 +65,6 @@ describe('getProteinName', () => {
   it('resolves protein-name values', () => {
     expect(getProteinName(['Tumor protein p53'])).toBe('Tumor protein p53');
   });
-
-  // Snake_case-vs-spaced-key fallback priority is now handled by buildTooltipView
-  // (covered in plot-data-accessors.test.ts). Helpers only filter the resolved array.
-  it.skip('prefers protein_name over "Protein name" (covered by buildTooltipView tests)', () => {});
 
   it('returns null when all values are __NA__', () => {
     expect(getProteinName([NA_VALUE])).toBeNull();
