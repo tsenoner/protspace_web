@@ -13,7 +13,7 @@ import {
   getDataLoadFailureNotification,
   getDatasetPersistenceFailureNotification,
 } from './notifications';
-import { saveLastImportedFile } from './opfs-dataset-store';
+import { markLastLoadStatus, saveLastImportedFile } from './opfs-dataset-store';
 import { createDataRenderer } from './data-renderer';
 import type { InteractionController } from './interaction-controller';
 import type { LoadQueue } from './load-queue';
@@ -154,6 +154,14 @@ export function createDatasetController({
       }
 
       viewController.applyLatestViewForDatasetLoad(data);
+
+      try {
+        if (loadMeta.kind === 'user' || loadMeta.kind === 'opfs') {
+          await markLastLoadStatus('success');
+        }
+      } catch (statusError) {
+        console.warn('Failed to update OPFS load status to success:', statusError);
+      }
     } catch (error) {
       console.error('Failed to finalize loaded dataset state:', error);
     } finally {
@@ -166,6 +174,12 @@ export function createDatasetController({
   const handleDataError = async (event: Event) => {
     const customEvent = event as CustomEvent<DataErrorEventDetail>;
     console.error('❌ Data loading error:', customEvent.detail.message);
+    try {
+      const message = customEvent.detail.message ?? 'Unknown load error';
+      await markLastLoadStatus('error', { error: message });
+    } catch (statusError) {
+      console.warn('Failed to update OPFS load status to error:', statusError);
+    }
     const runningLoadMeta = loadQueue.getRunningLoadMeta();
     const loadSequence = runningLoadMeta?.sequence ?? null;
 
