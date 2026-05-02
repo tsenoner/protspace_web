@@ -6,13 +6,20 @@ import {
   type BundleSettings,
 } from '@protspace/utils';
 import type { Rows, GenericRow } from './types';
-import { assertValidParquetMagic, validateMergedBundleRows } from './validation';
+import { assertValidParquetMagic, validateProjectionRows } from './validation';
 
 /**
  * Result of extracting data from a parquetbundle.
  */
 export interface BundleExtractionResult {
-  rows: Rows;
+  /** Projection rows (x/y/z/projection_name/identifier) — annotation fields NOT spread in. */
+  projections: Rows;
+  /** Annotation rows keyed by protein id. */
+  annotationsById: Map<string, GenericRow>;
+  /** Column name in `projections` that carries the protein id. */
+  projectionIdColumn: string;
+  /** Column name in annotation rows that carries the protein id. */
+  annotationIdColumn: string;
   projectionsMetadata: Rows;
   /** Settings loaded from bundle (null if not present) */
   settings: BundleSettings | null;
@@ -80,13 +87,44 @@ export async function extractRowsFromParquetBundle(
     settings = await extractSettings(part4);
   }
 
-  const mergedRows = mergeProjectionsWithAnnotations(projectionsData, selectedAnnotationsData);
+  // Validate projection rows for expected bundle shape
+  validateProjectionRows(projectionsData);
 
-  // Validate merged rows for expected bundle shape
-  validateMergedBundleRows(mergedRows);
+  // Find the ID column in annotation data
+  const annotationIdColumn = findColumn(
+    selectedAnnotationsData.length > 0 ? Object.keys(selectedAnnotationsData[0]) : [],
+    ['protein_id', 'identifier', 'id', 'uniprot', 'entry'],
+  );
+
+  const finalAnnotationIdColumn =
+    annotationIdColumn ||
+    (selectedAnnotationsData.length > 0 ? Object.keys(selectedAnnotationsData[0])[0] : undefined) ||
+    'identifier';
+
+  // Build annotations map keyed by protein id
+  const annotationsById = new Map<string, GenericRow>();
+  for (const annotation of selectedAnnotationsData) {
+    const proteinId = annotation[finalAnnotationIdColumn];
+    if (proteinId != null) {
+      annotationsById.set(String(proteinId), annotation);
+    }
+  }
+
+  // Find the ID column in projection data
+  const projectionIdColumn =
+    findColumn(projectionsData.length > 0 ? Object.keys(projectionsData[0]) : [], [
+      'identifier',
+      'protein_id',
+      'id',
+      'uniprot',
+      'entry',
+    ]) || 'identifier';
 
   return {
-    rows: mergedRows,
+    projections: projectionsData,
+    annotationsById,
+    projectionIdColumn,
+    annotationIdColumn: finalAnnotationIdColumn,
     projectionsMetadata: projectionsMetadataData,
     settings,
   };
@@ -132,51 +170,26 @@ async function extractSettings(settingsBuffer: ArrayBuffer): Promise<BundleSetti
   }
 }
 
-function mergeProjectionsWithAnnotations(projectionsData: Rows, annotationsData: Rows): Rows {
-  // Build map of annotations keyed by protein id
-  const annotationIdColumn = findColumn(
-    annotationsData.length > 0 ? Object.keys(annotationsData[0]) : [],
-    ['protein_id', 'identifier', 'id', 'uniprot', 'entry'],
-  );
-
-  const finalAnnotationIdColumn =
-    annotationIdColumn ||
-    (annotationsData.length > 0 ? Object.keys(annotationsData[0])[0] : undefined);
-
-  const annotationsMap = new Map<string, GenericRow>();
-  if (finalAnnotationIdColumn) {
-    for (const annotation of annotationsData) {
-      const proteinId = annotation[finalAnnotationIdColumn];
-      if (proteinId != null) {
-        annotationsMap.set(String(proteinId), annotation);
-      }
-    }
-  }
-
-  const projectionIdColumn = findColumn(
-    projectionsData.length > 0 ? Object.keys(projectionsData[0]) : [],
-    ['identifier', 'protein_id', 'id', 'uniprot', 'entry'],
-  );
-
-  if (!projectionIdColumn) {
-    return projectionsData;
-  }
-
-  const merged: Rows = new Array(projectionsData.length);
-  for (let i = 0; i < projectionsData.length; i++) {
-    const projection = projectionsData[i];
-    const proteinId = projection[projectionIdColumn];
-    const annotation = proteinId != null ? annotationsMap.get(String(proteinId)) : undefined;
-    merged[i] = annotation ? { ...projection, ...annotation } : { ...projection };
-  }
-
-  return merged;
-}
-
 export function findColumn(columnNames: string[], candidates: string[]): string | null {
   for (const candidate of candidates) {
     const found = columnNames.find((col) => col.toLowerCase().includes(candidate.toLowerCase()));
     if (found) return found;
   }
   return null;
+}
+
+/**
+ * Merges projection rows with annotations for testing purposes.
+ * Production code should NOT call this — use the separated shape directly.
+ */
+export function mergeProjectionsForTesting(extraction: BundleExtractionResult): Rows {
+  const { projections, annotationsById, projectionIdColumn } = extraction;
+  const merged: Rows = new Array(projections.length);
+  for (let i = 0; i < projections.length; i++) {
+    const projection = projections[i];
+    const proteinId = projection[projectionIdColumn];
+    const annotation = proteinId != null ? annotationsById.get(String(proteinId)) : undefined;
+    merged[i] = annotation ? { ...projection, ...annotation } : { ...projection };
+  }
+  return merged;
 }

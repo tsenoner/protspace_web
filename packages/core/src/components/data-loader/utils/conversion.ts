@@ -7,8 +7,8 @@ import {
   NA_DEFAULT_COLOR,
 } from '@protspace/utils';
 import { validateRowsBasic } from './validation';
-import { findColumn } from './bundle';
-import type { Rows } from './types';
+import { findColumn, mergeProjectionsForTesting, type BundleExtractionResult } from './bundle';
+import type { Rows, GenericRow } from './types';
 
 /**
  * Fast yield using MessageChannel instead of setTimeout(0).
@@ -312,9 +312,15 @@ function buildCoordinateMap(
 }
 
 export function convertParquetToVisualizationData(
-  rows: Rows,
+  input: BundleExtractionResult | Rows,
   projectionsMetadata?: Rows,
 ): VisualizationData {
+  // Slow path: materialize merged rows (small datasets, acceptable cost)
+  const rows: Rows = Array.isArray(input) ? input : mergeProjectionsForTesting(input);
+  const meta: Rows | undefined = Array.isArray(input)
+    ? projectionsMetadata
+    : input.projectionsMetadata;
+
   validateRowsBasic(rows);
 
   const columnNames = Object.keys(rows[0]);
@@ -322,24 +328,34 @@ export function convertParquetToVisualizationData(
   const hasXY = columnNames.includes('x') && columnNames.includes('y');
 
   if (hasProjectionName && hasXY) {
-    return convertBundleFormatData(rows, columnNames, projectionsMetadata);
+    return convertBundleFormatData(rows, columnNames, meta);
   }
   return convertLegacyFormatData(rows, columnNames);
 }
 
 export function convertParquetToVisualizationDataOptimized(
-  rows: Rows,
+  input: BundleExtractionResult | Rows,
   projectionsMetadata?: Rows,
 ): Promise<VisualizationData> {
-  validateRowsBasic(rows);
-  const dataSize = rows.length;
-  if (dataSize < 10000) {
-    return Promise.resolve(convertParquetToVisualizationData(rows, projectionsMetadata));
+  if (Array.isArray(input)) {
+    // Legacy path: raw rows passed directly (e.g. from tests or plain parquet files)
+    validateRowsBasic(input);
+    const dataSize = input.length;
+    if (dataSize < 10000) {
+      return Promise.resolve(convertParquetToVisualizationData(input, projectionsMetadata));
+    }
+    return convertLargeDatasetOptimizedRaw(input, projectionsMetadata);
   }
-  return convertLargeDatasetOptimized(rows, projectionsMetadata);
+
+  // New path: separated extraction shape from extractRowsFromParquetBundle
+  const numProjectionRows = input.projections.length;
+  if (numProjectionRows < 10000) {
+    return Promise.resolve(convertParquetToVisualizationData(input));
+  }
+  return convertLargeDatasetOptimized(input);
 }
 
-async function convertLargeDatasetOptimized(
+async function convertLargeDatasetOptimizedRaw(
   rows: Rows,
   projectionsMetadata?: Rows,
 ): Promise<VisualizationData> {
@@ -349,6 +365,37 @@ async function convertLargeDatasetOptimized(
   if (hasProjectionName && hasXY) {
     return convertBundleFormatDataOptimized(rows, columnNames, projectionsMetadata);
   }
+  return convertLegacyFormatData(rows, columnNames);
+}
+
+async function convertLargeDatasetOptimized(
+  extraction: BundleExtractionResult,
+): Promise<VisualizationData> {
+  const {
+    projections: projectionRows,
+    annotationsById,
+    projectionIdColumn,
+    projectionsMetadata,
+  } = extraction;
+  const columnNames = Object.keys(projectionRows[0]);
+  const hasProjectionName = columnNames.includes('projection_name');
+  const hasXY = columnNames.includes('x') && columnNames.includes('y');
+  if (hasProjectionName && hasXY) {
+    // Derive annotation column names from the annotation rows
+    const annotationColumnNames =
+      annotationsById.size > 0
+        ? Object.keys(annotationsById.values().next().value as GenericRow)
+        : [];
+    return convertBundleFormatDataOptimizedSeparated(
+      projectionRows,
+      annotationsById,
+      projectionIdColumn,
+      annotationColumnNames,
+      projectionsMetadata,
+    );
+  }
+  // Legacy format: materialize rows (should not happen with bundle extraction, but safe fallback)
+  const rows = mergeProjectionsForTesting(extraction);
   return convertLegacyFormatData(rows, columnNames);
 }
 
@@ -588,6 +635,91 @@ async function convertBundleFormatDataOptimized(
     baseProjectionRows,
     columnNames,
     proteinIdCol,
+    uniqueProteinIds,
+  );
+
+  return {
+    protein_ids: uniqueProteinIds,
+    projections,
+    annotations,
+    annotation_data,
+    numeric_annotation_data,
+    annotation_scores,
+    annotation_evidence,
+  };
+}
+
+/**
+ * Optimized bundle-format conversion using the separated extraction shape.
+ * Projection rows (with x/y/z/projection_name/identifier) are separate from
+ * annotation rows keyed by protein id. No per-row spread merge is performed.
+ */
+async function convertBundleFormatDataOptimizedSeparated(
+  projectionRows: Rows,
+  annotationsById: Map<string, GenericRow>,
+  projectionIdCol: string,
+  annotationColumnNames: string[],
+  projectionsMetadata?: Rows,
+): Promise<VisualizationData> {
+  const chunkSize = 50000;
+
+  // Build projection groups and unique protein IDs from projection-only rows
+  const projectionGroups = new Map<string, Rows>();
+  const uniqueProteinIdsSet = new Set<string>();
+
+  for (let i = 0; i < projectionRows.length; i += chunkSize) {
+    const end = Math.min(i + chunkSize, projectionRows.length);
+    for (let r = i; r < end; r++) {
+      const row = projectionRows[r];
+      const projectionName = String(row.projection_name || 'Unknown');
+      let group = projectionGroups.get(projectionName);
+      if (!group) {
+        group = [];
+        projectionGroups.set(projectionName, group);
+      }
+      group.push(row);
+      const proteinId = row[projectionIdCol] != null ? String(row[projectionIdCol]) : undefined;
+      if (proteinId) uniqueProteinIdsSet.add(proteinId);
+    }
+    await fastYield();
+  }
+
+  const uniqueProteinIds = Array.from(uniqueProteinIdsSet);
+  const metadataMap = buildProjectionsMetadataMap(projectionsMetadata);
+
+  const projections = [] as VisualizationData['projections'];
+  for (const [projectionName, projRows] of projectionGroups.entries()) {
+    const coordMap = buildCoordinateMap(projRows, projectionIdCol);
+    const projectionData: Array<[number, number] | [number, number, number]> = new Array(
+      uniqueProteinIds.length,
+    );
+    for (let i = 0; i < uniqueProteinIds.length; i++) {
+      projectionData[i] = coordMap.get(uniqueProteinIds[i]) || [0, 0];
+    }
+    const has3D = projectionData.some((p) => p.length === 3);
+    const existingMetadata = metadataMap.get(projectionName) || {};
+    const metadata = {
+      ...existingMetadata,
+      dimension: (has3D ? 3 : 2) as 2 | 3,
+    };
+    projections.push({
+      name: formatProjectionName(projectionName),
+      data: projectionData,
+      metadata,
+    });
+    await fastYield();
+  }
+
+  const {
+    annotations,
+    annotation_data,
+    numeric_annotation_data,
+    annotation_scores,
+    annotation_evidence,
+  } = await extractAnnotationsOptimizedSeparated(
+    annotationsById,
+    annotationColumnNames,
+    projectionIdCol,
     uniqueProteinIds,
   );
 
@@ -992,6 +1124,189 @@ async function extractAnnotationsOptimized(
     }
 
     // Fill empty slots for proteins not found in this column's rows
+    if (annotationDataArray) {
+      for (let p = 0; p < numProteins; p++) {
+        if (annotationDataArray[p] === undefined) {
+          annotationDataArray[p] = [];
+          if (scoresArray) scoresArray[p] = [];
+          if (evidenceArray) evidenceArray[p] = [];
+        }
+      }
+    }
+
+    if (annotationDataArray) {
+      appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
+    } else if (annotationDataTyped) {
+      // For Int32Array, missing slots are already -1 — append the NA category
+      // to uniqueValues and re-map -1 to the new NA index.
+      const hasAnyMissing = annotationDataTyped.some((v) => v < 0);
+      if (hasAnyMissing) {
+        const naIndex = uniqueValues.length;
+        uniqueValues.push(NA_VALUE);
+        colors.push(NA_DEFAULT_COLOR);
+        shapes.push('circle');
+        for (let p = 0; p < annotationDataTyped.length; p++) {
+          if (annotationDataTyped[p] < 0) {
+            annotationDataTyped[p] = naIndex;
+          }
+        }
+      }
+    }
+
+    annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
+    annotation_data[annotationCol] = (annotationDataTyped ?? annotationDataArray)!;
+    if (scoresArray) annotation_scores[annotationCol] = scoresArray;
+    if (evidenceArray) annotation_evidence[annotationCol] = evidenceArray;
+  }
+
+  return {
+    annotations,
+    annotation_data,
+    numeric_annotation_data,
+    annotation_scores,
+    annotation_evidence,
+  };
+}
+
+/**
+ * Optimized annotation extraction using the separated shape.
+ * Iterates uniqueProteinIds directly, looking up annotationsById per protein.
+ * No per-row spread merge is needed — cells are read via annotationsById.get(proteinId)[col].
+ */
+async function extractAnnotationsOptimizedSeparated(
+  annotationsById: Map<string, GenericRow>,
+  annotationColumnNames: string[],
+  projectionIdCol: string,
+  uniqueProteinIds: string[],
+): Promise<{
+  annotations: Record<string, Annotation>;
+  annotation_data: Record<string, AnnotationData>;
+  numeric_annotation_data: Record<string, (number | null)[]>;
+  annotation_scores: Record<string, (number[] | null)[][]>;
+  annotation_evidence: Record<string, (string | null)[][]>;
+}> {
+  const allIdColumns = getIdColumnsSet(projectionIdCol);
+  const annotationColumns = annotationColumnNames.filter((c) => !allIdColumns.has(c));
+
+  const annotations: Record<string, Annotation> = {};
+  const annotation_data: Record<string, AnnotationData> = {};
+  const numeric_annotation_data: Record<string, (number | null)[]> = {};
+  const annotation_scores: Record<string, (number[] | null)[][]> = {};
+  const annotation_evidence: Record<string, (string | null)[][]> = {};
+
+  if (annotationColumns.length === 0 || annotationsById.size === 0) {
+    return {
+      annotations,
+      annotation_data,
+      numeric_annotation_data,
+      annotation_scores,
+      annotation_evidence,
+    };
+  }
+
+  const numProteins = uniqueProteinIds.length;
+  const chunkSize = 50000;
+
+  // Process one column at a time so GC can reclaim between columns
+  for (let colIdx = 0; colIdx < annotationColumns.length; colIdx++) {
+    const annotationCol = annotationColumns[colIdx];
+
+    // Build iterable of values in uniqueProteinIds order for type inference
+    function* valuesForAnnotationCol(): Iterable<unknown> {
+      for (const proteinId of uniqueProteinIds) {
+        const row = annotationsById.get(proteinId);
+        yield row != null ? row[annotationCol] : undefined;
+      }
+    }
+
+    const inference = inferAnnotationType(valuesForAnnotationCol());
+    if (inference.inferredType !== 'string') {
+      // inference.numericValues is indexed by position in uniqueProteinIds
+      numeric_annotation_data[annotationCol] = inference.numericValues;
+      annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
+      continue;
+    }
+
+    // === Pass 1: Collect unique values, frequency counts, detect scores/evidence ===
+    const valueCountMap = new Map<string, number>();
+    let columnHasScores = false;
+    let columnHasEvidence = false;
+    let maxValuesPerProtein = 0;
+
+    for (let i = 0; i < numProteins; i += chunkSize) {
+      const end = Math.min(i + chunkSize, numProteins);
+      for (let p = i; p < end; p++) {
+        const row = annotationsById.get(uniqueProteinIds[p]);
+        const rawValues = splitCategoricalAnnotationValues(
+          row != null ? row[annotationCol] : undefined,
+        );
+        if (rawValues.length > maxValuesPerProtein) {
+          maxValuesPerProtein = rawValues.length;
+        }
+        for (const raw of rawValues) {
+          const parsed = parseAnnotationValue(raw);
+          valueCountMap.set(parsed.label, (valueCountMap.get(parsed.label) || 0) + 1);
+          if (parsed.scores.length > 0) columnHasScores = true;
+          if (parsed.evidence) columnHasEvidence = true;
+        }
+      }
+      await fastYield();
+    }
+
+    // Sort unique values by frequency (most frequent first)
+    const uniqueValues = Array.from(valueCountMap.keys()).sort(
+      (a, b) => (valueCountMap.get(b) || 0) - (valueCountMap.get(a) || 0),
+    );
+
+    const valueToIndex = new Map<string | null, number>();
+    uniqueValues.forEach((val, idx) => valueToIndex.set(val, idx));
+
+    const colors = generateColors(uniqueValues.length);
+    const shapes = generateShapes(uniqueValues.length);
+
+    // === Pass 2: Build output arrays. Use Int32Array for strict single-valued
+    //     columns to avoid the per-protein number[] allocation cliff. ===
+    const useTypedStorage = maxValuesPerProtein <= 1 && !columnHasScores && !columnHasEvidence;
+
+    const annotationDataTyped = useTypedStorage ? new Int32Array(numProteins).fill(-1) : null;
+    const annotationDataArray = useTypedStorage ? null : new Array<number[]>(numProteins);
+    const scoresArray = columnHasScores ? new Array<(number[] | null)[]>(numProteins) : null;
+    const evidenceArray = columnHasEvidence ? new Array<(string | null)[]>(numProteins) : null;
+
+    for (let i = 0; i < numProteins; i += chunkSize) {
+      const end = Math.min(i + chunkSize, numProteins);
+      for (let p = i; p < end; p++) {
+        const row = annotationsById.get(uniqueProteinIds[p]);
+        const rawValues = splitCategoricalAnnotationValues(
+          row != null ? row[annotationCol] : undefined,
+        );
+        if (rawValues.length === 0) continue;
+
+        if (annotationDataTyped) {
+          // Single-valued: write the one index directly into the typed array.
+          const parsed = parseAnnotationValue(rawValues[0]);
+          annotationDataTyped[p] = valueToIndex.get(parsed.label) ?? -1;
+        } else {
+          const indices: number[] = [];
+          const scores: (number[] | null)[] | null = scoresArray ? [] : null;
+          const evidences: (string | null)[] | null = evidenceArray ? [] : null;
+
+          for (const raw of rawValues) {
+            const parsed = parseAnnotationValue(raw);
+            indices.push(valueToIndex.get(parsed.label) ?? -1);
+            if (scores) scores.push(parsed.scores.length > 0 ? parsed.scores : null);
+            if (evidences) evidences.push(parsed.evidence);
+          }
+
+          annotationDataArray![p] = indices;
+          if (scoresArray && scores) scoresArray[p] = scores;
+          if (evidenceArray && evidences) evidenceArray[p] = evidences;
+        }
+      }
+      await fastYield();
+    }
+
+    // Fill empty slots for proteins not found in annotation rows
     if (annotationDataArray) {
       for (let p = 0; p < numProteins; p++) {
         if (annotationDataArray[p] === undefined) {

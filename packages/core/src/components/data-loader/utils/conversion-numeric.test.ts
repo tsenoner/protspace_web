@@ -16,8 +16,8 @@ async function loadFixtureVisualizationData(fixtureName: string) {
     fileBuffer.byteOffset + fileBuffer.byteLength,
   );
 
-  const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(arrayBuffer);
-  return convertParquetToVisualizationData(rows, projectionsMetadata ?? undefined);
+  const extraction = await extractRowsFromParquetBundle(arrayBuffer);
+  return convertParquetToVisualizationData(extraction);
 }
 
 describe('convertParquetToVisualizationData numeric annotations', () => {

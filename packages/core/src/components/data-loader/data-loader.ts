@@ -196,20 +196,13 @@ export class DataLoader extends LitElement {
       if (file.name.endsWith('.parquetbundle') || isParquetBundle(arrayBuffer)) {
         // For bundles: extract -> validate -> convert
         this.addSteps(3);
-        const {
-          rows: extractedData,
-          projectionsMetadata,
-          settings,
-        } = await extractRowsFromParquetBundle(arrayBuffer);
+        const extraction = await extractRowsFromParquetBundle(arrayBuffer);
         this.completeStep();
-        validateRowsBasic(extractedData);
+        validateRowsBasic(extraction.projections);
         this.completeStep();
-        const visualizationData = await convertParquetToVisualizationDataOptimized(
-          extractedData,
-          projectionsMetadata,
-        );
+        const visualizationData = await convertParquetToVisualizationDataOptimized(extraction);
         this.completeStep();
-        this.dispatchDataLoaded(visualizationData, settings, source, file);
+        this.dispatchDataLoaded(visualizationData, extraction.settings, source, file);
       } else {
         // For regular parquet: validate magic -> parse -> validate rows -> convert
         this.addSteps(4);
