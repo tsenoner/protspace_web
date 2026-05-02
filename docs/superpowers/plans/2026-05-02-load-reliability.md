@@ -12,6 +12,35 @@
 
 **Phase 3 (separate work):** [#239](https://github.com/tsenoner/protspace_web/issues/239) — Worker-based decode + lazy column materialization.
 
+## Status (post-implementation, 2026-05-02)
+
+| PR / Task                                                                             | Commit                   | Status                                                                                      |
+| ------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------- |
+| PR-1 ([#240](https://github.com/tsenoner/protspace_web/pull/240)) merged at `2297acf` | —                        | ✅ shipped                                                                                  |
+| Task 1 — OPFS schema v2 + status APIs                                                 | `291b52b` + `fc502a3`    | ✅                                                                                          |
+| Task 2 — status writes from dataset-controller                                        | `4c39f57`                | ✅                                                                                          |
+| Task 3 — gate auto-load on status                                                     | `5c07fb5`                | ✅                                                                                          |
+| Task 4 — recovery banner component                                                    | `31ca428`                | ✅                                                                                          |
+| Task 5 — wire banner into runtime                                                     | `fa9158f`                | ✅                                                                                          |
+| Task 6 — Playwright spec (recovery flow)                                              | `e272bbb`                | ✅                                                                                          |
+| Task 7-10 — `AnnotationData` union + `Int32Array` storage                             | `5ff983d` + `72d62bc`    | ✅ on branch `fix/load-reliability-phase-2`                                                 |
+| Task 11 — drop projection × annotation spread merge                                   | `55ced7d`                | ✅                                                                                          |
+| Task 12 — pair-aware color/shape generator                                            | `387fffc`                | ✅                                                                                          |
+| Task 13 — fix null-selection materialization gate                                     | `8f13292`                | ✅                                                                                          |
+| Task 14 — Playwright spec for sprot_50 load                                           | _stashed at `stash@{0}`_ | ⏸ deferred until Phase 2.5 lands (manual + Playwright sprot_50 still OOMs at render layer) |
+| PR-2 (Phase 2)                                                                        | _not opened_             | ⏸ blocked on Phase 2.5                                                                     |
+
+**Discovery during Task 14:** Phase 2's wins fix the conversion layer; sprot_50 still OOMs in `DataProcessor.processVisualizationData` (render layer). See spec §11 for details. **Phase 2.5** carves out the render-layer fix as a separate brainstorm + spec + plan. PR-2 will not open until Phase 2.5 commits land on `fix/load-reliability-phase-2`.
+
+**To resume Task 14 (after Phase 2.5 ships):**
+
+```bash
+git stash pop   # restores .gitignore + playwright config + spec
+cp /Users/tsenoner/Documents/projects/protspace-suite/protspace/data/other/sprot/sprot_50.parquetbundle \
+   app/tests/fixtures/   # 45 MB, gitignored
+pnpm test:e2e -- load-large-bundle
+```
+
 ---
 
 ## Conventions for every task

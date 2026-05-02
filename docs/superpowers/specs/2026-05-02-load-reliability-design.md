@@ -2,8 +2,14 @@
 
 **Date:** 2026-05-02
 **Author:** Tobias Senoner (with Claude Opus 4.7)
-**Status:** Draft
-**Scope:** Phase 1 + Phase 2 only. Phase 3 is filed as a separate GitHub issue.
+**Status:**
+
+- **Phase 1** — ✅ SHIPPED in PR [#240](https://github.com/tsenoner/protspace_web/pull/240), merged at `2297acf`. Crash-loop guard works.
+- **Phase 2** — implementation ⚠️ INCOMPLETE on branch `fix/load-reliability-phase-2`: §6.1, §6.2, §6.3, §6.4 committed (5 commits — see plan); §6.6 (sprot_50 Playwright spec) deferred (stashed locally) until Phase 2.5 lands.
+- **Phase 2.5** — 🔜 NEW, not yet designed. Phase 2's wins fix conversion-layer memory but `sprot_50` still OOMs at the render layer in `DataProcessor.processVisualizationData` (eagerly materializes ~3.4 GB of per-point annotation Records for 573k proteins). A separate design doc will cover lazy `PlotDataPoint` materialization.
+- **Phase 3** — tracked at [#239](https://github.com/tsenoner/protspace_web/issues/239); unchanged scope (worker-based decode + lazy column materialization + search/filter UI).
+
+**Scope of this doc:** Phase 1 + Phase 2 only. The render-layer OOM discovery (Phase 2.5) is recorded in §11 as a follow-up; full Phase 2.5 design will be a separate spec.
 
 ## 1. Problem
 
@@ -339,7 +345,27 @@ Phase 3 (worker-based decode + lazy column materialization + search/filter UI) i
 
 - Issue [#217](https://github.com/tsenoner/protspace_web/issues/217) — partial trigger; binning of non-numeric not directly causal under strict `Number()` parser, but motivated the investigation.
 - PR [#228](https://github.com/tsenoner/protspace_web/pull/228) — NA redesign + numeric type inference; added per-cell normalization that narrowed memory headroom.
+- PR [#240](https://github.com/tsenoner/protspace_web/pull/240) — Phase 1 (crash-loop guard) shipped.
+- Issue [#239](https://github.com/tsenoner/protspace_web/issues/239) — Phase 3 (worker-based decode).
 - `packages/core/src/components/data-loader/utils/conversion.ts:850` — `extractAnnotationsOptimized`.
 - `packages/utils/src/visualization/numeric-binning.ts:779` — null-selection materialization bug.
 - `app/src/explore/persisted-dataset.ts:75-95` — auto-reload site.
 - `app/src/explore/opfs-dataset-store.ts:6-13` — metadata schema.
+
+## 11. Post-implementation discovery — render-layer OOM (Phase 2.5)
+
+**Discovered:** 2026-05-02 during Task 14 verification.
+
+After Phase 2's wins (§6.1–§6.4) shipped on `fix/load-reliability-phase-2`, manual sprot_50 load still OOMs Chrome with "Aw, Snap!". The root cause has shifted from the conversion layer to the render layer:
+
+**Conversion layer (Phase 2 fixed)**: `Int32Array` storage for 16/22 categorical columns, dropped projection×annotation spread merge, pair-aware color/shape generator, null-selection materialization gate. Conversion now completes successfully — `Loading new data: {protein_ids: Array(573649), …}` is logged.
+
+**Render layer (Phase 2.5 to fix)**: After conversion, `applyPlotState(plot, data, initialView)` triggers `<protspace-scatterplot>`'s data-setter pipeline. That pipeline calls `DataProcessor.processVisualizationData` (`packages/utils/src/visualization/data-processor.ts:17-91`) which **eagerly builds 573,649 `PlotDataPoint` objects** via `data.protein_ids.map(...)`. Each point carries 6 fully-populated `Record<string, ...>` annotation maps (`annotationValues`, `annotationDisplayValues`, `numericAnnotationValues`, `numericAnnotationTypes`, `annotationScores`, `annotationEvidence`) covering all 22 columns. Cost per point ≈ 6 KB; total ≈ **3.4 GB** in one synchronous allocation. Chrome's ~4 GB cap is exceeded mid-`map`.
+
+The TODO comment at `scatter-plot.ts:792` already names this ("the ~700 MB memory spike from rebuilding the full PlotDataPoint array") but its estimate predates the four extra Records that were added later, so today's actual cost is far higher.
+
+**Phase 2.5 candidate fix (to be designed in a separate spec):** stop materializing per-point annotation Records up front. Replace with bare `PlotDataPoint`s (`{id, x, y, z, originalIndex}`) + on-demand accessors against `data.annotations` / `data.annotation_data` (which is already cheap thanks to Int32Array). Tooltip / hover / selection / export consumers become lookup-driven instead of receiving pre-baked Records. Estimated post-fix render-side heap: ~50 MB (down from 3.4 GB).
+
+**Secondary opportunity (lower priority):** 6 categorical columns (gene_name, protein_families, plus the 4 truly multi-valued: pfam, cath, cc_subcellular_location, superfamily) stay on `number[][]` because `maxValuesPerProtein > 1`. For gene_name and protein_families, only 54 / 7 rows respectively are multi-valued out of 573k — a "Int32Array primary + overflow side-channel" optimization recovers ~150 MB.
+
+**PR-2 will not ship until Phase 2.5 lands.** Task 14's Playwright spec is stashed locally.
