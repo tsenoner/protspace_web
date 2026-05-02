@@ -64,12 +64,16 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       valueToColor.set(key, color);
     }
   } else if (annotation && Array.isArray(annotation.values)) {
-    // Fallback to annotation.colors from data
-    for (let i = 0; i < annotation.values.length; i++) {
-      const v = annotation.values[i];
-      const k = toInternalValue(v);
-      const color = annotation.colors?.[i];
-      if (color) valueToColor.set(k, color);
+    // Fallback to annotation.colors from data. Use modular indexing because
+    // colors is capped at palette.length × shapeCount (≤ 126 for Kelly's).
+    const colorsArr = annotation.colors;
+    if (colorsArr && colorsArr.length > 0) {
+      for (let i = 0; i < annotation.values.length; i++) {
+        const v = annotation.values[i];
+        const k = toInternalValue(v);
+        const color = colorsArr[i % colorsArr.length];
+        if (color) valueToColor.set(k, color);
+      }
     }
   }
 
@@ -80,12 +84,15 @@ export function createStyleGetters(data: VisualizationData | null, styleConfig: 
       valueToShape.set(key, normalizeShapeName(shape));
     }
   } else if (annotation && Array.isArray(annotation.values) && styleConfig.useShapes) {
-    // Fallback to annotation.shapes from data (only when useShapes is enabled)
-    for (let i = 0; i < annotation.values.length; i++) {
-      const v = annotation.values[i];
-      const k = toInternalValue(v);
-      if (annotation.shapes && annotation.shapes[i]) {
-        valueToShape.set(k, normalizeShapeName(annotation.shapes[i]));
+    // Fallback to annotation.shapes from data (only when useShapes is enabled).
+    // Use modular indexing because shapes is capped at palette.length × shapeCount.
+    const shapesArr = annotation.shapes;
+    if (shapesArr && shapesArr.length > 0) {
+      for (let i = 0; i < annotation.values.length; i++) {
+        const v = annotation.values[i];
+        const k = toInternalValue(v);
+        const shape = shapesArr[i % shapesArr.length];
+        if (shape) valueToShape.set(k, normalizeShapeName(shape));
       }
     }
   }

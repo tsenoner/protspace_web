@@ -523,8 +523,7 @@ function convertBundleFormatData(
     const valueToIndex = new Map<string | null, number>();
     uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
 
-    const colors = generateColors(uniqueValues.length);
-    const shapes = generateShapes(uniqueValues.length);
+    const { colors, shapes } = generateColorsAndShapes('kellys', uniqueValues.length);
 
     const annotationDataArray = uniqueProteinIds.map((proteinId) => {
       const value = annotationMap.get(proteinId);
@@ -818,8 +817,7 @@ function convertLegacyFormatData(rows: Rows, columnNames: string[]): Visualizati
     const valueToIndex = new Map<string, number>();
     uniqueValues.forEach((value, idx) => valueToIndex.set(value, idx));
 
-    const colors = generateColors(uniqueValues.length);
-    const shapes = generateShapes(uniqueValues.length);
+    const { colors, shapes } = generateColorsAndShapes('kellys', uniqueValues.length);
 
     const annotationDataArray = labelsByRow.map((valueArray) =>
       valueArray.map((v) => valueToIndex.get(v) ?? -1),
@@ -922,61 +920,54 @@ function inferProjectionName(xCol: string, yCol: string): string {
 }
 
 /**
- * Generates colors for categories using Kelly's palette.
- * Simply cycles through Kelly's 20 colors of maximum contrast.
- *
- * Note: This is a fallback for when no legend is present.
- * When a legend is used, it provides frequency-sorted colors
- * via the colorMapping event, which takes precedence.
- *
- * @param count - Number of colors to generate
- * @returns Array of hex color strings
+ * Shapes ordered by visual distinctness for optimal category separation.
+ * Order must match visual-encoding.ts SHAPES array for legend consistency.
+ * These are the only shapes supported by the WebGL renderer.
  */
-function generateColors(count: number): string[] {
-  if (count <= 0) return [];
-
-  const kellysPalette = COLOR_SCHEMES.kellys as readonly string[];
-
-  const colors: string[] = [];
-  for (let i = 0; i < count; i++) {
-    colors.push(kellysPalette[i % kellysPalette.length]);
-  }
-  return colors;
-}
+const SUPPORTED_SHAPES = [
+  'circle',
+  'square',
+  'diamond',
+  'plus',
+  'triangle-up',
+  'triangle-down',
+] as const;
 
 /**
- * Generates shapes optimized for visible categories.
- * Prioritizes the most distinct shapes for early categories (most visible).
- * Only includes shapes supported by the WebGL renderer.
+ * Generates paired colors and shapes for categories using a palette.
  *
- * Supported shapes: circle, square, diamond, triangle-up, triangle-down, plus
+ * Shape advances only after a full color cycle, so all palette.length ×
+ * shapeCount combinations are exhausted before any pair repeats.
  *
- * @param count - Number of shapes to generate
- * @returns Array of shape names
+ * The array length is capped at min(count, palette.length × shapeCount) so we
+ * never allocate beyond the number of distinct pairs. Consumers index via
+ * `colors[i % colors.length]` and `shapes[i % shapes.length]` to handle
+ * categories beyond the cap (they wrap around to the beginning of the cycle).
+ *
+ * @param paletteId - Key of the palette in COLOR_SCHEMES (falls back to 'kellys')
+ * @param count - Number of (color, shape) pairs to generate
  */
-function generateShapes(count: number): string[] {
-  if (count <= 0) return [];
-
-  // Shapes ordered by visual distinctness for optimal category separation
-  // Order must match visual-encoding.ts SHAPES array for legend consistency
-  // These are the only shapes supported by the WebGL renderer
-  const supportedShapes: Array<
-    'circle' | 'square' | 'diamond' | 'plus' | 'triangle-up' | 'triangle-down'
-  > = [
-    'circle', // Most common, good baseline
-    'square', // High contrast with circle (angular vs round)
-    'diamond', // Distinct angular shape, rotated square
-    'plus', // Cross shape, very distinct from others
-    'triangle-up', // Pointed shape, easy to distinguish
-    'triangle-down', // Inverted triangle, contrasts with triangle-up
-  ];
-
-  const shapes: string[] = [];
-  for (let i = 0; i < count; i++) {
-    // Use distinct shapes for first 6 categories, then cycle
-    shapes.push(supportedShapes[i % supportedShapes.length]);
+export function generateColorsAndShapes(
+  paletteId: string,
+  count: number,
+): { colors: string[]; shapes: string[] } {
+  if (count <= 0) return { colors: [], shapes: [] };
+  const palette =
+    (COLOR_SCHEMES as Record<string, readonly string[]>)[paletteId] ?? COLOR_SCHEMES.kellys;
+  const distinctPairs = palette.length * SUPPORTED_SHAPES.length;
+  // Cap allocation at the number of distinct pairs so we never store more
+  // pointer slots than there are distinct (color, shape) combinations.
+  // For count beyond the cap, consumers index via colors[i % colors.length].
+  const len = Math.min(count, distinctPairs);
+  const colors: string[] = new Array(len);
+  const shapes: string[] = new Array(len);
+  for (let i = 0; i < len; i++) {
+    // Within a block of palette.length entries, color advances; shape advances
+    // once per complete color cycle. This exhausts all pairs before repeating.
+    colors[i] = palette[i % palette.length];
+    shapes[i] = SUPPORTED_SHAPES[Math.floor(i / palette.length) % SUPPORTED_SHAPES.length];
   }
-  return shapes;
+  return { colors, shapes };
 }
 
 async function extractAnnotationsOptimized(
@@ -1076,8 +1067,7 @@ async function extractAnnotationsOptimized(
     const valueToIndex = new Map<string | null, number>();
     uniqueValues.forEach((val, idx) => valueToIndex.set(val, idx));
 
-    const colors = generateColors(uniqueValues.length);
-    const shapes = generateShapes(uniqueValues.length);
+    const { colors, shapes } = generateColorsAndShapes('kellys', uniqueValues.length);
 
     // === Pass 2: Build output arrays. Use Int32Array for strict single-valued
     //     columns to avoid the per-protein number[] allocation cliff. ===
@@ -1261,8 +1251,7 @@ async function extractAnnotationsOptimizedSeparated(
     const valueToIndex = new Map<string | null, number>();
     uniqueValues.forEach((val, idx) => valueToIndex.set(val, idx));
 
-    const colors = generateColors(uniqueValues.length);
-    const shapes = generateShapes(uniqueValues.length);
+    const { colors, shapes } = generateColorsAndShapes('kellys', uniqueValues.length);
 
     // === Pass 2: Build output arrays. Use Int32Array for strict single-valued
     //     columns to avoid the per-protein number[] allocation cliff. ===
