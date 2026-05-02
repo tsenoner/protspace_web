@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+import { property, state, query } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import * as d3 from 'd3';
 import type {
   VisualizationData,

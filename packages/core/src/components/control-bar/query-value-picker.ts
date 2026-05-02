@@ -1,5 +1,6 @@
 import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state, query as litQuery } from 'lit/decorators.js';
+import { property, state, query as litQuery } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import type { ProtspaceData } from './types';
 import type { LogicalOp } from './query-types';
 import { toInternalValue } from '../legend/config';

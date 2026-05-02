@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import { toDisplayValue, toInternalValue } from '@protspace/utils';
 import type { NumericAnnotationType, TooltipView } from '@protspace/utils';
 import { proteinTooltipStyles } from './protein-tooltip.styles';

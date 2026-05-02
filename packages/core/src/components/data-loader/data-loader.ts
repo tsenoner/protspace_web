@@ -1,6 +1,7 @@
 import type { PropertyValues } from 'lit';
 import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import { parquetReadObjects } from 'hyparquet';
 import { isParquetBundle, type VisualizationData, type BundleSettings } from '@protspace/utils';
 import { dataLoaderStyles } from './data-loader.styles';

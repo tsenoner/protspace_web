@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
-import { customElement, property, query, state } from 'lit/decorators.js';
+import { property, query, state } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import {
   COLOR_SCHEMES,
   DEFAULT_NUMERIC_PALETTE_ID,
