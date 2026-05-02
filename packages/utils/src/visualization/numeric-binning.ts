@@ -776,7 +776,7 @@ export function materializeVisualizationData(
 
     const shouldMaterialize = requestedAnnotations
       ? requestedAnnotations.has(annotationName)
-      : !selectedNumericAnnotation || annotationName === selectedNumericAnnotation;
+      : annotationName === selectedNumericAnnotation;
 
     if (!shouldMaterialize) {
       annotations[annotationName] = annotation;

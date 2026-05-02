@@ -5,7 +5,7 @@ import {
   resolveNumericAnnotationDisplaySettings,
 } from './numeric-binning';
 import { NA_VALUE, NA_DEFAULT_COLOR } from './missing-values';
-import type { VisualizationData } from '../types';
+import type { Annotation, VisualizationData } from '../types';
 
 describe('numeric-binning', () => {
   it('creates linear bins with distribution-aware gradient colors', () => {
@@ -72,6 +72,7 @@ describe('numeric-binning', () => {
       data,
       { length: { binCount: 3, strategy: 'quantile', paletteId: 'viridis' } },
       10,
+      'length',
     );
 
     expect(materialized.annotations.length.sourceKind).toBe('numeric');
@@ -211,6 +212,7 @@ describe('numeric-binning', () => {
       data,
       { abundance: { binCount: 3, strategy: 'linear', paletteId: 'viridis' } },
       10,
+      'abundance',
     );
 
     expect(materialized.annotations.abundance.numericType).toBe('int');
@@ -561,5 +563,93 @@ describe('numeric-binning', () => {
     for (const data of result.annotationData) {
       expect(data.length).toBe(1);
     }
+  });
+});
+
+describe('materializeVisualizationData null-selection gate', () => {
+  it('materializes nothing when selectedNumericAnnotation is null', () => {
+    const data: VisualizationData = {
+      protein_ids: ['p1', 'p2'],
+      projections: [
+        {
+          name: 'UMAP',
+          data: [
+            [0, 0],
+            [1, 1],
+          ],
+        },
+      ],
+      annotations: {
+        a: {
+          kind: 'numeric',
+          numericType: 'float',
+          values: [],
+          colors: [],
+          shapes: [],
+        } as Annotation,
+        b: {
+          kind: 'numeric',
+          numericType: 'int',
+          values: [],
+          colors: [],
+          shapes: [],
+        } as Annotation,
+      },
+      annotation_data: {},
+      numeric_annotation_data: {
+        a: [1.0, 2.0],
+        b: [3, 4],
+      },
+    };
+
+    const out = materializeVisualizationData(data, {}, 10, null);
+
+    // Both a and b should remain numeric (un-materialized).
+    expect(out.annotations.a.kind).toBe('numeric');
+    expect(out.annotations.b.kind).toBe('numeric');
+  });
+
+  it('materializes only the selected annotation', () => {
+    const data: VisualizationData = {
+      protein_ids: ['p1', 'p2'],
+      projections: [
+        {
+          name: 'UMAP',
+          data: [
+            [0, 0],
+            [1, 1],
+          ],
+        },
+      ],
+      annotations: {
+        a: {
+          kind: 'numeric',
+          numericType: 'float',
+          values: [],
+          colors: [],
+          shapes: [],
+        } as Annotation,
+        b: {
+          kind: 'numeric',
+          numericType: 'int',
+          values: [],
+          colors: [],
+          shapes: [],
+        } as Annotation,
+      },
+      annotation_data: {},
+      numeric_annotation_data: {
+        a: [1.0, 2.0],
+        b: [3, 4],
+      },
+    };
+
+    const out = materializeVisualizationData(data, {}, 10, 'a');
+
+    // 'a' should be materialized (kind becomes 'categorical' with sourceKind 'numeric').
+    expect(out.annotations.a.kind).toBe('categorical');
+    expect(out.annotations.a.sourceKind).toBe('numeric');
+    // 'b' should remain numeric.
+    expect(out.annotations.b.kind).toBe('numeric');
   });
 });
