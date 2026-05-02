@@ -15,28 +15,24 @@ export function filterAnnotationValues(values: string[] | undefined): string | n
 }
 
 /**
- * Resolve gene name from a protein's annotation values.
- * Checks both snake_case and human-readable keys.
+ * Resolve gene name from already-extracted gene-name values.
  */
-export function getGeneName(annotationValues: Record<string, string[]>): string | null {
-  return filterAnnotationValues(annotationValues?.gene_name || annotationValues?.['Gene name']);
+export function getGeneName(geneNameValues: string[]): string | null {
+  return filterAnnotationValues(geneNameValues);
 }
 
 /**
- * Resolve protein name from a protein's annotation values.
- * Checks both snake_case and human-readable keys.
+ * Resolve protein name from already-extracted protein-name values.
  */
-export function getProteinName(annotationValues: Record<string, string[]>): string | null {
-  return filterAnnotationValues(
-    annotationValues?.protein_name || annotationValues?.['Protein name'],
-  );
+export function getProteinName(proteinNameValues: string[]): string | null {
+  return filterAnnotationValues(proteinNameValues);
 }
 
 /**
- * Resolve UniProtKB ID from a protein's annotation values.
+ * Resolve UniProtKB ID from already-extracted uniprot-kb-id values.
  */
-export function getUniprotKbId(annotationValues: Record<string, string[]>): string | null {
-  return filterAnnotationValues(annotationValues?.uniprot_kb_id);
+export function getUniprotKbId(uniprotKbIdValues: string[]): string | null {
+  return filterAnnotationValues(uniprotKbIdValues);
 }
 
 /**

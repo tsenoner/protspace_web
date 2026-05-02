@@ -48,60 +48,56 @@ describe('filterAnnotationValues', () => {
 });
 
 describe('getGeneName', () => {
-  it('resolves gene_name key', () => {
-    expect(getGeneName({ gene_name: ['BRCA1'] })).toBe('BRCA1');
+  it('resolves gene-name values', () => {
+    expect(getGeneName(['BRCA1'])).toBe('BRCA1');
   });
 
-  it('resolves "Gene name" key', () => {
-    expect(getGeneName({ 'Gene name': ['TP53'] })).toBe('TP53');
-  });
-
-  it('prefers gene_name over "Gene name"', () => {
-    expect(getGeneName({ gene_name: ['BRCA1'], 'Gene name': ['TP53'] })).toBe('BRCA1');
-  });
+  // Snake_case-vs-spaced-key fallback priority is now handled by buildTooltipView
+  // (covered in plot-data-accessors.test.ts). Helpers only filter the resolved array.
+  it.skip('prefers gene_name over "Gene name" (covered by buildTooltipView tests)', () => {});
 
   it('returns null when gene annotation is all __NA__', () => {
-    expect(getGeneName({ gene_name: [NA_VALUE] })).toBeNull();
+    expect(getGeneName([NA_VALUE])).toBeNull();
   });
 
-  it('returns null when no gene keys exist', () => {
-    expect(getGeneName({ species: ['human'] })).toBeNull();
+  it('returns null for empty array', () => {
+    expect(getGeneName([])).toBeNull();
   });
 });
 
 describe('getProteinName', () => {
-  it('resolves protein_name key', () => {
-    expect(getProteinName({ protein_name: ['Tumor protein p53'] })).toBe('Tumor protein p53');
+  it('resolves protein-name values', () => {
+    expect(getProteinName(['Tumor protein p53'])).toBe('Tumor protein p53');
   });
 
-  it('resolves "Protein name" key', () => {
-    expect(getProteinName({ 'Protein name': ['Kinase'] })).toBe('Kinase');
-  });
+  // Snake_case-vs-spaced-key fallback priority is now handled by buildTooltipView
+  // (covered in plot-data-accessors.test.ts). Helpers only filter the resolved array.
+  it.skip('prefers protein_name over "Protein name" (covered by buildTooltipView tests)', () => {});
 
   it('returns null when all values are __NA__', () => {
-    expect(getProteinName({ protein_name: [NA_VALUE] })).toBeNull();
+    expect(getProteinName([NA_VALUE])).toBeNull();
   });
 
-  it('returns null when no protein name keys exist', () => {
-    expect(getProteinName({ gene_name: ['TP53'] })).toBeNull();
+  it('returns null for empty array', () => {
+    expect(getProteinName([])).toBeNull();
   });
 });
 
 describe('getUniprotKbId', () => {
-  it('resolves uniprot_kb_id key', () => {
-    expect(getUniprotKbId({ uniprot_kb_id: ['P04637'] })).toBe('P04637');
+  it('resolves uniprot-kb-id values', () => {
+    expect(getUniprotKbId(['P04637'])).toBe('P04637');
   });
 
   it('returns null when all values are __NA__', () => {
-    expect(getUniprotKbId({ uniprot_kb_id: [NA_VALUE] })).toBeNull();
+    expect(getUniprotKbId([NA_VALUE])).toBeNull();
   });
 
-  it('returns null when key does not exist', () => {
-    expect(getUniprotKbId({ gene_name: ['TP53'] })).toBeNull();
+  it('returns null for empty array', () => {
+    expect(getUniprotKbId([])).toBeNull();
   });
 
   it('joins multiple IDs', () => {
-    expect(getUniprotKbId({ uniprot_kb_id: ['P04637', 'Q9NZC2'] })).toBe('P04637, Q9NZC2');
+    expect(getUniprotKbId(['P04637', 'Q9NZC2'])).toBe('P04637, Q9NZC2');
   });
 });
 

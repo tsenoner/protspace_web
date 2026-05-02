@@ -7,9 +7,11 @@ import type {
   ScatterplotConfig,
   NumericAnnotationDisplaySettingsMap,
   AnnotationData,
+  TooltipView,
 } from '@protspace/utils';
 import {
   DataProcessor,
+  buildTooltipView,
   getFirstAnnotationIndex,
   getNumericBinLabelMap,
   materializeVisualizationData,
@@ -84,7 +86,7 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _tooltipData: {
     x: number;
     y: number;
-    protein: PlotDataPoint;
+    view: TooltipView;
   } | null = null;
   @state() private _mergedConfig = DEFAULT_CONFIG;
   @state() private _transform = d3.zoomIdentity;
@@ -1815,15 +1817,16 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _handleMouseOver(event: MouseEvent, point: PlotDataPoint) {
+    if (!this.data) return;
     const { x, y } = this._getLocalPointerPosition(event);
-    this._tooltipData = { x, y, protein: point };
-    const pointForEvent = this._createDisplayPoint(point);
+    const view = buildTooltipView(this.data, point.originalIndex, this.selectedAnnotation);
+    this._tooltipData = { x, y, view };
 
     if (this._hoveredProteinId !== point.id) {
       this._hoveredProteinId = point.id;
       this.dispatchEvent(
         new CustomEvent('protein-hover', {
-          detail: { proteinId: point.id, point: pointForEvent },
+          detail: { proteinId: point.id, point },
           bubbles: true,
         }),
       );
@@ -1831,12 +1834,11 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _handleClick(event: MouseEvent, point: PlotDataPoint) {
-    const pointForEvent = this._createDisplayPoint(point);
     this.dispatchEvent(
       new CustomEvent('protein-click', {
         detail: {
           proteinId: point.id,
-          point: pointForEvent,
+          point,
           modifierKeys: {
             ctrl: event.ctrlKey,
             meta: event.metaKey,
@@ -1848,15 +1850,6 @@ export class ProtspaceScatterplot extends LitElement {
         composed: true,
       }),
     );
-  }
-
-  private _createDisplayPoint(point: PlotDataPoint): PlotDataPoint {
-    return point.annotationDisplayValues
-      ? {
-          ...point,
-          annotationValues: point.annotationDisplayValues,
-        }
-      : point;
   }
 
   /**
@@ -2099,7 +2092,7 @@ export class ProtspaceScatterplot extends LitElement {
               <protspace-protein-tooltip
                 class="visible"
                 style="${this._getTooltipStyle()}"
-                .protein=${this._tooltipData.protein}
+                .view=${this._tooltipData.view}
                 .selectedAnnotation=${this.selectedAnnotation}
               >
               </protspace-protein-tooltip>

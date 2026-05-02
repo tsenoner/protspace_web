@@ -1,7 +1,7 @@
 import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { toDisplayValue, toInternalValue } from '@protspace/utils';
-import type { NumericAnnotationType, PlotDataPoint } from '@protspace/utils';
+import type { NumericAnnotationType, TooltipView } from '@protspace/utils';
 import { proteinTooltipStyles } from './protein-tooltip.styles';
 import {
   getAnnotationHeaderType,
@@ -69,34 +69,32 @@ function formatScore(value: number): string {
 
 @customElement('protspace-protein-tooltip')
 class ProtspaceProteinTooltip extends LitElement {
-  @property({ type: Object }) protein: PlotDataPoint | null = null;
+  @property({ type: Object }) view: TooltipView | null = null;
   @property({ type: String }) selectedAnnotation = '';
 
   static styles = proteinTooltipStyles;
 
   render() {
-    if (!this.protein) {
+    if (!this.view) {
       return html``;
     }
 
-    const displayValues = this.protein.annotationDisplayValues ?? this.protein.annotationValues;
-    const geneName = getGeneName(displayValues);
-    const proteinName = getProteinName(displayValues);
-    const uniprotKbId = getUniprotKbId(displayValues);
-    const tooltipAnnotationValues = displayValues[this.selectedAnnotation] ?? [];
-    const rawNumericValue = this.protein.numericAnnotationValues?.[this.selectedAnnotation] ?? null;
-    const rawNumericType =
-      this.protein.numericAnnotationTypes?.[this.selectedAnnotation] ?? 'float';
-    const tooltipAnnotationScores = this.protein.annotationScores?.[this.selectedAnnotation] ?? [];
-    const tooltipAnnotationEvidence =
-      this.protein.annotationEvidence?.[this.selectedAnnotation] ?? [];
+    const view = this.view;
+    const geneName = getGeneName(view.geneName);
+    const proteinName = getProteinName(view.proteinName);
+    const uniprotKbId = getUniprotKbId(view.uniprotKbId);
+    const tooltipAnnotationValues = view.displayValues;
+    const rawNumericValue = view.numericValue;
+    const rawNumericType: NumericAnnotationType = view.numericType;
+    const tooltipAnnotationScores = view.scores;
+    const tooltipAnnotationEvidence = view.evidence;
     const headerType = getAnnotationHeaderType(tooltipAnnotationScores, tooltipAnnotationEvidence);
 
     return html`
       <div class="tooltip">
         <div class="tooltip-header">
           <div class="tooltip-protein-id">
-            <span class="tooltip-protein-id-main">${this.protein.id}</span>
+            <span class="tooltip-protein-id-main">${view.proteinId}</span>
             ${uniprotKbId
               ? html`<span class="tooltip-uniprot-separator"> · </span>
                   <span class="tooltip-uniprot-id">${uniprotKbId}</span>`
