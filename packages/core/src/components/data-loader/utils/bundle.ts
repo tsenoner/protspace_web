@@ -179,10 +179,15 @@ export function findColumn(columnNames: string[], candidates: string[]): string 
 }
 
 /**
- * Merges projection rows with annotations for testing purposes.
- * Production code should NOT call this — use the separated shape directly.
+ * Materializes a single merged row per protein by spreading annotation fields
+ * into projection rows. Used by:
+ *  - the small-dataset path of `convertParquetToVisualizationData` (where the
+ *    O(N) spread cost is acceptable), and
+ *  - the legacy-format fallback in `convertLargeDatasetOptimized`.
+ *
+ * The large-bundle hot path stays on the separated shape and never calls this.
  */
-export function mergeProjectionsForTesting(extraction: BundleExtractionResult): Rows {
+export function materializeMergedRows(extraction: BundleExtractionResult): Rows {
   const { projections, annotationsById, projectionIdColumn } = extraction;
   const merged: Rows = new Array(projections.length);
   for (let i = 0; i < projections.length; i++) {

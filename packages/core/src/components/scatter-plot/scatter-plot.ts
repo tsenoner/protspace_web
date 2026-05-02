@@ -1800,9 +1800,12 @@ export class ProtspaceScatterplot extends LitElement {
 
     if (this._hoveredProteinId !== point.id) {
       this._hoveredProteinId = point.id;
+      // detail.view is the lookup-friendly shape consumers should read
+      // (gene/protein name, selected-annotation values, scores, evidence).
+      // detail.point is the bare lazy point — no annotation Records.
       this.dispatchEvent(
         new CustomEvent('protein-hover', {
-          detail: { proteinId: point.id, point },
+          detail: { proteinId: point.id, point, view },
           bubbles: true,
         }),
       );
@@ -1810,11 +1813,15 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _handleClick(event: MouseEvent, point: PlotDataPoint) {
+    const view = this.data
+      ? buildTooltipView(this.data, point.originalIndex, this.selectedAnnotation)
+      : null;
     this.dispatchEvent(
       new CustomEvent('protein-click', {
         detail: {
           proteinId: point.id,
           point,
+          view,
           modifierKeys: {
             ctrl: event.ctrlKey,
             meta: event.metaKey,
@@ -1971,7 +1978,7 @@ export class ProtspaceScatterplot extends LitElement {
       this._hoveredProteinId = null;
       this.dispatchEvent(
         new CustomEvent('protein-hover', {
-          detail: { proteinId: null, point: null },
+          detail: { proteinId: null, point: null, view: null },
           bubbles: true,
         }),
       );

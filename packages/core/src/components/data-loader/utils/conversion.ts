@@ -7,7 +7,7 @@ import {
   NA_DEFAULT_COLOR,
 } from '@protspace/utils';
 import { validateRowsBasic } from './validation';
-import { findColumn, mergeProjectionsForTesting, type BundleExtractionResult } from './bundle';
+import { findColumn, materializeMergedRows, type BundleExtractionResult } from './bundle';
 import type { Rows, GenericRow } from './types';
 
 /**
@@ -316,7 +316,7 @@ export function convertParquetToVisualizationData(
   projectionsMetadata?: Rows,
 ): VisualizationData {
   // Slow path: materialize merged rows (small datasets, acceptable cost)
-  const rows: Rows = Array.isArray(input) ? input : mergeProjectionsForTesting(input);
+  const rows: Rows = Array.isArray(input) ? input : materializeMergedRows(input);
   const meta: Rows | undefined = Array.isArray(input)
     ? projectionsMetadata
     : input.projectionsMetadata;
@@ -381,7 +381,11 @@ async function convertLargeDatasetOptimized(
   const hasProjectionName = columnNames.includes('projection_name');
   const hasXY = columnNames.includes('x') && columnNames.includes('y');
   if (hasProjectionName && hasXY) {
-    // Derive annotation column names from the annotation rows
+    // Derive annotation column names from the first annotation row.
+    // Safe because the upstream parquet decoder produces a uniform schema
+    // for all rows in a single table (selectedAnnotationsData), so any
+    // row's keys are a complete column set. If a future writer emits
+    // sparse rows, switch to a union of all rows' keys.
     const annotationColumnNames =
       annotationsById.size > 0
         ? Object.keys(annotationsById.values().next().value as GenericRow)
@@ -395,7 +399,7 @@ async function convertLargeDatasetOptimized(
     );
   }
   // Legacy format: materialize rows (should not happen with bundle extraction, but safe fallback)
-  const rows = mergeProjectionsForTesting(extraction);
+  const rows = materializeMergedRows(extraction);
   return convertLegacyFormatData(rows, columnNames);
 }
 
@@ -970,21 +974,28 @@ export function generateColorsAndShapes(
   return { colors, shapes };
 }
 
-async function extractAnnotationsOptimized(
-  rows: Rows,
-  columnNames: string[],
-  proteinIdCol: string,
-  uniqueProteinIds: string[],
-): Promise<{
+interface ExtractedAnnotations {
   annotations: Record<string, Annotation>;
   annotation_data: Record<string, AnnotationData>;
   numeric_annotation_data: Record<string, (number | null)[]>;
   annotation_scores: Record<string, (number[] | null)[][]>;
   annotation_evidence: Record<string, (string | null)[][]>;
-}> {
-  const allIdColumns = getIdColumnsSet(proteinIdCol);
-  const annotationColumns = columnNames.filter((c) => !allIdColumns.has(c));
+}
 
+/**
+ * Unified annotation extractor — operates on a per-protein row lookup.
+ *
+ * Both the rows-based path (legacy `Rows` input with annotations spread into
+ * each row) and the separated path (annotations keyed by protein id) reduce
+ * to the same shape: a `(GenericRow | undefined)[]` indexed by protein. With
+ * that lookup in hand, the per-column passes are identical.
+ *
+ * Caller is responsible for filtering ID columns out of `annotationColumns`.
+ */
+async function extractAnnotationsByProtein(
+  rowByProteinIdx: ReadonlyArray<GenericRow | undefined>,
+  annotationColumns: string[],
+): Promise<ExtractedAnnotations> {
   const annotations: Record<string, Annotation> = {};
   const annotation_data: Record<string, AnnotationData> = {};
   const numeric_annotation_data: Record<string, (number | null)[]> = {};
@@ -1001,38 +1012,24 @@ async function extractAnnotationsOptimized(
     };
   }
 
-  // Build protein ID → index map once (shared across all columns)
-  const idToIndex = new Map<string, number>();
-  for (let i = 0; i < uniqueProteinIds.length; i++) {
-    idToIndex.set(uniqueProteinIds[i], i);
-  }
-
-  const numProteins = uniqueProteinIds.length;
+  const numProteins = rowByProteinIdx.length;
   const chunkSize = 50000;
 
-  // Process one column at a time so GC can reclaim between columns
+  // Yields raw cell values in protein order for a column — feeds inferAnnotationType.
+  function* valuesForCol(col: string): Iterable<unknown> {
+    for (const row of rowByProteinIdx) yield row?.[col];
+  }
+
+  // Process one column at a time so GC can reclaim between columns.
   for (let colIdx = 0; colIdx < annotationColumns.length; colIdx++) {
     const annotationCol = annotationColumns[colIdx];
 
-    const inference = inferAnnotationType(valuesForColumn(rows, annotationCol));
+    const inference = inferAnnotationType(valuesForCol(annotationCol));
     if (inference.inferredType !== 'string') {
-      const numericValues: (number | null)[] = new Array(numProteins).fill(null);
-
-      for (let i = 0; i < rows.length; i += chunkSize) {
-        const end = Math.min(i + chunkSize, rows.length);
-        for (let r = i; r < end; r++) {
-          const row = rows[r];
-          const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-          const idx = idToIndex.get(proteinId);
-          if (idx === undefined) continue;
-
-          numericValues[idx] = inference.numericValues[r];
-        }
-        await fastYield();
-      }
-
+      // Numeric column — inference.numericValues is already in protein order
+      // because valuesForCol iterates per-protein.
+      numeric_annotation_data[annotationCol] = inference.numericValues;
       annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
-      numeric_annotation_data[annotationCol] = numericValues;
       continue;
     }
 
@@ -1042,10 +1039,10 @@ async function extractAnnotationsOptimized(
     let columnHasEvidence = false;
     let maxValuesPerProtein = 0;
 
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const end = Math.min(i + chunkSize, rows.length);
-      for (let r = i; r < end; r++) {
-        const rawValues = splitCategoricalAnnotationValues(rows[r][annotationCol]);
+    for (let i = 0; i < numProteins; i += chunkSize) {
+      const end = Math.min(i + chunkSize, numProteins);
+      for (let p = i; p < end; p++) {
+        const rawValues = splitCategoricalAnnotationValues(rowByProteinIdx[p]?.[annotationCol]);
         if (rawValues.length > maxValuesPerProtein) {
           maxValuesPerProtein = rawValues.length;
         }
@@ -1059,7 +1056,7 @@ async function extractAnnotationsOptimized(
       await fastYield();
     }
 
-    // Sort unique values by frequency (most frequent first)
+    // Sort unique values by frequency (most frequent first).
     const uniqueValues = Array.from(valueCountMap.keys()).sort(
       (a, b) => (valueCountMap.get(b) || 0) - (valueCountMap.get(a) || 0),
     );
@@ -1078,21 +1075,16 @@ async function extractAnnotationsOptimized(
     const scoresArray = columnHasScores ? new Array<(number[] | null)[]>(numProteins) : null;
     const evidenceArray = columnHasEvidence ? new Array<(string | null)[]>(numProteins) : null;
 
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const end = Math.min(i + chunkSize, rows.length);
-      for (let r = i; r < end; r++) {
-        const row = rows[r];
-        const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
-        const idx = idToIndex.get(proteinId);
-        if (idx === undefined) continue;
-
-        const rawValues = splitCategoricalAnnotationValues(row[annotationCol]);
+    for (let i = 0; i < numProteins; i += chunkSize) {
+      const end = Math.min(i + chunkSize, numProteins);
+      for (let p = i; p < end; p++) {
+        const rawValues = splitCategoricalAnnotationValues(rowByProteinIdx[p]?.[annotationCol]);
         if (rawValues.length === 0) continue;
 
         if (annotationDataTyped) {
           // Single-valued: write the one index directly into the typed array.
           const parsed = parseAnnotationValue(rawValues[0]);
-          annotationDataTyped[idx] = valueToIndex.get(parsed.label) ?? -1;
+          annotationDataTyped[p] = valueToIndex.get(parsed.label) ?? -1;
         } else {
           const indices: number[] = [];
           const scores: (number[] | null)[] | null = scoresArray ? [] : null;
@@ -1105,15 +1097,15 @@ async function extractAnnotationsOptimized(
             if (evidences) evidences.push(parsed.evidence);
           }
 
-          annotationDataArray![idx] = indices;
-          if (scoresArray && scores) scoresArray[idx] = scores;
-          if (evidenceArray && evidences) evidenceArray[idx] = evidences;
+          annotationDataArray![p] = indices;
+          if (scoresArray && scores) scoresArray[p] = scores;
+          if (evidenceArray && evidences) evidenceArray[p] = evidences;
         }
       }
       await fastYield();
     }
 
-    // Fill empty slots for proteins not found in this column's rows
+    // Fill empty slots for proteins absent from this column.
     if (annotationDataArray) {
       for (let p = 0; p < numProteins; p++) {
         if (annotationDataArray[p] === undefined) {
@@ -1127,8 +1119,7 @@ async function extractAnnotationsOptimized(
     if (annotationDataArray) {
       appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
     } else if (annotationDataTyped) {
-      // For Int32Array, missing slots are already -1 — append the NA category
-      // to uniqueValues and re-map -1 to the new NA index.
+      // Int32Array missing slots are already -1; append NA category and remap -1.
       const hasAnyMissing = annotationDataTyped.some((v) => v < 0);
       if (hasAnyMissing) {
         const naIndex = uniqueValues.length;
@@ -1159,183 +1150,62 @@ async function extractAnnotationsOptimized(
 }
 
 /**
- * Optimized annotation extraction using the separated shape.
- * Iterates uniqueProteinIds directly, looking up annotationsById per protein.
- * No per-row spread merge is needed — cells are read via annotationsById.get(proteinId)[col].
+ * Adapter for the legacy rows-based path: walks `rows` once to build a
+ * per-protein row lookup, then delegates to the unified extractor.
+ */
+async function extractAnnotationsOptimized(
+  rows: Rows,
+  columnNames: string[],
+  proteinIdCol: string,
+  uniqueProteinIds: string[],
+): Promise<ExtractedAnnotations> {
+  const allIdColumns = getIdColumnsSet(proteinIdCol);
+  const annotationColumns = columnNames.filter((c) => !allIdColumns.has(c));
+
+  const idToIndex = new Map<string, number>();
+  for (let i = 0; i < uniqueProteinIds.length; i++) {
+    idToIndex.set(uniqueProteinIds[i], i);
+  }
+
+  const rowByProteinIdx: (GenericRow | undefined)[] = new Array(uniqueProteinIds.length);
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r];
+    const proteinId = row[proteinIdCol] != null ? String(row[proteinIdCol]) : '';
+    const idx = idToIndex.get(proteinId);
+    if (idx !== undefined) rowByProteinIdx[idx] = row;
+  }
+
+  return extractAnnotationsByProtein(rowByProteinIdx, annotationColumns);
+}
+
+/**
+ * Adapter for the separated extraction path: builds the per-protein lookup
+ * by hitting `annotationsById.get(proteinId)` once per protein, then
+ * delegates to the unified extractor.
  */
 async function extractAnnotationsOptimizedSeparated(
   annotationsById: Map<string, GenericRow>,
   annotationColumnNames: string[],
   projectionIdCol: string,
   uniqueProteinIds: string[],
-): Promise<{
-  annotations: Record<string, Annotation>;
-  annotation_data: Record<string, AnnotationData>;
-  numeric_annotation_data: Record<string, (number | null)[]>;
-  annotation_scores: Record<string, (number[] | null)[][]>;
-  annotation_evidence: Record<string, (string | null)[][]>;
-}> {
+): Promise<ExtractedAnnotations> {
   const allIdColumns = getIdColumnsSet(projectionIdCol);
   const annotationColumns = annotationColumnNames.filter((c) => !allIdColumns.has(c));
 
-  const annotations: Record<string, Annotation> = {};
-  const annotation_data: Record<string, AnnotationData> = {};
-  const numeric_annotation_data: Record<string, (number | null)[]> = {};
-  const annotation_scores: Record<string, (number[] | null)[][]> = {};
-  const annotation_evidence: Record<string, (string | null)[][]> = {};
-
-  if (annotationColumns.length === 0 || annotationsById.size === 0) {
+  if (annotationsById.size === 0) {
     return {
-      annotations,
-      annotation_data,
-      numeric_annotation_data,
-      annotation_scores,
-      annotation_evidence,
+      annotations: {},
+      annotation_data: {},
+      numeric_annotation_data: {},
+      annotation_scores: {},
+      annotation_evidence: {},
     };
   }
 
-  const numProteins = uniqueProteinIds.length;
-  const chunkSize = 50000;
-
-  // Process one column at a time so GC can reclaim between columns
-  for (let colIdx = 0; colIdx < annotationColumns.length; colIdx++) {
-    const annotationCol = annotationColumns[colIdx];
-
-    // Build iterable of values in uniqueProteinIds order for type inference
-    function* valuesForAnnotationCol(): Iterable<unknown> {
-      for (const proteinId of uniqueProteinIds) {
-        const row = annotationsById.get(proteinId);
-        yield row != null ? row[annotationCol] : undefined;
-      }
-    }
-
-    const inference = inferAnnotationType(valuesForAnnotationCol());
-    if (inference.inferredType !== 'string') {
-      // inference.numericValues is indexed by position in uniqueProteinIds
-      numeric_annotation_data[annotationCol] = inference.numericValues;
-      annotations[annotationCol] = createNumericAnnotation(inference.inferredType);
-      continue;
-    }
-
-    // === Pass 1: Collect unique values, frequency counts, detect scores/evidence ===
-    const valueCountMap = new Map<string, number>();
-    let columnHasScores = false;
-    let columnHasEvidence = false;
-    let maxValuesPerProtein = 0;
-
-    for (let i = 0; i < numProteins; i += chunkSize) {
-      const end = Math.min(i + chunkSize, numProteins);
-      for (let p = i; p < end; p++) {
-        const row = annotationsById.get(uniqueProteinIds[p]);
-        const rawValues = splitCategoricalAnnotationValues(
-          row != null ? row[annotationCol] : undefined,
-        );
-        if (rawValues.length > maxValuesPerProtein) {
-          maxValuesPerProtein = rawValues.length;
-        }
-        for (const raw of rawValues) {
-          const parsed = parseAnnotationValue(raw);
-          valueCountMap.set(parsed.label, (valueCountMap.get(parsed.label) || 0) + 1);
-          if (parsed.scores.length > 0) columnHasScores = true;
-          if (parsed.evidence) columnHasEvidence = true;
-        }
-      }
-      await fastYield();
-    }
-
-    // Sort unique values by frequency (most frequent first)
-    const uniqueValues = Array.from(valueCountMap.keys()).sort(
-      (a, b) => (valueCountMap.get(b) || 0) - (valueCountMap.get(a) || 0),
-    );
-
-    const valueToIndex = new Map<string | null, number>();
-    uniqueValues.forEach((val, idx) => valueToIndex.set(val, idx));
-
-    const { colors, shapes } = generateColorsAndShapes('kellys', uniqueValues.length);
-
-    // === Pass 2: Build output arrays. Use Int32Array for strict single-valued
-    //     columns to avoid the per-protein number[] allocation cliff. ===
-    const useTypedStorage = maxValuesPerProtein <= 1 && !columnHasScores && !columnHasEvidence;
-
-    const annotationDataTyped = useTypedStorage ? new Int32Array(numProteins).fill(-1) : null;
-    const annotationDataArray = useTypedStorage ? null : new Array<number[]>(numProteins);
-    const scoresArray = columnHasScores ? new Array<(number[] | null)[]>(numProteins) : null;
-    const evidenceArray = columnHasEvidence ? new Array<(string | null)[]>(numProteins) : null;
-
-    for (let i = 0; i < numProteins; i += chunkSize) {
-      const end = Math.min(i + chunkSize, numProteins);
-      for (let p = i; p < end; p++) {
-        const row = annotationsById.get(uniqueProteinIds[p]);
-        const rawValues = splitCategoricalAnnotationValues(
-          row != null ? row[annotationCol] : undefined,
-        );
-        if (rawValues.length === 0) continue;
-
-        if (annotationDataTyped) {
-          // Single-valued: write the one index directly into the typed array.
-          const parsed = parseAnnotationValue(rawValues[0]);
-          annotationDataTyped[p] = valueToIndex.get(parsed.label) ?? -1;
-        } else {
-          const indices: number[] = [];
-          const scores: (number[] | null)[] | null = scoresArray ? [] : null;
-          const evidences: (string | null)[] | null = evidenceArray ? [] : null;
-
-          for (const raw of rawValues) {
-            const parsed = parseAnnotationValue(raw);
-            indices.push(valueToIndex.get(parsed.label) ?? -1);
-            if (scores) scores.push(parsed.scores.length > 0 ? parsed.scores : null);
-            if (evidences) evidences.push(parsed.evidence);
-          }
-
-          annotationDataArray![p] = indices;
-          if (scoresArray && scores) scoresArray[p] = scores;
-          if (evidenceArray && evidences) evidenceArray[p] = evidences;
-        }
-      }
-      await fastYield();
-    }
-
-    // Fill empty slots for proteins not found in annotation rows
-    if (annotationDataArray) {
-      for (let p = 0; p < numProteins; p++) {
-        if (annotationDataArray[p] === undefined) {
-          annotationDataArray[p] = [];
-          if (scoresArray) scoresArray[p] = [];
-          if (evidenceArray) evidenceArray[p] = [];
-        }
-      }
-    }
-
-    if (annotationDataArray) {
-      appendSyntheticNACategory(uniqueValues, colors, shapes, annotationDataArray);
-    } else if (annotationDataTyped) {
-      // For Int32Array, missing slots are already -1 — append the NA category
-      // to uniqueValues and re-map -1 to the new NA index.
-      const hasAnyMissing = annotationDataTyped.some((v) => v < 0);
-      if (hasAnyMissing) {
-        const naIndex = uniqueValues.length;
-        uniqueValues.push(NA_VALUE);
-        colors.push(NA_DEFAULT_COLOR);
-        shapes.push('circle');
-        for (let p = 0; p < annotationDataTyped.length; p++) {
-          if (annotationDataTyped[p] < 0) {
-            annotationDataTyped[p] = naIndex;
-          }
-        }
-      }
-    }
-
-    annotations[annotationCol] = createCategoricalAnnotation(uniqueValues, colors, shapes);
-    annotation_data[annotationCol] = (annotationDataTyped ?? annotationDataArray)!;
-    if (scoresArray) annotation_scores[annotationCol] = scoresArray;
-    if (evidenceArray) annotation_evidence[annotationCol] = evidenceArray;
+  const rowByProteinIdx: (GenericRow | undefined)[] = new Array(uniqueProteinIds.length);
+  for (let p = 0; p < uniqueProteinIds.length; p++) {
+    rowByProteinIdx[p] = annotationsById.get(uniqueProteinIds[p]);
   }
 
-  return {
-    annotations,
-    annotation_data,
-    numeric_annotation_data,
-    annotation_scores,
-    annotation_evidence,
-  };
+  return extractAnnotationsByProtein(rowByProteinIdx, annotationColumns);
 }

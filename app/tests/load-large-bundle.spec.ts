@@ -26,18 +26,24 @@ test.describe('large bundle load (sprot_50, 573k proteins)', () => {
       pageCrashed = true;
     });
 
+    // Third-party hostnames whose console errors we expect on dev-mode loads.
+    // We match the hostname in either the message text or msg.location().url
+    // because Chrome reports CORS preflight failures with the *calling page*
+    // as the source (URL match misses) but the blocked URL appears verbatim
+    // in the message text (text match catches it). Resource-load errors flip
+    // the polarity — both checks together are robust to either flavor.
+    const IGNORED_HOSTS = ['cloudflareinsights.com', 'cloudflare-insights.com'];
+
     page.on('console', (msg) => {
       if (msg.type() !== 'error') return;
       const text = msg.text();
-      // Ignore Lit dev-mode banner and third-party analytics CORS errors.
-      if (
-        text.includes('Lit is in dev mode') ||
-        text.includes('cloudflareinsights') ||
-        text.includes('ERR_FAILED') ||
-        text.includes('ERR_BLOCKED')
-      )
-        return;
-      consoleErrors.push(text);
+      const sourceUrl = msg.location()?.url ?? '';
+
+      // 1) Third-party analytics — match the hostname in URL OR message text.
+      if (IGNORED_HOSTS.some((host) => sourceUrl.includes(host) || text.includes(host))) return;
+      // 2) Lit dev-mode banner — text-stable across versions.
+      if (text.startsWith('Lit is in dev mode')) return;
+      consoleErrors.push(`${text}${sourceUrl ? `  (from ${sourceUrl})` : ''}`);
     });
 
     await page.goto('/explore');
