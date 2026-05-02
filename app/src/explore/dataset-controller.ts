@@ -176,14 +176,17 @@ export function createDatasetController({
   const handleDataError = async (event: Event) => {
     const customEvent = event as CustomEvent<DataErrorEventDetail>;
     console.error('❌ Data loading error:', customEvent.detail.message);
-    try {
-      const message = customEvent.detail.message ?? 'Unknown load error';
-      await markLastLoadStatus('error', { error: message });
-    } catch (statusError) {
-      console.warn('Failed to update OPFS load status to error:', statusError);
-    }
     const runningLoadMeta = loadQueue.getRunningLoadMeta();
     const loadSequence = runningLoadMeta?.sequence ?? null;
+
+    if (runningLoadMeta?.kind === 'user' || runningLoadMeta?.kind === 'opfs') {
+      try {
+        const message = customEvent.detail.message ?? 'Unknown load error';
+        await markLastLoadStatus('error', { error: message });
+      } catch (statusError) {
+        console.warn('Failed to update OPFS load status to error:', statusError);
+      }
+    }
 
     if (runningLoadMeta?.kind === 'opfs') {
       if (loadSequence !== null) {

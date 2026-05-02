@@ -56,7 +56,7 @@ Cardinality of categorical columns after the frontend's parse semantics (split o
 | genus                         | 5,533         | 0                 | 1                 |
 | All other categorical columns | ≤ 2,000       | ≤ 60k             | ≤ 2               |
 
-Of the 23 annotation columns, 1 is numeric (`annotation_score`) and 22 are categorical. Of the categoricals, **6 contain any multi-valued rows** (pfam, cath, cc_subcellular_location, superfamily, gene_name, protein_families). The remaining **16 are strictly single-valued** — `maxValuesPerProtein === 1` for every protein. Two of the multi-valued columns (gene_name, protein_families) have only 54 / 7 rows with multiple entries respectively, but the spec treats them as multi-valued because the `Int32Array` storage in §6.1 requires _strict_ single-valuedness.
+Of the 23 annotation columns, 1 is numeric (`annotation_score`) and 22 are categorical. Of the categoricals, **6 contain any multi-valued rows** (pfam, cath, cc*subcellular_location, superfamily, gene_name, protein_families). The remaining **16 are strictly single-valued** — `maxValuesPerProtein === 1` for every protein. Two of the multi-valued columns (gene_name, protein_families) have only 54 / 7 rows with multiple entries respectively, but the spec treats them as multi-valued because the `Int32Array` storage in §6.1 requires \_strict* single-valuedness.
 
 ### 4.3 Where the memory goes
 

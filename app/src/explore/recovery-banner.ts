@@ -59,6 +59,9 @@ export function showRecoveryBanner(params: ShowRecoveryBannerParams): void {
       : 'bg-amber-200 hover:bg-amber-300 dark:bg-amber-800 dark:hover:bg-amber-700');
   retryButton.textContent = copy.retryLabel;
   retryButton.disabled = blocking;
+  if (blocking) {
+    retryButton.setAttribute('aria-label', `${copy.retryLabel} (disabled after repeated failures)`);
+  }
   retryButton.addEventListener('click', () => {
     void params.handlers.onRetry();
   });
@@ -85,4 +88,8 @@ export function showRecoveryBanner(params: ShowRecoveryBannerParams): void {
   root.append(title, body, actions);
 
   (params.parent ?? document.body).appendChild(root);
+
+  // Move keyboard focus into the banner so it isn't stranded behind the alert.
+  // When Try again is disabled (blocking), Load default becomes the primary path.
+  (blocking ? defaultButton : retryButton).focus();
 }
