@@ -18,6 +18,7 @@ import { createDataRenderer } from './data-renderer';
 import type { InteractionController } from './interaction-controller';
 import type { LoadQueue } from './load-queue';
 import { createPersistedDatasetController } from './persisted-dataset';
+import type { PersistedLoadOutcome } from './persisted-dataset';
 import type { ViewController } from './view-controller';
 
 interface DatasetControllerOptions {
@@ -40,7 +41,8 @@ interface DatasetControllerOptions {
 
 export interface DatasetController {
   loadDefaultDatasetAndClearPersistedFile(): Promise<void>;
-  loadPersistedOrDefaultDataset(): Promise<void>;
+  loadPersistedOrDefaultDataset(): Promise<PersistedLoadOutcome>;
+  tryLoadPersistedAgain(file: File): Promise<void>;
   handleLoadingStart(): void;
   handleLoadingProgress(event: Event): void;
   handleDataLoaded(event: Event): Promise<void>;
@@ -208,6 +210,7 @@ export function createDatasetController({
     loadDefaultDatasetAndClearPersistedFile:
       persistedDatasetController.loadDefaultDatasetAndClearPersistedFile,
     loadPersistedOrDefaultDataset: persistedDatasetController.loadPersistedOrDefaultDataset,
+    tryLoadPersistedAgain: persistedDatasetController.tryLoadPersistedAgain,
     handleLoadingStart() {
       console.log('Data loading started');
       overlayController.update(true, 5, 'Analyzing file structure...', 'Starting upload...');
@@ -222,3 +225,5 @@ export function createDatasetController({
     handleDataError,
   };
 }
+
+export type { PersistedLoadOutcome };
