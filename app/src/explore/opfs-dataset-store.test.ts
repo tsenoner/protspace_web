@@ -275,6 +275,25 @@ describe('lastLoadStatus APIs', () => {
     expect(status?.failedAttempts).toBe(0);
   });
 
+  it('does not increment failedAttempts when transitioning success → pending (e.g., Try again)', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    const file = new File(['x'], 'a.parquetbundle');
+    await saveLastImportedFile(file);
+    await markLastLoadStatus('success'); // failedAttempts = 0
+    await markLastLoadStatus('pending'); // prev was success → counter stays 0
+    expect((await readLastLoadStatus())?.failedAttempts).toBe(0);
+  });
+
+  it('is a no-op when no metadata is present', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    await markLastLoadStatus('pending');
+    expect(await readLastLoadStatus()).toBeNull();
+  });
+
   it('clears status when clearLastImportedFile is called', async () => {
     const root = new MockDirectoryHandle();
     stubNavigator(root);
