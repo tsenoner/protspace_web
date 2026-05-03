@@ -154,12 +154,15 @@ export class ProtspacePublishModal extends LitElement {
     this._scheduleRedraw();
   }
 
+  override willUpdate(changed: Map<string, unknown>) {
+    if (changed.has('legendElement')) {
+      this._readLegend();
+    }
+  }
+
   override updated(changed: Map<string, unknown>) {
     if (changed.has('_state') || changed.has('_tool') || changed.has('_highlightedItem')) {
       this._scheduleRedraw();
-    }
-    if (changed.has('legendElement')) {
-      this._readLegend();
     }
   }
 
@@ -384,6 +387,8 @@ export class ProtspacePublishModal extends LitElement {
     this._insetCacheKey = '';
     if (wasResampleOff) {
       this._showResampleNote = true;
+    } else {
+      this._showResampleNote = false;
     }
   }
 
@@ -515,6 +520,7 @@ export class ProtspacePublishModal extends LitElement {
     this._tool = 'select';
     this._highlightedItem = null;
     this._showFingerprintWarning = false;
+    this._showResampleNote = false;
     this._plotCacheKey = '';
     this._insetCacheKey = '';
     this._overlayController?.destroy();
@@ -530,6 +536,7 @@ export class ProtspacePublishModal extends LitElement {
       viewFingerprint: this.currentProjection ?? undefined,
     };
     this._showFingerprintWarning = false;
+    this._showResampleNote = false;
   }
 
   // ── Render ─────────────────────────────────────────
@@ -827,18 +834,20 @@ export class ProtspacePublishModal extends LitElement {
 
         <div class="publish-dim-row">
           <label>Resolution</label>
-          <input
-            type="number"
-            class="publish-row-input"
-            data-publish-input="dpi"
-            min="1"
-            max="2400"
-            .value=${String(s.dpi)}
-            @change=${(e: Event) => {
-              this._updateDpi(parseInt((e.target as HTMLInputElement).value) || s.dpi);
-            }}
-          />
-          <span class="publish-unit">Pixels/Inch</span>
+          <div class="publish-input-group">
+            <input
+              type="number"
+              class="publish-row-input"
+              data-publish-input="dpi"
+              min="1"
+              max="2400"
+              .value=${String(s.dpi)}
+              @change=${(e: Event) => {
+                this._updateDpi(parseInt((e.target as HTMLInputElement).value) || s.dpi);
+              }}
+            />
+            <span class="publish-unit">Pixels/Inch</span>
+          </div>
         </div>
 
         <label class="publish-checkbox-label">
@@ -881,11 +890,10 @@ export class ProtspacePublishModal extends LitElement {
     }
   }
 
-  private _unitToMm(value: number, unit: 'px' | 'mm' | 'in' | 'cm'): number {
-    if (unit === 'mm') return value;
+  private _unitToMm(value: number, unit: 'mm' | 'in' | 'cm'): number {
     if (unit === 'in') return inToMm(value);
     if (unit === 'cm') return cmToMm(value);
-    return value; // px branch unreachable here
+    return value; // 'mm' — no conversion
   }
 
   private _formatDimensionForUnit(px: number, mm: number, unit: 'px' | 'mm' | 'in' | 'cm'): string {

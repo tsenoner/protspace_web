@@ -48,6 +48,7 @@ describe('<protspace-publish-modal> legend reader', () => {
     const internals = modal as unknown as PublishInternals;
     expect(internals._legendTitle).toBe('family');
     expect(internals._legendItems).toHaveLength(1);
+    expect(internals._legendItems[0].value).toBe('A');
   });
 });
 

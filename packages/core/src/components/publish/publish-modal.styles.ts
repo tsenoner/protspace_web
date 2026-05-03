@@ -459,41 +459,6 @@ export const publishModalStyles = css`
     cursor: pointer;
   }
 
-  /* ─── Dimension field (label+value on top, slider below) ── */
-  .publish-dim-field {
-    margin-bottom: var(--spacing-sm);
-  }
-
-  .publish-dim-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 2px;
-  }
-
-  .publish-dim-header label {
-    font-size: var(--text-sm);
-    color: var(--muted);
-  }
-
-  .publish-dim-value {
-    display: flex;
-    align-items: baseline;
-    gap: 2px;
-  }
-
-  .publish-dim-field .publish-slider {
-    width: 100%;
-  }
-
-  /* ─── mm display ─────────────────────────────────────── */
-  .publish-mm-display {
-    font-size: var(--text-xs);
-    color: var(--muted);
-    white-space: nowrap;
-    margin-left: 4px;
-  }
-
   /* ─── Responsive ────────────────────────────────────────── */
   @media (max-width: 800px) {
     .publish-container {
