@@ -6,6 +6,7 @@ import {
   exportCanvasAsPdf,
   exportParquetBundle,
   generateBundleFilename,
+  pngWithDpi,
 } from '@protspace/utils';
 import { notify } from '../lib/notify';
 import { getExportFailureNotification, getExportSuccessNotification } from './notifications';
@@ -118,8 +119,19 @@ export function createExportHandler({
               const heightMm = (canvas.height * 25.4) / state.dpi;
               await exportCanvasAsPdf(canvas, { widthMm, heightMm, filename: fname });
             } else {
-              const dataUrl = canvas.toDataURL('image/png');
-              downloadFile(dataUrl, fname);
+              const blob: Blob = await new Promise((resolve, reject) => {
+                canvas.toBlob(
+                  (b) => (b ? resolve(b) : reject(new Error('canvas.toBlob produced no blob'))),
+                  'image/png',
+                );
+              });
+              const withDpi = await pngWithDpi(blob, state.dpi);
+              const url = URL.createObjectURL(withDpi);
+              try {
+                downloadFile(url, fname);
+              } finally {
+                URL.revokeObjectURL(url);
+              }
             }
             notify.success(getExportSuccessNotification(fname));
           } catch (err) {
