@@ -299,6 +299,7 @@ export function normalizeBundleSettings(obj: unknown): BundleSettings | null {
     return {
       legendSettings: sanitizeLegendSettingsMap(obj.legendSettings) ?? obj.legendSettings,
       exportOptions: sanitizeExportOptionsMap(obj.exportOptions) ?? obj.exportOptions,
+      publishState: obj.publishState,
     };
   }
 
