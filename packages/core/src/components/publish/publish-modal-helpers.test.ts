@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   getActivePresetConstraints,
-  computeWidthUpdate,
-  computeHeightUpdate,
+  computeWidthPxUpdate,
+  computeWidthMmUpdate,
+  computeHeightPxUpdate,
+  computeHeightMmUpdate,
   computeDpiUpdate,
   computePresetApplication,
   shouldShowFingerprintWarning,
@@ -43,71 +45,166 @@ describe('publish-modal-helpers', () => {
     });
   });
 
-  describe('computeWidthUpdate', () => {
-    it('adjusts DPI for constrained preset', () => {
-      const state = makeState({ preset: 'nature-1col', widthPx: 1051, dpi: 300 });
-      const patch = computeWidthUpdate(state, 2000);
+  describe('computeWidthPxUpdate', () => {
+    it('Resample=ON: changes widthPx, leaves dpi fixed', () => {
+      const state = makeState({ widthPx: 1051, heightPx: 591, dpi: 300, resample: true });
+      const patch = computeWidthPxUpdate(state, 2102);
+      expect(patch.widthPx).toBe(2102);
+      expect(patch.dpi).toBeUndefined();
+    });
+
+    it('aspectLocked=true: scales height proportionally', () => {
+      const state = makeState({
+        widthPx: 1000,
+        heightPx: 500,
+        dpi: 300,
+        resample: true,
+        aspectLocked: true,
+      });
+      const patch = computeWidthPxUpdate(state, 2000);
       expect(patch.widthPx).toBe(2000);
-      expect(patch.dpi).toBeDefined();
-      expect(patch.dpi).toBeCloseTo(571, 0);
-      expect(patch.preset).toBeUndefined();
+      expect(patch.heightPx).toBe(1000);
     });
 
-    it('switches to custom for unconstrained preset', () => {
-      const state = makeState({ preset: 'flexible', widthPx: 2048 });
-      const patch = computeWidthUpdate(state, 3000);
-      expect(patch.widthPx).toBe(3000);
+    it('aspectLocked=false: leaves height untouched', () => {
+      const state = makeState({
+        widthPx: 1000,
+        heightPx: 500,
+        dpi: 300,
+        resample: true,
+        aspectLocked: false,
+      });
+      const patch = computeWidthPxUpdate(state, 2000);
+      expect(patch.widthPx).toBe(2000);
+      expect(patch.heightPx).toBeUndefined();
+    });
+
+    it('marks preset as custom unless preset is already custom', () => {
+      const state = makeState({ preset: 'nature-1col', widthPx: 1051, dpi: 300, resample: true });
+      const patch = computeWidthPxUpdate(state, 2000);
       expect(patch.preset).toBe('custom');
-    });
-
-    it('clamps height when constrained preset has maxHeightMm', () => {
-      const state = makeState({ preset: 'nature-1col', widthPx: 1051, heightPx: 6000, dpi: 300 });
-      const patch = computeWidthUpdate(state, 2000);
-      expect(patch.heightPx).toBeDefined();
-      expect(patch.heightPx!).toBeLessThan(6000);
     });
   });
 
-  describe('computeHeightUpdate', () => {
-    it('returns height directly for unconstrained preset', () => {
-      const state = makeState({ preset: 'flexible', heightPx: 1024 });
-      const patch = computeHeightUpdate(state, 2000);
-      expect(patch.heightPx).toBe(2000);
+  describe('computeWidthMmUpdate', () => {
+    it('Resample=ON: changes widthPx, leaves dpi fixed', () => {
+      const state = makeState({ widthPx: 1051, dpi: 300, resample: true });
+      const patch = computeWidthMmUpdate(state, 178);
+      expect(patch.widthPx).toBe(2102);
+      expect(patch.dpi).toBeUndefined();
     });
 
-    it('clamps to maxHeightMm for constrained preset', () => {
-      const state = makeState({ preset: 'nature-1col', dpi: 300, heightPx: 1000 });
-      const patch = computeHeightUpdate(state, 5000);
-      expect(patch.heightPx).toBeLessThanOrEqual(2917);
+    it('Resample=OFF: changes dpi, leaves widthPx fixed', () => {
+      const state = makeState({ widthPx: 1051, heightPx: 591, dpi: 300, resample: false });
+      const patch = computeWidthMmUpdate(state, 89);
+      expect(patch.widthPx).toBeUndefined();
+      expect(patch.dpi).toBe(300);
     });
 
-    it('does not clamp when within limits', () => {
-      const state = makeState({ preset: 'nature-1col', dpi: 300, heightPx: 1000 });
-      const patch = computeHeightUpdate(state, 1500);
-      expect(patch.heightPx).toBe(1500);
+    it('Resample=OFF, halving mm doubles dpi', () => {
+      const state = makeState({ widthPx: 1051, dpi: 300, resample: false });
+      const patch = computeWidthMmUpdate(state, 44.5);
+      expect(patch.dpi).toBe(600);
+    });
+
+    it('Resample=ON aspectLocked=true: scales height proportionally', () => {
+      const state = makeState({
+        widthPx: 1000,
+        heightPx: 500,
+        dpi: 300,
+        resample: true,
+        aspectLocked: true,
+      });
+      const patch = computeWidthMmUpdate(state, 169.333);
+      expect(patch.widthPx).toBe(2000);
+      expect(patch.heightPx).toBe(1000);
+    });
+  });
+
+  describe('computeHeightPxUpdate', () => {
+    it('Resample=ON aspectLocked=true: scales width proportionally', () => {
+      const state = makeState({
+        widthPx: 1000,
+        heightPx: 500,
+        dpi: 300,
+        resample: true,
+        aspectLocked: true,
+      });
+      const patch = computeHeightPxUpdate(state, 1000);
+      expect(patch.heightPx).toBe(1000);
+      expect(patch.widthPx).toBe(2000);
+    });
+
+    it('aspectLocked=false: leaves width untouched', () => {
+      const state = makeState({
+        widthPx: 1000,
+        heightPx: 500,
+        dpi: 300,
+        resample: true,
+        aspectLocked: false,
+      });
+      const patch = computeHeightPxUpdate(state, 800);
+      expect(patch.heightPx).toBe(800);
+      expect(patch.widthPx).toBeUndefined();
+    });
+  });
+
+  describe('computeHeightMmUpdate', () => {
+    it('Resample=OFF: changes dpi (height-derived), widthPx untouched', () => {
+      const state = makeState({ widthPx: 1051, heightPx: 591, dpi: 300, resample: false });
+      const patch = computeHeightMmUpdate(state, 50);
+      expect(patch.heightPx).toBeUndefined();
+      expect(patch.dpi).toBeCloseTo(300, 0);
     });
   });
 
   describe('computeDpiUpdate', () => {
-    it('recalculates px dimensions for constrained preset', () => {
-      const state = makeState({ preset: 'nature-1col', dpi: 300, widthPx: 1051 });
+    it('Resample=ON: doubles widthPx and heightPx, mm fixed', () => {
+      const state = makeState({ widthPx: 1051, heightPx: 591, dpi: 300, resample: true });
       const patch = computeDpiUpdate(state, 600);
       expect(patch.dpi).toBe(600);
       expect(patch.widthPx).toBe(2102);
+      expect(patch.heightPx).toBe(1182);
     });
 
-    it('switches to custom for unconstrained preset', () => {
-      const state = makeState({ preset: 'flexible', dpi: 300 });
+    it('Resample=ON: halves pixels at half DPI', () => {
+      const state = makeState({ widthPx: 1051, heightPx: 591, dpi: 300, resample: true });
       const patch = computeDpiUpdate(state, 150);
-      expect(patch.dpi).toBe(150);
-      expect(patch.preset).toBe('custom');
+      expect(patch.widthPx).toBe(526);
+      expect(patch.heightPx).toBe(296);
     });
 
-    it('clamps height for constrained preset with maxHeightMm', () => {
-      const state = makeState({ preset: 'nature-1col', dpi: 300, heightPx: 5000 });
+    it('Resample=OFF: dpi changes, pixels stay locked', () => {
+      const state = makeState({ widthPx: 1051, heightPx: 591, dpi: 300, resample: false });
       const patch = computeDpiUpdate(state, 600);
-      expect(patch.heightPx).toBeDefined();
-      expect(patch.heightPx!).toBeLessThanOrEqual(5835);
+      expect(patch.dpi).toBe(600);
+      expect(patch.widthPx).toBeUndefined();
+      expect(patch.heightPx).toBeUndefined();
+    });
+
+    it('Flexible mode + Resample=ON: pixels still recompute', () => {
+      const state = makeState({
+        preset: 'flexible',
+        widthPx: 2048,
+        heightPx: 1024,
+        dpi: 300,
+        resample: true,
+      });
+      const patch = computeDpiUpdate(state, 600);
+      expect(patch.widthPx).toBe(4096);
+      expect(patch.heightPx).toBe(2048);
+    });
+
+    it('preserves the active preset (DPI is part of preset semantics)', () => {
+      const state = makeState({
+        preset: 'nature-1col',
+        widthPx: 1051,
+        heightPx: 591,
+        dpi: 300,
+        resample: true,
+      });
+      const patch = computeDpiUpdate(state, 600);
+      expect(patch.preset).toBeUndefined();
     });
   });
 
@@ -131,6 +228,12 @@ describe('publish-modal-helpers', () => {
     it('returns null for unknown preset', () => {
       const patch = computePresetApplication('nonexistent');
       expect(patch).toBeNull();
+    });
+
+    it('forces resample to true', () => {
+      const patch = computePresetApplication('nature-1col');
+      expect(patch).not.toBeNull();
+      expect(patch!.resample).toBe(true);
     });
   });
 

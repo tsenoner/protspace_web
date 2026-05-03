@@ -2,12 +2,15 @@
  * Pure helper functions extracted from the publish modal component.
  *
  * Each function takes state as input and returns a partial state patch —
- * no DOM access, no side effects, fully testable.
+ * no DOM access, no side effects, fully testable. The Resample toggle
+ * decides which axis the algebra (widthPx = widthMm × dpi / 25.4) resolves
+ * around: Resample=ON keeps mm fixed and recomputes px; Resample=OFF keeps
+ * px fixed and recomputes dpi (so mm follows).
  */
 
 import type { PublishState } from './publish-state';
 import { getPreset, resolvePresetDimensions, type PresetId } from './journal-presets';
-import { adjustDpiForWidthMm, mmToPx } from './dimension-utils';
+import { mmToPx, pxToMm } from './dimension-utils';
 
 type ViewFingerprint = { projection: string; dimensionality: number };
 
@@ -20,46 +23,92 @@ export function getActivePresetConstraints(
   return { widthMm: preset.widthMm, maxHeightMm: preset.maxHeightMm };
 }
 
-/** Compute state patch for a width change. Adjusts DPI for constrained presets. */
-export function computeWidthUpdate(state: PublishState, widthPx: number): Partial<PublishState> {
-  const c = getActivePresetConstraints(state);
-  if (c) {
-    const dpi = adjustDpiForWidthMm(widthPx, c.widthMm);
-    const heightPx = c.maxHeightMm
-      ? Math.min(state.heightPx, mmToPx(c.maxHeightMm, dpi))
-      : state.heightPx;
-    return { widthPx, dpi, heightPx };
+/** Width input in pixels. Only fires when unit === 'px' (Resample=OFF makes the input read-only). */
+export function computeWidthPxUpdate(state: PublishState, widthPx: number): Partial<PublishState> {
+  const patch: Partial<PublishState> = { widthPx, preset: 'custom' };
+  if (state.aspectLocked && state.widthPx > 0) {
+    const ratio = state.heightPx / state.widthPx;
+    patch.heightPx = Math.max(1, Math.round(widthPx * ratio));
   }
-  return { widthPx, preset: 'custom' };
+  return patch;
 }
 
-/** Compute state patch for a height change. Clamps to maxHeightMm if constrained. */
-export function computeHeightUpdate(state: PublishState, heightPx: number): Partial<PublishState> {
-  const c = getActivePresetConstraints(state);
-  if (c?.maxHeightMm) {
-    const maxPx = mmToPx(c.maxHeightMm, state.dpi);
-    heightPx = Math.min(heightPx, maxPx);
+/** Width input in mm/in/cm. Branches on `state.resample`. */
+export function computeWidthMmUpdate(state: PublishState, widthMm: number): Partial<PublishState> {
+  if (widthMm <= 0) return {};
+  if (state.resample) {
+    const widthPx = Math.max(1, mmToPx(widthMm, state.dpi));
+    const patch: Partial<PublishState> = { widthPx, preset: 'custom' };
+    if (state.aspectLocked && state.widthPx > 0) {
+      const ratio = state.heightPx / state.widthPx;
+      patch.heightPx = Math.max(1, Math.round(widthPx * ratio));
+    }
+    return patch;
   }
-  return { heightPx };
-}
-
-/** Compute state patch for a DPI change. Recalculates px for constrained presets. */
-export function computeDpiUpdate(state: PublishState, dpi: number): Partial<PublishState> {
-  const c = getActivePresetConstraints(state);
-  if (c) {
-    const widthPx = mmToPx(c.widthMm, dpi);
-    const heightPx = c.maxHeightMm
-      ? Math.min(state.heightPx, mmToPx(c.maxHeightMm, dpi))
-      : state.heightPx;
-    return { dpi, widthPx, heightPx };
-  }
+  // Resample=OFF: pixels locked, dpi recomputes.
+  const dpi = Math.max(1, Math.round((state.widthPx * 25.4) / widthMm));
   return { dpi, preset: 'custom' };
 }
 
-/** Compute state patch for applying a journal preset. Returns null if preset not found. */
+/** Height input in pixels. Only fires when unit === 'px'. */
+export function computeHeightPxUpdate(
+  state: PublishState,
+  heightPx: number,
+): Partial<PublishState> {
+  const patch: Partial<PublishState> = { heightPx, preset: 'custom' };
+  if (state.aspectLocked && state.heightPx > 0) {
+    const ratio = state.widthPx / state.heightPx;
+    patch.widthPx = Math.max(1, Math.round(heightPx * ratio));
+  }
+  return patch;
+}
+
+/** Height input in mm/in/cm. Branches on `state.resample`. */
+export function computeHeightMmUpdate(
+  state: PublishState,
+  heightMm: number,
+): Partial<PublishState> {
+  if (heightMm <= 0) return {};
+  if (state.resample) {
+    const heightPx = Math.max(1, mmToPx(heightMm, state.dpi));
+    const patch: Partial<PublishState> = { heightPx, preset: 'custom' };
+    if (state.aspectLocked && state.heightPx > 0) {
+      const ratio = state.widthPx / state.heightPx;
+      patch.widthPx = Math.max(1, Math.round(heightPx * ratio));
+    }
+    return patch;
+  }
+  const dpi = Math.max(1, Math.round((state.heightPx * 25.4) / heightMm));
+  return { dpi, preset: 'custom' };
+}
+
+/** DPI input. Branches on `state.resample`. Preserves the active preset (DPI is part of preset semantics). */
+export function computeDpiUpdate(state: PublishState, dpi: number): Partial<PublishState> {
+  if (dpi <= 0) return {};
+  if (state.resample) {
+    const widthMm = pxToMm(state.widthPx, state.dpi);
+    const heightMm = pxToMm(state.heightPx, state.dpi);
+    return {
+      dpi,
+      widthPx: Math.max(1, mmToPx(widthMm, dpi)),
+      heightPx: Math.max(1, mmToPx(heightMm, dpi)),
+    };
+  }
+  return { dpi };
+}
+
+/** Compute state patch for applying a journal preset. Always forces resample=true. */
 export function computePresetApplication(
   presetId: string,
-): { preset: PresetId; widthPx: number; heightPx: number | undefined; dpi: number } | null {
+):
+  | {
+      preset: PresetId;
+      widthPx: number;
+      heightPx: number | undefined;
+      dpi: number;
+      resample: true;
+    }
+  | null {
   const preset = getPreset(presetId);
   if (!preset) return null;
   const dims = resolvePresetDimensions(preset);
@@ -68,6 +117,7 @@ export function computePresetApplication(
     widthPx: dims.widthPx,
     heightPx: dims.heightPx,
     dpi: preset.dpi,
+    resample: true,
   };
 }
 
