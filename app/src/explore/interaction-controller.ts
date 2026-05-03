@@ -7,8 +7,9 @@ import type {
   StructureLoadEvent,
 } from '@protspace/core';
 import type { VisualizationData } from '@protspace/utils';
+import { getProteinAnnotationIndices } from '@protspace/utils';
 import { notify } from '../lib/notify';
-import { getLegendErrorNotification, getStructureErrorNotification } from './notifications';
+import { getLegendErrorNotification } from './notifications';
 
 interface InteractionControllerOptions {
   legendElement: ProtspaceLegend;
@@ -79,7 +80,9 @@ export function createInteractionController({
     legendElement.data = { annotations: currentData.annotations };
     legendElement.selectedAnnotation = currentAnnotation;
     legendElement.annotationValues = currentData.protein_ids.flatMap((_, index) => {
-      const annotationIdxArray = annotationRows?.[index] ?? [];
+      const annotationIdxArray = annotationRows
+        ? getProteinAnnotationIndices(annotationRows, index)
+        : [];
       return annotationIdxArray.map((annotationIdx) => {
         return currentData.annotations[currentAnnotation].values[annotationIdx];
       });
@@ -140,7 +143,6 @@ export function createInteractionController({
     handleStructureError(event) {
       const customEvent = event as CustomEvent<StructureErrorEventDetail>;
       console.warn('Structure viewer error:', customEvent.detail);
-      notify.error(getStructureErrorNotification(customEvent.detail));
     },
     handleStructureClose(event) {
       const customEvent = event as CustomEvent<{ proteinId?: string }>;

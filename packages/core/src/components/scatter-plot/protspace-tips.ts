@@ -1,5 +1,6 @@
 import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import { isMacOrIos } from '@protspace/utils';
 import { protspaceTipsStyles } from './protspace-tips.styles';
 

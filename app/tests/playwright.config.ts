@@ -48,6 +48,14 @@ export default defineConfig({
       testMatch: /dataset-reload\.spec\.ts/,
     },
     {
+      name: 'dataset-recovery',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /dataset-recovery\.spec\.ts/,
+    },
+    {
       name: 'numeric-binning',
       use: {
         ...devices['Desktop Chrome'],
@@ -86,6 +94,14 @@ export default defineConfig({
         viewport: { width: 1280, height: 720 },
       },
       testMatch: /url-view-state\.spec\.ts/,
+    },
+    {
+      name: 'load-large-bundle',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /load-large-bundle\.spec\.ts/,
     },
   ],
 

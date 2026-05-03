@@ -1,17 +1,20 @@
 import { LitElement, html } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+import { property, state, query } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import * as d3 from 'd3';
 import type {
   VisualizationData,
   PlotDataPoint,
   ScatterplotConfig,
   NumericAnnotationDisplaySettingsMap,
+  AnnotationData,
+  TooltipView,
 } from '@protspace/utils';
 import {
   DataProcessor,
-  getNumericBinLabelMap,
+  buildTooltipView,
   materializeVisualizationData,
-  toInternalValue,
+  sliceAnnotationData,
 } from '@protspace/utils';
 import type { LegendSortMode } from '../legend/types';
 import { scatterplotStyles } from './scatter-plot.styles';
@@ -80,7 +83,7 @@ export class ProtspaceScatterplot extends LitElement {
   @state() private _tooltipData: {
     x: number;
     y: number;
-    protein: PlotDataPoint;
+    view: TooltipView;
   } | null = null;
   @state() private _mergedConfig = DEFAULT_CONFIG;
   @state() private _transform = d3.zoomIdentity;
@@ -214,24 +217,36 @@ export class ProtspaceScatterplot extends LitElement {
   private _getMaterializedData(): VisualizationData | null {
     if (!this.data) return null;
 
+    const sourceData = this.data;
     const selectedNumericValues = this.selectedAnnotation
-      ? this.data.numeric_annotation_data?.[this.selectedAnnotation]
+      ? sourceData.numeric_annotation_data?.[this.selectedAnnotation]
       : undefined;
+    const selectedNumericValuesCacheRef = this.selectedAnnotation
+      ? (this.data.numeric_annotation_data?.[this.selectedAnnotation] ?? null)
+      : null;
     const selectedNumericSettings = this.selectedAnnotation
       ? this.numericAnnotationSettings?.[this.selectedAnnotation]
       : undefined;
+    const selectedNumericAnnotation = this.selectedAnnotation
+      ? sourceData.annotations[this.selectedAnnotation]
+      : undefined;
+    const selectedNumericType =
+      selectedNumericAnnotation?.numericType ??
+      selectedNumericAnnotation?.numericMetadata?.numericType ??
+      null;
 
     const cacheKey = JSON.stringify({
       dataRef: this.data.protein_ids.length,
       selectedAnnotation: this.selectedAnnotation,
       selectedNumericValuesLength: selectedNumericValues?.length ?? 0,
+      selectedNumericType,
       numericAnnotationSettings: selectedNumericSettings ?? null,
-      annotationKeys: Object.keys(this.data.annotations),
+      annotationKeys: Object.keys(sourceData.annotations),
     });
 
     if (
       this._lastMaterializedSource === this.data &&
-      this._lastMaterializedNumericValues === (selectedNumericValues ?? null) &&
+      this._lastMaterializedNumericValues === selectedNumericValuesCacheRef &&
       this._materializedDataCacheKey === cacheKey &&
       this._materializedDataCache
     ) {
@@ -239,13 +254,13 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     this._materializedDataCache = materializeVisualizationData(
-      this.data,
+      sourceData,
       this.numericAnnotationSettings,
       10,
       this.selectedAnnotation,
     );
     this._lastMaterializedSource = this.data;
-    this._lastMaterializedNumericValues = selectedNumericValues ?? null;
+    this._lastMaterializedNumericValues = selectedNumericValuesCacheRef;
     this._materializedDataCacheKey = cacheKey;
     return this._materializedDataCache;
   }
@@ -604,36 +619,16 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _refreshSelectedAnnotationValues(dataToUse: VisualizationData) {
     const annotationName = this.selectedAnnotation;
-    const annotation = dataToUse.annotations[annotationName];
-    const annotationRows = dataToUse.annotation_data?.[annotationName];
-
-    if (!annotation || !annotationRows) {
+    if (!dataToUse.annotations[annotationName] || !dataToUse.annotation_data?.[annotationName]) {
       this._processData();
       return;
     }
 
-    const numericLabelMap = getNumericBinLabelMap(annotation);
-
-    for (const point of this._plotData) {
-      const annotationIndicesData = annotationRows[point.originalIndex];
-      const annotationIndices: unknown[] = Array.isArray(annotationIndicesData)
-        ? annotationIndicesData
-        : annotationIndicesData == null
-          ? []
-          : [annotationIndicesData];
-
-      point.annotationValues[annotationName] = annotationIndices
-        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
-        .map((value) => toInternalValue(annotation.values[value]));
-      if (point.annotationDisplayValues) {
-        point.annotationDisplayValues[annotationName] = point.annotationValues[annotationName].map(
-          (value) => numericLabelMap.get(value) ?? value,
-        );
-      }
-    }
-
+    // Style-getters read annotation values lazily via getProteinAnnotationValues —
+    // changing the selected annotation only requires re-render + cache invalidation.
     this._plotData = [...this._plotData];
     this._lastDataRef = dataToUse;
+    this._styleGettersCache = null;
     this._invalidateVirtualizationCache();
   }
 
@@ -737,7 +732,7 @@ export class ProtspaceScatterplot extends LitElement {
       annotation_data: Object.fromEntries(
         Object.entries(materializedData.annotation_data).map(([annotationName, rows]) => [
           annotationName,
-          keptIndices.map((index) => rows[index]),
+          sliceAnnotationData(rows, keptIndices),
         ]),
       ),
       numeric_annotation_data: materializedData.numeric_annotation_data
@@ -1798,15 +1793,19 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _handleMouseOver(event: MouseEvent, point: PlotDataPoint) {
+    if (!this.data) return;
     const { x, y } = this._getLocalPointerPosition(event);
-    this._tooltipData = { x, y, protein: point };
-    const pointForEvent = this._createDisplayPoint(point);
+    const view = buildTooltipView(this.data, point.originalIndex, this.selectedAnnotation);
+    this._tooltipData = { x, y, view };
 
     if (this._hoveredProteinId !== point.id) {
       this._hoveredProteinId = point.id;
+      // detail.view is the lookup-friendly shape consumers should read
+      // (gene/protein name, selected-annotation values, scores, evidence).
+      // detail.point is the bare lazy point — no annotation Records.
       this.dispatchEvent(
         new CustomEvent('protein-hover', {
-          detail: { proteinId: point.id, point: pointForEvent },
+          detail: { proteinId: point.id, point, view },
           bubbles: true,
         }),
       );
@@ -1814,12 +1813,15 @@ export class ProtspaceScatterplot extends LitElement {
   }
 
   private _handleClick(event: MouseEvent, point: PlotDataPoint) {
-    const pointForEvent = this._createDisplayPoint(point);
+    const view = this.data
+      ? buildTooltipView(this.data, point.originalIndex, this.selectedAnnotation)
+      : null;
     this.dispatchEvent(
       new CustomEvent('protein-click', {
         detail: {
           proteinId: point.id,
-          point: pointForEvent,
+          point,
+          view,
           modifierKeys: {
             ctrl: event.ctrlKey,
             meta: event.metaKey,
@@ -1831,15 +1833,6 @@ export class ProtspaceScatterplot extends LitElement {
         composed: true,
       }),
     );
-  }
-
-  private _createDisplayPoint(point: PlotDataPoint): PlotDataPoint {
-    return point.annotationDisplayValues
-      ? {
-          ...point,
-          annotationValues: point.annotationDisplayValues,
-        }
-      : point;
   }
 
   /**
@@ -1985,7 +1978,7 @@ export class ProtspaceScatterplot extends LitElement {
       this._hoveredProteinId = null;
       this.dispatchEvent(
         new CustomEvent('protein-hover', {
-          detail: { proteinId: null, point: null },
+          detail: { proteinId: null, point: null, view: null },
           bubbles: true,
         }),
       );
@@ -2082,7 +2075,7 @@ export class ProtspaceScatterplot extends LitElement {
               <protspace-protein-tooltip
                 class="visible"
                 style="${this._getTooltipStyle()}"
-                .protein=${this._tooltipData.protein}
+                .view=${this._tooltipData.view}
                 .selectedAnnotation=${this.selectedAnnotation}
               >
               </protspace-protein-tooltip>
@@ -2294,20 +2287,13 @@ export class ProtspaceScatterplot extends LitElement {
       });
 
       // Filter annotation data to match current protein IDs
-      const filteredAnnotationData: { [key: string]: number[][] } = {};
+      const filteredAnnotationData: Record<string, AnnotationData> = {};
       const filteredNumericAnnotationData: { [key: string]: (number | null)[] } = {};
 
       for (const [annotationName, annotationValues] of Object.entries(
         currentDisplayData.annotation_data,
       )) {
-        filteredAnnotationData[annotationName] = [];
-
-        // Map original indices to current indices
-        currentDisplayData.protein_ids.forEach((proteinId, originalIndex) => {
-          if (currentProteinIdsSet.has(proteinId)) {
-            filteredAnnotationData[annotationName].push(annotationValues[originalIndex]);
-          }
-        });
+        filteredAnnotationData[annotationName] = sliceAnnotationData(annotationValues, keptIndices);
       }
 
       for (const [annotationName, annotationValues] of Object.entries(

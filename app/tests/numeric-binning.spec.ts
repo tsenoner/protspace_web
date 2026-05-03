@@ -156,9 +156,15 @@ async function loadDemoDataset(page: Page): Promise<void> {
       | null;
     return typeof plot?.getCurrentData === 'function' && Boolean(plot?.data?.annotations);
   });
-  await waitForAnnotationAvailable(page, 'ec');
-  await selectAnnotation(page, 'ec');
-  await waitForLegendAnnotation(page, 'ec');
+  // 'order' is a clean Taxonomy categorical (18 values, no NAs) and uses the
+  // default size-desc sort, which suits the legend keyboard/pointer-drag tests.
+  // The previous pick was 'ec', but the demo bundle bakes a curated manual sort
+  // for ec/pfam/superfamily/protein_families/cath — that breaks tests asserting
+  // "keeps non-manual sorting". The substring match for selectAnnotation also
+  // collided with 'species' (contains "ec"); that's been fixed in the helper.
+  await waitForAnnotationAvailable(page, 'order');
+  await selectAnnotation(page, 'order');
+  await waitForLegendAnnotation(page, 'order');
 }
 
 async function waitForAnnotationAvailable(page: Page, annotation: string): Promise<void> {
@@ -330,9 +336,13 @@ async function openLegendSettings(page: Page): Promise<void> {
 async function selectAnnotation(page: Page, annotation: string): Promise<void> {
   await dismissTourIfPresent(page);
   await page.locator('protspace-control-bar protspace-annotation-select .dropdown-trigger').click();
+  // Anchored regex with surrounding-whitespace tolerance. A bare `hasText: 'ec'`
+  // is a substring match and would land on e.g. "species"; a tight `^ec$` won't
+  // match because Lit templates introduce whitespace around the interpolation.
+  const escaped = annotation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   await page
     .locator('protspace-control-bar protspace-annotation-select .dropdown-item')
-    .filter({ hasText: annotation })
+    .filter({ hasText: new RegExp(`^\\s*${escaped}\\s*$`) })
     .first()
     .click();
 
@@ -790,11 +800,11 @@ test('raw numeric annotations are materialized into frontend bins', async ({ pag
   const result = await getNumericState(page);
 
   expect(result.rawKind).toBe('numeric');
-  expect(result.strategy).toBe('linear');
+  expect(result.strategy).toBe('quantile');
   expect(result.binCount).toBeGreaterThan(0);
   expect(result.binCount).toBeLessThanOrEqual(10);
-  expect(result.colors[0]).toBe('#440154');
-  expect(result.colors.at(-1)).toBe('#FDE725');
+  expect(result.colors[0]).toBe('#011959');
+  expect(result.colors.at(-1)).toBe('#FACCFA');
 });
 
 test('numeric settings are staged, saved, and restored on re-import', async ({ page }) => {
@@ -830,8 +840,8 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
     page.locator('protspace-legend').getByRole('dialog', { name: 'Legend settings: length' }),
   ).toBeVisible();
   expect(initialDialog.includeShapesDisabled).toBe(true);
-  expect(initialDialog.palette).toBe('cividis');
-  expect(initialDialog.distribution).toBe('linear');
+  expect(initialDialog.palette).toBe('batlow');
+  expect(initialDialog.distribution).toBe('quantile');
   expect(initialDialog.hasDistributionSelect).toBe(true);
   expect(initialDialog.hasSortingSection).toBe(true);
   expect(initialDialog.hasReverseButton).toBe(true);
@@ -850,7 +860,7 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
   ]);
   expect(initialDialog.logDisabled).toBe(false);
   const initialPreview = await readNumericPreview(page);
-  expect(initialPreview.ariaLabel).toBe('Viridis continuous gradient preview');
+  expect(initialPreview.ariaLabel).toBe('Batlow continuous gradient preview');
   expect(initialPreview.caption).toBe('');
   expect(initialPreview.scaleLabels).toEqual(['Low', 'High']);
   expect((await readNumericPreview(page)).options).toContainEqual({
@@ -872,10 +882,10 @@ test('numeric settings are staged, saved, and restored on re-import', async ({ p
   await waitForDialogClosed(page);
 
   let state = await getNumericState(page);
-  expect(state.strategy).toBe('linear');
+  expect(state.strategy).toBe('quantile');
   expect(state.binCount).toBeGreaterThan(0);
   expect(state.binCount).toBeLessThanOrEqual(10);
-  expect(state.colors[0]).toBe('#440154');
+  expect(state.colors[0]).toBe('#011959');
 
   await openLegendSettings(page);
   await updateLegendSettings(page, {
@@ -987,14 +997,14 @@ test('reset restores numeric settings defaults and clears saved state on re-impo
   await waitForDialogClosed(page);
 
   state = await getNumericState(page);
-  expect(state.strategy).toBe('linear');
-  expect(state.colors[0]).toBe('#00224E');
-  expect(state.colors.at(-1)).toBe('#FEE838');
+  expect(state.strategy).toBe('quantile');
+  expect(state.colors[0]).toBe('#011959');
+  expect(state.colors.at(-1)).toBe('#FACCFA');
 
   await openLegendSettings(page);
   let dialog = await readLegendSettingsDialog(page);
-  expect(dialog.palette).toBe('cividis');
-  expect(dialog.distribution).toBe('linear');
+  expect(dialog.palette).toBe('batlow');
+  expect(dialog.distribution).toBe('quantile');
   expect(dialog.reverseGradientChecked).toBe(false);
   await clickDialogButton(page, 'Cancel');
   await waitForDialogClosed(page);
@@ -1005,14 +1015,14 @@ test('reset restores numeric settings defaults and clears saved state on re-impo
   await waitForLegendAnnotation(page, 'length');
 
   state = await getNumericState(page);
-  expect(state.strategy).toBe('linear');
-  expect(state.colors[0]).toBe('#00224E');
-  expect(state.colors.at(-1)).toBe('#FEE838');
+  expect(state.strategy).toBe('quantile');
+  expect(state.colors[0]).toBe('#011959');
+  expect(state.colors.at(-1)).toBe('#FACCFA');
 
   await openLegendSettings(page);
   dialog = await readLegendSettingsDialog(page);
-  expect(dialog.palette).toBe('cividis');
-  expect(dialog.distribution).toBe('linear');
+  expect(dialog.palette).toBe('batlow');
+  expect(dialog.distribution).toBe('quantile');
   expect(dialog.reverseGradientChecked).toBe(false);
 });
 
@@ -1023,8 +1033,8 @@ test('closing the settings dialog discards staged numeric changes like cancel', 
   await selectAnnotation(page, 'length');
 
   const initialState = await getNumericState(page);
-  expect(initialState.strategy).toBe('linear');
-  expect(initialState.colors[0]).toBe('#440154');
+  expect(initialState.strategy).toBe('quantile');
+  expect(initialState.colors[0]).toBe('#011959');
 
   await openLegendSettings(page);
   await updateLegendSettings(page, {
@@ -1041,9 +1051,9 @@ test('closing the settings dialog discards staged numeric changes like cancel', 
   await waitForDialogClosed(page);
 
   const state = await getNumericState(page);
-  expect(state.strategy).toBe('linear');
-  expect(state.colors[0]).toBe('#440154');
-  expect(state.colors.at(-1)).toBe('#FDE725');
+  expect(state.strategy).toBe('quantile');
+  expect(state.colors[0]).toBe('#011959');
+  expect(state.colors.at(-1)).toBe('#FACCFA');
 });
 
 test('pressing escape closes the settings dialog and discards staged numeric changes', async ({
@@ -1053,8 +1063,8 @@ test('pressing escape closes the settings dialog and discards staged numeric cha
   await selectAnnotation(page, 'length');
 
   const initialState = await getNumericState(page);
-  expect(initialState.strategy).toBe('linear');
-  expect(initialState.colors[0]).toBe('#440154');
+  expect(initialState.strategy).toBe('quantile');
+  expect(initialState.colors[0]).toBe('#011959');
 
   await openLegendSettings(page);
   await updateLegendSettings(page, {
@@ -1068,9 +1078,9 @@ test('pressing escape closes the settings dialog and discards staged numeric cha
   await waitForDialogClosed(page);
 
   const state = await getNumericState(page);
-  expect(state.strategy).toBe('linear');
-  expect(state.colors[0]).toBe('#00224E');
-  expect(state.colors.at(-1)).toBe('#FEE838');
+  expect(state.strategy).toBe('quantile');
+  expect(state.colors[0]).toBe('#011959');
+  expect(state.colors.at(-1)).toBe('#FACCFA');
 });
 
 test('changing only max legend items recalculates numeric colors for the same gradient palette', async ({
@@ -1080,11 +1090,11 @@ test('changing only max legend items recalculates numeric colors for the same gr
   await selectAnnotation(page, 'length');
 
   const initialState = await getNumericState(page);
-  expect(initialState.strategy).toBe('linear');
+  expect(initialState.strategy).toBe('quantile');
   expect(initialState.binCount).toBeGreaterThan(0);
   expect(initialState.binCount).toBeLessThanOrEqual(10);
-  expect(initialState.colors[0]).toBe('#00224E');
-  expect(initialState.colors.at(-1)).toBe('#FEE838');
+  expect(initialState.colors[0]).toBe('#011959');
+  expect(initialState.colors.at(-1)).toBe('#FACCFA');
 
   await openLegendSettings(page);
   await updateLegendSettings(page, {
@@ -1109,8 +1119,8 @@ test('reversing the numeric gradient swaps the low and high bin colors', async (
 
   const initialState = await getNumericState(page);
   expect(initialState.colors.length).toBeGreaterThan(1);
-  expect(initialState.colors[0]).toBe('#00224E');
-  expect(initialState.colors.at(-1)).toBe('#FEE838');
+  expect(initialState.colors[0]).toBe('#011959');
+  expect(initialState.colors.at(-1)).toBe('#FACCFA');
 
   await openLegendSettings(page);
   const initialDialog = await readLegendSettingsDialog(page);
@@ -1405,8 +1415,8 @@ test('real phosphatase bundle rebins length to five bins without leaving the UI 
     .toEqual({ rawKind: 'numeric', hasBins: true });
 
   const initialNumericState = await getNumericState(page);
-  expect(initialNumericState.colors[0]).toBe('#00224E');
-  expect(initialNumericState.colors.at(-1)).toBe('#FEE838');
+  expect(initialNumericState.colors[0]).toBe('#011959');
+  expect(initialNumericState.colors.at(-1)).toBe('#FACCFA');
   expect(initialNumericState.binCount).toBeGreaterThan(0);
   expect(initialNumericState.binCount).toBeLessThanOrEqual(10);
 
@@ -1595,7 +1605,7 @@ test('categorical pointer drag from alphabetical reverse promotes to manual orde
 }) => {
   await loadDemoDataset(page);
   await openLegendSettings(page);
-  await setSortMode(page, 'ec', 'alpha');
+  await setSortMode(page, 'order', 'alpha');
   await clickDialogButton(page, 'Save');
   await waitForDialogClosed(page);
   await clickLegendReverseButton(page);

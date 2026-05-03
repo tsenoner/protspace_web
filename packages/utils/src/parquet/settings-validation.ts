@@ -296,12 +296,15 @@ function sanitizeExportOptionsMap(obj: unknown): ExportOptionsMap | null {
  */
 export function normalizeBundleSettings(obj: unknown): BundleSettings | null {
   if (isNormalizedBundleSettings(obj)) {
-    return obj;
+    return {
+      legendSettings: sanitizeLegendSettingsMap(obj.legendSettings) ?? obj.legendSettings,
+      exportOptions: sanitizeExportOptionsMap(obj.exportOptions) ?? obj.exportOptions,
+    };
   }
 
   if (isLegacyBundleSettings(obj)) {
     return {
-      legendSettings: obj,
+      legendSettings: sanitizeLegendSettingsMap(obj) ?? obj,
       exportOptions: {},
     };
   }

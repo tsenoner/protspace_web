@@ -1,9 +1,10 @@
 import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state, query as litQuery } from 'lit/decorators.js';
+import { property, state, query as litQuery } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import type { FilterCondition, LogicalOp } from './query-types';
 import type { ProtspaceData } from './types';
 import { groupAnnotations } from './annotation-categories';
-import { LEGEND_VALUES } from '@protspace/utils';
+import { NA_VALUE, NA_DISPLAY } from '@protspace/utils';
 import { queryBuilderStyles } from './query-builder.styles';
 import './query-value-picker';
 
@@ -64,7 +65,7 @@ class ProtspaceQueryConditionRow extends LitElement {
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   private _displayValue(value: string): string {
-    return value === LEGEND_VALUES.NA_VALUE ? LEGEND_VALUES.NA_DISPLAY : value;
+    return value === NA_VALUE ? NA_DISPLAY : value;
   }
 
   private _dispatchChanged(updated: FilterCondition) {

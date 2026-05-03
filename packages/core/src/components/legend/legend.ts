@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
-import { customElement, property, query, state } from 'lit/decorators.js';
+import { property, query, state } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import {
   COLOR_SCHEMES,
   DEFAULT_NUMERIC_PALETTE_ID,
@@ -12,6 +13,8 @@ import {
   materializeNumericAnnotation,
   normalizeNumericPaletteId,
   resolveNumericAnnotationDisplaySettings,
+  getFirstAnnotationIndex,
+  getProteinAnnotationIndices,
   type NumericBinningStrategy,
   type NumericAnnotationDisplaySettingsMap,
 } from '@protspace/utils';
@@ -23,6 +26,7 @@ import {
   LEGEND_STYLES,
   LEGEND_VALUES,
   LEGEND_EVENTS,
+  NA_VALUE,
   toDisplayValue,
   toInternalValue,
   SHAPE_PATH_GENERATORS,
@@ -222,28 +226,38 @@ export class ProtspaceLegend extends LitElement {
     onSettingsLoaded: (settings) => this._applyPersistedSettings(settings),
     getLegendItems: () => this._legendItems,
     getHiddenValues: () => this._hiddenValues,
-    shouldPersistCategories: () => !this._isNumericAnnotation(),
-    shouldPersistCategoryEncodings: () => !this._isNumericAnnotation(),
-    getCurrentSettings: () => ({
-      maxVisibleValues: this.maxVisibleValues,
-      includeShapes: this.includeShapes,
-      shapeSize: this.shapeSize,
-      sortMode: this._annotationSortModes[this.selectedAnnotation] ?? 'size-desc',
-      enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
-      selectedPaletteId: this._selectedPaletteId,
-      numericSettings: this._isNumericAnnotation()
-        ? {
-            strategy:
-              this._numericSettingsByAnnotation[this.selectedAnnotation]?.strategy ??
-              DEFAULT_NUMERIC_STRATEGY,
-            reverseGradient:
-              this._numericSettingsByAnnotation[this.selectedAnnotation]?.reverseGradient ?? false,
-            signature: this.annotationData.numericMetadata?.signature ?? '',
-            topologySignature: this.annotationData.numericMetadata?.topologySignature ?? '',
-            manualOrderIds: this._buildNumericManualOrderIds(this.selectedAnnotation),
-          }
-        : undefined,
-    }),
+    shouldPersistCategories: () => !this._isCurrentAnnotationNumeric(),
+    shouldPersistCategoryEncodings: () => !this._isCurrentAnnotationNumeric(),
+    isNumericAnnotation: () => this._isCurrentAnnotationNumeric(),
+    getCurrentSettings: () => {
+      const isNumericAnnotation = this._isCurrentAnnotationNumeric();
+      return {
+        maxVisibleValues: this.maxVisibleValues,
+        includeShapes: this.includeShapes,
+        shapeSize: this.shapeSize,
+        sortMode: this._normalizeSortModeForEffectiveType(
+          this._annotationSortModes[this.selectedAnnotation],
+          isNumericAnnotation,
+        ),
+        enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
+        selectedPaletteId: isNumericAnnotation
+          ? normalizeNumericPaletteId(this._selectedPaletteId)
+          : this._normalizeCategoricalPaletteId(this._selectedPaletteId),
+        numericSettings: isNumericAnnotation
+          ? {
+              strategy:
+                this._numericSettingsByAnnotation[this.selectedAnnotation]?.strategy ??
+                DEFAULT_NUMERIC_STRATEGY,
+              reverseGradient:
+                this._numericSettingsByAnnotation[this.selectedAnnotation]?.reverseGradient ??
+                false,
+              signature: this.annotationData.numericMetadata?.signature ?? '',
+              topologySignature: this.annotationData.numericMetadata?.topologySignature ?? '',
+              manualOrderIds: this._buildNumericManualOrderIds(this.selectedAnnotation),
+            }
+          : undefined,
+      };
+    },
   });
 
   private _dragController = new DragController(this, {
@@ -251,8 +265,11 @@ export class ProtspaceLegend extends LitElement {
     setLegendItems: (items) => {
       this._legendItems = items;
       if (this._isNumericAnnotation()) {
+        // Exclude Other (synthetic) and NA (locked to legend end regardless of
+        // sort) from the persisted manual order — they have no observable
+        // position effect and would clutter the saved state.
         const orderedIds = [...items]
-          .filter((item) => item.value !== LEGEND_VALUES.OTHER)
+          .filter((item) => item.value !== LEGEND_VALUES.OTHER && item.value !== NA_VALUE)
           .sort((left, right) => left.zOrder - right.zOrder)
           .map((item) => item.value);
         this._setNumericManualOrderIds(this.selectedAnnotation, orderedIds);
@@ -368,18 +385,6 @@ export class ProtspaceLegend extends LitElement {
     if (didChange) {
       this._numericSettingsByAnnotation = nextNumericSettings;
       this._scatterplotController.syncNumericAnnotationSettings();
-      const scatterplot = this._scatterplotController.scatterplot;
-      const currentData =
-        scatterplot?.getCurrentData?.() ?? scatterplot?.getMaterializedData?.() ?? null;
-      if (scatterplot && currentData) {
-        scatterplot.dispatchEvent(
-          new CustomEvent('data-change', {
-            detail: { data: currentData },
-            bubbles: true,
-            composed: true,
-          }),
-        );
-      }
     }
   }
 
@@ -410,6 +415,17 @@ export class ProtspaceLegend extends LitElement {
         e.stopImmediatePropagation();
         e.preventDefault();
         this._handleSettingsClose();
+        return;
+      }
+      // Cancel active keyboard reorder. The drag-handle's own Escape handler
+      // works only while focus stays on that handle, but Lit re-renders during
+      // ArrowDown can briefly move focus to <body> before rAF restores it —
+      // catching Escape here makes cancel robust to that focus gap.
+      if (this._keyboardDragValue !== null) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        this._restoreKeyboardReorderSnapshot();
+        this._announceStatus('Reordering canceled.');
         return;
       }
     }
@@ -632,7 +648,7 @@ export class ProtspaceLegend extends LitElement {
   // ─────────────────────────────────────────────────────────────────
 
   private get _effectiveIncludeShapes(): boolean {
-    return this._isMultilabelAnnotation() || this._isNumericAnnotation()
+    return this._isMultilabelAnnotation() || this._isCurrentAnnotationNumeric()
       ? false
       : this.includeShapes;
   }
@@ -737,14 +753,18 @@ export class ProtspaceLegend extends LitElement {
   }
 
   updated(changedProperties: Map<string, unknown>): void {
-    // Handle keyboard events for dialogs and color picker
+    // Handle keyboard events for dialogs, color picker, and active keyboard reorder
     const dialogsChanged =
       changedProperties.has('_showSettingsDialog') ||
       changedProperties.has('_showOtherDialog') ||
-      changedProperties.has('_colorPickerItem');
+      changedProperties.has('_colorPickerItem') ||
+      changedProperties.has('_keyboardDragValue');
     if (dialogsChanged) {
       const anyDialogOpen =
-        this._showSettingsDialog || this._showOtherDialog || this._colorPickerItem !== null;
+        this._showSettingsDialog ||
+        this._showOtherDialog ||
+        this._colorPickerItem !== null ||
+        this._keyboardDragValue !== null;
       if (anyDialogOpen) {
         window.addEventListener('keydown', this._onWindowKeydownCapture, true);
       } else {
@@ -792,13 +812,21 @@ export class ProtspaceLegend extends LitElement {
       this.proteinIds.length > 0 &&
       !this.isolationMode
     ) {
-      const unfilteredData = this._scatterplotController.scatterplot?.getCurrentData?.({
-        includeFilteredProteinIds: false,
-      }) ?? {
-        protein_ids: this.proteinIds,
-        annotations: this.data?.annotations,
-        numeric_annotation_data: this.data?.numeric_annotation_data,
-      };
+      const sourceData = this._scatterplotController.scatterplot?.data;
+      const sourceDataMatchesCurrentLegend =
+        sourceData?.protein_ids !== undefined &&
+        this._hasSameProteinIds(sourceData.protein_ids, this.proteinIds);
+      const unfilteredData = sourceDataMatchesCurrentLegend
+        ? {
+            protein_ids: sourceData.protein_ids,
+            annotations: sourceData.annotations,
+            numeric_annotation_data: sourceData.numeric_annotation_data,
+          }
+        : {
+            protein_ids: this.proteinIds,
+            annotations: this.data?.annotations,
+            numeric_annotation_data: this.data?.numeric_annotation_data,
+          };
 
       this._persistenceController.updateDatasetHash({
         protein_ids: unfilteredData.protein_ids,
@@ -1050,15 +1078,23 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _updateAnnotationValues(data: ScatterplotData, selectedAnnotation: string): void {
-    const annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
-      const annotationIdxData = data.annotation_data[selectedAnnotation][index];
-      const annotationIdxArray = Array.isArray(annotationIdxData)
-        ? annotationIdxData
-        : [annotationIdxData];
-      return annotationIdxArray.map((annotationIdx: number) =>
-        toInternalValue(data.annotations[selectedAnnotation].values[annotationIdx]),
-      );
-    });
+    const colData = data.annotation_data[selectedAnnotation];
+    const values = data.annotations[selectedAnnotation].values;
+    let annotationValues: string[];
+    if (colData instanceof Int32Array) {
+      // Single-valued storage: use the allocation-free accessor.
+      annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
+        const idx = getFirstAnnotationIndex(colData, index);
+        return idx < 0 ? [] : [toInternalValue(values[idx])];
+      });
+    } else {
+      annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
+        const annotationIdxArray = getProteinAnnotationIndices(colData, index);
+        return annotationIdxArray.map((annotationIdx: number) =>
+          toInternalValue(values[annotationIdx]),
+        );
+      });
+    }
     this.annotationValues = annotationValues;
   }
 
@@ -1079,6 +1115,19 @@ export class ProtspaceLegend extends LitElement {
 
   private _isNumericAnnotation(): boolean {
     return isNumericAnnotation(this.annotationData);
+  }
+
+  private _isCurrentAnnotationNumeric(): boolean {
+    const sourceAnnotation =
+      this._scatterplotController.scatterplot?.data?.annotations?.[this.selectedAnnotation];
+    return isNumericAnnotation(sourceAnnotation) || this._isNumericAnnotation();
+  }
+
+  private _hasSameProteinIds(left: readonly string[], right: readonly string[]): boolean {
+    if (left === right) return true;
+    if (left.length !== right.length) return false;
+
+    return left.every((proteinId, index) => proteinId === right[index]);
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -1125,7 +1174,7 @@ export class ProtspaceLegend extends LitElement {
     }
 
     const visibleIds = [...this._legendItems]
-      .filter((item) => item.value !== LEGEND_VALUES.OTHER)
+      .filter((item) => item.value !== LEGEND_VALUES.OTHER && item.value !== NA_VALUE)
       .sort((left, right) => left.zOrder - right.zOrder)
       .map((item) => item.value);
 
@@ -1153,7 +1202,7 @@ export class ProtspaceLegend extends LitElement {
 
     const labelMap = this._getNumericDisplayLabelMap();
     this._legendItems = this._legendItems.map((item) =>
-      item.value === LEGEND_VALUES.OTHER || item.value === LEGEND_VALUES.NA_VALUE
+      item.value === LEGEND_VALUES.OTHER || item.value === NA_VALUE
         ? item
         : { ...item, displayValue: labelMap.get(item.value) ?? item.displayValue ?? item.value },
     );
@@ -1170,7 +1219,7 @@ export class ProtspaceLegend extends LitElement {
     );
 
     this._legendItems = this._legendItems.map((item) => {
-      if (item.value === LEGEND_VALUES.OTHER || item.value === LEGEND_VALUES.NA_VALUE) {
+      if (item.value === LEGEND_VALUES.OTHER || item.value === NA_VALUE) {
         return item;
       }
       const derivedColor = derivedColors.get(item.value);
@@ -1179,7 +1228,9 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _updateLegendItems(): void {
-    const isNumericAnnotation = this._isNumericAnnotation();
+    // Aligned with PersistenceController's isNumericAnnotation callback so the
+    // processor and the persistence layer agree on numeric-ness in transient states.
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
     if (
       !this.annotationData?.values?.length ||
       (!isNumericAnnotation && !this.annotationValues?.length)
@@ -1250,6 +1301,7 @@ export class ProtspaceLegend extends LitElement {
         pendingExtract,
         pendingMerge,
         knownValues,
+        isNumericAnnotation,
       );
 
       // Apply hidden values
@@ -1299,7 +1351,7 @@ export class ProtspaceLegend extends LitElement {
 
   private _applyPersistedSettings(settings: LegendPersistedSettings): void {
     try {
-      const isNumericAnnotation = this._isNumericAnnotation();
+      const isNumericAnnotation = this._isCurrentAnnotationNumeric();
       const { settings: resolvedNumericSettings } = resolveNumericAnnotationDisplaySettings({
         persistedSettings: settings,
         liveSettings: this._numericSettingsByAnnotation[this.selectedAnnotation],
@@ -1364,9 +1416,9 @@ export class ProtspaceLegend extends LitElement {
 
       this._annotationSortModes = {
         ...this._annotationSortModes,
-        [this.selectedAnnotation]: this._normalizeSortModeForAnnotation(
-          this.selectedAnnotation,
+        [this.selectedAnnotation]: this._normalizeSortModeForEffectiveType(
           settings.sortMode,
+          isNumericAnnotation,
         ),
       };
 
@@ -1423,6 +1475,13 @@ export class ProtspaceLegend extends LitElement {
       (annotationName === this.selectedAnnotation ? this.annotationData : undefined);
     const isNumeric = isNumericAnnotation(annotation);
 
+    return this._normalizeSortModeForEffectiveType(sortMode, isNumeric);
+  }
+
+  private _normalizeSortModeForEffectiveType(
+    sortMode: LegendSortMode | undefined,
+    isNumeric: boolean,
+  ): LegendSortMode {
     if (isNumeric) {
       if (
         sortMode === 'alpha-asc' ||
@@ -1700,7 +1759,7 @@ export class ProtspaceLegend extends LitElement {
     this._clearKeyboardReorderState();
     const scatterplot = this._scatterplotController.scatterplot;
     const numericSettings = this._numericSettingsByAnnotation[this.selectedAnnotation];
-    const isNumericAnnotation = this._isNumericAnnotation();
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
     const selectedPaletteId = isNumericAnnotation
       ? normalizeNumericPaletteId(numericSettings?.paletteId ?? DEFAULT_NUMERIC_PALETTE_ID)
       : this._normalizeCategoricalPaletteId(this._selectedPaletteId);
@@ -1758,30 +1817,38 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handleSettingsSave(): void {
-    const shapesSettingChanged = this.includeShapes !== this._dialogSettings.includeShapes;
-    const isNumericAnnotation = this._isNumericAnnotation();
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
+    const nextIncludeShapes = isNumericAnnotation ? false : this._dialogSettings.includeShapes;
+    const nextSelectedPaletteId = isNumericAnnotation
+      ? normalizeNumericPaletteId(this._dialogSettings.selectedPaletteId)
+      : this._normalizeCategoricalPaletteId(this._dialogSettings.selectedPaletteId);
+    const nextAnnotationSortModes = {
+      ...this._dialogSettings.annotationSortModes,
+      [this.selectedAnnotation]: this._normalizeSortModeForEffectiveType(
+        this._dialogSettings.annotationSortModes[this.selectedAnnotation],
+        isNumericAnnotation,
+      ),
+    };
+    const shapesSettingChanged = this.includeShapes !== nextIncludeShapes;
 
     this.maxVisibleValues = this._dialogSettings.maxVisibleValues;
-    this.includeShapes = this._dialogSettings.includeShapes;
+    this.includeShapes = nextIncludeShapes;
     this.shapeSize = this._dialogSettings.shapeSize;
-    this._annotationSortModes = this._dialogSettings.annotationSortModes;
-    if (!this._dialogSettings.annotationSortModes[this.selectedAnnotation]?.startsWith('manual')) {
+    this._annotationSortModes = nextAnnotationSortModes;
+    if (!nextAnnotationSortModes[this.selectedAnnotation]?.startsWith('manual')) {
       this._keyboardDragValue = null;
     }
-    this._selectedPaletteId = isNumericAnnotation
-      ? this._dialogSettings.selectedPaletteId
-      : this._normalizeCategoricalPaletteId(this._dialogSettings.selectedPaletteId);
+    this._selectedPaletteId = nextSelectedPaletteId;
     if (isNumericAnnotation) {
       this._numericSettingsByAnnotation = {
         ...this._numericSettingsByAnnotation,
         [this.selectedAnnotation]: {
           binCount: this._dialogSettings.maxVisibleValues,
           strategy: this._dialogSettings.numericStrategy,
-          paletteId: this._dialogSettings.selectedPaletteId,
+          paletteId: nextSelectedPaletteId,
           reverseGradient: this._dialogSettings.reverseGradient,
         },
       };
-      this.includeShapes = false;
     }
     this._showSettingsDialog = false;
 
@@ -1864,9 +1931,10 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _handlePaletteChange(paletteId: string): void {
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
     this._dialogSettings = {
       ...this._dialogSettings,
-      selectedPaletteId: this._isNumericAnnotation()
+      selectedPaletteId: isNumericAnnotation
         ? normalizeNumericPaletteId(paletteId)
         : this._normalizeCategoricalPaletteId(paletteId),
     };
@@ -1920,8 +1988,10 @@ export class ProtspaceLegend extends LitElement {
     this.maxVisibleValues = LEGEND_DEFAULTS.maxVisibleValues;
     this.includeShapes = LEGEND_DEFAULTS.includeShapes;
     this.shapeSize = LEGEND_DEFAULTS.symbolSize;
-    this._selectedPaletteId = this._isNumericAnnotation() ? DEFAULT_NUMERIC_PALETTE_ID : 'kellys';
-    if (this._isNumericAnnotation()) {
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
+
+    this._selectedPaletteId = isNumericAnnotation ? DEFAULT_NUMERIC_PALETTE_ID : 'kellys';
+    if (isNumericAnnotation) {
       this._numericSettingsByAnnotation = {
         ...this._numericSettingsByAnnotation,
         [this.selectedAnnotation]: {
@@ -1936,7 +2006,7 @@ export class ProtspaceLegend extends LitElement {
 
     this._annotationSortModes = {
       ...this._annotationSortModes,
-      [this.selectedAnnotation]: this._isNumericAnnotation()
+      [this.selectedAnnotation]: isNumericAnnotation
         ? 'alpha-asc'
         : getDefaultSortMode(this.selectedAnnotation),
     };
@@ -1979,7 +2049,7 @@ export class ProtspaceLegend extends LitElement {
     // Apply palette colors to all legend items (excluding special categories like "Others" and "N/A")
     this._legendItems = this._legendItems.map((item, index) => {
       // Skip special categories (Other, N/A) as they have fixed colors
-      if (item.value === LEGEND_VALUES.OTHER || item.value === LEGEND_VALUES.NA_VALUE) {
+      if (item.value === LEGEND_VALUES.OTHER || item.value === NA_VALUE) {
         return item;
       }
 
@@ -1989,7 +2059,7 @@ export class ProtspaceLegend extends LitElement {
 
   private _syncLegendColorsToPersistence(): void {
     const categories: Record<string, PersistedCategoryData> = {};
-    const persistVisualEncodings = !this._isNumericAnnotation();
+    const persistVisualEncodings = !this._isCurrentAnnotationNumeric();
     this._legendItems.forEach((item) => {
       if (item.value !== LEGEND_VALUES.OTHER) {
         categories[item.value] = {
@@ -2091,13 +2161,25 @@ export class ProtspaceLegend extends LitElement {
     if (!this._showSettingsDialog) return html``;
 
     // Initialize sort mode for current annotation if needed
+    const initializedSortModes = initializeAnnotationSortMode(
+      this._dialogSettings.annotationSortModes,
+      this.selectedAnnotation,
+      this._annotationSortModes,
+    );
+    const isNumericAnnotation = this._isCurrentAnnotationNumeric();
+    const annotationSortModes = this.selectedAnnotation
+      ? {
+          ...initializedSortModes,
+          [this.selectedAnnotation]: this._normalizeSortModeForEffectiveType(
+            initializedSortModes[this.selectedAnnotation],
+            isNumericAnnotation,
+          ),
+        }
+      : initializedSortModes;
     this._dialogSettings = {
       ...this._dialogSettings,
-      annotationSortModes: initializeAnnotationSortMode(
-        this._dialogSettings.annotationSortModes,
-        this.selectedAnnotation,
-        this._annotationSortModes,
-      ),
+      includeShapes: isNumericAnnotation ? false : this._dialogSettings.includeShapes,
+      annotationSortModes,
     };
 
     const state: SettingsDialogState = {
@@ -2108,7 +2190,7 @@ export class ProtspaceLegend extends LitElement {
       selectedAnnotation: this.selectedAnnotation,
       annotationSortModes: this._dialogSettings.annotationSortModes,
       isMultilabelAnnotation: this._isMultilabelAnnotation(),
-      isNumericAnnotation: this._isNumericAnnotation(),
+      isNumericAnnotation,
       selectedNumericStrategy: this._dialogSettings.numericStrategy,
       reverseGradient: this._dialogSettings.reverseGradient,
       logBinningAvailable: this.annotationData.numericMetadata?.logSupported ?? true,

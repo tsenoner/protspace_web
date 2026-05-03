@@ -6,7 +6,7 @@ import {
 } from './legend-data-processor';
 import { getVisualEncoding } from './visual-encoding';
 import type { LegendItem } from './types';
-import { LEGEND_VALUES } from './config';
+import { LEGEND_VALUES, NA_VALUE, NA_DEFAULT_COLOR } from './config';
 
 describe('legend-data-processor', () => {
   let ctx: LegendProcessorContext;
@@ -80,7 +80,7 @@ describe('legend-data-processor', () => {
       const result = LegendDataProcessor.countAnnotationFrequencies(values, false, [], new Set());
       expect(result.get('a')).toBe(2);
       // Null values are converted to '__NA__' internally
-      expect(result.get(LEGEND_VALUES.NA_VALUE)).toBe(2);
+      expect(result.get(NA_VALUE)).toBe(2);
     });
 
     it('filters by indices in isolation mode', () => {
@@ -150,11 +150,11 @@ describe('legend-data-processor', () => {
     it('handles N/A values in sorting (uses __NA__)', () => {
       const freq = new Map<string, number>([
         ['a', 10],
-        [LEGEND_VALUES.NA_VALUE, 5],
+        [NA_VALUE, 5],
         ['b', 8],
       ]);
       const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'size-desc');
-      expect(result.topItems.some(([v]) => v === LEGEND_VALUES.NA_VALUE)).toBe(true);
+      expect(result.topItems.some(([v]) => v === NA_VALUE)).toBe(true);
     });
 
     it('sorts by size ascending', () => {
@@ -224,28 +224,25 @@ describe('legend-data-processor', () => {
       expect(result.topItems[3][0]).toBe('scoloptoxin-25 family');
     });
 
-    it('sorts N/A last in alpha-asc mode', () => {
+    it('sorts N/A by frequency in alpha-asc mode (categorical)', () => {
       const freq = new Map<string, number>([
         ['zebra', 5],
-        [LEGEND_VALUES.NA_VALUE, 10],
+        [NA_VALUE, 10],
         ['alpha', 3],
       ]);
+      // Categorical NA sorts as a regular value: alpha-asc by display name; '__NA__' < 'alpha'
       const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-asc');
-      expect(result.topItems[0][0]).toBe('alpha');
-      expect(result.topItems[1][0]).toBe('zebra');
-      expect(result.topItems[2][0]).toBe(LEGEND_VALUES.NA_VALUE);
+      expect(result.topItems.map(([v]) => v)).toEqual([NA_VALUE, 'alpha', 'zebra']);
     });
 
-    it('sorts N/A last in alpha-desc mode', () => {
+    it('sorts N/A by frequency in alpha-desc mode (categorical)', () => {
       const freq = new Map<string, number>([
         ['zebra', 5],
-        [LEGEND_VALUES.NA_VALUE, 10],
+        [NA_VALUE, 10],
         ['alpha', 3],
       ]);
       const result = LegendDataProcessor.sortAndLimitItems(freq, 10, false, 'alpha-desc');
-      expect(result.topItems[0][0]).toBe('zebra');
-      expect(result.topItems[1][0]).toBe('alpha');
-      expect(result.topItems[2][0]).toBe(LEGEND_VALUES.NA_VALUE);
+      expect(result.topItems.map(([v]) => v)).toEqual(['zebra', 'alpha', NA_VALUE]);
     });
 
     it('sorts numeric interval labels by lower bound in alpha-asc mode', () => {
@@ -369,7 +366,7 @@ describe('legend-data-processor', () => {
     it('handles N/A extraction via pendingExtract', () => {
       const freq = new Map<string, number>([
         ['a', 10],
-        [LEGEND_VALUES.NA_VALUE, 5],
+        [NA_VALUE, 5],
       ]);
       const visibleValues = new Set(['a']);
       const result = LegendDataProcessor.sortAndLimitItems(
@@ -381,17 +378,17 @@ describe('legend-data-processor', () => {
         visibleValues,
         new Map(),
         true,
-        LEGEND_VALUES.NA_VALUE, // Extract N/A
+        NA_VALUE, // Extract N/A
       );
-      expect(result.topItems.map(([v]) => v)).toContain(LEGEND_VALUES.NA_VALUE);
+      expect(result.topItems.map(([v]) => v)).toContain(NA_VALUE);
     });
 
     it('handles N/A merge via pendingMerge', () => {
       const freq = new Map<string, number>([
         ['a', 10],
-        [LEGEND_VALUES.NA_VALUE, 5],
+        [NA_VALUE, 5],
       ]);
-      const visibleValues = new Set(['a', LEGEND_VALUES.NA_VALUE]);
+      const visibleValues = new Set(['a', NA_VALUE]);
       const result = LegendDataProcessor.sortAndLimitItems(
         freq,
         10,
@@ -402,9 +399,9 @@ describe('legend-data-processor', () => {
         new Map(),
         true,
         undefined,
-        LEGEND_VALUES.NA_VALUE, // Merge N/A back
+        NA_VALUE, // Merge N/A back
       );
-      expect(result.topItems.map(([v]) => v)).not.toContain(LEGEND_VALUES.NA_VALUE);
+      expect(result.topItems.map(([v]) => v)).not.toContain(NA_VALUE);
     });
 
     it('uses existing zOrders for manual sort mode', () => {
@@ -451,6 +448,206 @@ describe('legend-data-processor', () => {
       expect(result.topItems[0][0]).toBe('b');
       expect(result.topItems[1][0]).toBe('a');
       expect(result.topItems[2][0]).toBe('c');
+    });
+  });
+
+  describe('categorical NA behaves like any other category', () => {
+    it('NA sorts by frequency in size-desc when categorical', () => {
+      const freq = new Map<string, number>([
+        ['a', 10],
+        [NA_VALUE, 50],
+        ['b', 8],
+      ]);
+      // NA has the highest count — should be FIRST in size-desc, not last
+      const result = LegendDataProcessor.sortAndLimitItems(
+        freq,
+        10,
+        false,
+        'size-desc',
+        new Map(),
+        new Set(),
+        new Map(),
+        true,
+        undefined,
+        undefined,
+        false,
+      );
+      expect(result.topItems[0][0]).toBe(NA_VALUE);
+    });
+
+    it('NA sorts by frequency in size-asc when categorical', () => {
+      const freq = new Map<string, number>([
+        ['a', 10],
+        [NA_VALUE, 1],
+        ['b', 8],
+      ]);
+      // NA has the lowest count — should be FIRST in size-asc
+      const result = LegendDataProcessor.sortAndLimitItems(
+        freq,
+        10,
+        false,
+        'size-asc',
+        new Map(),
+        new Set(),
+        new Map(),
+        true,
+        undefined,
+        undefined,
+        false,
+      );
+      expect(result.topItems[0][0]).toBe(NA_VALUE);
+    });
+
+    it('NA respects manual zOrder when categorical', () => {
+      const freq = new Map<string, number>([
+        ['a', 10],
+        [NA_VALUE, 5],
+        ['b', 8],
+      ]);
+      const zOrders = new Map([
+        ['a', 2],
+        [NA_VALUE, 0], // NA dragged to top
+        ['b', 1],
+      ]);
+      const result = LegendDataProcessor.sortAndLimitItems(
+        freq,
+        10,
+        false,
+        'manual',
+        zOrders,
+        new Set(),
+        new Map(),
+        true,
+        undefined,
+        undefined,
+        false,
+      );
+      expect(result.topItems[0][0]).toBe(NA_VALUE);
+      expect(result.topItems[1][0]).toBe('b');
+      expect(result.topItems[2][0]).toBe('a');
+    });
+
+    it('NA can fall into Other when maxVisibleValues is exceeded (categorical)', () => {
+      const freq = new Map<string, number>([
+        ['a', 100],
+        ['b', 90],
+        ['c', 80],
+        [NA_VALUE, 1], // very low count
+      ]);
+      const result = LegendDataProcessor.sortAndLimitItems(
+        freq,
+        3,
+        false,
+        'size-desc',
+        new Map(),
+        new Set(),
+        new Map(),
+        true,
+        undefined,
+        undefined,
+        false,
+      );
+      // Top 3 by count are a, b, c — NA falls into Other
+      expect(result.topItems.map(([v]) => v)).toEqual(['a', 'b', 'c']);
+      expect(result.otherItems.some(({ value }) => value === NA_VALUE)).toBe(true);
+    });
+
+    it('categorical NA color uses persistedCategories override when present', () => {
+      const topItems: Array<[string, number]> = [
+        ['a', 10],
+        [NA_VALUE, 5],
+      ];
+      const persistedCategories = {
+        [NA_VALUE]: { zOrder: 1, color: '#00FF00', shape: 'diamond' },
+      };
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        [],
+        true,
+        'size-desc',
+        new Map(),
+        persistedCategories,
+        false, // isNumericSource=false
+      );
+      const naItem = items.find((i) => i.value === NA_VALUE);
+      expect(naItem).toBeDefined();
+      expect(naItem!.color).toBe('#00FF00');
+      expect(naItem!.shape).toBe('diamond');
+    });
+
+    it('categorical NA defaults to NA_DEFAULT_COLOR when no persisted/existing color', () => {
+      const topItems: Array<[string, number]> = [
+        ['a', 10],
+        [NA_VALUE, 5],
+      ];
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        [],
+        false,
+        'size-desc',
+        new Map(),
+        {},
+        false,
+      );
+      const naItem = items.find((i) => i.value === NA_VALUE);
+      expect(naItem).toBeDefined();
+      expect(naItem!.color).toBe(NA_DEFAULT_COLOR);
+    });
+  });
+
+  describe('numeric NA pins to end regardless of sort mode', () => {
+    it('NA is last in all sort modes when isNumericSource is true', () => {
+      const freq = new Map<string, number>([
+        ['bin-0', 10],
+        [NA_VALUE, 50],
+        ['bin-1', 8],
+      ]);
+      for (const mode of ['size-desc', 'size-asc', 'alpha-asc', 'alpha-desc'] as const) {
+        const result = LegendDataProcessor.sortAndLimitItems(
+          freq,
+          10,
+          false,
+          mode,
+          new Map(),
+          new Set(),
+          new Map(),
+          true,
+          undefined,
+          undefined,
+          true, // isNumericSource=true
+        );
+        const last = result.topItems[result.topItems.length - 1];
+        expect(last[0]).toBe(NA_VALUE);
+      }
+    });
+
+    it('numeric NA color is locked even when persistedCategories has an override', () => {
+      const topItems: Array<[string, number]> = [
+        ['bin-0', 10],
+        [NA_VALUE, 5],
+      ];
+      const persistedCategories = {
+        [NA_VALUE]: { zOrder: 0, color: '#FF0000', shape: 'square' },
+      };
+      const items = LegendDataProcessor.createLegendItems(
+        ctx,
+        topItems,
+        0,
+        [],
+        false,
+        'size-desc',
+        new Map(),
+        persistedCategories,
+        true, // isNumericSource=true
+      );
+      const naItem = items.find((i) => i.value === NA_VALUE);
+      expect(naItem).toBeDefined();
+      expect(naItem!.color).toBe(NA_DEFAULT_COLOR); // locked, persisted '#FF0000' ignored
+      expect(naItem!.shape).toBe('circle'); // locked
     });
   });
 
@@ -640,9 +837,9 @@ describe('legend-data-processor', () => {
     });
 
     it('applies persisted colors to N/A items using __NA__ key', () => {
-      const topItems: Array<[string, number]> = [[LEGEND_VALUES.NA_VALUE, 10]];
+      const topItems: Array<[string, number]> = [[NA_VALUE, 10]];
       const persistedCategories = {
-        [LEGEND_VALUES.NA_VALUE]: { zOrder: 0, color: '#na-color', shape: 'circle' },
+        [NA_VALUE]: { zOrder: 0, color: '#na-color', shape: 'circle' },
       };
       const items = LegendDataProcessor.createLegendItems(
         ctx,
@@ -682,13 +879,13 @@ describe('legend-data-processor', () => {
       expect(items[0].color).toBe('#existing');
     });
 
-    it('keeps reserved N/A color even when another category uses the same color', () => {
+    it('bumps categorical N/A to a different color when another category claims NA_DEFAULT_COLOR', () => {
       const topItems: Array<[string, number]> = [
         ['category1', 10],
-        [LEGEND_VALUES.NA_VALUE, 8],
+        [NA_VALUE, 8],
       ];
       const persistedCategories = {
-        category1: { zOrder: 0, color: '#DDDDDD', shape: 'circle' },
+        category1: { zOrder: 0, color: NA_DEFAULT_COLOR, shape: 'circle' },
       };
 
       const items = LegendDataProcessor.createLegendItems(
@@ -702,8 +899,10 @@ describe('legend-data-processor', () => {
         persistedCategories,
       );
 
-      const naItem = items.find((item) => item.value === LEGEND_VALUES.NA_VALUE);
-      expect(naItem?.color).toBe('#DDDDDD');
+      const naItem = items.find((item) => item.value === NA_VALUE);
+      // Categorical NA participates in conflict resolution like any regular category;
+      // it does not get to keep NA_DEFAULT_COLOR if another category already claimed it.
+      expect(naItem?.color).not.toBe(NA_DEFAULT_COLOR);
     });
 
     it('applies shapes from persistedCategories', () => {
@@ -1282,7 +1481,7 @@ describe('legend-data-processor', () => {
         'size-desc',
         false,
       );
-      const naItem = result.legendItems.find((i) => i.value === LEGEND_VALUES.NA_VALUE);
+      const naItem = result.legendItems.find((i) => i.value === NA_VALUE);
       expect(naItem).toBeDefined();
       expect(naItem?.count).toBe(2);
     });

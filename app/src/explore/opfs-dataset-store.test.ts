@@ -4,6 +4,8 @@ import {
   clearLastImportedFile,
   isSupported,
   loadLastImportedFile,
+  markLastLoadStatus,
+  readLastLoadStatus,
   saveLastImportedFile,
 } from './opfs-dataset-store';
 
@@ -180,5 +182,126 @@ describe('opfs-dataset-store', () => {
     await expect(saveLastImportedFile(new File(['x'], 'custom.parquetbundle'))).rejects.toThrow(
       /not supported/i,
     );
+  });
+});
+
+describe('lastLoadStatus APIs', () => {
+  it('returns null when no metadata is present', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    expect(await readLastLoadStatus()).toBeNull();
+  });
+
+  it('writes pending after save and reads it back', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    const file = new File(['x'], 'a.parquetbundle');
+    await saveLastImportedFile(file);
+    await markLastLoadStatus('pending');
+    expect(await readLastLoadStatus()).toEqual({
+      status: 'pending',
+      lastError: undefined,
+      failedAttempts: 1,
+    });
+  });
+
+  it('increments failedAttempts on repeated pending without success', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    const file = new File(['x'], 'a.parquetbundle');
+    await saveLastImportedFile(file);
+    await markLastLoadStatus('pending');
+    await markLastLoadStatus('pending');
+    await markLastLoadStatus('pending');
+    expect((await readLastLoadStatus())?.failedAttempts).toBe(3);
+  });
+
+  it('resets failedAttempts to 0 on success', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    const file = new File(['x'], 'a.parquetbundle');
+    await saveLastImportedFile(file);
+    await markLastLoadStatus('pending');
+    await markLastLoadStatus('pending');
+    await markLastLoadStatus('success');
+    expect(await readLastLoadStatus()).toEqual({
+      status: 'success',
+      lastError: undefined,
+      failedAttempts: 0,
+    });
+  });
+
+  it('records lastError when status is error', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    const file = new File(['x'], 'a.parquetbundle');
+    await saveLastImportedFile(file);
+    await markLastLoadStatus('error', { error: 'boom' });
+    expect(await readLastLoadStatus()).toEqual({
+      status: 'error',
+      lastError: 'boom',
+      failedAttempts: 1,
+    });
+  });
+
+  it('migrates schemaVersion=1 metadata to success on read', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    const file = new File(['x'], 'a.parquetbundle');
+    await saveLastImportedFile(file);
+    const dir = await root.getDirectoryHandle('protspace-last-import');
+    const handle = await dir.getFileHandle('metadata.json');
+    const writable = await handle.createWritable();
+    await writable.write(
+      JSON.stringify({
+        schemaVersion: 1,
+        name: 'a.parquetbundle',
+        type: '',
+        size: 1,
+        lastModified: 0,
+        storedAt: '2025-01-01T00:00:00.000Z',
+      }),
+    );
+    await writable.close();
+
+    const status = await readLastLoadStatus();
+    expect(status?.status).toBe('success');
+    expect(status?.failedAttempts).toBe(0);
+  });
+
+  it('does not increment failedAttempts when transitioning success → pending (e.g., Try again)', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    const file = new File(['x'], 'a.parquetbundle');
+    await saveLastImportedFile(file);
+    await markLastLoadStatus('success'); // failedAttempts = 0
+    await markLastLoadStatus('pending'); // prev was success → counter stays 0
+    expect((await readLastLoadStatus())?.failedAttempts).toBe(0);
+  });
+
+  it('is a no-op when no metadata is present', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    await markLastLoadStatus('pending');
+    expect(await readLastLoadStatus()).toBeNull();
+  });
+
+  it('clears status when clearLastImportedFile is called', async () => {
+    const root = new MockDirectoryHandle();
+    stubNavigator(root);
+
+    const file = new File(['x'], 'a.parquetbundle');
+    await saveLastImportedFile(file);
+    await markLastLoadStatus('pending');
+    await clearLastImportedFile();
+    expect(await readLastLoadStatus()).toBeNull();
   });
 });

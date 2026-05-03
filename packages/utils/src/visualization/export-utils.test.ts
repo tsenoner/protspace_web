@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ProtSpaceExporter, createExporter } from './export-utils';
 import type { ExportableElement, ExportableData, ExportOptions } from './export-utils';
-import { LEGEND_VALUES } from './shapes';
+import { NA_VALUE } from './missing-values';
 
 /**
  * Mock ExportableElement for testing
@@ -401,7 +401,7 @@ describe('N/A handling in export', () => {
 
       const items = callComputeLegend(data, 'species');
       expect(items[0].value).toBe('human');
-      expect(items[1].value).toBe(LEGEND_VALUES.NA_VALUE);
+      expect(items[1].value).toBe(NA_VALUE);
     });
 
     it('should count N/A items correctly', () => {
@@ -418,7 +418,7 @@ describe('N/A handling in export', () => {
       };
 
       const items = callComputeLegend(data, 'species');
-      const naItem = items.find((it) => it.value === LEGEND_VALUES.NA_VALUE);
+      const naItem = items.find((it) => it.value === NA_VALUE);
       expect(naItem).toBeDefined();
       expect(naItem!.count).toBe(2);
     });
@@ -437,7 +437,7 @@ describe('N/A handling in export', () => {
       };
 
       const items = callComputeLegend(data, 'species', ['P2']); // only P2 selected
-      const naItem = items.find((it) => it.value === LEGEND_VALUES.NA_VALUE);
+      const naItem = items.find((it) => it.value === NA_VALUE);
       expect(naItem).toBeDefined();
       expect(naItem!.count).toBe(1);
     });
@@ -458,7 +458,7 @@ describe('N/A handling in export', () => {
       };
 
       // Simulate the visibility filtering logic from exportProteinIds
-      const hiddenValues = [LEGEND_VALUES.NA_VALUE];
+      const hiddenValues = [NA_VALUE];
       const hiddenSet = new Set(hiddenValues);
       const annotationInfo = data.annotations.species;
       const indices = data.annotation_data.species;
@@ -466,14 +466,14 @@ describe('N/A handling in export', () => {
       const visibleIds = data.protein_ids.filter((_id, i) => {
         const viArray = indices[i];
         if (!Array.isArray(viArray) || viArray.length === 0) {
-          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
+          return !hiddenSet.has(NA_VALUE);
         }
         return viArray.some((vi) => {
           const value =
             typeof vi === 'number' && vi >= 0 && vi < annotationInfo.values.length
               ? (annotationInfo.values[vi] ?? null)
               : null;
-          const key = value === null ? LEGEND_VALUES.NA_VALUE : String(value);
+          const key = value === null ? NA_VALUE : String(value);
           return !hiddenSet.has(key);
         });
       });
@@ -503,14 +503,14 @@ describe('N/A handling in export', () => {
       const visibleIds = data.protein_ids.filter((_id, i) => {
         const viArray = indices[i];
         if (!Array.isArray(viArray) || viArray.length === 0) {
-          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
+          return !hiddenSet.has(NA_VALUE);
         }
         return viArray.some((vi) => {
           const value =
             typeof vi === 'number' && vi >= 0 && vi < annotationInfo.values.length
               ? (annotationInfo.values[vi] ?? null)
               : null;
-          const key = value === null ? LEGEND_VALUES.NA_VALUE : String(value);
+          const key = value === null ? NA_VALUE : String(value);
           return !hiddenSet.has(key);
         });
       });
@@ -531,13 +531,13 @@ describe('N/A handling in export', () => {
         annotation_data: { species: [[0], []] }, // P2 has empty annotation data
       };
 
-      const hiddenValues = [LEGEND_VALUES.NA_VALUE];
+      const hiddenValues = [NA_VALUE];
       const hiddenSet = new Set(hiddenValues);
 
       const visibleIds = data.protein_ids.filter((_id, i) => {
         const viArray = data.annotation_data.species[i];
         if (!Array.isArray(viArray) || viArray.length === 0) {
-          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
+          return !hiddenSet.has(NA_VALUE);
         }
         return true;
       });
@@ -596,7 +596,7 @@ describe('exportProteinIds integration', () => {
   });
 
   it('excludes N/A proteins when __NA__ is hidden', () => {
-    const ids = callExportProteinIds(baseData, 'species', [LEGEND_VALUES.NA_VALUE]);
+    const ids = callExportProteinIds(baseData, 'species', [NA_VALUE]);
     expect(ids).toEqual(['P1', 'P2', 'P4']);
     expect(ids).not.toContain('P3');
   });
@@ -608,16 +608,12 @@ describe('exportProteinIds integration', () => {
   });
 
   it('excludes multiple hidden values including N/A', () => {
-    const ids = callExportProteinIds(baseData, 'species', ['mouse', LEGEND_VALUES.NA_VALUE]);
+    const ids = callExportProteinIds(baseData, 'species', ['mouse', NA_VALUE]);
     expect(ids).toEqual(['P1', 'P4']);
   });
 
   it('returns no visible IDs when all values are hidden', () => {
-    const ids = callExportProteinIds(baseData, 'species', [
-      'human',
-      'mouse',
-      LEGEND_VALUES.NA_VALUE,
-    ]);
+    const ids = callExportProteinIds(baseData, 'species', ['human', 'mouse', NA_VALUE]);
     expect(ids).toEqual([]);
   });
 
@@ -634,12 +630,12 @@ describe('exportProteinIds integration', () => {
       annotation_data: { species: [[0], []] },
     };
 
-    const ids = callExportProteinIds(data, 'species', [LEGEND_VALUES.NA_VALUE]);
+    const ids = callExportProteinIds(data, 'species', [NA_VALUE]);
     expect(ids).toEqual(['P1']);
   });
 
   it('exports all IDs when annotation does not exist (fallback)', () => {
-    const ids = callExportProteinIds(baseData, 'nonexistent', [LEGEND_VALUES.NA_VALUE]);
+    const ids = callExportProteinIds(baseData, 'nonexistent', [NA_VALUE]);
     expect(ids).toEqual(['P1', 'P2', 'P3', 'P4']);
   });
 
@@ -657,7 +653,7 @@ describe('exportProteinIds integration', () => {
     };
 
     // P1 has both 'alpha' and N/A — hiding N/A still keeps P1 because 'alpha' is visible
-    const ids = callExportProteinIds(data, 'tags', [LEGEND_VALUES.NA_VALUE]);
+    const ids = callExportProteinIds(data, 'tags', [NA_VALUE]);
     expect(ids).toEqual(['P1', 'P2']);
   });
 });

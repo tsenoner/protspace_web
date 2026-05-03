@@ -9,7 +9,10 @@ import Privacy from './pages/Privacy';
 const App = () => (
   <TooltipProvider>
     <Toaster />
-    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+    <BrowserRouter
+      basename={import.meta.env.BASE_URL.replace(/\/$/, '')}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/explore" element={<Explore />} />

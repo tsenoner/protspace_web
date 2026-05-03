@@ -74,7 +74,7 @@ When the selected annotation is numeric and a numeric gradient palette is active
 - `Quantile`
 - `Logarithmic`
 
-`Logarithmic` is only available when all non-null values are strictly positive. If the data contains `0` or negative values, ProtSpace falls back to linear binning.
+`Quantile` is the default distribution, automatically falling back to `Linear` when the number of distinct values is small enough that quantile edges would collapse. `Logarithmic` is only available when all non-null values are strictly positive; otherwise ProtSpace falls back to linear binning.
 
 ### Reverse Gradient Direction
 
@@ -133,17 +133,17 @@ Colors stay attached to categories when you reorder them.
 
 Gradients are only shown for numeric annotations. ProtSpace currently ships five curated sequential gradients:
 
-- `Cividis`: colorblind-friendly default for ordered numeric data
+- `Batlow`: scientific-publication oriented sequential ramp from Fabio Crameri's Scientific Colour Maps (default)
+- `Cividis`: colorblind-friendly sequential gradient
 - `Viridis`: balanced perceptually uniform sequential gradient
 - `Inferno`: high-contrast dark-to-bright ramp
-- `Batlow`: scientific-publication oriented sequential ramp from Fabio Crameri's Scientific Colour Maps
 - `Plasma`: vivid exploratory sequential ramp
 
 These were chosen because they are either perceptually uniform, publication-friendly, accessibility-aware, or visually distinctive for ordered data. Rainbow-style maps are intentionally excluded because they are a poor default for numeric interpretation.
 
 Numeric bin colors are derived from the gradient and the selected distribution. They are not manually edited per bin.
 
-If an imported bundle or saved browser state references an unsupported numeric gradient ID, ProtSpace falls back to `cividis`.
+If an imported bundle or saved browser state references an unsupported numeric gradient ID, ProtSpace falls back to `batlow`.
 
 ### Special Categories
 

@@ -6,7 +6,7 @@ import type {
   LegendSortMode,
   PersistedCategoryData,
 } from '../types';
-import { LEGEND_VALUES } from '../config';
+import { LEGEND_VALUES, isNAValue } from '../config';
 import { createDefaultSettings } from '../legend-helpers';
 import { BasePersistenceController } from '../../../controllers/base-persistence-controller';
 
@@ -19,6 +19,8 @@ export interface PersistenceCallbacks {
   getHiddenValues: () => string[];
   shouldPersistCategories: () => boolean;
   shouldPersistCategoryEncodings: () => boolean;
+  /** Returns true when the currently selected annotation is numeric (NA visuals are locked). */
+  isNumericAnnotation?: () => boolean;
   getCurrentSettings: () => {
     maxVisibleValues: number;
     includeShapes: boolean;
@@ -63,6 +65,31 @@ export class PersistenceController
 
   protected override onClearForNewDataset(): void {
     this._pendingCategories = {};
+  }
+
+  override getAllSettingsForExport(annotationNames: string[]): LegendSettingsMap {
+    const settings = super.getAllSettingsForExport(annotationNames);
+    const sanitized: LegendSettingsMap = {};
+
+    for (const [annotation, annotationSettings] of Object.entries(settings)) {
+      sanitized[annotation] = this._stripLegacyFields(annotationSettings);
+    }
+
+    return sanitized;
+  }
+
+  private _stripLegacyFields(settings: LegendPersistedSettings): LegendPersistedSettings {
+    return {
+      maxVisibleValues: settings.maxVisibleValues,
+      includeShapes: settings.includeShapes,
+      shapeSize: settings.shapeSize,
+      sortMode: settings.sortMode,
+      hiddenValues: settings.hiddenValues,
+      categories: settings.categories,
+      enableDuplicateStackUI: settings.enableDuplicateStackUI,
+      selectedPaletteId: settings.selectedPaletteId,
+      numericSettings: settings.numericSettings,
+    };
   }
 
   /**
@@ -137,15 +164,17 @@ export class PersistenceController
 
     const legendItems = this.callbacks.getLegendItems();
     const persistCategoryEncodings = this.callbacks.shouldPersistCategoryEncodings();
+    const isNumeric = this.callbacks.isNumericAnnotation?.() ?? false;
     const categories: Record<string, PersistedCategoryData> = {};
     legendItems.forEach((item) => {
-      if (item.value !== LEGEND_VALUES.OTHER) {
-        categories[item.value] = {
-          zOrder: item.zOrder,
-          color: persistCategoryEncodings ? item.color : '',
-          shape: persistCategoryEncodings ? item.shape : '',
-        };
-      }
+      if (item.value === LEGEND_VALUES.OTHER) return;
+      // Skip NA color/shape persistence for numeric annotations — they're locked.
+      if (isNumeric && isNAValue(item.value)) return;
+      categories[item.value] = {
+        zOrder: item.zOrder,
+        color: persistCategoryEncodings ? item.color : '',
+        shape: persistCategoryEncodings ? item.shape : '',
+      };
     });
     return categories;
   }
