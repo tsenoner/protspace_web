@@ -118,11 +118,7 @@ legend.addEventListener('legend-error', (event) => {
 });
 
 viewer.addEventListener('structure-error', (event) => {
-  notify({
-    level: 'error',
-    title: 'Structure could not be loaded.',
-    description: event.detail.message,
-  });
+  console.error('Structure viewer error:', event.detail.message);
 });
 ```
 
