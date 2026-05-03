@@ -145,4 +145,43 @@ describe('pngWithDpi', () => {
     expect(readUint32(buf, ihdr!.dataOffset)).toBe(1);
     expect(readUint32(buf, ihdr!.dataOffset + 4)).toBe(1);
   });
+
+  it('pHYs chunk carries a correct CRC32', async () => {
+    const blob = new Blob([ONE_BY_ONE_PNG], { type: 'image/png' });
+    const out = await pngWithDpi(blob, 300);
+    const buf = new Uint8Array(await out.arrayBuffer());
+    const phys = findChunk(buf, 'pHYs');
+    expect(phys).not.toBeNull();
+    // CRC sits immediately after the 9-byte data block.
+    const crcOffset = phys!.dataOffset + 9;
+    const storedCrc = readUint32(buf, crcOffset);
+    expect(storedCrc).toBe(0x78a53f76); // independently computed for {type='pHYs', ppm=11811, ppm=11811, unit=1}
+  });
+
+  it('replaces a pre-existing pHYs chunk rather than duplicating it', async () => {
+    const blob = new Blob([ONE_BY_ONE_PNG], { type: 'image/png' });
+    const first = await pngWithDpi(blob, 96);
+    const second = await pngWithDpi(first, 300);
+    const buf = new Uint8Array(await second.arrayBuffer());
+
+    // Exactly one pHYs chunk should be present.
+    let physCount = 0;
+    let offset = 8;
+    while (offset < buf.length) {
+      const length = readUint32(buf, offset);
+      const tag = String.fromCharCode(
+        buf[offset + 4],
+        buf[offset + 5],
+        buf[offset + 6],
+        buf[offset + 7],
+      );
+      if (tag === 'pHYs') physCount++;
+      offset += 12 + length;
+    }
+    expect(physCount).toBe(1);
+
+    // And it carries the new (300 DPI) value, not the stale one.
+    const phys = findChunk(buf, 'pHYs');
+    expect(readUint32(buf, phys!.dataOffset)).toBe(11811);
+  });
 });
