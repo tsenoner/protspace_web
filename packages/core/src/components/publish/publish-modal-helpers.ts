@@ -23,8 +23,12 @@ export function getActivePresetConstraints(
   return { widthMm: preset.widthMm, maxHeightMm: preset.maxHeightMm };
 }
 
-/** Width input in pixels. Only fires when unit === 'px' (Resample=OFF makes the input read-only). */
+/**
+ * Width input in pixels. Caller is responsible for only invoking this when the UI
+ * unit is 'px'; DPI is unaffected regardless of resample mode.
+ */
 export function computeWidthPxUpdate(state: PublishState, widthPx: number): Partial<PublishState> {
+  if (widthPx <= 0) return {};
   const patch: Partial<PublishState> = { widthPx, preset: 'custom' };
   if (state.aspectLocked && state.widthPx > 0) {
     const ratio = state.heightPx / state.widthPx;
@@ -50,11 +54,15 @@ export function computeWidthMmUpdate(state: PublishState, widthMm: number): Part
   return { dpi, preset: 'custom' };
 }
 
-/** Height input in pixels. Only fires when unit === 'px'. */
+/**
+ * Height input in pixels. Caller is responsible for only invoking this when the UI
+ * unit is 'px'; DPI is unaffected regardless of resample mode.
+ */
 export function computeHeightPxUpdate(
   state: PublishState,
   heightPx: number,
 ): Partial<PublishState> {
+  if (heightPx <= 0) return {};
   const patch: Partial<PublishState> = { heightPx, preset: 'custom' };
   if (state.aspectLocked && state.heightPx > 0) {
     const ratio = state.widthPx / state.heightPx;

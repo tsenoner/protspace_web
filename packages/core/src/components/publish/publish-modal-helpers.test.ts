@@ -46,7 +46,7 @@ describe('publish-modal-helpers', () => {
   });
 
   describe('computeWidthPxUpdate', () => {
-    it('Resample=ON: changes widthPx, leaves dpi fixed', () => {
+    it('changes widthPx, leaves dpi untouched', () => {
       const state = makeState({ widthPx: 1051, heightPx: 591, dpi: 300, resample: true });
       const patch = computeWidthPxUpdate(state, 2102);
       expect(patch.widthPx).toBe(2102);
@@ -122,7 +122,7 @@ describe('publish-modal-helpers', () => {
   });
 
   describe('computeHeightPxUpdate', () => {
-    it('Resample=ON aspectLocked=true: scales width proportionally', () => {
+    it('aspectLocked=true: scales width proportionally', () => {
       const state = makeState({
         widthPx: 1000,
         heightPx: 500,
@@ -155,6 +155,32 @@ describe('publish-modal-helpers', () => {
       const patch = computeHeightMmUpdate(state, 50);
       expect(patch.heightPx).toBeUndefined();
       expect(patch.dpi).toBeCloseTo(300, 0);
+    });
+
+    it('Resample=ON: changes heightPx, leaves dpi fixed', () => {
+      const state = makeState({ widthPx: 1051, heightPx: 591, dpi: 300, resample: true });
+      const patch = computeHeightMmUpdate(state, 100);
+      expect(patch.heightPx).toBe(1181);
+      expect(patch.dpi).toBeUndefined();
+    });
+
+    it('Resample=OFF, halving mm doubles dpi', () => {
+      const state = makeState({ widthPx: 1051, heightPx: 591, dpi: 300, resample: false });
+      const patch = computeHeightMmUpdate(state, 25);
+      expect(patch.dpi).toBe(600);
+    });
+
+    it('Resample=ON aspectLocked=true: scales width proportionally', () => {
+      const state = makeState({
+        widthPx: 1000,
+        heightPx: 500,
+        dpi: 300,
+        resample: true,
+        aspectLocked: true,
+      });
+      const patch = computeHeightMmUpdate(state, 84.667);
+      expect(patch.heightPx).toBe(1000);
+      expect(patch.widthPx).toBe(2000);
     });
   });
 
