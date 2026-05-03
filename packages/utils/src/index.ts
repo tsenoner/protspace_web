@@ -16,6 +16,7 @@ export {
 } from './visualization/missing-values';
 export * from './visualization/scales';
 export * from './visualization/export-utils';
+export { pngWithDpi } from './png/phys-chunk';
 export * from './structure/structure-service';
 export * from './message';
 export * from './storage';
