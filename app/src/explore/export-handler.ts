@@ -102,7 +102,12 @@ export function createExportHandler({
         modal.addEventListener('publish-export', (async (e: CustomEvent) => {
           const { canvas, state } = e.detail as {
             canvas: HTMLCanvasElement;
-            state: Record<string, unknown> & { format: string; widthPx: number; heightPx: number };
+            state: Record<string, unknown> & {
+              format: string;
+              widthPx: number;
+              heightPx: number;
+              dpi: number;
+            };
           };
 
           // Persist state to localStorage
@@ -111,7 +116,9 @@ export function createExportHandler({
           try {
             const fname = generateFilename(state.format);
             if (state.format === 'pdf') {
-              await exportCanvasAsPdf(canvas, fname);
+              const widthMm = (canvas.width * 25.4) / state.dpi;
+              const heightMm = (canvas.height * 25.4) / state.dpi;
+              await exportCanvasAsPdf(canvas, { widthMm, heightMm, filename: fname });
             } else {
               const dataUrl = canvas.toDataURL('image/png');
               downloadFile(dataUrl, fname);

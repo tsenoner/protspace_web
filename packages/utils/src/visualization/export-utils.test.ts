@@ -657,3 +657,69 @@ describe('exportProteinIds integration', () => {
     expect(ids).toEqual(['P1', 'P2']);
   });
 });
+
+describe('exportCanvasAsPdf', () => {
+  it('uses [widthMm, heightMm] as the page format with no margin', async () => {
+    const addImage = vi.fn();
+    const setProperties = vi.fn();
+    const save = vi.fn();
+    const jsPdfCtor = vi.fn().mockImplementation(function () {
+      return { addImage, setProperties, save };
+    });
+
+    vi.doMock('jspdf', () => ({ default: jsPdfCtor }));
+    const { exportCanvasAsPdf } = await import('./export-utils');
+
+    // Minimal canvas stub: only toDataURL is exercised.
+    const canvas = {
+      width: 1051,
+      height: 591,
+      toDataURL: () => 'data:image/png;base64,AAA=',
+    } as unknown as HTMLCanvasElement;
+
+    await exportCanvasAsPdf(canvas, { widthMm: 89, heightMm: 50, filename: 'fig.pdf' });
+
+    expect(jsPdfCtor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        unit: 'mm',
+        format: [89, 50],
+        orientation: 'landscape',
+      }),
+    );
+    expect(addImage).toHaveBeenCalledWith(
+      'data:image/png;base64,AAA=',
+      'PNG',
+      0,
+      0,
+      89,
+      50,
+    );
+    expect(save).toHaveBeenCalledWith('fig.pdf');
+    vi.doUnmock('jspdf');
+  });
+
+  it('uses portrait orientation when heightMm > widthMm', async () => {
+    const addImage = vi.fn();
+    const setProperties = vi.fn();
+    const save = vi.fn();
+    const jsPdfCtor = vi.fn().mockImplementation(function () {
+      return { addImage, setProperties, save };
+    });
+
+    vi.doMock('jspdf', () => ({ default: jsPdfCtor }));
+    const { exportCanvasAsPdf } = await import('./export-utils');
+
+    const canvas = {
+      width: 1051,
+      height: 2917,
+      toDataURL: () => 'data:image/png;base64,AAA=',
+    } as unknown as HTMLCanvasElement;
+
+    await exportCanvasAsPdf(canvas, { widthMm: 89, heightMm: 247 });
+
+    expect(jsPdfCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ orientation: 'portrait' }),
+    );
+    vi.doUnmock('jspdf');
+  });
+});

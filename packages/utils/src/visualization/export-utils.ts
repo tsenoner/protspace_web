@@ -1007,28 +1007,23 @@ export const exportUtils = {
 };
 
 /**
- * Export an already-composited canvas as a single-page PDF download.
- * Used by the publish/figure editor to avoid duplicating jsPDF dependency.
+ * Export an already-composited canvas as a single-page PDF whose page size
+ * is exactly the chosen physical dimensions in mm. Drop into a Word/InDesign
+ * placeholder at 100% and the figure lands at the journal's required width.
  */
 export async function exportCanvasAsPdf(
   canvas: HTMLCanvasElement,
-  filename?: string,
+  opts: { widthMm: number; heightMm: number; filename?: string },
 ): Promise<void> {
   const { default: jsPDF } = await import('jspdf');
   const imgData = canvas.toDataURL('image/png', 1.0);
-  const ratio = canvas.width / canvas.height;
-  const margin = 2; // mm
-  const maxWidth = 210 - 2 * margin; // A4 width
-  const w = maxWidth;
-  const h = w / ratio;
-  const pdfW = maxWidth + 2 * margin;
-  const pdfH = h + 2 * margin;
+  const { widthMm, heightMm, filename } = opts;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdf: any = new (jsPDF as any)({
-    orientation: pdfW > pdfH ? 'landscape' : 'portrait',
+    orientation: widthMm > heightMm ? 'landscape' : 'portrait',
     unit: 'mm',
-    format: [pdfW, pdfH],
+    format: [widthMm, heightMm],
   });
   pdf.setProperties({
     title: 'ProtSpace Figure',
@@ -1036,6 +1031,6 @@ export async function exportCanvasAsPdf(
     author: 'ProtSpace',
     creator: 'ProtSpace',
   });
-  pdf.addImage(imgData, 'PNG', margin, margin, w, h);
+  pdf.addImage(imgData, 'PNG', 0, 0, widthMm, heightMm);
   pdf.save(filename || 'protspace_figure.pdf');
 }
