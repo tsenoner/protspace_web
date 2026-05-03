@@ -104,8 +104,6 @@ export function createExportHandler({
             canvas: HTMLCanvasElement;
             state: Record<string, unknown> & {
               format: string;
-              widthPx: number;
-              heightPx: number;
               dpi: number;
             };
           };

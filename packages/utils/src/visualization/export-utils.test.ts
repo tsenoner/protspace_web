@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ProtSpaceExporter, createExporter } from './export-utils';
 import type { ExportableElement, ExportableData, ExportOptions } from './export-utils';
 import { NA_VALUE } from './missing-values';
@@ -659,6 +659,10 @@ describe('exportProteinIds integration', () => {
 });
 
 describe('exportCanvasAsPdf', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
   it('uses [widthMm, heightMm] as the page format with no margin', async () => {
     const addImage = vi.fn();
     const setProperties = vi.fn();
