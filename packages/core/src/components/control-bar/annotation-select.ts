@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import { annotationSelectStyles } from './annotation-select.styles';
 import { handleDropdownEscape } from '../../utils/dropdown-helpers';
 import { groupAnnotations, type GroupedAnnotation } from './annotation-categories';

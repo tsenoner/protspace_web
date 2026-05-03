@@ -104,7 +104,11 @@ export function validateRowsBasic(
   }
 }
 
-export function validateMergedBundleRows(rows: Rows): void {
+/**
+ * Validates projection rows (the raw projection part of a bundle, without annotations spread in).
+ * Checks for expected columns: projection_name, x, y, and numeric coordinate sanity.
+ */
+export function validateProjectionRows(rows: Rows): void {
   validateRowsBasic(rows);
   const columnNames = Object.keys(rows[0]);
   const numericLikeColumns = columnNames.filter((name) => /^[+-]?\d+(?:\.\d+)?$/.test(name));

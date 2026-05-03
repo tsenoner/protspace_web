@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
-import { customElement, property, query, state } from 'lit/decorators.js';
+import { property, query, state } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import {
   COLOR_SCHEMES,
   DEFAULT_NUMERIC_PALETTE_ID,
@@ -12,6 +13,8 @@ import {
   materializeNumericAnnotation,
   normalizeNumericPaletteId,
   resolveNumericAnnotationDisplaySettings,
+  getFirstAnnotationIndex,
+  getProteinAnnotationIndices,
   type NumericBinningStrategy,
   type NumericAnnotationDisplaySettingsMap,
 } from '@protspace/utils';
@@ -1075,15 +1078,23 @@ export class ProtspaceLegend extends LitElement {
   }
 
   private _updateAnnotationValues(data: ScatterplotData, selectedAnnotation: string): void {
-    const annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
-      const annotationIdxData = data.annotation_data[selectedAnnotation][index];
-      const annotationIdxArray = Array.isArray(annotationIdxData)
-        ? annotationIdxData
-        : [annotationIdxData];
-      return annotationIdxArray.map((annotationIdx: number) =>
-        toInternalValue(data.annotations[selectedAnnotation].values[annotationIdx]),
-      );
-    });
+    const colData = data.annotation_data[selectedAnnotation];
+    const values = data.annotations[selectedAnnotation].values;
+    let annotationValues: string[];
+    if (colData instanceof Int32Array) {
+      // Single-valued storage: use the allocation-free accessor.
+      annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
+        const idx = getFirstAnnotationIndex(colData, index);
+        return idx < 0 ? [] : [toInternalValue(values[idx])];
+      });
+    } else {
+      annotationValues = data.protein_ids.flatMap((_: string, index: number) => {
+        const annotationIdxArray = getProteinAnnotationIndices(colData, index);
+        return annotationIdxArray.map((annotationIdx: number) =>
+          toInternalValue(values[annotationIdx]),
+        );
+      });
+    }
     this.annotationValues = annotationValues;
   }
 

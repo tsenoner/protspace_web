@@ -1,7 +1,5 @@
-import type { VisualizationData, PlotDataPoint, NumericAnnotationType } from '../types.js';
-import { toInternalValue } from './missing-values.js';
+import type { VisualizationData, PlotDataPoint } from '../types.js';
 import * as d3 from 'd3';
-import { getNumericBinLabelMap } from './numeric-binning.js';
 
 export class DataProcessor {
   static processVisualizationData(
@@ -18,90 +16,26 @@ export class DataProcessor {
         | [number, number]
         | [number, number, number];
 
-      // Map annotation values for this protein
-      const annotationValues: Record<string, string[]> = {};
-      const annotationDisplayValues: Record<string, string[]> = {};
-      const numericAnnotationValues: Record<string, number | null> = {};
-      const numericAnnotationTypes: Record<string, NumericAnnotationType> = {};
-      const annotationScores: Record<string, (number[] | null)[]> = {};
-      const annotationEvidence: Record<string, (string | null)[]> = {};
-      Object.keys(data.annotations).forEach((annotationKey) => {
-        const annotation = data.annotations[annotationKey];
-        const annotationRows = data.annotation_data?.[annotationKey];
-        const annotationIndicesData = annotationRows ? annotationRows[index] : undefined;
-        const numericValue = data.numeric_annotation_data?.[annotationKey]?.[index] ?? null;
-        const numericLabelMap = getNumericBinLabelMap(annotation);
-
-        // Handle array/single/undefined cases
-        const annotationIndices: unknown[] = Array.isArray(annotationIndicesData)
-          ? annotationIndicesData
-          : annotationIndicesData == null
-            ? []
-            : [annotationIndicesData];
-
-        annotationValues[annotationKey] = Array.isArray(annotation.values)
-          ? annotationIndices
-              .filter((i): i is number => typeof i === 'number' && Number.isFinite(i))
-              .map((i) => toInternalValue(annotation.values[i]))
-          : [];
-        annotationDisplayValues[annotationKey] = annotationValues[annotationKey].map(
-          (value) => numericLabelMap.get(value) ?? value,
-        );
-        numericAnnotationValues[annotationKey] = numericValue;
-        numericAnnotationTypes[annotationKey] =
-          annotation.numericType ?? annotation.numericMetadata?.numericType ?? 'float';
-
-        // Map annotation scores if available
-        const scoresForAnnotation = data.annotation_scores?.[annotationKey]?.[index];
-        annotationScores[annotationKey] = Array.isArray(scoresForAnnotation)
-          ? scoresForAnnotation
-          : [];
-
-        // Map annotation evidence if available
-        const evidenceForAnnotation = data.annotation_evidence?.[annotationKey]?.[index];
-        annotationEvidence[annotationKey] = Array.isArray(evidenceForAnnotation)
-          ? evidenceForAnnotation
-          : [];
-      });
-
-      // Determine 2D mapping depending on plane for 3D coordinates
       let xVal = coordinates[0];
       let yVal = coordinates[1];
-      const base = {
-        id,
-        x: xVal,
-        y: yVal,
-        annotationValues,
-        annotationDisplayValues,
-        numericAnnotationValues,
-        numericAnnotationTypes,
-        annotationScores,
-        annotationEvidence,
-        originalIndex: index,
-      } as PlotDataPoint;
       if (coordinates.length === 3) {
-        base.z = coordinates[2];
         if (projectionPlane === 'xz') {
           yVal = coordinates[2];
         } else if (projectionPlane === 'yz') {
           xVal = coordinates[1];
           yVal = coordinates[2];
         }
-        base.x = xVal;
-        base.y = yVal;
+        return { id, x: xVal, y: yVal, z: coordinates[2], originalIndex: index };
       }
-      return base;
+      return { id, x: xVal, y: yVal, originalIndex: index };
     });
 
-    // Apply isolation filtering if needed
     if (isolationMode && isolationHistory && isolationHistory.length > 0) {
       let filteredData = processedData.filter((p) => isolationHistory[0].includes(p.id));
-
       for (let i = 1; i < isolationHistory.length; i++) {
         const splitIds = isolationHistory[i];
         filteredData = filteredData.filter((p) => splitIds.includes(p.id));
       }
-
       return filteredData;
     }
 

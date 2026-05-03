@@ -5,6 +5,11 @@ import { extractRowsFromParquetBundle } from './bundle';
 import { convertParquetToVisualizationData } from './conversion';
 import { createParquetBundle, countBundleDelimiters, isParquetBundle } from '@protspace/utils';
 
+function loadArrayBuffer(filePath: string): ArrayBuffer {
+  const buffer = readFileSync(filePath);
+  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+}
+
 /**
  * Round-trip integration tests for parquetbundle files.
  * These tests verify that we can:
@@ -18,17 +23,13 @@ import { createParquetBundle, countBundleDelimiters, isParquetBundle } from '@pr
 describe('round-trip with real data files', () => {
   it('should successfully export 5K.parquetbundle after loading', async () => {
     const filePath = resolve(__dirname, '../../../../../../app/public/data/5K.parquetbundle');
-    const buffer = readFileSync(filePath);
-    const arrayBuffer = buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength,
-    );
+    const arrayBuffer = loadArrayBuffer(filePath);
 
-    // Extract rows from the bundle
-    const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(arrayBuffer);
+    // Extract from the bundle
+    const extraction = await extractRowsFromParquetBundle(arrayBuffer);
 
     // Convert to VisualizationData
-    const data = convertParquetToVisualizationData(rows, projectionsMetadata);
+    const data = convertParquetToVisualizationData(extraction);
 
     // Verify data was loaded correctly
     expect(data.protein_ids.length).toBeGreaterThan(0);
@@ -43,17 +44,13 @@ describe('round-trip with real data files', () => {
 
   it('should successfully export with settings after loading 5K.parquetbundle', async () => {
     const filePath = resolve(__dirname, '../../../../../../app/public/data/5K.parquetbundle');
-    const buffer = readFileSync(filePath);
-    const arrayBuffer = buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength,
-    );
+    const arrayBuffer = loadArrayBuffer(filePath);
 
-    // Extract rows from the bundle
-    const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(arrayBuffer);
+    // Extract from the bundle
+    const extraction = await extractRowsFromParquetBundle(arrayBuffer);
 
     // Convert to VisualizationData
-    const data = convertParquetToVisualizationData(rows, projectionsMetadata);
+    const data = convertParquetToVisualizationData(extraction);
 
     // Create mock settings
     const mockSettings = {
@@ -105,22 +102,17 @@ describe('round-trip with real data files', () => {
       __dirname,
       '../../../../../../app/tests/fixtures/phosphatase_no_binning.parquetbundle',
     );
-    const buffer = readFileSync(filePath);
-    const arrayBuffer = buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength,
-    );
+    const arrayBuffer = loadArrayBuffer(filePath);
 
-    const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(arrayBuffer);
-    const original = convertParquetToVisualizationData(rows, projectionsMetadata);
+    const extraction = await extractRowsFromParquetBundle(arrayBuffer);
+    const original = convertParquetToVisualizationData(extraction);
 
     expect(original.annotations.length?.kind).toBe('numeric');
     expect(original.numeric_annotation_data?.length).toBeDefined();
 
     const exportedBuffer = createParquetBundle(original);
-    const { rows: reimportedRows, projectionsMetadata: reimportedMetadata } =
-      await extractRowsFromParquetBundle(exportedBuffer);
-    const reimported = convertParquetToVisualizationData(reimportedRows, reimportedMetadata);
+    const reimportedExtraction = await extractRowsFromParquetBundle(exportedBuffer);
+    const reimported = convertParquetToVisualizationData(reimportedExtraction);
 
     expect(reimported.annotations.length?.kind).toBe('numeric');
     expect(reimported.numeric_annotation_data?.length).toEqual(
@@ -198,23 +190,18 @@ describe('metadata preservation through round-trip', () => {
 
   it('should preserve projection metadata fields through export/import cycle (5K)', async () => {
     const filePath = resolve(__dirname, '../../../../../../app/public/data/5K.parquetbundle');
-    const buffer = readFileSync(filePath);
-    const arrayBuffer = buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength,
-    );
+    const arrayBuffer = loadArrayBuffer(filePath);
 
     // Load original
-    const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(arrayBuffer);
-    const original = convertParquetToVisualizationData(rows, projectionsMetadata);
+    const extraction = await extractRowsFromParquetBundle(arrayBuffer);
+    const original = convertParquetToVisualizationData(extraction);
 
     // Export (without settings)
     const exportedBuffer = createParquetBundle(original);
 
     // Re-import
-    const { rows: rows2, projectionsMetadata: meta2 } =
-      await extractRowsFromParquetBundle(exportedBuffer);
-    const reimported = convertParquetToVisualizationData(rows2, meta2);
+    const extraction2 = await extractRowsFromParquetBundle(exportedBuffer);
+    const reimported = convertParquetToVisualizationData(extraction2);
 
     // 1. Protein IDs must be identical
     expect(reimported.protein_ids).toEqual(original.protein_ids);
@@ -247,15 +234,11 @@ describe('metadata preservation through round-trip', () => {
 
   it('should preserve projection metadata fields (n_components, svd_solver, etc.)', async () => {
     const filePath = resolve(__dirname, '../../../../../../app/public/data/5K.parquetbundle');
-    const buffer = readFileSync(filePath);
-    const arrayBuffer = buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength,
-    );
+    const arrayBuffer = loadArrayBuffer(filePath);
 
     // Load original
-    const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(arrayBuffer);
-    const original = convertParquetToVisualizationData(rows, projectionsMetadata);
+    const extraction = await extractRowsFromParquetBundle(arrayBuffer);
+    const original = convertParquetToVisualizationData(extraction);
 
     // Get first projection's metadata
     const origMeta = original.projections[0]?.metadata || {};
@@ -276,9 +259,8 @@ describe('metadata preservation through round-trip', () => {
 
     // Export and re-import
     const exportedBuffer = createParquetBundle(original);
-    const { rows: rows2, projectionsMetadata: meta2 } =
-      await extractRowsFromParquetBundle(exportedBuffer);
-    const reimported = convertParquetToVisualizationData(rows2, meta2);
+    const extraction2 = await extractRowsFromParquetBundle(exportedBuffer);
+    const reimported = convertParquetToVisualizationData(extraction2);
 
     // Re-imported should NOT have info_json at top level
     const reimportedMeta = reimported.projections[0]?.metadata || {};
@@ -327,8 +309,8 @@ describe('numeric annotation round-trip', () => {
     };
 
     const exportedBuffer = createParquetBundle(original);
-    const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(exportedBuffer);
-    const reimported = convertParquetToVisualizationData(rows, projectionsMetadata);
+    const reimportedExtraction = await extractRowsFromParquetBundle(exportedBuffer);
+    const reimported = convertParquetToVisualizationData(reimportedExtraction);
 
     expect(reimported.annotations.length.kind).toBe('numeric');
     expect(reimported.numeric_annotation_data?.length).toEqual([100, 250, null]);

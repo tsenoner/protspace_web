@@ -16,8 +16,8 @@ async function loadFixtureVisualizationData(fixtureName: string) {
     fileBuffer.byteOffset + fileBuffer.byteLength,
   );
 
-  const { rows, projectionsMetadata } = await extractRowsFromParquetBundle(arrayBuffer);
-  return convertParquetToVisualizationData(rows, projectionsMetadata ?? undefined);
+  const extraction = await extractRowsFromParquetBundle(arrayBuffer);
+  return convertParquetToVisualizationData(extraction);
 }
 
 describe('convertParquetToVisualizationData numeric annotations', () => {
@@ -146,7 +146,9 @@ describe('convertParquetToVisualizationData numeric annotations', () => {
     expect(optimizedResult.annotations.length.kind).toBe('categorical');
     expect(optimizedResult.numeric_annotation_data?.length).toBeUndefined();
     expect(optimizedResult.annotations.length.values).toEqual([NA_VALUE]);
-    expect(optimizedResult.annotation_data.length).toEqual([[0], [0], [0]]);
+    // Optimized path emits Int32Array for strictly single-valued columns
+    expect(optimizedResult.annotation_data.length).toBeInstanceOf(Int32Array);
+    expect(Array.from(optimizedResult.annotation_data.length as Int32Array)).toEqual([0, 0, 0]);
   });
 
   it("treats 'NaN' strings as missing while 'Infinity' strings demote the column to categorical", () => {
@@ -529,5 +531,117 @@ describe('categorical NA normalization', () => {
     expect(naIdx).toBeGreaterThanOrEqual(0);
     expect(result.annotations.kind.colors[naIdx]).toBe(NA_DEFAULT_COLOR);
     expect(result.annotations.kind.shapes[naIdx]).toBe('circle');
+  });
+});
+
+describe('annotation_data storage shape', () => {
+  it('emits Int32Array for strictly single-valued categorical columns', async () => {
+    const kingdoms = ['Bacillati', 'Pseudomonadati', '', 'Bacillati'];
+    const rows = Array.from({ length: 10000 }, (_, i) => ({
+      projection_name: 'UMAP',
+      identifier: `P${i + 1}`,
+      x: i,
+      y: i,
+      kingdom: kingdoms[i % kingdoms.length],
+    }));
+
+    const result = await convertParquetToVisualizationDataOptimized(rows, [
+      { projection_name: 'UMAP', dimensions: 2 },
+    ]);
+
+    expect(result.annotation_data.kingdom).toBeInstanceOf(Int32Array);
+    expect(result.annotations.kingdom.kind).toBe('categorical');
+    // Every protein gets exactly one index (the column is single-valued)
+    const data = result.annotation_data.kingdom as Int32Array;
+    expect(data.length).toBe(result.protein_ids.length);
+    // All indices are valid (no -1 sentinel left: missing proteins mapped to NA)
+    expect(Array.from(data).every((v) => v >= 0)).toBe(true);
+
+    // Content assertions: verify protein → label round-trips correctly.
+    // rows cycle: i%4=0→'Bacillati', i%4=1→'Pseudomonadati', i%4=2→''→NA, i%4=3→'Bacillati'
+    const values = result.annotations.kingdom.values;
+    const p1Idx = result.protein_ids.indexOf('P1'); // i=0, kingdom='Bacillati'
+    const p2Idx = result.protein_ids.indexOf('P2'); // i=1, kingdom='Pseudomonadati'
+    const p3Idx = result.protein_ids.indexOf('P3'); // i=2, kingdom='' → NA_VALUE
+    expect(values[data[p1Idx]]).toBe('Bacillati');
+    expect(values[data[p2Idx]]).toBe('Pseudomonadati');
+    expect(values[data[p3Idx]]).toBe(NA_VALUE);
+  });
+
+  it('keeps number[][] storage for multi-valued columns', async () => {
+    const rows = Array.from({ length: 10000 }, (_, i) => ({
+      projection_name: 'UMAP',
+      identifier: `P${i + 1}`,
+      x: i,
+      y: i,
+      pfam: i % 3 === 0 ? 'PF01;PF02' : 'PF03',
+    }));
+
+    const result = await convertParquetToVisualizationDataOptimized(rows, [
+      { projection_name: 'UMAP', dimensions: 2 },
+    ]);
+
+    // Multi-valued column must stay as a regular array
+    expect(Array.isArray(result.annotation_data.pfam)).toBe(true);
+    expect(result.annotation_data.pfam).not.toBeInstanceOf(Int32Array);
+    // Multi-valued proteins get two indices
+    const pfamData = result.annotation_data.pfam as readonly (readonly number[])[];
+    const multiValuedEntry = pfamData.find((row) => row.length === 2);
+    expect(multiValuedEntry).toBeDefined();
+
+    // Content assertions: verify index → label round-trips correctly.
+    // rows: i%3=0→'PF01;PF02', otherwise→'PF03'
+    const values = result.annotations.pfam.values;
+    const p1Idx = result.protein_ids.indexOf('P1'); // i=0, pfam='PF01;PF02'
+    const p2Idx = result.protein_ids.indexOf('P2'); // i=1, pfam='PF03'
+    // P1: two indices, both resolve to 'PF01' and 'PF02'
+    expect(pfamData[p1Idx]).toHaveLength(2);
+    expect(pfamData[p1Idx].every((i) => i >= 0)).toBe(true);
+    expect(pfamData[p1Idx].map((i) => values[i]).sort()).toEqual(['PF01', 'PF02']);
+    // P2: single index, resolves to 'PF03'
+    expect(pfamData[p2Idx]).toHaveLength(1);
+    expect(values[pfamData[p2Idx][0]]).toBe('PF03');
+  });
+});
+
+import { generateColorsAndShapes } from './conversion';
+
+describe('generateColorsAndShapes', () => {
+  it('returns palette.length × shapeCount distinct (color, shape) pairs', () => {
+    const { colors, shapes } = generateColorsAndShapes('kellys', 200);
+    expect(colors).toHaveLength(126); // 21 × 6
+    expect(shapes).toHaveLength(126);
+    const pairs = new Set<string>();
+    for (let i = 0; i < colors.length; i++) {
+      pairs.add(`${colors[i]}|${shapes[i]}`);
+    }
+    expect(pairs.size).toBe(126);
+  });
+
+  it('caps at the requested count when below the LCM', () => {
+    const { colors, shapes } = generateColorsAndShapes('kellys', 10);
+    expect(colors).toHaveLength(10);
+    expect(shapes).toHaveLength(10);
+  });
+
+  it('cycles after palette.length × shapeCount entries', () => {
+    // The array is capped at distinctPairs (126 for Kelly's).
+    // Consumers index via colors[i % colors.length] to cycle for i >= 126.
+    const { colors: c1, shapes: s1 } = generateColorsAndShapes('kellys', 1);
+    const { colors: c126, shapes: s126 } = generateColorsAndShapes('kellys', 126);
+    // Entry 127 (index 126) wraps to index 0 via consumer-side modular indexing.
+    expect(c126[126 % c126.length]).toBe(c1[0]);
+    expect(s126[126 % s126.length]).toBe(s1[0]);
+  });
+
+  it('falls back to kellys for unknown palette ids', () => {
+    const { colors } = generateColorsAndShapes('not-a-real-palette', 5);
+    expect(colors).toHaveLength(5);
+    // Should be the first 5 entries of the Kelly's palette
+  });
+
+  it('handles zero or negative counts as empty arrays', () => {
+    expect(generateColorsAndShapes('kellys', 0)).toEqual({ colors: [], shapes: [] });
+    expect(generateColorsAndShapes('kellys', -3)).toEqual({ colors: [], shapes: [] });
   });
 });
