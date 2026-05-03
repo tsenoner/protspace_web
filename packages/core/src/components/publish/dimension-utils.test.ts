@@ -5,6 +5,10 @@ import {
   adjustDpiForWidthMm,
   adjustWidthPxForDpi,
   clampHeight,
+  inToMm,
+  mmToIn,
+  cmToMm,
+  mmToCm,
   SIZE_MODE_WIDTH_MM,
   type SizeMode,
 } from './dimension-utils';
@@ -82,6 +86,34 @@ describe('dimension-utils', () => {
 
     it('flexible mode is undefined', () => {
       expect(SIZE_MODE_WIDTH_MM['flexible']).toBeUndefined();
+    });
+  });
+
+  describe('inToMm / mmToIn', () => {
+    it('converts 1 inch to 25.4 mm', () => {
+      expect(inToMm(1)).toBeCloseTo(25.4, 4);
+    });
+
+    it('converts 25.4 mm to 1 inch', () => {
+      expect(mmToIn(25.4)).toBeCloseTo(1, 4);
+    });
+
+    it('round-trips arbitrary values', () => {
+      expect(mmToIn(inToMm(3.5))).toBeCloseTo(3.5, 4);
+    });
+  });
+
+  describe('cmToMm / mmToCm', () => {
+    it('converts 1 cm to 10 mm', () => {
+      expect(cmToMm(1)).toBeCloseTo(10, 4);
+    });
+
+    it('converts 89 mm to 8.9 cm', () => {
+      expect(mmToCm(89)).toBeCloseTo(8.9, 4);
+    });
+
+    it('round-trips arbitrary values', () => {
+      expect(mmToCm(cmToMm(7.25))).toBeCloseTo(7.25, 4);
     });
   });
 });

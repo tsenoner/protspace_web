@@ -6,6 +6,27 @@
  */
 
 const MM_PER_INCH = 25.4;
+const MM_PER_CM = 10;
+
+/** Convert inches to millimetres. */
+export function inToMm(inches: number): number {
+  return inches * MM_PER_INCH;
+}
+
+/** Convert millimetres to inches. */
+export function mmToIn(mm: number): number {
+  return mm / MM_PER_INCH;
+}
+
+/** Convert centimetres to millimetres. */
+export function cmToMm(cm: number): number {
+  return cm * MM_PER_CM;
+}
+
+/** Convert millimetres to centimetres. */
+export function mmToCm(mm: number): number {
+  return mm / MM_PER_CM;
+}
 
 /** Convert pixels to millimetres at the given DPI. */
 export function pxToMm(px: number, dpi: number): number {
