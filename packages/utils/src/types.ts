@@ -1,5 +1,7 @@
 export type AnnotationKind = 'categorical' | 'numeric';
 
+export type NumericAnnotationType = 'int' | 'float';
+
 export type NumericBinningStrategy = 'linear' | 'quantile' | 'logarithmic';
 
 export interface NumericBinDefinition {
@@ -14,6 +16,7 @@ export interface NumericBinDefinition {
 export interface NumericAnnotationMetadata {
   strategy: NumericBinningStrategy;
   binCount: number;
+  numericType?: NumericAnnotationType;
   signature: string;
   topologySignature: string;
   logSupported: boolean;
@@ -26,8 +29,18 @@ export interface Annotation {
   colors: string[];
   shapes: string[];
   sourceKind?: AnnotationKind;
+  numericType?: NumericAnnotationType;
   numericMetadata?: NumericAnnotationMetadata;
 }
+
+/**
+ * Per-protein annotation indices.
+ * - `Int32Array`: strictly single-valued column. `data[proteinIdx]` is the
+ *   index, or `-1` when the protein has no value for this column.
+ * - `(readonly number[])[]`: multi-valued column. `data[proteinIdx]` is the
+ *   list of indices; an empty array means missing.
+ */
+export type AnnotationData = Int32Array | readonly (readonly number[])[];
 
 export interface Projection {
   name: string;
@@ -40,7 +53,7 @@ export interface VisualizationData {
   protein_ids: string[];
   projections: Projection[];
   annotations: Record<string, Annotation>;
-  annotation_data: Record<string, number[][]>;
+  annotation_data: Record<string, AnnotationData>;
   numeric_annotation_data?: Record<string, (number | null)[]>;
   annotation_scores?: Record<string, (number[] | null)[][]>;
   annotation_evidence?: Record<string, (string | null)[][]>;
@@ -51,11 +64,6 @@ export interface PlotDataPoint {
   x: number;
   y: number;
   z?: number;
-  annotationValues: Record<string, string[]>;
-  annotationDisplayValues?: Record<string, string[]>;
-  numericAnnotationValues?: Record<string, number | null>;
-  annotationScores?: Record<string, (number[] | null)[]>;
-  annotationEvidence?: Record<string, (string | null)[]>;
   originalIndex: number;
 }
 

@@ -16,6 +16,7 @@ import type { VisualizationData, BundleSettings } from '../types';
 import { BUNDLE_DELIMITER_BYTES } from './constants';
 import { bigIntReplacer } from './bigint-utils';
 import { isNumericAnnotation } from '../visualization/numeric-binning.js';
+import { getFirstAnnotationIndex } from '../visualization/annotation-data-access.js';
 
 /** Column data format for parquetWriteBuffer */
 interface ColumnData {
@@ -55,14 +56,10 @@ function createAnnotationsParquet(data: VisualizationData): ArrayBuffer {
     // Convert indices back to actual annotation values
     const values: (string | null)[] = new Array(data.protein_ids.length);
     for (let i = 0; i < data.protein_ids.length; i++) {
-      const indices = annotationIndices[i];
-      if (indices && indices.length > 0) {
-        // Take first annotation value (primary)
-        const idx = indices[0];
-        values[i] = annotation.values[idx] ?? null;
-      } else {
-        values[i] = null;
-      }
+      // Take first annotation value (primary); getFirstAnnotationIndex handles
+      // both Int32Array and number[][] storage shapes.
+      const idx = getFirstAnnotationIndex(annotationIndices, i);
+      values[i] = idx >= 0 ? (annotation.values[idx] ?? null) : null;
     }
 
     columnData.push({

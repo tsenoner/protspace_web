@@ -2,7 +2,10 @@
  * Export utilities for ProtSpace visualizations
  */
 
-import { SHAPE_PATH_GENERATORS, LEGEND_VALUES, renderPathOnCanvas, toDisplayValue } from './shapes';
+import { SHAPE_PATH_GENERATORS, renderPathOnCanvas, toDisplayValue } from './shapes';
+import { NA_VALUE } from './missing-values';
+import type { AnnotationData } from '../types.js';
+import { getProteinAnnotationIndices } from './annotation-data-access.js';
 
 // PDF generation libraries are imported dynamically for better browser compatibility
 declare const window: Window & typeof globalThis;
@@ -20,7 +23,7 @@ export interface ExportableData {
       };
     }
   >;
-  annotation_data: Record<string, number[][]>;
+  annotation_data: Record<string, AnnotationData>;
   projections?: Array<{ name: string }>;
 }
 
@@ -443,17 +446,17 @@ export class ProtSpaceExporter {
     if (annotationIndices && annotationInfo && Array.isArray(annotationInfo.values)) {
       const hiddenSet = new Set(hiddenValues);
       visibleIds = data.protein_ids.filter((_id, i) => {
-        const viArray = annotationIndices[i];
+        const viArray = getProteinAnnotationIndices(annotationIndices, i);
         // A protein is visible if at least one of its annotation values is not hidden
-        if (!Array.isArray(viArray) || viArray.length === 0) {
-          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
+        if (viArray.length === 0) {
+          return !hiddenSet.has(NA_VALUE);
         }
         return viArray.some((vi) => {
           const value: string | null =
             typeof vi === 'number' && vi >= 0 && vi < annotationInfo.values.length
               ? (annotationInfo.values[vi] ?? null)
               : null;
-          const key = value === null ? LEGEND_VALUES.NA_VALUE : String(value);
+          const key = value === null ? NA_VALUE : String(value);
           return !hiddenSet.has(key);
         });
       });
@@ -571,12 +574,10 @@ export class ProtSpaceExporter {
     const counts = new Array(annotationInfo.values.length).fill(0) as number[];
     for (let i = 0; i < indices.length; i += 1) {
       if (allowedIndexSet && !allowedIndexSet.has(i)) continue;
-      const viArray = indices[i];
-      if (Array.isArray(viArray)) {
-        for (const vi of viArray) {
-          if (typeof vi === 'number' && vi >= 0 && vi < counts.length) {
-            counts[vi] += 1;
-          }
+      const viArray = getProteinAnnotationIndices(indices, i);
+      for (const vi of viArray) {
+        if (vi >= 0 && vi < counts.length) {
+          counts[vi] += 1;
         }
       }
     }
@@ -593,7 +594,7 @@ export class ProtSpaceExporter {
       (annotationInfo.numericMetadata?.bins ?? []).map((bin) => [bin.id, bin.label]),
     );
     for (let i = 0; i < annotationInfo.values.length; i += 1) {
-      const value = annotationInfo.values[i] ?? LEGEND_VALUES.NA_VALUE;
+      const value = annotationInfo.values[i] ?? NA_VALUE;
       const color = annotationInfo.colors?.[i] ?? '#888';
       const shape = annotationInfo.shapes?.[i] ?? 'circle';
       const count = counts[i] ?? 0;

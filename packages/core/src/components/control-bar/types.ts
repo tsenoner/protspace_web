@@ -2,7 +2,7 @@
  * Control bar-related type definitions
  */
 
-import type { NumericAnnotationDisplaySettingsMap } from '@protspace/utils';
+import type { NumericAnnotationDisplaySettingsMap, AnnotationData } from '@protspace/utils';
 
 export type LegendSortModeLike =
   | 'size-asc'
@@ -38,7 +38,7 @@ export interface ProtspaceData {
       };
     }
   >;
-  annotation_data?: Record<string, number[] | number[][]>;
+  annotation_data?: Record<string, AnnotationData>;
   numeric_annotation_data?: Record<string, (number | null)[]>;
   protein_ids?: string[];
 }

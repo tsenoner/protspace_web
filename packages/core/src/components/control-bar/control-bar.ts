@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import { controlBarStyles } from './control-bar.styles';
 import type { ExportOptionsMap, PersistedExportOptions } from '@protspace/utils';
 import type {

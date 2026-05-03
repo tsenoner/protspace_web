@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { LEGEND_VALUES } from '@protspace/utils';
+import { NA_VALUE } from '@protspace/utils';
+import { formatRawNumericTooltipValue } from './protein-tooltip';
 import {
   filterAnnotationValues,
   getAnnotationHeaderType,
@@ -18,7 +19,7 @@ describe('filterAnnotationValues', () => {
   });
 
   it('returns null when all values are __NA__', () => {
-    expect(filterAnnotationValues([LEGEND_VALUES.NA_VALUE, LEGEND_VALUES.NA_VALUE])).toBeNull();
+    expect(filterAnnotationValues([NA_VALUE, NA_VALUE])).toBeNull();
   });
 
   it('returns null when all values are whitespace', () => {
@@ -26,7 +27,7 @@ describe('filterAnnotationValues', () => {
   });
 
   it('filters out __NA__ and returns remaining values', () => {
-    expect(filterAnnotationValues([LEGEND_VALUES.NA_VALUE, 'BRCA1'])).toBe('BRCA1');
+    expect(filterAnnotationValues([NA_VALUE, 'BRCA1'])).toBe('BRCA1');
   });
 
   it('trims whitespace from values', () => {
@@ -38,9 +39,7 @@ describe('filterAnnotationValues', () => {
   });
 
   it('filters NA and whitespace, then joins remaining', () => {
-    expect(filterAnnotationValues([LEGEND_VALUES.NA_VALUE, 'BRCA1', '  ', 'TP53'])).toBe(
-      'BRCA1, TP53',
-    );
+    expect(filterAnnotationValues([NA_VALUE, 'BRCA1', '  ', 'TP53'])).toBe('BRCA1, TP53');
   });
 
   it('returns single value without comma', () => {
@@ -49,60 +48,48 @@ describe('filterAnnotationValues', () => {
 });
 
 describe('getGeneName', () => {
-  it('resolves gene_name key', () => {
-    expect(getGeneName({ gene_name: ['BRCA1'] })).toBe('BRCA1');
-  });
-
-  it('resolves "Gene name" key', () => {
-    expect(getGeneName({ 'Gene name': ['TP53'] })).toBe('TP53');
-  });
-
-  it('prefers gene_name over "Gene name"', () => {
-    expect(getGeneName({ gene_name: ['BRCA1'], 'Gene name': ['TP53'] })).toBe('BRCA1');
+  it('resolves gene-name values', () => {
+    expect(getGeneName(['BRCA1'])).toBe('BRCA1');
   });
 
   it('returns null when gene annotation is all __NA__', () => {
-    expect(getGeneName({ gene_name: [LEGEND_VALUES.NA_VALUE] })).toBeNull();
+    expect(getGeneName([NA_VALUE])).toBeNull();
   });
 
-  it('returns null when no gene keys exist', () => {
-    expect(getGeneName({ species: ['human'] })).toBeNull();
+  it('returns null for empty array', () => {
+    expect(getGeneName([])).toBeNull();
   });
 });
 
 describe('getProteinName', () => {
-  it('resolves protein_name key', () => {
-    expect(getProteinName({ protein_name: ['Tumor protein p53'] })).toBe('Tumor protein p53');
-  });
-
-  it('resolves "Protein name" key', () => {
-    expect(getProteinName({ 'Protein name': ['Kinase'] })).toBe('Kinase');
+  it('resolves protein-name values', () => {
+    expect(getProteinName(['Tumor protein p53'])).toBe('Tumor protein p53');
   });
 
   it('returns null when all values are __NA__', () => {
-    expect(getProteinName({ protein_name: [LEGEND_VALUES.NA_VALUE] })).toBeNull();
+    expect(getProteinName([NA_VALUE])).toBeNull();
   });
 
-  it('returns null when no protein name keys exist', () => {
-    expect(getProteinName({ gene_name: ['TP53'] })).toBeNull();
+  it('returns null for empty array', () => {
+    expect(getProteinName([])).toBeNull();
   });
 });
 
 describe('getUniprotKbId', () => {
-  it('resolves uniprot_kb_id key', () => {
-    expect(getUniprotKbId({ uniprot_kb_id: ['P04637'] })).toBe('P04637');
+  it('resolves uniprot-kb-id values', () => {
+    expect(getUniprotKbId(['P04637'])).toBe('P04637');
   });
 
   it('returns null when all values are __NA__', () => {
-    expect(getUniprotKbId({ uniprot_kb_id: [LEGEND_VALUES.NA_VALUE] })).toBeNull();
+    expect(getUniprotKbId([NA_VALUE])).toBeNull();
   });
 
-  it('returns null when key does not exist', () => {
-    expect(getUniprotKbId({ gene_name: ['TP53'] })).toBeNull();
+  it('returns null for empty array', () => {
+    expect(getUniprotKbId([])).toBeNull();
   });
 
   it('joins multiple IDs', () => {
-    expect(getUniprotKbId({ uniprot_kb_id: ['P04637', 'Q9NZC2'] })).toBe('P04637, Q9NZC2');
+    expect(getUniprotKbId(['P04637', 'Q9NZC2'])).toBe('P04637, Q9NZC2');
   });
 });
 
@@ -145,5 +132,23 @@ describe('getAnnotationHeaderType', () => {
 
   it('returns "evidence" when at least one entry has evidence among nulls', () => {
     expect(getAnnotationHeaderType([null, null], [null, 'IDA'])).toBe('evidence');
+  });
+});
+
+describe('formatRawNumericTooltipValue', () => {
+  it('formats int raw values without grouping or decimals', () => {
+    expect(formatRawNumericTooltipValue(1200.75, 'int')).toBe('1200');
+  });
+
+  it('formats float raw values with grouping and decimals', () => {
+    expect(formatRawNumericTooltipValue(2500.25, 'float')).toBe('2,500.25');
+  });
+
+  it('preserves meaningful precision for tiny positive float raw values', () => {
+    expect(formatRawNumericTooltipValue(1.2e-7, 'float')).toBe('1.2e-7');
+  });
+
+  it('preserves meaningful precision for tiny negative float raw values', () => {
+    expect(formatRawNumericTooltipValue(-1.2e-7, 'float')).toBe('-1.2e-7');
   });
 });

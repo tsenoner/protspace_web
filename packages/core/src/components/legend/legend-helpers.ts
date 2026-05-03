@@ -15,7 +15,7 @@ import { LEGEND_DEFAULTS, LEGEND_VALUES } from './config';
 /**
  * Converts a legend item value to its string key representation.
  * This is used for storage keys, hidden values tracking, etc.
- * N/A items use LEGEND_VALUES.NA_VALUE ('__NA__') as their value.
+ * N/A items use NA_VALUE ('__NA__') as their value.
  */
 export function valueToKey(value: string): string {
   return value;

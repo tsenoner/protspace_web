@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import type { ProtspaceData } from './types';
 import type { FilterQuery, FilterCondition, FilterGroup, LogicalOp } from './query-types';
 import { createCondition, createGroup, isFilterGroup } from './query-types';

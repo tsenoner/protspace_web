@@ -1,6 +1,12 @@
 import type { LegendItem, OtherItem, LegendSortMode, PersistedCategoryData } from './types';
 import { getVisualEncoding, SlotTracker } from './visual-encoding';
-import { LEGEND_VALUES, toInternalValue, isNAValue, toDisplayValue } from './config';
+import {
+  LEGEND_VALUES,
+  NA_DEFAULT_COLOR,
+  toInternalValue,
+  isNAValue,
+  toDisplayValue,
+} from './config';
 
 /**
  * Context object for legend data processing.
@@ -62,7 +68,7 @@ export class LegendDataProcessor {
 
   /**
    * Count frequencies of annotation values.
-   * Raw null/empty values are converted to LEGEND_VALUES.NA_VALUE.
+   * Raw null/empty values are converted to NA_VALUE.
    */
   static countAnnotationFrequencies(
     annotationValues: (string | null)[],
@@ -106,24 +112,28 @@ export class LegendDataProcessor {
     useOtherBucket: boolean = true,
     pendingExtract?: string,
     pendingMerge?: string,
+    isNumericSource: boolean = false,
   ): {
     topItems: Array<[string, number]>;
     otherItems: OtherItem[];
     otherCount: number;
   } {
     const sortFn = (a: [string, number], b: [string, number]) => {
+      // Numeric annotations: NA pins to end (no bin range to sort by).
+      // Categorical annotations: NA sorts like any other value.
+      if (isNumericSource) {
+        const aIsNA = isNAValue(a[0]);
+        const bIsNA = isNAValue(b[0]);
+        if (aIsNA && !bIsNA) return 1;
+        if (!aIsNA && bIsNA) return -1;
+      }
+
       if (sortMode === 'manual' || sortMode === 'manual-reverse') {
         const aOrder = existingZOrders.get(a[0]) ?? Number.MAX_SAFE_INTEGER;
         const bOrder = existingZOrders.get(b[0]) ?? Number.MAX_SAFE_INTEGER;
         return sortMode === 'manual' ? aOrder - bOrder : bOrder - aOrder;
       } else if (sortMode === 'alpha-asc' || sortMode === 'alpha-desc') {
         const isAsc = sortMode === 'alpha-asc';
-        const aIsNA = isNAValue(a[0]);
-        const bIsNA = isNAValue(b[0]);
-        // N/A always sorts last regardless of direction
-        if (aIsNA && !bIsNA) return 1;
-        if (!aIsNA && bIsNA) return -1;
-        if (aIsNA && bIsNA) return 0;
         const aNumericOrder = numericOrderValues.get(a[0]);
         const bNumericOrder = numericOrderValues.get(b[0]);
         if (
@@ -159,40 +169,20 @@ export class LegendDataProcessor {
 
     let topItems: Array<[string, number]>;
 
-    // Check if N/A is being extracted or merged
-    const extractingNA = pendingExtract === LEGEND_VALUES.NA_VALUE;
-    const mergingNA = pendingMerge === LEGEND_VALUES.NA_VALUE;
-
     if (workingVisible.size > 0) {
-      // Filter to visible items, handling N/A specially
-      const visibleEntries = entries.filter(([v]) => {
-        if (isNAValue(v)) {
-          if (extractingNA) return true;
-          if (mergingNA) return false;
-          return workingVisible.has(v);
-        }
-        return workingVisible.has(v);
-      });
+      // Filter to visible items
+      const visibleEntries = entries.filter(([v]) => workingVisible.has(v));
 
       // Get items NOT in visible set (candidates to promote from "Other")
       // Exclude pendingMerge from being promoted back
       const nonVisibleEntries = entries.filter(([v]) => {
-        // Never include the item being merged (it's being demoted to Other)
         if (pendingMerge !== undefined && v === pendingMerge) return false;
-        if (isNAValue(v)) {
-          if (extractingNA) return false;
-          if (mergingNA) return false; // N/A is being merged, don't promote it
-          return !workingVisible.has(v);
-        }
         return !workingVisible.has(v);
       });
 
       const sortedVisible = [...visibleEntries].sort(sortFn);
       const sortedNonVisible = [...nonVisibleEntries].sort(sortFn);
 
-      // Take all visible items first, then fill remaining slots from non-visible
-      // This handles the case where maxVisibleValues increases beyond the current visible count
-      // In isolation mode, don't promote non-visible items — they should stay in "Other"
       const remainingSlots = isolationMode
         ? 0
         : Math.max(0, maxVisibleValues - sortedVisible.length);
@@ -202,15 +192,11 @@ export class LegendDataProcessor {
       ].slice(0, maxVisibleValues);
     } else {
       // Initial load: sort all and take top N
-      let filtered = [...entries];
-      if (mergingNA) {
-        filtered = filtered.filter(([v]) => !isNAValue(v));
-      }
-      const sorted = filtered.sort(sortFn);
+      const sorted = [...entries].sort(sortFn);
       topItems = sorted.slice(0, maxVisibleValues);
     }
 
-    // Items beyond the cap go to "Other" (excluding N/A which is handled separately)
+    // Items beyond the cap go to "Other".
     const topValuesSet = new Set(topItems.map(([v]) => v));
     const beyondCap = entries.filter(([v]) => !topValuesSet.has(v));
 
@@ -234,6 +220,7 @@ export class LegendDataProcessor {
     sortMode: LegendSortMode = 'size-desc',
     passedZOrders: Map<string, number> = new Map(),
     persistedCategories: Record<string, PersistedCategoryData> = {},
+    isNumericSource: boolean = false,
   ): LegendItem[] {
     // Use passed zOrders if available, otherwise extract from existingLegendItems
     let existingZOrders: Map<string, number>;
@@ -325,6 +312,18 @@ export class LegendDataProcessor {
 
       let encoding = getVisualEncoding(slot, shapesEnabled, displayName);
 
+      // Numeric NA is locked: ignore persisted/existing overrides, force defaults.
+      if (isNumericSource && isNAValue(value)) {
+        return {
+          value,
+          color: NA_DEFAULT_COLOR,
+          shape: 'circle',
+          count,
+          isVisible: true,
+          zOrder,
+        };
+      }
+
       // Priority: persisted > existing > default encoding (with conflict resolution)
       const persisted = persistedCategories[value];
       const existing = existingColors.get(value);
@@ -337,10 +336,14 @@ export class LegendDataProcessor {
       } else if (existing) {
         encoding = { color: existing.color, shape: encoding.shape };
       } else {
-        // Default encoding - resolve color conflicts
+        // Default encoding — categorical NA gets NA_DEFAULT_COLOR instead of slot color.
         let { color, shape } = encoding;
-        // N/A keeps its reserved default color even if another category uses the same color.
-        if (!isNAValue(value) && claimedColors.has(color)) {
+        if (isNAValue(value)) {
+          color = NA_DEFAULT_COLOR;
+        }
+        // Conflict resolution applies to NA too — if NA_DEFAULT_COLOR is already
+        // claimed by another category, NA gets bumped via slot probing.
+        if (claimedColors.has(color)) {
           // Probe subsequent slots for an unclaimed color (cap at 30 to exceed
           // Kelly's 21-color palette and guarantee termination)
           let altSlot = slot + 1;
@@ -416,6 +419,7 @@ export class LegendDataProcessor {
     pendingExtract?: string,
     pendingMerge?: string,
     knownValues: string[] = [],
+    isNumericSource: boolean = false,
   ): { legendItems: LegendItem[]; otherItems: OtherItem[] } {
     this.resetIfAnnotationChanged(ctx, annotationName);
 
@@ -452,6 +456,7 @@ export class LegendDataProcessor {
       useOtherBucket,
       pendingExtract,
       pendingMerge,
+      isNumericSource,
     );
 
     const items = this.createLegendItems(
@@ -463,6 +468,7 @@ export class LegendDataProcessor {
       sortMode,
       new Map(existingZOrders),
       persistedCategories,
+      isNumericSource,
     );
 
     // Filter "Other" items to exclude any that are already shown
