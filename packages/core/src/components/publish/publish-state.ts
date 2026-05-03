@@ -115,6 +115,12 @@ export interface PublishState {
   insets: Inset[];
   /** Width in px when overlays were authored. Used to scale pixel properties proportionally. */
   referenceWidth: number;
+  /** When true, changing dpi/mm recomputes pixels. When false, only metadata changes. */
+  resample: boolean;
+  /** Chain-link aspect ratio: when true, editing width also rescales height (and vice versa). */
+  aspectLocked: boolean;
+  /** Display unit for Width/Height inputs. Display-only; pixels are the internal source of truth. */
+  unit: 'px' | 'mm' | 'in' | 'cm';
   /** Visualization context when overlays/insets were authored. Used to detect stale positions. */
   viewFingerprint?: {
     projection: string;
@@ -137,6 +143,9 @@ export function createDefaultPublishState(base?: {
     widthPx: base?.imageWidth ?? 2048,
     heightPx: base?.imageHeight ?? 1024,
     dpi: 300,
+    resample: true,
+    aspectLocked: true,
+    unit: 'mm',
     format: 'png',
     legend: {
       visible: true,

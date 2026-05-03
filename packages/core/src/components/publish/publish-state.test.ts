@@ -39,6 +39,18 @@ describe('publish-state', () => {
       expect(state.legend.overflow).toBe('multi-column');
       expect(state.legend.columns).toBe(1);
     });
+
+    it('defaults resample to true', () => {
+      expect(createDefaultPublishState().resample).toBe(true);
+    });
+
+    it('defaults aspectLocked to true', () => {
+      expect(createDefaultPublishState().aspectLocked).toBe(true);
+    });
+
+    it('defaults unit to mm', () => {
+      expect(createDefaultPublishState().unit).toBe('mm');
+    });
   });
 
   describe('preset switching', () => {
