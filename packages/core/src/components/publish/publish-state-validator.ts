@@ -176,6 +176,13 @@ export function sanitizePublishState(input: unknown): PublishState {
     widthPx: isValidPixelDim(input.widthPx) ? input.widthPx : defaults.widthPx,
     heightPx: isValidPixelDim(input.heightPx) ? input.heightPx : defaults.heightPx,
     dpi: isFiniteNumber(input.dpi) && input.dpi > 0 ? input.dpi : defaults.dpi,
+    resample: typeof input.resample === 'boolean' ? input.resample : defaults.resample,
+    aspectLocked:
+      typeof input.aspectLocked === 'boolean' ? input.aspectLocked : defaults.aspectLocked,
+    unit:
+      input.unit === 'px' || input.unit === 'mm' || input.unit === 'in' || input.unit === 'cm'
+        ? input.unit
+        : defaults.unit,
     format: input.format === 'pdf' ? 'pdf' : 'png',
     legend: sanitizeLegend(input.legend, defaults.legend),
     background: input.background === 'transparent' ? 'transparent' : 'white',

@@ -199,4 +199,33 @@ describe('sanitizePublishState', () => {
     expect(sanitizePublishState({ preset: 'cell-1p5col' }).preset).toBe('cell-1p5col');
     expect(sanitizePublishState({ preset: 'custom' }).preset).toBe('custom');
   });
+
+  it('defaults resample/aspectLocked/unit when missing', () => {
+    const result = sanitizePublishState({});
+    expect(result.resample).toBe(true);
+    expect(result.aspectLocked).toBe(true);
+    expect(result.unit).toBe('mm');
+  });
+
+  it('preserves valid resample/aspectLocked/unit', () => {
+    const result = sanitizePublishState({
+      resample: false,
+      aspectLocked: false,
+      unit: 'in',
+    });
+    expect(result.resample).toBe(false);
+    expect(result.aspectLocked).toBe(false);
+    expect(result.unit).toBe('in');
+  });
+
+  it('rejects unknown unit and falls back to default', () => {
+    const result = sanitizePublishState({ unit: 'parsec' });
+    expect(result.unit).toBe('mm');
+  });
+
+  it('rejects non-boolean resample/aspectLocked and falls back to defaults', () => {
+    const result = sanitizePublishState({ resample: 'yes', aspectLocked: 1 });
+    expect(result.resample).toBe(true);
+    expect(result.aspectLocked).toBe(true);
+  });
 });
