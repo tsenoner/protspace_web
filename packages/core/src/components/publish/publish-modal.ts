@@ -19,7 +19,7 @@ import {
   type Overlay,
   type Inset,
 } from './publish-state';
-import { pxToMm, mmToPx } from './dimension-utils';
+import { pxToMm, mmToIn, mmToCm, inToMm, cmToMm } from './dimension-utils';
 import { sanitizePublishState } from './publish-state-validator';
 import {
   capturePlotCanvas,
@@ -31,13 +31,20 @@ import {
 } from './publish-compositor';
 import { PublishOverlayController } from './publish-overlay-controller';
 import {
-  getActivePresetConstraints,
-  computeWidthUpdate,
-  computeHeightUpdate,
+  computeWidthPxUpdate,
+  computeWidthMmUpdate,
+  computeHeightPxUpdate,
+  computeHeightMmUpdate,
   computeDpiUpdate,
   computePresetApplication,
   shouldShowFingerprintWarning,
 } from './publish-modal-helpers';
+
+// ── Constants ─────────────────────────────────────────────────
+
+const RESAMPLE_TOOLTIP =
+  'When on, changing the resolution re-renders the figure at a new pixel count. ' +
+  'When off, only print-size metadata changes — pixels stay the same.';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -105,6 +112,7 @@ export class ProtspacePublishModal extends LitElement {
   @state() private _tool: OverlayTool = 'select';
   @state() private _highlightedItem: { kind: 'overlay' | 'inset'; index: number } | null = null;
   @state() private _showFingerprintWarning = false;
+  @state() private _showResampleNote = false;
   @state() private _legendItems: LegendItem[] = [];
   @state() private _legendTitle = 'Legend';
 
@@ -149,6 +157,9 @@ export class ProtspacePublishModal extends LitElement {
   override updated(changed: Map<string, unknown>) {
     if (changed.has('_state') || changed.has('_tool') || changed.has('_highlightedItem')) {
       this._scheduleRedraw();
+    }
+    if (changed.has('legendElement')) {
+      this._readLegend();
     }
   }
 
@@ -315,40 +326,55 @@ export class ProtspacePublishModal extends LitElement {
     }
     this._plotCacheKey = '';
     this._insetCacheKey = ''; // invalidate
+    this._showResampleNote = false;
   }
 
   private _updateLegend(partial: Partial<PublishState['legend']>) {
     this._state = { ...this._state, legend: { ...this._state.legend, ...partial } };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
-  }
-
-  /** Return the active preset's mm constraints, or null for px-based / custom. */
-  private _getActivePresetConstraints() {
-    return getActivePresetConstraints(this._state);
+    this._showResampleNote = false;
   }
 
   private _updateWidthPx(widthPx: number) {
-    this._state = { ...this._state, ...computeWidthUpdate(this._state, widthPx) };
+    this._state = { ...this._state, ...computeWidthPxUpdate(this._state, widthPx) };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
+    this._showResampleNote = false;
+  }
+
+  private _updateWidthMm(widthMm: number) {
+    this._state = { ...this._state, ...computeWidthMmUpdate(this._state, widthMm) };
+    this._plotCacheKey = '';
+    this._insetCacheKey = '';
+    this._showResampleNote = false;
   }
 
   private _updateHeightPx(heightPx: number) {
-    this._state = { ...this._state, ...computeHeightUpdate(this._state, heightPx) };
+    this._state = { ...this._state, ...computeHeightPxUpdate(this._state, heightPx) };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
+    this._showResampleNote = false;
+  }
+
+  private _updateHeightMm(heightMm: number) {
+    this._state = { ...this._state, ...computeHeightMmUpdate(this._state, heightMm) };
+    this._plotCacheKey = '';
+    this._insetCacheKey = '';
+    this._showResampleNote = false;
   }
 
   private _updateDpi(dpi: number) {
     this._state = { ...this._state, ...computeDpiUpdate(this._state, dpi) };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
+    this._showResampleNote = false;
   }
 
   private _applyPreset(presetId: PresetId) {
     const patch = computePresetApplication(presetId);
     if (!patch) return;
+    const wasResampleOff = !this._state.resample;
     this._state = {
       ...this._state,
       ...patch,
@@ -356,6 +382,26 @@ export class ProtspacePublishModal extends LitElement {
     };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
+    if (wasResampleOff) {
+      this._showResampleNote = true;
+    }
+  }
+
+  private _toggleResample() {
+    this._state = { ...this._state, resample: !this._state.resample };
+    this._plotCacheKey = '';
+    this._insetCacheKey = '';
+    this._showResampleNote = false;
+  }
+
+  private _toggleAspectLock() {
+    this._state = { ...this._state, aspectLocked: !this._state.aspectLocked };
+    this._showResampleNote = false;
+  }
+
+  private _setUnit(unit: 'px' | 'mm' | 'in' | 'cm') {
+    this._state = { ...this._state, unit };
+    this._showResampleNote = false;
   }
 
   private _setTool(tool: OverlayTool) {
@@ -700,111 +746,158 @@ export class ProtspacePublishModal extends LitElement {
 
   private _renderDimensionsSection() {
     const s = this._state;
-    const constraints = this._getActivePresetConstraints();
-    const widthMmDisplay = constraints
-      ? `${constraints.widthMm} mm`
-      : `${pxToMm(s.widthPx, s.dpi).toFixed(1)} mm`;
+    const widthMm = pxToMm(s.widthPx, s.dpi);
     const heightMm = pxToMm(s.heightPx, s.dpi);
-    const maxHeightPx = constraints?.maxHeightMm ? mmToPx(constraints.maxHeightMm, s.dpi) : 8192;
-    const heightMmDisplay = constraints?.maxHeightMm
-      ? `${heightMm.toFixed(1)} mm (max ${constraints.maxHeightMm})`
-      : `${heightMm.toFixed(1)} mm`;
+
+    const widthDisplay = this._formatDimensionForUnit(s.widthPx, widthMm, s.unit);
+    const heightDisplay = this._formatDimensionForUnit(s.heightPx, heightMm, s.unit);
+
+    const dimsReadOnly = s.unit === 'px' && !s.resample;
+    const sizeMb = this._estimatePngSizeMb(s.widthPx, s.heightPx);
 
     return html`
       <div class="publish-section">
         <div class="publish-section-title">Dimensions</div>
 
-        <div class="publish-dim-field">
-          <div class="publish-dim-header">
+        <div class="publish-dim-readout">
+          <div>Image Size: <strong>${sizeMb.toFixed(1)} MB</strong></div>
+          <div>
+            ${dimsReadOnly ? 'Pixel Dims (locked)' : 'Pixel Dims'}:
+            <strong>${s.widthPx} × ${s.heightPx} px</strong>
+          </div>
+        </div>
+
+        <div class="publish-dim-pair">
+          <div class="publish-dim-row">
             <label>Width</label>
-            <span class="publish-dim-value">
-              <input
-                type="number"
-                class="publish-row-input"
-                min="400"
-                max="8192"
-                .value=${String(s.widthPx)}
-                @change=${(e: Event) => {
-                  this._updateWidthPx(parseInt((e.target as HTMLInputElement).value) || s.widthPx);
-                }}
-              />
-              <span class="publish-unit">px</span>
-              <span class="publish-mm-display">${widthMmDisplay}</span>
-            </span>
+            <input
+              type="number"
+              class="publish-row-input"
+              data-publish-input="width"
+              ?disabled=${dimsReadOnly}
+              .value=${String(widthDisplay)}
+              step=${s.unit === 'px' ? '1' : '0.1'}
+              @change=${(e: Event) => this._handleWidthChange(e)}
+            />
           </div>
-          <input
-            type="range"
-            class="publish-slider"
-            min="400"
-            max="8192"
-            .value=${String(s.widthPx)}
-            @input=${(e: Event) => {
-              this._updateWidthPx(parseInt((e.target as HTMLInputElement).value) || s.widthPx);
-            }}
-          />
-        </div>
-
-        <div class="publish-dim-field">
-          <div class="publish-dim-header">
+          <div class="publish-dim-row">
             <label>Height</label>
-            <span class="publish-dim-value">
-              <input
-                type="number"
-                class="publish-row-input"
-                min="400"
-                .max=${String(maxHeightPx)}
-                .value=${String(s.heightPx)}
-                @change=${(e: Event) => {
-                  this._updateHeightPx(
-                    parseInt((e.target as HTMLInputElement).value) || s.heightPx,
-                  );
-                }}
-              />
-              <span class="publish-unit">px</span>
-              <span class="publish-mm-display">${heightMmDisplay}</span>
-            </span>
+            <input
+              type="number"
+              class="publish-row-input"
+              data-publish-input="height"
+              ?disabled=${dimsReadOnly}
+              .value=${String(heightDisplay)}
+              step=${s.unit === 'px' ? '1' : '0.1'}
+              @change=${(e: Event) => this._handleHeightChange(e)}
+            />
           </div>
-          <input
-            type="range"
-            class="publish-slider"
-            min="400"
-            .max=${String(maxHeightPx)}
-            .value=${String(s.heightPx)}
-            @input=${(e: Event) => {
-              this._updateHeightPx(parseInt((e.target as HTMLInputElement).value) || s.heightPx);
-            }}
-          />
+          <div class="publish-dim-pair-controls">
+            <select
+              class="publish-select publish-unit-select"
+              data-publish-input="unit"
+              .value=${s.unit}
+              @change=${(e: Event) => {
+                this._setUnit((e.target as HTMLSelectElement).value as PublishState['unit']);
+              }}
+            >
+              <option value="px">px</option>
+              <option value="mm">mm</option>
+              <option value="in">in</option>
+              <option value="cm">cm</option>
+            </select>
+            <button
+              class="publish-aspect-lock ${s.aspectLocked ? 'locked' : ''}"
+              data-publish-input="aspect-lock"
+              @click=${() => this._toggleAspectLock()}
+              title=${s.aspectLocked ? 'Unlink width/height' : 'Link width/height'}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14">
+                ${s.aspectLocked
+                  ? html`<path
+                      d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1m-2 8a5 5 0 01-7 0l-3-3a5 5 0 017-7l1 1"
+                    />`
+                  : html`<path
+                      d="M9 11l-2 2-3-3a5 5 0 017-7l3 3M15 13l2-2 3 3a5 5 0 01-7 7l-3-3"
+                    />`}
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <div class="publish-dim-field">
-          <div class="publish-dim-header">
-            <label>DPI</label>
-            <span class="publish-dim-value">
-              <input
-                type="number"
-                class="publish-row-input"
-                min="72"
-                max="1000"
-                .value=${String(s.dpi)}
-                @change=${(e: Event) => {
-                  this._updateDpi(parseInt((e.target as HTMLInputElement).value) || s.dpi);
-                }}
-              />
-            </span>
-          </div>
+        <div class="publish-dim-row">
+          <label>Resolution</label>
           <input
-            type="range"
-            class="publish-slider"
-            min="72"
-            max="1000"
+            type="number"
+            class="publish-row-input"
+            data-publish-input="dpi"
+            min="1"
+            max="2400"
             .value=${String(s.dpi)}
-            @input=${(e: Event) => {
+            @change=${(e: Event) => {
               this._updateDpi(parseInt((e.target as HTMLInputElement).value) || s.dpi);
             }}
           />
+          <span class="publish-unit">Pixels/Inch</span>
         </div>
+
+        <label class="publish-checkbox-label">
+          <input
+            type="checkbox"
+            class="publish-checkbox"
+            data-publish-input="resample"
+            .checked=${s.resample}
+            @change=${() => this._toggleResample()}
+          />
+          Resample
+          <span class="publish-info" title=${RESAMPLE_TOOLTIP}>ⓘ</span>
+        </label>
+        ${this._showResampleNote
+          ? html`<div class="publish-resample-note">Resample turned on to apply preset.</div>`
+          : nothing}
       </div>
     `;
+  }
+
+  private _handleWidthChange(e: Event) {
+    const value = parseFloat((e.target as HTMLInputElement).value);
+    if (!Number.isFinite(value) || value <= 0) return;
+    if (this._state.unit === 'px') {
+      this._updateWidthPx(Math.round(value));
+    } else {
+      const mm = this._unitToMm(value, this._state.unit);
+      this._updateWidthMm(mm);
+    }
+  }
+
+  private _handleHeightChange(e: Event) {
+    const value = parseFloat((e.target as HTMLInputElement).value);
+    if (!Number.isFinite(value) || value <= 0) return;
+    if (this._state.unit === 'px') {
+      this._updateHeightPx(Math.round(value));
+    } else {
+      const mm = this._unitToMm(value, this._state.unit);
+      this._updateHeightMm(mm);
+    }
+  }
+
+  private _unitToMm(value: number, unit: 'px' | 'mm' | 'in' | 'cm'): number {
+    if (unit === 'mm') return value;
+    if (unit === 'in') return inToMm(value);
+    if (unit === 'cm') return cmToMm(value);
+    return value; // px branch unreachable here
+  }
+
+  private _formatDimensionForUnit(px: number, mm: number, unit: 'px' | 'mm' | 'in' | 'cm'): string {
+    if (unit === 'px') return String(px);
+    if (unit === 'mm') return mm.toFixed(1);
+    if (unit === 'in') return mmToIn(mm).toFixed(2);
+    return mmToCm(mm).toFixed(2);
+  }
+
+  private _estimatePngSizeMb(widthPx: number, heightPx: number): number {
+    // Rough heuristic: 32-bit RGBA × ~0.4 typical PNG compression.
+    return (widthPx * heightPx * 4 * 0.4) / (1024 * 1024);
   }
 
   // ── Legend section ──────────────────────────────────

@@ -507,4 +507,82 @@ export const publishModalStyles = css`
       border-top: var(--border-width) solid var(--border);
     }
   }
+
+  /* ─── Dimensions panel (Photoshop-style) ────────────────── */
+  .publish-dim-readout {
+    font-size: var(--text-xs);
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .publish-dim-readout strong {
+    color: var(--fg);
+  }
+
+  .publish-dim-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    align-items: end;
+    gap: 6px 8px;
+    margin-bottom: 6px;
+  }
+
+  .publish-dim-pair-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .publish-unit-select {
+    width: 60px;
+    font-size: var(--text-xs);
+  }
+
+  .publish-aspect-lock {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .publish-aspect-lock svg {
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 2;
+  }
+
+  .publish-aspect-lock.locked svg {
+    stroke: var(--accent, #3b82f6);
+  }
+
+  .publish-dim-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .publish-dim-row label {
+    font-size: var(--text-xs);
+    color: var(--muted);
+  }
+
+  .publish-info {
+    cursor: help;
+    margin-left: 4px;
+    color: var(--muted);
+  }
+
+  .publish-resample-note {
+    font-size: var(--text-xs);
+    color: var(--accent, #3b82f6);
+    margin-top: 4px;
+  }
 `;
