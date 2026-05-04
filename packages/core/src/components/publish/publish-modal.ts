@@ -6,7 +6,8 @@
  */
 
 import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+import { property, state, query } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import { tokens } from '../../styles/tokens';
 import { buttonMixin } from '../../styles/mixins';
 import { publishModalStyles } from './publish-modal.styles';
@@ -653,8 +654,12 @@ export class ProtspacePublishModal extends LitElement {
                 Reset
               </button>
               <button class="btn-secondary" @click=${this._handleClose}>Cancel</button>
-              <button class="btn-primary" @click=${this._handleExport}>
-                Export ${s.format.toUpperCase()}
+              <button
+                class="btn-primary"
+                @click=${this._handleExport}
+                title=${`Export ${s.format.toUpperCase()}`}
+              >
+                Export
               </button>
             </div>
           </div>
