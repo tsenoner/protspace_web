@@ -184,4 +184,29 @@ describe('<protspace-publish-modal> dimensions section', () => {
     expect(internals._state.resample).toBe(true);
     expect(internals._state.preset).toBe('nature-1col');
   });
+
+  it('applying a preset preserves the current aspect ratio', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as PublishInternals;
+
+    // Force a non-default aspect ratio (3:2 portrait-ish).
+    internals._state = { ...internals._state, widthPx: 2000, heightPx: 1500 };
+    const aspectBefore = internals._state.heightPx / internals._state.widthPx;
+    expect(aspectBefore).toBeCloseTo(0.75, 4);
+
+    // Apply Nature 1-col preset (89mm @ 300 dpi → 1051px wide; preset would
+    // otherwise force max height 247mm = 2917px).
+    const presetBtns = modal.shadowRoot!.querySelectorAll<HTMLButtonElement>('.publish-preset-btn');
+    const nature1 = Array.from(presetBtns).find((b) => /Nature.*1 col/i.test(b.textContent ?? ''));
+    nature1!.click();
+    await modal.updateComplete;
+
+    expect(internals._state.widthPx).toBe(1051);
+    // Aspect must match what we had before, not the preset's max-height aspect.
+    const aspectAfter = internals._state.heightPx / internals._state.widthPx;
+    expect(aspectAfter).toBeCloseTo(aspectBefore, 2);
+    // Concretely: 1051 × 0.75 ≈ 788
+    expect(internals._state.heightPx).toBe(788);
+  });
 });

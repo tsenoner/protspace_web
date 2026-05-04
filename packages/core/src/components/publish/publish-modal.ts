@@ -378,10 +378,17 @@ export class ProtspacePublishModal extends LitElement {
     const patch = computePresetApplication(presetId);
     if (!patch) return;
     const wasResampleOff = !this._state.resample;
+    // Apply the preset's width + dpi but keep the figure's current aspect
+    // ratio. Journal presets only define a maximum height (or an explicit slide
+    // aspect), which would otherwise stretch a typical figure into a tall
+    // page-sized canvas — users want their existing layout to fit the new
+    // column width, not be reshaped.
+    const aspect = this._state.widthPx > 0 ? this._state.heightPx / this._state.widthPx : 1;
+    const heightPx = Math.max(1, Math.round(patch.widthPx * aspect));
     this._state = {
       ...this._state,
       ...patch,
-      heightPx: patch.heightPx ?? this._state.heightPx,
+      heightPx,
     };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
