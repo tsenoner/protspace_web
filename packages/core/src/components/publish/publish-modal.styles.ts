@@ -559,6 +559,19 @@ export const publishModalStyles = css`
     stroke: var(--accent, #3b82f6);
   }
 
+  .publish-aspect-lock .aspect-lock-state-locked,
+  .publish-aspect-lock .aspect-lock-state-unlocked {
+    display: none;
+  }
+
+  .publish-aspect-lock.locked .aspect-lock-state-locked {
+    display: inline;
+  }
+
+  .publish-aspect-lock:not(.locked) .aspect-lock-state-unlocked {
+    display: inline;
+  }
+
   .publish-dim-row {
     display: flex;
     align-items: center;

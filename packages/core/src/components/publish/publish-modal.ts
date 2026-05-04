@@ -852,25 +852,29 @@ export class ProtspacePublishModal extends LitElement {
         class="publish-aspect-lock ${locked ? 'locked' : ''}"
         data-publish-input="aspect-lock"
         @click=${() => this._toggleAspectLock()}
-        title=${locked ? 'Unlink width/height' : 'Link width/height'}
+        title=${locked
+          ? 'Linked: editing one rescales the other. Click to unlink.'
+          : 'Unlinked: width and height are independent. Click to link.'}
         aria-pressed=${locked}
       >
-        <svg viewBox="0 0 20 56" width="18" height="50" aria-hidden="true">
-          <!-- top bracket -->
-          <path d="M0 14 H10 V22" />
-          <!-- bottom bracket -->
-          <path d="M10 34 V42 H0" />
-          ${locked
-            ? html`
-                <!-- locked: two interlocking links -->
-                <rect x="4" y="22" width="12" height="6" rx="3" ry="3" />
-                <rect x="4" y="28" width="12" height="6" rx="3" ry="3" />
-              `
-            : html`
-                <!-- unlocked: chain broken into two separated links -->
-                <rect x="4" y="20" width="12" height="6" rx="3" ry="3" />
-                <rect x="4" y="30" width="12" height="6" rx="3" ry="3" />
-              `}
+        <svg
+          viewBox="0 0 32 56"
+          width="22"
+          height="42"
+          aria-hidden="true"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <!-- LOCKED: two interlocking chain links connected by a short bar -->
+          <g class="aspect-lock-state-locked">
+            <ellipse cx="16" cy="20" rx="7" ry="5" />
+            <ellipse cx="16" cy="36" rx="7" ry="5" />
+            <line x1="16" y1="25" x2="16" y2="31" />
+          </g>
+          <!-- UNLOCKED: chain broken into two separated, tilted links -->
+          <g class="aspect-lock-state-unlocked">
+            <ellipse cx="13" cy="18" rx="7" ry="5" transform="rotate(-25 13 18)" />
+            <ellipse cx="19" cy="38" rx="7" ry="5" transform="rotate(25 19 38)" />
+          </g>
         </svg>
       </button>
     `;

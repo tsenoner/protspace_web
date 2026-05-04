@@ -120,6 +120,26 @@ describe('<protspace-publish-modal> dimensions section', () => {
     expect(internals._state.aspectLocked).toBe(false);
   });
 
+  it('shows the chain link svg group corresponding to the current locked state', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+
+    const chainBtn = modal.shadowRoot!.querySelector<HTMLButtonElement>(
+      '[data-publish-input="aspect-lock"]',
+    )!;
+
+    // Default state: locked. The locked group should be in the DOM.
+    expect(chainBtn.classList.contains('locked')).toBe(true);
+    expect(chainBtn.querySelector('.aspect-lock-state-locked')).not.toBeNull();
+    expect(chainBtn.querySelector('.aspect-lock-state-unlocked')).not.toBeNull();
+    // Both groups exist; CSS toggles which is visible.
+
+    // Toggle off and confirm the class flips on the button.
+    chainBtn.click();
+    await modal.updateComplete;
+    expect(chainBtn.classList.contains('locked')).toBe(false);
+  });
+
   it('clicking a preset while Resample=OFF flips Resample=ON', async () => {
     const modal = makeModal();
     await modal.updateComplete;
