@@ -209,4 +209,97 @@ describe('<protspace-publish-modal> dimensions section', () => {
     // Concretely: 1051 × 0.75 ≈ 788
     expect(internals._state.heightPx).toBe(788);
   });
+
+  it('applying a preset clamps height at the preset max-height', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as PublishInternals;
+
+    // Force a very tall aspect ratio (5:1) that would exceed Nature's 247mm cap.
+    internals._state = { ...internals._state, widthPx: 1000, heightPx: 5000 };
+
+    const presetBtns = modal.shadowRoot!.querySelectorAll<HTMLButtonElement>('.publish-preset-btn');
+    const nature1 = Array.from(presetBtns).find((b) => /Nature.*1 col/i.test(b.textContent ?? ''));
+    nature1!.click();
+    await modal.updateComplete;
+
+    // Width pinned to 1051. Aspect 5.0 × 1051 = 5255, but cap is
+    // mmToPx(247, 300) = round(247 × 300 / 25.4) = 2917.
+    expect(internals._state.widthPx).toBe(1051);
+    expect(internals._state.heightPx).toBe(2917);
+  });
+
+  it('width input is disabled while a journal preset is active', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+
+    const presetBtns = modal.shadowRoot!.querySelectorAll<HTMLButtonElement>('.publish-preset-btn');
+    const nature1 = Array.from(presetBtns).find((b) => /Nature.*1 col/i.test(b.textContent ?? ''));
+    nature1!.click();
+    await modal.updateComplete;
+
+    const widthInput = modal.shadowRoot!.querySelector<HTMLInputElement>(
+      '[data-publish-input="width"]',
+    )!;
+    const widthSlider = modal.shadowRoot!.querySelector<HTMLInputElement>(
+      '[data-publish-input="width-slider"]',
+    )!;
+    expect(widthInput.disabled).toBe(true);
+    expect(widthSlider.disabled).toBe(true);
+
+    // Height stays editable.
+    const heightInput = modal.shadowRoot!.querySelector<HTMLInputElement>(
+      '[data-publish-input="height"]',
+    )!;
+    expect(heightInput.disabled).toBe(false);
+  });
+
+  it('editing height while a preset is active clamps at maxHeightMm and keeps preset', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as PublishInternals;
+
+    const presetBtns = modal.shadowRoot!.querySelectorAll<HTMLButtonElement>('.publish-preset-btn');
+    const nature1 = Array.from(presetBtns).find((b) => /Nature.*1 col/i.test(b.textContent ?? ''));
+    nature1!.click();
+    await modal.updateComplete;
+    expect(internals._state.preset).toBe('nature-1col');
+
+    // Try to push height beyond Nature's 247mm = 2917px cap.
+    const heightSlider = modal.shadowRoot!.querySelector<HTMLInputElement>(
+      '[data-publish-input="height-slider"]',
+    )!;
+    heightSlider.value = '8000';
+    heightSlider.dispatchEvent(new Event('input'));
+    await modal.updateComplete;
+
+    expect(internals._state.heightPx).toBe(2917);
+    // Preset stays — clamping is part of the preset, not a custom edit.
+    expect(internals._state.preset).toBe('nature-1col');
+    // Width also stays pinned to preset.
+    expect(internals._state.widthPx).toBe(1051);
+  });
+
+  it('editing height within bounds stays in preset', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as PublishInternals;
+
+    const presetBtns = modal.shadowRoot!.querySelectorAll<HTMLButtonElement>('.publish-preset-btn');
+    const nature1 = Array.from(presetBtns).find((b) => /Nature.*1 col/i.test(b.textContent ?? ''));
+    nature1!.click();
+    await modal.updateComplete;
+
+    const heightInput = modal.shadowRoot!.querySelector<HTMLInputElement>(
+      '[data-publish-input="height"]',
+    )!;
+    // Default unit is mm; 100mm @ 300 dpi = 1181px, well under cap.
+    heightInput.value = '100';
+    heightInput.dispatchEvent(new Event('change'));
+    await modal.updateComplete;
+
+    expect(internals._state.heightPx).toBe(1181);
+    expect(internals._state.preset).toBe('nature-1col');
+    expect(internals._state.widthPx).toBe(1051);
+  });
 });

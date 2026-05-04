@@ -23,6 +23,20 @@ export function getActivePresetConstraints(
   return { widthMm: preset.widthMm, maxHeightMm: preset.maxHeightMm };
 }
 
+/** Width pinned by the active mm-based preset, in pixels at the current dpi. */
+export function getActivePresetWidthPx(state: PublishState): number | null {
+  const c = getActivePresetConstraints(state);
+  if (!c) return null;
+  return mmToPx(c.widthMm, state.dpi);
+}
+
+/** Height ceiling enforced by the active mm-based preset, in pixels at the current dpi. */
+export function getActivePresetMaxHeightPx(state: PublishState): number | null {
+  const c = getActivePresetConstraints(state);
+  if (!c?.maxHeightMm) return null;
+  return mmToPx(c.maxHeightMm, state.dpi);
+}
+
 /**
  * Width input in pixels. Caller is responsible for only invoking this when the UI
  * unit is 'px'; DPI is unaffected regardless of resample mode.
@@ -106,17 +120,13 @@ export function computeDpiUpdate(state: PublishState, dpi: number): Partial<Publ
 }
 
 /** Compute state patch for applying a journal preset. Always forces resample=true. */
-export function computePresetApplication(
-  presetId: string,
-):
-  | {
-      preset: PresetId;
-      widthPx: number;
-      heightPx: number | undefined;
-      dpi: number;
-      resample: true;
-    }
-  | null {
+export function computePresetApplication(presetId: string): {
+  preset: PresetId;
+  widthPx: number;
+  heightPx: number | undefined;
+  dpi: number;
+  resample: true;
+} | null {
   const preset = getPreset(presetId);
   if (!preset) return null;
   const dims = resolvePresetDimensions(preset);

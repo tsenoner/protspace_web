@@ -19,7 +19,7 @@ import {
   type Overlay,
   type Inset,
 } from './publish-state';
-import { pxToMm, mmToIn, mmToCm, inToMm, cmToMm } from './dimension-utils';
+import { pxToMm, mmToIn, mmToCm, inToMm, cmToMm, mmToPx } from './dimension-utils';
 import { sanitizePublishState } from './publish-state-validator';
 import {
   capturePlotCanvas,
@@ -37,8 +37,12 @@ import {
   computeHeightMmUpdate,
   computeDpiUpdate,
   computePresetApplication,
+  getActivePresetConstraints,
+  getActivePresetMaxHeightPx,
+  getActivePresetWidthPx,
   shouldShowFingerprintWarning,
 } from './publish-modal-helpers';
+import { getPreset } from './journal-presets';
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -354,17 +358,47 @@ export class ProtspacePublishModal extends LitElement {
   }
 
   private _updateHeightPx(heightPx: number) {
-    this._state = { ...this._state, ...computeHeightPxUpdate(this._state, heightPx) };
+    const constrained = this._constrainedHeightPatch(heightPx);
+    if (constrained) {
+      this._state = { ...this._state, ...constrained };
+    } else {
+      this._state = { ...this._state, ...computeHeightPxUpdate(this._state, heightPx) };
+    }
     this._plotCacheKey = '';
     this._insetCacheKey = '';
     this._showResampleNote = false;
   }
 
   private _updateHeightMm(heightMm: number) {
+    const constraints = getActivePresetConstraints(this._state);
+    if (constraints) {
+      const heightPx = mmToPx(heightMm, this._state.dpi);
+      const constrained = this._constrainedHeightPatch(heightPx);
+      if (constrained) {
+        this._state = { ...this._state, ...constrained };
+        this._plotCacheKey = '';
+        this._insetCacheKey = '';
+        this._showResampleNote = false;
+        return;
+      }
+    }
     this._state = { ...this._state, ...computeHeightMmUpdate(this._state, heightMm) };
     this._plotCacheKey = '';
     this._insetCacheKey = '';
     this._showResampleNote = false;
+  }
+
+  /**
+   * When a journal preset is active, height edits clamp at maxHeightPx and
+   * preserve the preset's pinned width — instead of dropping into custom mode.
+   * Returns null when no constraint applies (caller falls back to free edits).
+   */
+  private _constrainedHeightPatch(heightPx: number): Partial<PublishState> | null {
+    const widthPx = getActivePresetWidthPx(this._state);
+    if (widthPx === null) return null;
+    const maxPx = getActivePresetMaxHeightPx(this._state) ?? Infinity;
+    const clamped = Math.min(Math.max(1, Math.round(heightPx)), maxPx);
+    return { heightPx: clamped, widthPx };
   }
 
   private _updateDpi(dpi: number) {
@@ -378,13 +412,17 @@ export class ProtspacePublishModal extends LitElement {
     const patch = computePresetApplication(presetId);
     if (!patch) return;
     const wasResampleOff = !this._state.resample;
-    // Apply the preset's width + dpi but keep the figure's current aspect
-    // ratio. Journal presets only define a maximum height (or an explicit slide
-    // aspect), which would otherwise stretch a typical figure into a tall
-    // page-sized canvas — users want their existing layout to fit the new
-    // column width, not be reshaped.
+    // Apply the preset's width + dpi but derive height from the current
+    // aspect ratio so the user's existing layout fits the new column width
+    // instead of being stretched to the journal's max page height. The
+    // result is then clamped to the preset's maxHeightMm cap (if any).
     const aspect = this._state.widthPx > 0 ? this._state.heightPx / this._state.widthPx : 1;
-    const heightPx = Math.max(1, Math.round(patch.widthPx * aspect));
+    let heightPx = Math.max(1, Math.round(patch.widthPx * aspect));
+    const preset = getPreset(presetId);
+    if (preset?.maxHeightMm !== undefined) {
+      const maxPx = mmToPx(preset.maxHeightMm, preset.dpi);
+      heightPx = Math.min(heightPx, maxPx);
+    }
     this._state = {
       ...this._state,
       ...patch,
@@ -767,6 +805,10 @@ export class ProtspacePublishModal extends LitElement {
     const heightDisplay = this._formatDimensionForUnit(s.heightPx, heightMm, s.unit);
 
     const dimsReadOnly = s.unit === 'px' && !s.resample;
+    // Journal presets pin width and (optionally) cap height. While such a
+    // preset is active, lock the width inputs and clamp the height slider.
+    const widthLocked = getActivePresetWidthPx(s) !== null;
+    const heightMaxPx = getActivePresetMaxHeightPx(s);
 
     return html`
       <div class="publish-section">
@@ -787,7 +829,7 @@ export class ProtspacePublishModal extends LitElement {
               min="200"
               max="8000"
               step="1"
-              ?disabled=${dimsReadOnly}
+              ?disabled=${dimsReadOnly || widthLocked}
               .value=${String(s.widthPx)}
               @input=${(e: Event) => {
                 const px = parseInt((e.target as HTMLInputElement).value);
@@ -798,7 +840,8 @@ export class ProtspacePublishModal extends LitElement {
               type="number"
               class="publish-row-input publish-dim-value"
               data-publish-input="width"
-              ?disabled=${dimsReadOnly}
+              ?disabled=${dimsReadOnly || widthLocked}
+              title=${widthLocked ? 'Width is fixed by the active journal preset.' : ''}
               .value=${String(widthDisplay)}
               step=${s.unit === 'px' ? '1' : '0.1'}
               @change=${(e: Event) => this._handleWidthChange(e)}
@@ -826,7 +869,7 @@ export class ProtspacePublishModal extends LitElement {
               class="publish-slider"
               data-publish-input="height-slider"
               min="200"
-              max="8000"
+              max=${heightMaxPx !== null ? String(Math.max(200, heightMaxPx)) : '8000'}
               step="1"
               ?disabled=${dimsReadOnly}
               .value=${String(s.heightPx)}
