@@ -760,76 +760,54 @@ export class ProtspacePublishModal extends LitElement {
     const heightDisplay = this._formatDimensionForUnit(s.heightPx, heightMm, s.unit);
 
     const dimsReadOnly = s.unit === 'px' && !s.resample;
-    const sizeMb = this._estimatePngSizeMb(s.widthPx, s.heightPx);
+    const memoryMb = (s.widthPx * s.heightPx * 4) / (1024 * 1024);
 
     return html`
       <div class="publish-section">
         <div class="publish-section-title">Dimensions</div>
 
         <div class="publish-dim-readout">
-          <div>Image Size: <strong>${sizeMb.toFixed(1)} MB</strong></div>
-          <div>
-            ${dimsReadOnly ? 'Pixel Dims (locked)' : 'Pixel Dims'}:
-            <strong>${s.widthPx} × ${s.heightPx} px</strong>
-          </div>
+          ${dimsReadOnly ? 'Pixel Dims (locked)' : 'Pixel Dims'}:
+          <strong>${s.widthPx} × ${s.heightPx} px</strong>
+          <span class="publish-dim-memory">(≈ ${memoryMb.toFixed(1)} MB in memory)</span>
         </div>
 
         <div class="publish-dim-pair">
-          <div class="publish-dim-row">
-            <label>Width</label>
-            <input
-              type="number"
-              class="publish-row-input"
-              data-publish-input="width"
-              ?disabled=${dimsReadOnly}
-              .value=${String(widthDisplay)}
-              step=${s.unit === 'px' ? '1' : '0.1'}
-              @change=${(e: Event) => this._handleWidthChange(e)}
-            />
-          </div>
-          <div class="publish-dim-row">
-            <label>Height</label>
-            <input
-              type="number"
-              class="publish-row-input"
-              data-publish-input="height"
-              ?disabled=${dimsReadOnly}
-              .value=${String(heightDisplay)}
-              step=${s.unit === 'px' ? '1' : '0.1'}
-              @change=${(e: Event) => this._handleHeightChange(e)}
-            />
-          </div>
-          <div class="publish-dim-pair-controls">
-            <select
-              class="publish-select publish-unit-select"
-              data-publish-input="unit"
-              .value=${s.unit}
-              @change=${(e: Event) => {
-                this._setUnit((e.target as HTMLSelectElement).value as PublishState['unit']);
-              }}
-            >
-              <option value="px">px</option>
-              <option value="mm">mm</option>
-              <option value="in">in</option>
-              <option value="cm">cm</option>
-            </select>
-            <button
-              class="publish-aspect-lock ${s.aspectLocked ? 'locked' : ''}"
-              data-publish-input="aspect-lock"
-              @click=${() => this._toggleAspectLock()}
-              title=${s.aspectLocked ? 'Unlink width/height' : 'Link width/height'}
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14">
-                ${s.aspectLocked
-                  ? html`<path
-                      d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1m-2 8a5 5 0 01-7 0l-3-3a5 5 0 017-7l1 1"
-                    />`
-                  : html`<path
-                      d="M9 11l-2 2-3-3a5 5 0 017-7l3 3M15 13l2-2 3 3a5 5 0 01-7 7l-3-3"
-                    />`}
-              </svg>
-            </button>
-          </div>
+          <label class="publish-dim-label">Width</label>
+          <input
+            type="number"
+            class="publish-row-input"
+            data-publish-input="width"
+            ?disabled=${dimsReadOnly}
+            .value=${String(widthDisplay)}
+            step=${s.unit === 'px' ? '1' : '0.1'}
+            @change=${(e: Event) => this._handleWidthChange(e)}
+          />
+          ${this._renderAspectLink(s.aspectLocked)}
+          <select
+            class="publish-select publish-unit-select"
+            data-publish-input="unit"
+            .value=${s.unit}
+            @change=${(e: Event) => {
+              this._setUnit((e.target as HTMLSelectElement).value as PublishState['unit']);
+            }}
+          >
+            <option value="px">px</option>
+            <option value="mm">mm</option>
+            <option value="in">in</option>
+            <option value="cm">cm</option>
+          </select>
+
+          <label class="publish-dim-label">Height</label>
+          <input
+            type="number"
+            class="publish-row-input"
+            data-publish-input="height"
+            ?disabled=${dimsReadOnly}
+            .value=${String(heightDisplay)}
+            step=${s.unit === 'px' ? '1' : '0.1'}
+            @change=${(e: Event) => this._handleHeightChange(e)}
+          />
         </div>
 
         <div class="publish-dim-row">
@@ -868,6 +846,36 @@ export class ProtspacePublishModal extends LitElement {
     `;
   }
 
+  private _renderAspectLink(locked: boolean) {
+    return html`
+      <button
+        class="publish-aspect-lock ${locked ? 'locked' : ''}"
+        data-publish-input="aspect-lock"
+        @click=${() => this._toggleAspectLock()}
+        title=${locked ? 'Unlink width/height' : 'Link width/height'}
+        aria-pressed=${locked}
+      >
+        <svg viewBox="0 0 20 56" width="18" height="50" aria-hidden="true">
+          <!-- top bracket -->
+          <path d="M0 14 H10 V22" />
+          <!-- bottom bracket -->
+          <path d="M10 34 V42 H0" />
+          ${locked
+            ? html`
+                <!-- locked: two interlocking links -->
+                <rect x="4" y="22" width="12" height="6" rx="3" ry="3" />
+                <rect x="4" y="28" width="12" height="6" rx="3" ry="3" />
+              `
+            : html`
+                <!-- unlocked: chain broken into two separated links -->
+                <rect x="4" y="20" width="12" height="6" rx="3" ry="3" />
+                <rect x="4" y="30" width="12" height="6" rx="3" ry="3" />
+              `}
+        </svg>
+      </button>
+    `;
+  }
+
   private _handleWidthChange(e: Event) {
     const value = parseFloat((e.target as HTMLInputElement).value);
     if (!Number.isFinite(value) || value <= 0) return;
@@ -901,11 +909,6 @@ export class ProtspacePublishModal extends LitElement {
     if (unit === 'mm') return mm.toFixed(1);
     if (unit === 'in') return mmToIn(mm).toFixed(2);
     return mmToCm(mm).toFixed(2);
-  }
-
-  private _estimatePngSizeMb(widthPx: number, heightPx: number): number {
-    // Rough heuristic: 32-bit RGBA × ~0.4 typical PNG compression.
-    return (widthPx * heightPx * 4 * 0.4) / (1024 * 1024);
   }
 
   // ── Legend section ──────────────────────────────────

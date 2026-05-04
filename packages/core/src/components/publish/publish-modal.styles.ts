@@ -477,51 +477,82 @@ export const publishModalStyles = css`
   .publish-dim-readout {
     font-size: var(--text-xs);
     color: var(--muted);
-    margin-bottom: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    margin-bottom: 8px;
   }
 
   .publish-dim-readout strong {
     color: var(--fg);
+    margin: 0 4px;
+  }
+
+  .publish-dim-memory {
+    color: var(--muted);
+    font-style: italic;
   }
 
   .publish-dim-pair {
     display: grid;
-    grid-template-columns: 1fr 1fr auto;
-    align-items: end;
+    grid-template-columns: auto 1fr auto auto;
+    grid-template-rows: auto auto;
     gap: 6px 8px;
-    margin-bottom: 6px;
+    align-items: center;
+    margin-bottom: 8px;
   }
 
-  .publish-dim-pair-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    align-items: center;
+  .publish-dim-pair > .publish-dim-label {
+    grid-column: 1;
+    font-size: var(--text-xs);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .publish-dim-pair > .publish-row-input {
+    grid-column: 2;
+  }
+
+  .publish-dim-pair > .publish-aspect-lock {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: stretch;
+  }
+
+  .publish-dim-pair > .publish-unit-select {
+    grid-column: 4;
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 
   .publish-unit-select {
-    width: 60px;
+    width: 64px;
     font-size: var(--text-xs);
   }
 
   .publish-aspect-lock {
     background: transparent;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: 4px;
     cursor: pointer;
-    padding: 2px;
+    padding: 4px 2px;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition:
+      border-color 120ms,
+      background-color 120ms;
+  }
+
+  .publish-aspect-lock:hover {
+    background: var(--surface, rgba(0, 0, 0, 0.04));
+    border-color: var(--accent, #3b82f6);
   }
 
   .publish-aspect-lock svg {
     fill: none;
     stroke: var(--muted);
-    stroke-width: 2;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    display: block;
   }
 
   .publish-aspect-lock.locked svg {
@@ -530,8 +561,9 @@ export const publishModalStyles = css`
 
   .publish-dim-row {
     display: flex;
-    flex-direction: column;
-    gap: 3px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-xs);
   }
 
   .publish-dim-row label {
