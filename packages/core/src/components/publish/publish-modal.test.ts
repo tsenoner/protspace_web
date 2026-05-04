@@ -280,6 +280,39 @@ describe('<protspace-publish-modal> dimensions section', () => {
     expect(internals._state.widthPx).toBe(1051);
   });
 
+  it('aspect-lock chain is disabled and renders unlocked while a preset pins width', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as PublishInternals;
+
+    const presetBtns = modal.shadowRoot!.querySelectorAll<HTMLButtonElement>('.publish-preset-btn');
+    const nature1 = Array.from(presetBtns).find((b) => /Nature.*1 col/i.test(b.textContent ?? ''));
+    nature1!.click();
+    await modal.updateComplete;
+
+    const chainBtn = modal.shadowRoot!.querySelector<HTMLButtonElement>(
+      '[data-publish-input="aspect-lock"]',
+    )!;
+    // Even though aspectLocked is true in state, the visual must show unlocked
+    // because width can't move with height — the link is meaningless.
+    expect(internals._state.aspectLocked).toBe(true);
+    expect(chainBtn.disabled).toBe(true);
+    expect(chainBtn.classList.contains('locked')).toBe(false);
+    expect(chainBtn.title).toMatch(/journal preset/i);
+
+    // Clicking the disabled chain must not flip aspectLocked.
+    chainBtn.click();
+    await modal.updateComplete;
+    expect(internals._state.aspectLocked).toBe(true);
+
+    // Switching to flexible re-enables the chain.
+    const flexible = Array.from(presetBtns).find((b) => /Flexible/i.test(b.textContent ?? ''));
+    flexible!.click();
+    await modal.updateComplete;
+    expect(chainBtn.disabled).toBe(false);
+    expect(chainBtn.classList.contains('locked')).toBe(true);
+  });
+
   it('editing height within bounds stays in preset', async () => {
     const modal = makeModal();
     await modal.updateComplete;

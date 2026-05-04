@@ -852,7 +852,7 @@ export class ProtspacePublishModal extends LitElement {
               @change=${(e: Event) => this._handleWidthChange(e)}
             />
           </div>
-          ${this._renderAspectLink(s.aspectLocked)}
+          ${this._renderAspectLink(s.aspectLocked, widthLocked)}
           <select
             class="publish-select publish-unit-select"
             data-publish-input="unit"
@@ -931,20 +931,28 @@ export class ProtspacePublishModal extends LitElement {
     `;
   }
 
-  private _renderAspectLink(locked: boolean) {
+  private _renderAspectLink(locked: boolean, disabled: boolean) {
     // Bracket arms (always visible) flow from Width row → chain → Height row,
     // matching Photoshop's Image Size dialog. Chain glyph uses the Lucide
     // link / unlink paths translated to occupy the lower-right of the SVG so
     // the brackets have a clear vertical column on the left to live in.
+    // While a journal preset pins width, the chain is meaningless — render it
+    // as visibly broken and disabled so the UI matches the actual constraint.
+    const effectiveLocked = locked && !disabled;
     return html`
       <button
-        class="publish-aspect-lock ${locked ? 'locked' : ''}"
+        class="publish-aspect-lock ${effectiveLocked ? 'locked' : ''}"
         data-publish-input="aspect-lock"
-        @click=${() => this._toggleAspectLock()}
-        title=${locked
-          ? 'Linked: editing one rescales the other. Click to unlink.'
-          : 'Unlinked: width and height are independent. Click to link.'}
-        aria-pressed=${locked}
+        ?disabled=${disabled}
+        @click=${() => {
+          if (!disabled) this._toggleAspectLock();
+        }}
+        title=${disabled
+          ? 'Width is fixed by the journal preset; only height is adjustable.'
+          : effectiveLocked
+            ? 'Linked: editing one rescales the other. Click to unlink.'
+            : 'Unlinked: width and height are independent. Click to link.'}
+        aria-pressed=${effectiveLocked}
       >
         <svg
           viewBox="0 0 32 60"

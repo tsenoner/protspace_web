@@ -619,9 +619,20 @@ export const publishModalStyles = css`
     display: inline;
   }
 
-  .publish-aspect-lock:hover .aspect-lock-state-locked,
-  .publish-aspect-lock:hover .aspect-lock-state-unlocked {
+  .publish-aspect-lock:hover:not([disabled]) .aspect-lock-state-locked,
+  .publish-aspect-lock:hover:not([disabled]) .aspect-lock-state-unlocked {
     stroke: var(--primary, #3b82f6);
+  }
+
+  .publish-aspect-lock[disabled] {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+
+  .publish-aspect-lock[disabled] .aspect-lock-state-locked,
+  .publish-aspect-lock[disabled] .aspect-lock-state-unlocked,
+  .publish-aspect-lock[disabled] .aspect-lock-bracket {
+    stroke: var(--muted);
   }
 
   .publish-dim-row {
