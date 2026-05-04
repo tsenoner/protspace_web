@@ -279,6 +279,39 @@ export const publishModalStyles = css`
   .publish-row label {
     font-size: var(--text-sm);
     color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /*
+   * Slider rows (Size %, Font size, Columns, Stroke, etc.):
+   *   - Override the row's space-between so label and slider sit close together,
+   *     not at opposite ends of the row.
+   *   - Fix label-cell width to the longest label so sliders share a left start
+   *     across rows. Tight 8px gap to the slider.
+   *   - Fix slider width so sliders also share a right end.
+   *   - Narrow the number input (default 5rem is wider than these small values
+   *     ever need).
+   */
+  .publish-row:has(.publish-input-group) {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .publish-row:has(.publish-input-group) > label {
+    flex: 0 0 55px;
+  }
+
+  .publish-row > .publish-input-group {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .publish-row > .publish-input-group > .publish-slider {
+    flex: 0 0 110px;
+  }
+
+  .publish-row > .publish-input-group > .publish-row-input {
+    width: 2.5rem;
   }
 
   .publish-row-input {

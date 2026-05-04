@@ -93,7 +93,11 @@ export interface LegendLayout {
   visible: boolean;
   position: LegendPosition;
   widthPercent: number;
+  /** Internal source of truth for legend label size. */
   fontSizePx: number;
+  /** Display-only: which unit the user is editing in.
+   *  pt is derived from fontSizePx + dpi (pt = px × 72 / dpi). */
+  fontSizeUnit: 'pt' | 'px';
   columns: number;
   overflow: LegendOverflow;
   /** Position when legend.position === 'free'. */
@@ -152,6 +156,7 @@ export function createDefaultPublishState(base?: {
       position: 'right',
       widthPercent: base?.legendWidthPercent ?? 20,
       fontSizePx: base?.legendFontSizePx ?? 15,
+      fontSizeUnit: 'pt',
       columns: 1,
       overflow: 'multi-column',
     },

@@ -959,6 +959,64 @@ export class ProtspacePublishModal extends LitElement {
     return mmToCm(mm).toFixed(2);
   }
 
+  private _renderLegendFontInput(fontSizePx: number, unit: 'pt' | 'px') {
+    const dpi = this._state.dpi;
+    const isPt = unit === 'pt';
+    const value = isPt ? ((fontSizePx / dpi) * 72).toFixed(1) : String(Math.round(fontSizePx));
+    const min = isPt ? 1 : 8;
+    const max = isPt ? 50 : 120;
+    const step = isPt ? 0.5 : 1;
+    return html`
+      <div class="publish-input-group">
+        <input
+          type="range"
+          class="publish-slider"
+          min=${min}
+          max=${max}
+          step=${step}
+          .value=${value}
+          @input=${(e: Event) => this._handleLegendFontChange(e)}
+        />
+        <input
+          type="number"
+          class="publish-row-input"
+          data-publish-input="legend-font"
+          min=${min}
+          max=${max}
+          step=${step}
+          .value=${value}
+          @change=${(e: Event) => this._handleLegendFontChange(e)}
+        />
+        <select
+          class="publish-select publish-unit-select"
+          data-publish-input="legend-font-unit"
+          .value=${unit}
+          @change=${(e: Event) => {
+            this._updateLegend({
+              fontSizeUnit: (e.target as HTMLSelectElement).value as 'pt' | 'px',
+            });
+          }}
+        >
+          <option value="pt">pt</option>
+          <option value="px">px</option>
+        </select>
+      </div>
+    `;
+  }
+
+  private _handleLegendFontChange(e: Event) {
+    const v = parseFloat((e.target as HTMLInputElement).value);
+    if (!Number.isFinite(v) || v <= 0) return;
+    // pt input: keep the float value so 8pt round-trips as 8pt (rounding to
+    // integer px would clip 33.33 → 33 → 7.9pt). px input: integer-only since
+    // that's what the user typed.
+    const fontSizePx =
+      this._state.legend.fontSizeUnit === 'pt'
+        ? Math.max(0.1, (v / 72) * this._state.dpi)
+        : Math.max(1, Math.round(v));
+    this._updateLegend({ fontSizePx });
+  }
+
   // ── Legend section ──────────────────────────────────
 
   private _renderLegendSection() {
@@ -1013,13 +1071,7 @@ export class ProtspacePublishModal extends LitElement {
 
               <div class="publish-row">
                 <label>Font size</label>
-                ${this._renderSliderInput({
-                  min: 8,
-                  max: 120,
-                  value: leg.fontSizePx,
-                  unit: 'px',
-                  onChange: (v) => this._updateLegend({ fontSizePx: v }),
-                })}
+                ${this._renderLegendFontInput(leg.fontSizePx, leg.fontSizeUnit)}
               </div>
 
               <div class="publish-row">

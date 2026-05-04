@@ -134,6 +134,10 @@ function sanitizeLegend(raw: unknown, fallback: LegendLayout): LegendLayout {
         : fallback.widthPercent,
     fontSizePx:
       isFiniteNumber(raw.fontSizePx) && raw.fontSizePx > 0 ? raw.fontSizePx : fallback.fontSizePx,
+    fontSizeUnit:
+      raw.fontSizeUnit === 'pt' || raw.fontSizeUnit === 'px'
+        ? raw.fontSizeUnit
+        : fallback.fontSizeUnit,
     columns:
       isFiniteNumber(raw.columns) && Number.isInteger(raw.columns) && raw.columns > 0
         ? raw.columns
