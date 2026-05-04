@@ -140,6 +140,26 @@ describe('<protspace-publish-modal> dimensions section', () => {
     expect(chainBtn.classList.contains('locked')).toBe(false);
   });
 
+  it('renders bracket paths that connect Width and Height to the chain', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+
+    const chainBtn = modal.shadowRoot!.querySelector<HTMLButtonElement>(
+      '[data-publish-input="aspect-lock"]',
+    )!;
+    const brackets = chainBtn.querySelectorAll('.aspect-lock-bracket');
+    // At least two bracket paths: one above the chain (toward width row),
+    // one below (toward height row). Decorative spurs may add more.
+    expect(brackets.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('does not render the memory MB readout', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    expect(modal.shadowRoot!.querySelector('.publish-dim-memory')).toBeNull();
+    expect(modal.shadowRoot!.textContent).not.toMatch(/MB in memory/);
+  });
+
   it('clicking a preset while Resample=OFF flips Resample=ON', async () => {
     const modal = makeModal();
     await modal.updateComplete;

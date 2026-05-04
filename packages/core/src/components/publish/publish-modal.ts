@@ -760,7 +760,6 @@ export class ProtspacePublishModal extends LitElement {
     const heightDisplay = this._formatDimensionForUnit(s.heightPx, heightMm, s.unit);
 
     const dimsReadOnly = s.unit === 'px' && !s.resample;
-    const memoryMb = (s.widthPx * s.heightPx * 4) / (1024 * 1024);
 
     return html`
       <div class="publish-section">
@@ -769,20 +768,35 @@ export class ProtspacePublishModal extends LitElement {
         <div class="publish-dim-readout">
           ${dimsReadOnly ? 'Pixel Dims (locked)' : 'Pixel Dims'}:
           <strong>${s.widthPx} × ${s.heightPx} px</strong>
-          <span class="publish-dim-memory">(≈ ${memoryMb.toFixed(1)} MB in memory)</span>
         </div>
 
         <div class="publish-dim-pair">
           <label class="publish-dim-label">Width</label>
-          <input
-            type="number"
-            class="publish-row-input"
-            data-publish-input="width"
-            ?disabled=${dimsReadOnly}
-            .value=${String(widthDisplay)}
-            step=${s.unit === 'px' ? '1' : '0.1'}
-            @change=${(e: Event) => this._handleWidthChange(e)}
-          />
+          <div class="publish-dim-control">
+            <input
+              type="range"
+              class="publish-slider"
+              data-publish-input="width-slider"
+              min="200"
+              max="8000"
+              step="1"
+              ?disabled=${dimsReadOnly}
+              .value=${String(s.widthPx)}
+              @input=${(e: Event) => {
+                const px = parseInt((e.target as HTMLInputElement).value);
+                if (Number.isFinite(px) && px > 0) this._updateWidthPx(px);
+              }}
+            />
+            <input
+              type="number"
+              class="publish-row-input publish-dim-value"
+              data-publish-input="width"
+              ?disabled=${dimsReadOnly}
+              .value=${String(widthDisplay)}
+              step=${s.unit === 'px' ? '1' : '0.1'}
+              @change=${(e: Event) => this._handleWidthChange(e)}
+            />
+          </div>
           ${this._renderAspectLink(s.aspectLocked)}
           <select
             class="publish-select publish-unit-select"
@@ -799,15 +813,31 @@ export class ProtspacePublishModal extends LitElement {
           </select>
 
           <label class="publish-dim-label">Height</label>
-          <input
-            type="number"
-            class="publish-row-input"
-            data-publish-input="height"
-            ?disabled=${dimsReadOnly}
-            .value=${String(heightDisplay)}
-            step=${s.unit === 'px' ? '1' : '0.1'}
-            @change=${(e: Event) => this._handleHeightChange(e)}
-          />
+          <div class="publish-dim-control">
+            <input
+              type="range"
+              class="publish-slider"
+              data-publish-input="height-slider"
+              min="200"
+              max="8000"
+              step="1"
+              ?disabled=${dimsReadOnly}
+              .value=${String(s.heightPx)}
+              @input=${(e: Event) => {
+                const px = parseInt((e.target as HTMLInputElement).value);
+                if (Number.isFinite(px) && px > 0) this._updateHeightPx(px);
+              }}
+            />
+            <input
+              type="number"
+              class="publish-row-input publish-dim-value"
+              data-publish-input="height"
+              ?disabled=${dimsReadOnly}
+              .value=${String(heightDisplay)}
+              step=${s.unit === 'px' ? '1' : '0.1'}
+              @change=${(e: Event) => this._handleHeightChange(e)}
+            />
+          </div>
         </div>
 
         <div class="publish-dim-row">
@@ -847,6 +877,10 @@ export class ProtspacePublishModal extends LitElement {
   }
 
   private _renderAspectLink(locked: boolean) {
+    // Bracket arms (always visible) flow from Width row → chain → Height row,
+    // matching Photoshop's Image Size dialog. Chain glyph uses the Lucide
+    // link / unlink paths translated to occupy the lower-right of the SVG so
+    // the brackets have a clear vertical column on the left to live in.
     return html`
       <button
         class="publish-aspect-lock ${locked ? 'locked' : ''}"
@@ -858,22 +892,32 @@ export class ProtspacePublishModal extends LitElement {
         aria-pressed=${locked}
       >
         <svg
-          viewBox="0 0 32 56"
-          width="22"
-          height="42"
+          viewBox="0 0 32 60"
+          width="30"
+          height="56"
           aria-hidden="true"
           xmlns="http://www.w3.org/2000/svg"
         >
-          <!-- LOCKED: two interlocking chain links connected by a short bar -->
-          <g class="aspect-lock-state-locked">
-            <ellipse cx="16" cy="20" rx="7" ry="5" />
-            <ellipse cx="16" cy="36" rx="7" ry="5" />
-            <line x1="16" y1="25" x2="16" y2="31" />
+          <!-- Bracket arms link Width row (top) and Height row (bottom) to the chain. -->
+          <path class="aspect-lock-bracket" d="M 0 8 L 8 8 L 8 17" />
+          <path class="aspect-lock-bracket" d="M 8 43 L 8 52 L 0 52" />
+
+          <!-- LOCKED: Lucide 'link' icon rotated -45° so the chain axis -->
+          <!-- runs straight top-to-bottom (vertical chain). -->
+          <g class="aspect-lock-state-locked" transform="translate(8 18) rotate(-45 12 12)">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.71" />
           </g>
-          <!-- UNLOCKED: chain broken into two separated, tilted links -->
-          <g class="aspect-lock-state-unlocked">
-            <ellipse cx="13" cy="18" rx="7" ry="5" transform="rotate(-25 13 18)" />
-            <ellipse cx="19" cy="38" rx="7" ry="5" transform="rotate(25 19 38)" />
+
+          <!-- UNLOCKED: Lucide 'unlink' rotated -45° — same vertical chain -->
+          <!-- pulled apart with four small spark lines indicating a break. -->
+          <g class="aspect-lock-state-unlocked" transform="translate(8 18) rotate(-45 12 12)">
+            <path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-.12-7.07 5 5 0 0 0-6.95 0l-1.72 1.71" />
+            <path d="m5.17 11.75-1.71 1.71a5 5 0 0 0 .12 7.07 5 5 0 0 0 6.95 0l1.71-1.71" />
+            <line x1="8" y1="2" x2="8" y2="5" />
+            <line x1="2" y1="8" x2="5" y2="8" />
+            <line x1="16" y1="19" x2="16" y2="22" />
+            <line x1="19" y1="16" x2="22" y2="16" />
           </g>
         </svg>
       </button>

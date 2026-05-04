@@ -485,11 +485,6 @@ export const publishModalStyles = css`
     margin: 0 4px;
   }
 
-  .publish-dim-memory {
-    color: var(--muted);
-    font-style: italic;
-  }
-
   .publish-dim-pair {
     display: grid;
     grid-template-columns: auto 1fr auto auto;
@@ -506,8 +501,22 @@ export const publishModalStyles = css`
     white-space: nowrap;
   }
 
-  .publish-dim-pair > .publish-row-input {
+  .publish-dim-pair > .publish-dim-control {
     grid-column: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .publish-dim-control > .publish-slider {
+    flex: 1;
+    min-width: 50px;
+  }
+
+  .publish-dim-value {
+    width: 3.5rem;
+    flex: 0 0 auto;
   }
 
   .publish-dim-pair > .publish-aspect-lock {
@@ -529,36 +538,41 @@ export const publishModalStyles = css`
 
   .publish-aspect-lock {
     background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 4px;
+    border: none;
     cursor: pointer;
-    padding: 4px 2px;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition:
-      border-color 120ms,
-      background-color 120ms;
-  }
-
-  .publish-aspect-lock:hover {
-    background: var(--surface, rgba(0, 0, 0, 0.04));
-    border-color: var(--accent, #3b82f6);
   }
 
   .publish-aspect-lock svg {
     fill: none;
-    stroke: var(--muted);
-    stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;
     display: block;
+    overflow: visible;
   }
 
-  .publish-aspect-lock.locked svg {
-    stroke: var(--accent, #3b82f6);
+  /* Brackets — thin always-muted lines anchoring the chain to W and H rows. */
+  .publish-aspect-lock .aspect-lock-bracket {
+    stroke: var(--muted);
+    stroke-width: 1.25;
   }
 
+  /* Chain — heavier stroke than brackets so the link reads as the focal point. */
+  .publish-aspect-lock .aspect-lock-state-locked,
+  .publish-aspect-lock .aspect-lock-state-unlocked {
+    stroke: var(--muted);
+    stroke-width: 1.75;
+    transition: stroke 120ms;
+  }
+
+  .publish-aspect-lock.locked .aspect-lock-state-locked {
+    stroke: var(--primary, #3b82f6);
+  }
+
+  /* CSS toggles which chain state group is rendered. */
   .publish-aspect-lock .aspect-lock-state-locked,
   .publish-aspect-lock .aspect-lock-state-unlocked {
     display: none;
@@ -570,6 +584,11 @@ export const publishModalStyles = css`
 
   .publish-aspect-lock:not(.locked) .aspect-lock-state-unlocked {
     display: inline;
+  }
+
+  .publish-aspect-lock:hover .aspect-lock-state-locked,
+  .publish-aspect-lock:hover .aspect-lock-state-unlocked {
+    stroke: var(--primary, #3b82f6);
   }
 
   .publish-dim-row {
@@ -592,7 +611,7 @@ export const publishModalStyles = css`
 
   .publish-resample-note {
     font-size: var(--text-xs);
-    color: var(--accent, #3b82f6);
+    color: var(--primary, #3b82f6);
     margin-top: 4px;
   }
 `;
