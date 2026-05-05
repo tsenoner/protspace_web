@@ -17,9 +17,9 @@ Protein language models (like ProtT5, ESM2, Ankh) create embeddings that capture
 | -------------------- | ----------------------------------------------------------------------- |
 | **No Installation**  | Runs entirely in your browser at [protspace.app](https://protspace.app) |
 | **Privacy-First**    | Your data never leaves your computer - all processing is client-side    |
-| **Multiple Views**   | PCA, UMAP, t-SNE, MDS, and PaCMAP projections                           |
+| **Multiple Views**   | PCA, UMAP, t-SNE, PaCMAP, MDS, and LocalMAP projections                 |
 | **Rich Annotations** | Color by UniProt, InterPro, Taxonomy, or custom expert annotations      |
-| **3D Structures**    | View protein structures from AlphaFold via 3D-Beacons API               |
+| **3D Structures**    | View protein structures from the AlphaFold Database                     |
 | **Export Options**   | Save images (PNG, PDF), data (Parquet), and protein IDs                 |
 
 ## How It Works
