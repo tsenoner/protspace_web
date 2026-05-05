@@ -336,3 +336,276 @@ describe('<protspace-publish-modal> dimensions section', () => {
     expect(internals._state.widthPx).toBe(1051);
   });
 });
+
+interface InsetInternals {
+  _state: {
+    insets: Array<{
+      sourceRect: { x: number; y: number; w: number; h: number };
+      targetRect: { x: number; y: number; w: number; h: number };
+      border: number;
+      connector: string;
+      pointSizeScale?: number;
+    }>;
+  };
+  _captureInsetRenders: (
+    plotEl: unknown,
+    state: unknown,
+    plotRect: { w: number; h: number },
+    bgColor: string,
+  ) => Array<HTMLCanvasElement | null>;
+  _lastInsetCanvases: Array<HTMLCanvasElement | null>;
+  _lastInsetRenderAt: number;
+  _insetRenderCache: Map<string, HTMLCanvasElement>;
+  _settleTimer: ReturnType<typeof setTimeout> | null;
+}
+
+/**
+ * Stub plot element that returns a 4×4 canvas tagged via dataset so tests
+ * can verify which call produced which canvas, plus the geometric-zoom hooks
+ * (getDataExtent, getRenderInfo) the modal relies on.
+ */
+function makeStubPlot(): {
+  element: HTMLElement;
+  callCount: () => number;
+  reset: () => void;
+} {
+  let calls = 0;
+  const el = document.createElement('div') as HTMLElement & {
+    captureAtResolution: (w: number, h: number, opts: Record<string, unknown>) => HTMLCanvasElement;
+    getDataExtent: () => { xMin: number; xMax: number; yMin: number; yMax: number };
+    getRenderInfo: () => {
+      marginLeft: number;
+      marginRight: number;
+      marginTop: number;
+      marginBottom: number;
+    };
+  };
+  el.captureAtResolution = (w, h) => {
+    calls++;
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w));
+    c.height = Math.max(1, Math.round(h));
+    c.dataset.callIndex = String(calls);
+    return c;
+  };
+  el.getDataExtent = () => ({ xMin: 0, xMax: 10, yMin: 0, yMax: 10 });
+  el.getRenderInfo = () => ({
+    marginLeft: 20,
+    marginRight: 20,
+    marginTop: 20,
+    marginBottom: 20,
+  });
+  return {
+    element: el,
+    callCount: () => calls,
+    reset: () => {
+      calls = 0;
+    },
+  };
+}
+
+describe('<protspace-publish-modal> Dot size slider', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('renders a Dot size slider for each inset (range 0.5–20×, default reads from state)', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as InsetInternals;
+    internals._state = {
+      ...internals._state,
+      insets: [
+        {
+          sourceRect: { x: 0.1, y: 0.1, w: 0.1, h: 0.1 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.2, h: 0.2 },
+          border: 2,
+          connector: 'lines',
+          pointSizeScale: 3.5,
+        },
+      ],
+    };
+    (modal as unknown as { requestUpdate: () => void }).requestUpdate();
+    await modal.updateComplete;
+
+    const labels = Array.from(modal.shadowRoot!.querySelectorAll('label')).map(
+      (l) => l.textContent?.trim() ?? '',
+    );
+    expect(labels.some((t) => /Dot size/i.test(t))).toBe(true);
+
+    // The Number input bound to pointSizeScale renders the current value.
+    const valueInputs = modal.shadowRoot!.querySelectorAll<HTMLInputElement>(
+      '.publish-row-input[type="number"]',
+    );
+    const pointInput = Array.from(valueInputs).find((i) => i.value === '3.5');
+    expect(pointInput).toBeDefined();
+    expect(pointInput!.min).toBe('0.5');
+    expect(pointInput!.max).toBe('20');
+  });
+});
+
+describe('<protspace-publish-modal> _captureInsetRenders', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('returns [] without touching plotEl when state has no insets', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as InsetInternals;
+    const plot = makeStubPlot();
+    const renders = internals._captureInsetRenders(
+      plot.element,
+      { insets: [] },
+      { w: 1000, h: 800 },
+      '#ffffff',
+    );
+    expect(renders).toEqual([]);
+    expect(plot.callCount()).toBe(0);
+  });
+
+  it('renders at the target rect pixel dims, not at plot dims', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as InsetInternals;
+    const plot = makeStubPlot();
+    const inset = {
+      sourceRect: { x: 0.1, y: 0.1, w: 0.1, h: 0.1 },
+      targetRect: { x: 0.5, y: 0.5, w: 0.3, h: 0.4 },
+      border: 2,
+      connector: 'lines',
+      pointSizeScale: 1,
+    };
+    const [canvas] = internals._captureInsetRenders(
+      plot.element,
+      { insets: [inset] },
+      { w: 1000, h: 800 },
+      '#ffffff',
+    );
+    expect(canvas).not.toBeNull();
+    // target.w = 0.3 × 1000 = 300; target.h = 0.4 × 800 = 320
+    expect(canvas!.width).toBe(300);
+    expect(canvas!.height).toBe(320);
+  });
+
+  it('caches by sourceRect+targetDims; second call hits cache (no extra plot render)', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as InsetInternals;
+    const plot = makeStubPlot();
+    const inset = {
+      sourceRect: { x: 0.1, y: 0.1, w: 0.1, h: 0.1 },
+      targetRect: { x: 0.5, y: 0.5, w: 0.2, h: 0.2 },
+      border: 2,
+      connector: 'lines',
+      pointSizeScale: 1,
+    };
+    const args = [plot.element, { insets: [inset] }, { w: 1000, h: 800 }, '#ffffff'] as const;
+    internals._captureInsetRenders(...args);
+    expect(plot.callCount()).toBe(1);
+    internals._captureInsetRenders(...args);
+    expect(plot.callCount()).toBe(1); // cache hit, no new WebGL pass
+  });
+
+  it('fast-path: high-frequency target resize reuses last canvas (no new render)', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as InsetInternals;
+    const plot = makeStubPlot();
+    const baseInset = {
+      sourceRect: { x: 0.1, y: 0.1, w: 0.1, h: 0.1 },
+      targetRect: { x: 0.5, y: 0.5, w: 0.2, h: 0.2 },
+      border: 2,
+      connector: 'lines',
+      pointSizeScale: 1,
+    };
+    // First call: full render establishes _lastInsetRenderAt
+    internals._captureInsetRenders(
+      plot.element,
+      { insets: [baseInset] },
+      { w: 1000, h: 800 },
+      '#ffffff',
+    );
+    expect(plot.callCount()).toBe(1);
+
+    // Within the 80 ms fast-path window, simulate the user dragging — change
+    // target dims a few times. Each call should reuse _lastInsetCanvases[0]
+    // instead of triggering a fresh WebGL pass.
+    for (let i = 0; i < 5; i++) {
+      internals._captureInsetRenders(
+        plot.element,
+        {
+          insets: [
+            {
+              ...baseInset,
+              targetRect: { x: 0.5, y: 0.5, w: 0.2 + i * 0.01, h: 0.2 + i * 0.01 },
+            },
+          ],
+        },
+        { w: 1000, h: 800 },
+        '#ffffff',
+      );
+    }
+    expect(plot.callCount()).toBe(1); // no extra renders during the fast-path burst
+  });
+
+  it('settle timer schedules a fresh render once activity stops', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as InsetInternals;
+
+    // Inject a far-past _lastInsetRenderAt so the next call is NOT fastPath
+    // (we want a real first render to seed _lastInsetCanvases).
+    const plot = makeStubPlot();
+    const baseInset = {
+      sourceRect: { x: 0.1, y: 0.1, w: 0.1, h: 0.1 },
+      targetRect: { x: 0.5, y: 0.5, w: 0.2, h: 0.2 },
+      border: 2,
+      connector: 'lines',
+      pointSizeScale: 1,
+    };
+    internals._captureInsetRenders(
+      plot.element,
+      { insets: [baseInset] },
+      { w: 1000, h: 800 },
+      '#ffffff',
+    );
+    expect(plot.callCount()).toBe(1);
+
+    // Trigger fastPath: change target dims while we're still inside the
+    // 80 ms window since the fresh render. This should arm _settleTimer.
+    internals._captureInsetRenders(
+      plot.element,
+      {
+        insets: [{ ...baseInset, targetRect: { x: 0.5, y: 0.5, w: 0.25, h: 0.25 } }],
+      },
+      { w: 1000, h: 800 },
+      '#ffffff',
+    );
+    expect(internals._settleTimer).not.toBeNull();
+  });
+
+  it('returns null per inset when plotEl lacks captureAtResolution / getDataExtent', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as InsetInternals;
+    const stub = document.createElement('div'); // no API surface
+    const renders = internals._captureInsetRenders(
+      stub,
+      {
+        insets: [
+          {
+            sourceRect: { x: 0.1, y: 0.1, w: 0.1, h: 0.1 },
+            targetRect: { x: 0.5, y: 0.5, w: 0.2, h: 0.2 },
+            border: 2,
+            connector: 'lines',
+            pointSizeScale: 1,
+          },
+        ],
+      },
+      { w: 1000, h: 800 },
+      '#ffffff',
+    );
+    expect(renders).toEqual([null]);
+  });
+});

@@ -126,6 +126,43 @@ describe('sanitizePublishState', () => {
     expect(result.insets).toHaveLength(0);
   });
 
+  it('preserves a valid inset pointSizeScale', () => {
+    const result = sanitizePublishState({
+      insets: [
+        {
+          sourceRect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.3, h: 0.3 },
+          border: 1,
+          connector: 'lines',
+          pointSizeScale: 4.5,
+        },
+      ],
+    });
+    expect(result.insets).toHaveLength(1);
+    expect(result.insets[0].pointSizeScale).toBe(4.5);
+  });
+
+  it('omits invalid pointSizeScale (non-positive, NaN, non-number) but keeps the inset', () => {
+    const cases: Array<unknown> = [0, -1, NaN, 'big', null, undefined];
+    for (const bad of cases) {
+      const result = sanitizePublishState({
+        insets: [
+          {
+            sourceRect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+            targetRect: { x: 0.5, y: 0.5, w: 0.3, h: 0.3 },
+            border: 1,
+            connector: 'lines',
+            pointSizeScale: bad,
+          },
+        ],
+      });
+      expect(result.insets).toHaveLength(1);
+      // Drop the field entirely (rather than keep a bogus value) so the
+      // render path falls back to its default of 1×.
+      expect(result.insets[0].pointSizeScale).toBeUndefined();
+    }
+  });
+
   it('rejects non-positive widthPx/heightPx/dpi and falls back to defaults', () => {
     const defaults = createDefaultPublishState();
     const result = sanitizePublishState({ widthPx: 0, heightPx: -10, dpi: 0 });

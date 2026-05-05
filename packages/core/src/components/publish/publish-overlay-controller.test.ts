@@ -238,6 +238,11 @@ describe('PublishOverlayController', () => {
       expect(inset.targetRect.h).toBeGreaterThan(0);
       expect(inset.border).toBe(2);
       expect(inset.connector).toBe('lines');
+      // New insets get pointSizeScale: 2 by default — matches the dot
+      // size convention shown in the side panel's "Dot size" slider, so
+      // freshly drawn zoom regions are visibly readable instead of starting
+      // at native (often invisible) point size.
+      expect(inset.pointSizeScale).toBe(2);
       expect(controller.tool).toBe('select');
     });
 
