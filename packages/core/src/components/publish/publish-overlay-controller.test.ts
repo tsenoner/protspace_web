@@ -402,6 +402,71 @@ describe('PublishOverlayController', () => {
       // Should select index 1 (last drawn = topmost)
       expect(callbacks.onSelectionChanged).toHaveBeenCalledWith('overlay', 1);
     });
+
+    it('hit-tests a rotated ellipse using its rotated frame, not the AABB', () => {
+      // Canvas is 1000×500. rxPx=50, ryPx=100 (before rotation). After 90° rotation
+      // the ry axis lies horizontally, so the boundary on the right reaches
+      // (cx + ryPx, cy) = (600, 250) — outside the unrotated AABB (cx ± rxPx =
+      // 450..550 horizontally), so a buggy AABB-only test would miss this hit.
+      const ellipse: Overlay = {
+        type: 'circle',
+        cx: 0.5,
+        cy: 0.5,
+        rx: 0.05,
+        ry: 0.2,
+        rotation: Math.PI / 2,
+        color: '#000000',
+        strokeWidth: 2,
+      };
+      callbacks.getOverlays.mockReturnValue([ellipse]);
+      controller.tool = 'select';
+
+      canvas.dispatchEvent(pointerEvent('pointerdown', 600, 250));
+      canvas.dispatchEvent(pointerEvent('pointerup', 600, 250));
+
+      expect(callbacks.onSelectionChanged).toHaveBeenCalledWith('overlay', 0);
+    });
+
+    it('does not hit-test a click far from a rotated ellipse', () => {
+      const ellipse: Overlay = {
+        type: 'circle',
+        cx: 0.5,
+        cy: 0.5,
+        rx: 0.05,
+        ry: 0.2,
+        rotation: Math.PI / 2,
+        color: '#000000',
+        strokeWidth: 2,
+      };
+      callbacks.getOverlays.mockReturnValue([ellipse]);
+      controller.tool = 'select';
+
+      // (800, 250) sits well past the rotated ellipse's right boundary (~600px).
+      canvas.dispatchEvent(pointerEvent('pointerdown', 800, 250));
+      canvas.dispatchEvent(pointerEvent('pointerup', 800, 250));
+
+      expect(callbacks.onSelectionChanged).toHaveBeenCalledWith(null, -1);
+    });
+
+    it('does not select a zero-size circle even when clicking its centre', () => {
+      const degenerate: Overlay = {
+        type: 'circle',
+        cx: 0.5,
+        cy: 0.5,
+        rx: 0,
+        ry: 0,
+        rotation: 0,
+        color: '#000000',
+        strokeWidth: 2,
+      };
+      callbacks.getOverlays.mockReturnValue([degenerate]);
+      controller.tool = 'select';
+
+      canvas.dispatchEvent(pointerEvent('pointerdown', 500, 250));
+      canvas.dispatchEvent(pointerEvent('pointerup', 500, 250));
+
+      expect(callbacks.onSelectionChanged).toHaveBeenCalledWith(null, -1);
+    });
   });
 
   describe('select mode — movement', () => {
