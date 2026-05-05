@@ -10,7 +10,7 @@
 
 import type { PublishState } from './publish-state';
 import { getPreset, resolvePresetDimensions, type PresetId } from './journal-presets';
-import { mmToPx, pxToMm } from './dimension-utils';
+import { adjustDpiForWidthMm, mmToPx, pxToMm } from './dimension-utils';
 
 type ViewFingerprint = { projection: string; dimensionality: number };
 
@@ -64,7 +64,7 @@ export function computeWidthMmUpdate(state: PublishState, widthMm: number): Part
     return patch;
   }
   // Resample=OFF: pixels locked, dpi recomputes.
-  const dpi = Math.max(1, Math.round((state.widthPx * 25.4) / widthMm));
+  const dpi = Math.max(1, adjustDpiForWidthMm(state.widthPx, widthMm));
   return { dpi, preset: 'custom' };
 }
 
@@ -100,7 +100,7 @@ export function computeHeightMmUpdate(
     }
     return patch;
   }
-  const dpi = Math.max(1, Math.round((state.heightPx * 25.4) / heightMm));
+  const dpi = Math.max(1, adjustDpiForWidthMm(state.heightPx, heightMm));
   return { dpi, preset: 'custom' };
 }
 

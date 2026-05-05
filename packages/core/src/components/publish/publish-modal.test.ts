@@ -813,3 +813,276 @@ describe('<protspace-publish-modal> selection + keyboard delete', () => {
     expect(internals._state.overlays).toHaveLength(1);
   });
 });
+
+describe('<protspace-publish-modal> plot cache key', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('invalidates the plot cache when background toggles white ↔ transparent', async () => {
+    const captures: Array<{ bg: string }> = [];
+    const fakePlotEl = {
+      captureAtResolution: (w: number, h: number, opts: { backgroundColor?: string }) => {
+        captures.push({ bg: opts.backgroundColor ?? '' });
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        return c;
+      },
+    } as unknown as HTMLElement;
+
+    // jsdom doesn't implement canvas getContext; stub it so composeFigure
+    // (called downstream of _redraw) doesn't throw an unhandled exception
+    // inside a requestAnimationFrame callback.
+    const stubCtx = new Proxy(
+      {},
+      { get: () => () => undefined },
+    ) as unknown as CanvasRenderingContext2D;
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return stubCtx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+        plotElement: HTMLElement;
+        _state: { background: 'white' | 'transparent' };
+        requestUpdate: () => void;
+        updateComplete: Promise<unknown>;
+      };
+      modal.plotElement = fakePlotEl;
+      document.body.appendChild(modal);
+      await modal.updateComplete;
+
+      modal._state = { ...modal._state, background: 'white' };
+      modal.requestUpdate();
+      await modal.updateComplete;
+      await new Promise((r) => requestAnimationFrame(r));
+
+      modal._state = { ...modal._state, background: 'transparent' };
+      modal.requestUpdate();
+      await modal.updateComplete;
+      await new Promise((r) => requestAnimationFrame(r));
+
+      expect(captures.some((c) => c.bg === '#ffffff')).toBe(true);
+      expect(captures.some((c) => c.bg === 'rgba(0,0,0,0)')).toBe(true);
+      modal.remove();
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+    }
+  });
+
+  it('inset render skips fast-path when invoked from export', async () => {
+    const captures: Array<{ w: number; h: number }> = [];
+    const fakePlotEl = {
+      captureAtResolution: (w: number, h: number) => {
+        captures.push({ w, h });
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        return c;
+      },
+      getDataExtent: () => ({ xMin: 0, xMax: 1, yMin: 0, yMax: 1 }),
+      getRenderInfo: () => ({ marginLeft: 0, marginRight: 0, marginTop: 0, marginBottom: 0 }),
+    } as unknown as HTMLElement;
+
+    const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+      plotElement: HTMLElement;
+      _state: Record<string, unknown>;
+      _lastInsetRenderAt: number;
+      _lastInsetCanvases: Array<HTMLCanvasElement | undefined>;
+      _captureInsetRenders: (
+        plotEl: unknown,
+        state: unknown,
+        plotRect: { w: number; h: number },
+        bgColor: string,
+        opts?: { forExport?: boolean },
+      ) => Array<HTMLCanvasElement | null>;
+    };
+    modal.plotElement = fakePlotEl;
+    document.body.appendChild(modal);
+    modal._lastInsetRenderAt = performance.now();
+    // Simulate a prior preview-resolution render sitting in the cache. Without
+    // the export bypass this is what _handleExport would silently return at
+    // tiny preview dims instead of a fresh export-resolution render.
+    const previewCanvas = document.createElement('canvas');
+    previewCanvas.width = 100;
+    previewCanvas.height = 60;
+    modal._lastInsetCanvases = [previewCanvas];
+    modal._state = {
+      ...(modal._state as Record<string, unknown>),
+      insets: [
+        {
+          sourceRect: { x: 0, y: 0, w: 0.5, h: 0.5 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.4, h: 0.4 },
+          border: 0,
+          connector: 'none',
+        },
+      ],
+    };
+    captures.length = 0;
+
+    modal._captureInsetRenders(fakePlotEl, modal._state, { w: 1000, h: 600 }, '#ffffff', {
+      forExport: true,
+    });
+
+    expect(captures.length).toBeGreaterThan(0);
+    modal.remove();
+  });
+});
+
+describe('<protspace-publish-modal> preset sizeMode sync', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('switches sizeMode to 1-column when applying a 1-column preset', async () => {
+    const stubCtx = new Proxy(
+      {},
+      { get: () => () => undefined },
+    ) as unknown as CanvasRenderingContext2D;
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return stubCtx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+        _state: { sizeMode: string; preset: string };
+        _applyPreset: (id: string) => void;
+      };
+      document.body.appendChild(modal);
+      modal._state = { ...modal._state, sizeMode: '2-column' };
+      modal._applyPreset('nature-1col');
+      expect(modal._state.sizeMode).toBe('1-column');
+      modal.remove();
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+    }
+  });
+});
+
+describe('<protspace-publish-modal> disconnect guard', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('does not call _setupOverlay after disconnect during _applyStateAndRebuild', async () => {
+    // jsdom doesn't implement canvas getContext; stub it so the redraw
+    // path triggered by _applyStateAndRebuild doesn't throw inside a rAF
+    // callback.
+    const stubCtx = new Proxy(
+      {},
+      { get: () => () => undefined },
+    ) as unknown as CanvasRenderingContext2D;
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return stubCtx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+        _setupOverlay: () => void;
+        _applyStateAndRebuild: (s: unknown) => void;
+        _state: Record<string, unknown>;
+        plotElement: HTMLElement;
+        updateComplete: Promise<unknown>;
+      };
+      modal.plotElement = document.createElement('div');
+      document.body.appendChild(modal);
+      // Wait for the first render so firstUpdated() (which itself calls
+      // _setupOverlay) has already fired before we start counting.
+      await modal.updateComplete;
+
+      let setupCalls = 0;
+      const orig = modal._setupOverlay.bind(modal);
+      modal._setupOverlay = () => {
+        setupCalls++;
+        orig();
+      };
+
+      modal._applyStateAndRebuild({ ...modal._state });
+      modal.remove();
+
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((r) => requestAnimationFrame(r));
+
+      expect(setupCalls).toBe(0);
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+    }
+  });
+});
+
+describe('<protspace-publish-modal> fingerprint warning', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('renders the fingerprint warning when saved fingerprint mismatches current', async () => {
+    const stubCtx = new Proxy(
+      {},
+      { get: () => () => undefined },
+    ) as unknown as CanvasRenderingContext2D;
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return stubCtx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+        savedPublishState: Record<string, unknown>;
+        currentProjection: { projection: string; dimensionality: number };
+        updateComplete: Promise<unknown>;
+        shadowRoot: ShadowRoot;
+      };
+      modal.savedPublishState = {
+        viewFingerprint: { projection: 'umap', dimensionality: 2 },
+        overlays: [{ type: 'label', x: 0.5, y: 0.5, text: 't', fontSize: 14, color: '#000' }],
+      };
+      modal.currentProjection = { projection: 'pca', dimensionality: 2 };
+      document.body.appendChild(modal);
+      await modal.updateComplete;
+
+      const warn = modal.shadowRoot.querySelector('.publish-warning');
+      expect(warn).not.toBeNull();
+      modal.remove();
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+    }
+  });
+
+  it('does not render the fingerprint warning when fingerprints match', async () => {
+    const stubCtx = new Proxy(
+      {},
+      { get: () => () => undefined },
+    ) as unknown as CanvasRenderingContext2D;
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return stubCtx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+        savedPublishState: Record<string, unknown>;
+        currentProjection: { projection: string; dimensionality: number };
+        updateComplete: Promise<unknown>;
+        shadowRoot: ShadowRoot;
+      };
+      modal.savedPublishState = {
+        viewFingerprint: { projection: 'umap', dimensionality: 2 },
+        overlays: [],
+      };
+      modal.currentProjection = { projection: 'umap', dimensionality: 2 };
+      document.body.appendChild(modal);
+      await modal.updateComplete;
+
+      const warn = modal.shadowRoot.querySelector('.publish-warning');
+      expect(warn).toBeNull();
+      modal.remove();
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+    }
+  });
+});

@@ -1,5 +1,5 @@
 import type { ProtspaceControlBar, ProtspaceLegend, ProtspaceScatterplot } from '@protspace/core';
-import { EXPORT_DEFAULTS } from '@protspace/core';
+import { EXPORT_DEFAULTS, pxToMm } from '@protspace/core';
 import type { BundleSettings } from '@protspace/utils';
 import {
   createExporter,
@@ -123,8 +123,8 @@ export function createExportHandler({
           try {
             const fname = generateFilename(state.format);
             if (state.format === 'pdf') {
-              const widthMm = (canvas.width * 25.4) / state.dpi;
-              const heightMm = (canvas.height * 25.4) / state.dpi;
+              const widthMm = pxToMm(canvas.width, state.dpi);
+              const heightMm = pxToMm(canvas.height, state.dpi);
               await exportCanvasAsPdf(canvas, { widthMm, heightMm, filename: fname });
             } else {
               const blob: Blob = await new Promise((resolve, reject) => {
@@ -142,11 +142,12 @@ export function createExportHandler({
               }
             }
             notify.success(getExportSuccessNotification(fname));
+            modal.remove();
           } catch (err) {
             console.error('Publish export failed:', err);
             notify.error(getExportFailureNotification(err));
+            // Leave the modal open so the user can retry without losing context.
           }
-          modal.remove();
         }) as EventListener);
 
         // Handle close — persist state to localStorage

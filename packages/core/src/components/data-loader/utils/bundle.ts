@@ -7,6 +7,7 @@ import {
 } from '@protspace/utils';
 import type { Rows, GenericRow } from './types';
 import { assertValidParquetMagic, validateProjectionRows } from './validation';
+import { sanitizePublishState } from '../../publish/publish-state-validator';
 
 /**
  * Result of extracting data from a parquetbundle.
@@ -156,7 +157,7 @@ async function extractSettings(settingsBuffer: ArrayBuffer): Promise<BundleSetti
     }
 
     const parsed = JSON.parse(settingsJson);
-    const normalized = normalizeBundleSettings(parsed);
+    const normalized = normalizeBundleSettings(parsed, { sanitizePublishState });
 
     if (!normalized) {
       console.warn('Settings JSON does not match expected schema, using defaults');

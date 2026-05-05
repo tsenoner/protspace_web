@@ -72,7 +72,9 @@ export function capturePlotCanvas(
     const ctx = out.getContext('2d')!;
     ctx.fillStyle = opts.backgroundColor;
     ctx.fillRect(0, 0, opts.width, opts.height);
-    ctx.drawImage(existing, 0, 0, opts.width, opts.height);
+    // Pass the full source pixel rect so HiDPI live canvases (where existing.width
+    // > opts.width) aren't silently halved.
+    ctx.drawImage(existing, 0, 0, existing.width, existing.height, 0, 0, opts.width, opts.height);
     return out;
   }
   // Last resort: blank canvas
@@ -229,20 +231,8 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
     );
   }
 
-  // Compute cumulative Y offsets per column
+  // Compute cumulative Y offsets per column from each item's actual height.
   const colYOffsets: number[][] = Array.from({ length: columns }, () => []);
-  for (let i = 0; i < renderItems.length; i++) {
-    const col = Math.floor(i / itemsPerCol);
-    const row = i % itemsPerCol;
-    const prevY =
-      row === 0
-        ? 0
-        : colYOffsets[col][row - 1] +
-          Math.max(itemHeight, lineCounts[i - columns >= 0 ? i : i] * lineHeight + itemPadding * 2);
-    colYOffsets[col].push(row === 0 ? 0 : prevY);
-  }
-
-  // Recompute properly: accumulate based on previous item's actual height
   for (let col = 0; col < columns; col++) {
     let y = 0;
     for (let row = 0; row < itemsPerCol; row++) {
@@ -801,7 +791,11 @@ interface CompositeOptions {
  */
 export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptions): void {
   const { state, plotCanvas, legendItems, legendTitle } = opts;
-  const ctx = outCanvas.getContext('2d')!;
+  const ctx = outCanvas.getContext('2d');
+  if (!ctx) {
+    console.warn('composeFigure: 2D context unavailable; skipping render');
+    return;
+  }
   const W = outCanvas.width;
   const H = outCanvas.height;
 

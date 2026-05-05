@@ -146,18 +146,6 @@ describe('pngWithDpi', () => {
     expect(readUint32(buf, ihdr!.dataOffset + 4)).toBe(1);
   });
 
-  it('pHYs chunk carries a correct CRC32', async () => {
-    const blob = new Blob([ONE_BY_ONE_PNG], { type: 'image/png' });
-    const out = await pngWithDpi(blob, 300);
-    const buf = new Uint8Array(await out.arrayBuffer());
-    const phys = findChunk(buf, 'pHYs');
-    expect(phys).not.toBeNull();
-    // CRC sits immediately after the 9-byte data block.
-    const crcOffset = phys!.dataOffset + 9;
-    const storedCrc = readUint32(buf, crcOffset);
-    expect(storedCrc).toBe(0x78a53f76); // independently computed for {type='pHYs', ppm=11811, ppm=11811, unit=1}
-  });
-
   it('replaces a pre-existing pHYs chunk rather than duplicating it', async () => {
     const blob = new Blob([ONE_BY_ONE_PNG], { type: 'image/png' });
     const first = await pngWithDpi(blob, 96);
@@ -183,5 +171,64 @@ describe('pngWithDpi', () => {
     // And it carries the new (300 DPI) value, not the stale one.
     const phys = findChunk(buf, 'pHYs');
     expect(readUint32(buf, phys!.dataOffset)).toBe(11811);
+  });
+
+  it('returns the input unchanged when the PNG signature is missing', async () => {
+    const notAPng = new Uint8Array(64).fill(0xab);
+    const blob = new Blob([notAPng], { type: 'image/png' });
+    const out = await pngWithDpi(blob, 300);
+    // Same bytes back — no pHYs injected.
+    const buf = new Uint8Array(await out.arrayBuffer());
+    expect(buf.length).toBe(notAPng.length);
+    expect(buf[0]).toBe(0xab);
+  });
+
+  it('returns the input unchanged when a chunk length runs past the buffer', async () => {
+    // Take a valid 1×1 PNG, corrupt the IDAT length to a huge value.
+    const corrupt = new Uint8Array(ONE_BY_ONE_PNG);
+    // IDAT length sits at signature(8) + IHDR(25) = 33.
+    corrupt[33] = 0xff;
+    corrupt[34] = 0xff;
+    corrupt[35] = 0xff;
+    corrupt[36] = 0xff;
+    const out = await pngWithDpi(new Blob([corrupt], { type: 'image/png' }), 300);
+    const outBuf = new Uint8Array(await out.arrayBuffer());
+    expect(outBuf.length).toBe(corrupt.length);
+  });
+
+  it('CRC32 matches an independent reference implementation', async () => {
+    // Reference: standard CRC-32 (IEEE 802.3, polynomial 0xEDB88320).
+    // Computed inline so the test isn't relying on the same code under test.
+    const refCrc32 = (data: Uint8Array): number => {
+      let crc = 0xffffffff;
+      for (let i = 0; i < data.length; i++) {
+        crc ^= data[i];
+        for (let k = 0; k < 8; k++) {
+          crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+        }
+      }
+      return (crc ^ 0xffffffff) >>> 0;
+    };
+    // Build the type+data the production code computes CRC over for 300 DPI.
+    const ppm = Math.round(300 * 39.3700787401575); // 11811
+    const typeAndData = new Uint8Array(13);
+    typeAndData.set([0x70, 0x48, 0x59, 0x73], 0); // 'pHYs'
+    typeAndData[4] = (ppm >>> 24) & 0xff;
+    typeAndData[5] = (ppm >>> 16) & 0xff;
+    typeAndData[6] = (ppm >>> 8) & 0xff;
+    typeAndData[7] = ppm & 0xff;
+    typeAndData[8] = (ppm >>> 24) & 0xff;
+    typeAndData[9] = (ppm >>> 16) & 0xff;
+    typeAndData[10] = (ppm >>> 8) & 0xff;
+    typeAndData[11] = ppm & 0xff;
+    typeAndData[12] = 1; // unit = metres
+    const expectedCrc = refCrc32(typeAndData);
+
+    const blob = new Blob([ONE_BY_ONE_PNG], { type: 'image/png' });
+    const out = await pngWithDpi(blob, 300);
+    const buf = new Uint8Array(await out.arrayBuffer());
+    const phys = findChunk(buf, 'pHYs')!;
+    const crcOffset = phys.dataOffset + 9;
+    expect(readUint32(buf, crcOffset)).toBe(expectedCrc);
   });
 });

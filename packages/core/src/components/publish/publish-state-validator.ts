@@ -36,6 +36,10 @@ function isValidPixelDim(v: unknown): v is number {
   return isFiniteNumber(v) && v > 0 && v <= MAX_CANVAS_PIXEL_DIM;
 }
 
+/** Max length for label text. Anything longer is truncated to keep state
+ *  size bounded (a crafted bundle could otherwise blow localStorage quota). */
+const MAX_LABEL_TEXT_LENGTH = 256;
+
 function sanitizeOverlay(raw: unknown): Overlay | null {
   if (!isObject(raw)) return null;
   const type = raw.type;
@@ -79,7 +83,7 @@ function sanitizeOverlay(raw: unknown): Overlay | null {
       type: 'label',
       x: raw.x,
       y: raw.y,
-      text: raw.text,
+      text: raw.text.slice(0, MAX_LABEL_TEXT_LENGTH),
       fontSize: raw.fontSize,
       rotation: isFiniteNumber(raw.rotation) ? raw.rotation : 0,
       color: raw.color,
@@ -93,8 +97,14 @@ function sanitizeNormRect(raw: unknown): NormRect | null {
   if (!inUnit(raw.x) || !inUnit(raw.y)) return null;
   if (!isFiniteNumber(raw.w) || !isFiniteNumber(raw.h)) return null;
   if (raw.w <= 0 || raw.h <= 0) return null;
-  if (raw.x + raw.w > 1.001 || raw.y + raw.h > 1.001) return null;
-  return { x: raw.x, y: raw.y, w: raw.w, h: raw.h };
+  const SLACK = 0.001;
+  if (raw.x + raw.w > 1 + SLACK || raw.y + raw.h > 1 + SLACK) return null;
+  return {
+    x: raw.x,
+    y: raw.y,
+    w: Math.min(raw.w, 1 - raw.x),
+    h: Math.min(raw.h, 1 - raw.y),
+  };
 }
 
 function sanitizeInset(raw: unknown): Inset | null {

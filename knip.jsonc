@@ -3,11 +3,13 @@
   "treatConfigHintsAsErrors": true,
   "workspaces": {
     ".": {
-      // Perf Playwright config is plugin-discovered; only keep the docs config
-      // explicit because Knip does not infer `docs/.vitepress/*`.
+      // Perf Playwright specs are not auto-discovered (perf playwright.config.ts
+      // sits in a non-default location), so list them explicitly. Docs config is
+      // listed because Knip does not infer `docs/.vitepress/*`.
       "entry": [
         "scripts/**/*.ts",
         "docs/.vitepress/config.mts",
+        "perf/**/*.spec.ts",
       ],
       "project": [
         "config/**/*.ts",

@@ -327,6 +327,103 @@ describe('publish-compositor', () => {
       });
       expect(result).toBe(mockCanvas);
     });
+
+    /**
+     * jsdom doesn't implement canvas 2d. Instead of pixel sampling, spy on
+     * the output canvas's 2d context and assert drawImage's call signature.
+     */
+    function spyOutputContext(out: HTMLCanvasElement) {
+      const calls: Array<unknown[]> = [];
+      const ctx = {
+        clearRect: () => {},
+        fillRect: () => {},
+        drawImage: (...args: unknown[]) => calls.push(args),
+        fillStyle: '',
+      } as unknown as CanvasRenderingContext2D;
+      const origCreate = document.createElement.bind(document);
+      const createSpy = (tag: string) => {
+        const el = origCreate(tag);
+        if (tag === 'canvas') {
+          (el as HTMLCanvasElement).getContext = (() => ctx) as HTMLCanvasElement['getContext'];
+        }
+        return el;
+      };
+      document.createElement = createSpy as typeof document.createElement;
+      return {
+        calls,
+        restore: () => {
+          document.createElement = origCreate;
+          void out;
+        },
+      };
+    }
+
+    it('fallback uses 9-arg drawImage with source full pixel rect (no DPR halving)', () => {
+      const existing = document.createElement('canvas');
+      existing.width = 800;
+      existing.height = 600;
+      const plotEl = document.createElement('div');
+      plotEl.appendChild(existing);
+
+      // Activate the spy AFTER creating the source canvas so existing.getContext
+      // is unaffected; only newly-created canvases (the output) get the stub.
+      const spy = spyOutputContext(existing);
+      try {
+        const out = capturePlotCanvas(plotEl as HTMLElement, {
+          width: 800,
+          height: 600,
+          backgroundColor: '#ffffff',
+        });
+        expect(out.width).toBe(800);
+        expect(out.height).toBe(600);
+      } finally {
+        spy.restore();
+      }
+
+      // drawImage should be called with the 9-arg form: (img, sx, sy, sw, sh, dx, dy, dw, dh)
+      expect(spy.calls.length).toBe(1);
+      const args = spy.calls[0];
+      expect(args.length).toBe(9);
+      expect(args[0]).toBe(existing);
+      expect(args[1]).toBe(0); // sx
+      expect(args[2]).toBe(0); // sy
+      expect(args[3]).toBe(800); // sw — full source pixel width
+      expect(args[4]).toBe(600); // sh — full source pixel height
+      expect(args[5]).toBe(0); // dx
+      expect(args[6]).toBe(0); // dy
+      expect(args[7]).toBe(800); // dw
+      expect(args[8]).toBe(600); // dh
+    });
+
+    it('fallback samples the full source rect when source is HiDPI (2× CSS width)', () => {
+      const existing = document.createElement('canvas');
+      existing.width = 1600; // physical pixels
+      existing.height = 1200;
+      const plotEl = document.createElement('div');
+      plotEl.appendChild(existing);
+
+      const spy = spyOutputContext(existing);
+      try {
+        capturePlotCanvas(plotEl as HTMLElement, {
+          width: 800, // CSS pixels
+          height: 600,
+          backgroundColor: '#ffffff',
+        });
+      } finally {
+        spy.restore();
+      }
+
+      // Must use the 9-arg form passing full source pixel rect — only then is
+      // the HiDPI source sampled fully (5-arg form would silently halve it).
+      expect(spy.calls.length).toBe(1);
+      const args = spy.calls[0];
+      expect(args.length).toBe(9);
+      expect(args[0]).toBe(existing);
+      expect(args[3]).toBe(1600); // sw = source.width (full pixels), not 800
+      expect(args[4]).toBe(1200); // sh = source.height (full pixels), not 600
+      expect(args[7]).toBe(800); // dw = output CSS width
+      expect(args[8]).toBe(600); // dh = output CSS height
+    });
   });
 });
 
@@ -506,5 +603,24 @@ describe('waitForFonts', () => {
   it('resolves when document.fonts is missing', async () => {
     Object.defineProperty(document, 'fonts', { value: undefined, configurable: true });
     await expect(waitForFonts()).resolves.toBeUndefined();
+  });
+});
+
+describe('composeFigure null context', () => {
+  it('composeFigure does not throw when getContext returns null', () => {
+    const out = document.createElement('canvas');
+    out.width = 100;
+    out.height = 100;
+    const orig = out.getContext;
+    (out as unknown as { getContext: typeof out.getContext }).getContext = () => null;
+    expect(() =>
+      composeFigure(out, {
+        state: createDefaultPublishState(),
+        plotCanvas: document.createElement('canvas'),
+        legendItems: [],
+        legendTitle: '',
+      }),
+    ).not.toThrow();
+    (out as unknown as { getContext: typeof out.getContext }).getContext = orig;
   });
 });

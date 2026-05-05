@@ -20,7 +20,15 @@ import {
   type Overlay,
   type Inset,
 } from './publish-state';
-import { pxToMm, mmToIn, mmToCm, inToMm, cmToMm, mmToPx } from './dimension-utils';
+import {
+  pxToMm,
+  mmToIn,
+  mmToCm,
+  inToMm,
+  cmToMm,
+  mmToPx,
+  SIZE_MODE_WIDTH_MM,
+} from './dimension-utils';
 import { sanitizePublishState } from './publish-state-validator';
 import {
   capturePlotCanvas,
@@ -162,24 +170,16 @@ export class ProtspacePublishModal extends LitElement {
   private _redrawHandle: number | null = null;
   private _plotCacheKey = '';
   private _cachedPlotCanvas: HTMLCanvasElement | null = null;
-  /** Per-inset geometric capture cache. Keyed by sourceRect + target dims +
-   *  plotRect dims + dot scale + bgColor — renders at the target rect's
-   *  exact pixel dims so dot pixel sizes map 1:1 to display. */
   private _insetRenderCache = new Map<string, HTMLCanvasElement>();
-  /** Last WebGL-rendered canvas per inset index. Used as a stretchable
-   *  fallback during high-frequency state updates (drag-resize) to skip
-   *  the ~15–30 ms WebGL context setup + shader compile per frame. The
-   *  compositor's drawImage stretches it to the live target rect — minor
-   *  blur during drag, replaced by a fresh render once activity settles. */
+  /** Stretchable fallback during drag — saves ~15–30 ms WebGL setup per frame. */
   private _lastInsetCanvases: Array<HTMLCanvasElement | null> = [];
   private _lastInsetRenderAt = 0;
-  /** When fastPath skipped a render, fire a follow-up rAF tick after the
-   *  user stops moving so we replace the stretched cache with a fresh,
-   *  full-resolution render. */
   private _settleTimer: ReturnType<typeof setTimeout> | null = null;
+  private _disposed = false;
 
   override connectedCallback() {
     super.connectedCallback();
+    this._disposed = false;
     this._state = this.savedPublishState
       ? sanitizePublishState(this.savedPublishState)
       : createDefaultPublishState();
@@ -198,6 +198,7 @@ export class ProtspacePublishModal extends LitElement {
 
   override disconnectedCallback() {
     super.disconnectedCallback();
+    this._disposed = true;
     window.removeEventListener('keydown', this._onKeyDown);
     this._overlayController?.destroy();
     this._overlayController = null;
@@ -366,7 +367,7 @@ export class ProtspacePublishModal extends LitElement {
     const plotEl = this.plotElement as CaptureablePlotElement;
     const bgColor = s.background === 'white' ? '#ffffff' : 'rgba(0,0,0,0)';
 
-    const cacheKey = `${plotRect.w}x${plotRect.h}`;
+    const cacheKey = `${plotRect.w}x${plotRect.h}|${bgColor}`;
     if (cacheKey !== this._plotCacheKey || !this._cachedPlotCanvas) {
       this._cachedPlotCanvas = capturePlotCanvas(plotEl, {
         width: plotRect.w,
@@ -493,17 +494,20 @@ export class ProtspacePublishModal extends LitElement {
       const maxPx = mmToPx(preset.maxHeightMm, preset.dpi);
       heightPx = Math.min(heightPx, maxPx);
     }
+    // Match the preset's mm width to the corresponding sizeMode so the UI's
+    // width-locked logic stays consistent with the dimensions being applied.
+    let sizeMode = this._state.sizeMode;
+    if (preset?.widthMm === SIZE_MODE_WIDTH_MM['1-column']) sizeMode = '1-column';
+    else if (preset?.widthMm === SIZE_MODE_WIDTH_MM['2-column']) sizeMode = '2-column';
+    else if (preset?.widthMm === undefined) sizeMode = 'flexible';
     this._state = {
       ...this._state,
       ...patch,
       heightPx,
+      sizeMode,
     };
     this._plotCacheKey = '';
-    if (wasResampleOff) {
-      this._showResampleNote = true;
-    } else {
-      this._showResampleNote = false;
-    }
+    this._showResampleNote = wasResampleOff;
   }
 
   /**
@@ -523,6 +527,7 @@ export class ProtspacePublishModal extends LitElement {
     state: PublishState,
     plotRect: { w: number; h: number },
     bgColor: string,
+    opts: { forExport?: boolean } = {},
   ): Array<HTMLCanvasElement | null> {
     if (state.insets.length === 0) {
       this._insetRenderCache.clear();
@@ -560,7 +565,7 @@ export class ProtspacePublishModal extends LitElement {
       typeof performance !== 'undefined' && typeof performance.now === 'function'
         ? performance.now()
         : Date.now();
-    const fastPath = now - this._lastInsetRenderAt < 80;
+    const fastPath = !opts.forExport && now - this._lastInsetRenderAt < 80;
     const livingKeys = new Set<string>();
     if (this._lastInsetCanvases.length !== state.insets.length) {
       this._lastInsetCanvases.length = state.insets.length;
@@ -721,7 +726,9 @@ export class ProtspacePublishModal extends LitElement {
     });
 
     // Per-inset geometric renders for the export.
-    const insetRenders = this._captureInsetRenders(plotEl, s, plotRect, bgColor);
+    const insetRenders = this._captureInsetRenders(plotEl, s, plotRect, bgColor, {
+      forExport: true,
+    });
 
     const outCanvas = document.createElement('canvas');
     outCanvas.width = s.widthPx;
@@ -780,7 +787,10 @@ export class ProtspacePublishModal extends LitElement {
     this._plotCacheKey = '';
     this._overlayController?.destroy();
     this._overlayController = null;
-    this.updateComplete.then(() => this._setupOverlay());
+    this.updateComplete.then(() => {
+      if (this._disposed) return;
+      this._setupOverlay();
+    });
   }
 
   private _clearOverlays() {

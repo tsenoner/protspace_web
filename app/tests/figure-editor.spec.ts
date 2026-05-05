@@ -270,6 +270,87 @@ test.describe('figure editor — geometric inset zoom', () => {
     expect(at5x.colored).toBeGreaterThan(at1x.colored * 1.5);
   });
 
+  test('exports a PNG with embedded DPI metadata', async ({ page }) => {
+    // beforeEach already ran waitForExploreDataLoad, dismissTourIfPresent,
+    // and openFigureEditor. Set small dimensions to keep the test fast.
+    await page.evaluate(() => {
+      const m = document.querySelector('protspace-publish-modal') as
+        | (HTMLElement & {
+            _state: Record<string, unknown>;
+            requestUpdate: () => void;
+            _plotCacheKey: string;
+          })
+        | null;
+      if (!m) throw new Error('publish modal not mounted');
+      m._state = {
+        ...(m._state as Record<string, unknown>),
+        widthPx: 800,
+        heightPx: 600,
+        dpi: 150,
+        format: 'png',
+      };
+      m._plotCacheKey = '';
+      m.requestUpdate();
+    });
+    await page.waitForTimeout(300);
+
+    const downloadPromise = page.waitForEvent('download', { timeout: 15_000 });
+
+    // Click the Export button. The modal renders it as
+    //   <button class="btn-primary" @click=${this._handleExport}>Export</button>
+    // so the text-based fallback is the reliable identifier; we still try
+    // a few data attributes first in case future commits add one.
+    await page.evaluate(() => {
+      const m = document.querySelector('protspace-publish-modal') as
+        | (HTMLElement & { shadowRoot: ShadowRoot })
+        | null;
+      const root = m?.shadowRoot;
+      if (!root) throw new Error('modal shadow root missing');
+      const candidates = [
+        'button[data-action="export"]',
+        'button.publish-export-btn',
+        'button.publish-action-export',
+        '[data-testid="export-btn"]',
+      ];
+      for (const sel of candidates) {
+        const btn = root.querySelector(sel) as HTMLButtonElement | null;
+        if (btn) {
+          btn.click();
+          return;
+        }
+      }
+      // Match the actual primary button by text — current implementation.
+      const buttons = Array.from(root.querySelectorAll('button')) as HTMLButtonElement[];
+      const exportBtn = buttons.find((b) => b.textContent?.trim() === 'Export');
+      if (exportBtn) {
+        exportBtn.click();
+        return;
+      }
+      throw new Error('Export button not found in publish-modal shadow DOM');
+    });
+
+    const download = await downloadPromise;
+    const path = await download.path();
+    expect(path).toBeTruthy();
+
+    // Read the file back and verify the pHYs chunk carries the correct
+    // pixels-per-metre value. PNG chunk layout: length(4) | type(4) | data(N)
+    // | crc(4); buf.indexOf('pHYs') points at the type field, so the X-axis
+    // ppm uint32 begins at +4 bytes past that.
+    const fs = await import('node:fs');
+    const buf = fs.readFileSync(path!);
+    const tag = Buffer.from('pHYs', 'ascii');
+    const physOffset = buf.indexOf(tag);
+    expect(physOffset).toBeGreaterThan(-1);
+    // Pixels-per-metre at 150 DPI = round(150 * 39.3700787) = 5906.
+    const ppm =
+      (buf[physOffset + 4] << 24) |
+      (buf[physOffset + 5] << 16) |
+      (buf[physOffset + 6] << 8) |
+      buf[physOffset + 7];
+    expect(ppm >>> 0).toBe(5906);
+  });
+
   test('high-frequency target resize does not stall the modal', async ({ page }) => {
     const region = await findColoredRegion(page);
     await setInsets(page, [
