@@ -262,5 +262,31 @@ describe('settings-validation', () => {
       expect(result).not.toBeNull();
       expect(result!.publishState).toEqual({ widthPx: 1051, dpi: 300, annotations: [] });
     });
+
+    it('runs the optional publishState sanitizer when provided', () => {
+      const calls: unknown[] = [];
+      const fakeSanitizer = (input: unknown) => {
+        calls.push(input);
+        return { sanitized: true };
+      };
+      const obj = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: { fromBundle: true },
+      };
+      const result = normalizeBundleSettings(obj, { sanitizePublishState: fakeSanitizer });
+      expect(calls).toEqual([{ fromBundle: true }]);
+      expect(result?.publishState).toEqual({ sanitized: true });
+    });
+
+    it('passes publishState through unchanged when no sanitizer is provided (back-compat)', () => {
+      const obj = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: { raw: 1 },
+      };
+      const result = normalizeBundleSettings(obj);
+      expect(result?.publishState).toEqual({ raw: 1 });
+    });
   });
 });
