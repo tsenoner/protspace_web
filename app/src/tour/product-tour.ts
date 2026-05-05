@@ -222,7 +222,7 @@ const steps: DriveStep[] = [
   shadowStep(CONTROL_BAR, 'data-actions', {
     title: 'Filter, Export & Import',
     description:
-      '<strong>Filter</strong> narrows the dataset by annotation values. <strong>Export</strong> as PNG, PDF, protein IDs, or a <code>.parquetbundle</code> that preserves your legend customizations. <strong>Import</strong> loads a new dataset.',
+      '<strong>Filter</strong> narrows the dataset by annotation values. <strong>Export</strong> opens the <strong>Figure Editor</strong> for publication-ready figures with journal presets, overlays, zoom insets, and legend customization — or use <strong>Quick Export</strong> for a fast PNG, PDF, protein IDs, or <code>.parquetbundle</code> dump. <strong>Import</strong> uploads a new dataset or restores the demo.',
   }),
 
   // ── Step 7 – Scatterplot ────────────────────────────────────
