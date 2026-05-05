@@ -104,7 +104,16 @@ function sanitizeInset(raw: unknown): Inset | null {
   if (!sourceRect || !targetRect) return null;
   if (!isFiniteNumber(raw.border) || raw.border < 0) return null;
   if (raw.connector !== 'lines' && raw.connector !== 'none') return null;
-  return { sourceRect, targetRect, border: raw.border, connector: raw.connector };
+  const inset: Inset = {
+    sourceRect,
+    targetRect,
+    border: raw.border,
+    connector: raw.connector,
+  };
+  if (isFiniteNumber(raw.pointSizeScale) && raw.pointSizeScale > 0) {
+    inset.pointSizeScale = raw.pointSizeScale;
+  }
+  return inset;
 }
 
 const VALID_LEGEND_POSITIONS: LegendPosition[] = [

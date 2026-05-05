@@ -845,6 +845,7 @@ export class PublishOverlayController {
       targetRect,
       border: 2,
       connector: 'lines',
+      pointSizeScale: 2,
     };
     this.pendingInsetSource = null;
     this.tool = 'select';

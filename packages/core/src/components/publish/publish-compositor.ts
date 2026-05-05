@@ -476,8 +476,16 @@ export function computeInsetBoost(
 // ── Inset rendering ──────────────────────────────────────────────────
 
 /**
- * Render a zoom inset: crop `srcCanvas` by `sourceRect`, draw into
- * `targetRect` on `ctx`, optionally with border and connector lines.
+ * Render a zoom inset.
+ *
+ * Two source modes:
+ *   - `srcIsPreRendered = true` — `srcCanvas` is a geometric (re-rendered)
+ *     inset already sized for `targetRect`. Drawn whole into the target,
+ *     no cropping. Used by the publish modal for crisp inset zoom where
+ *     points stay native pixel size.
+ *   - `srcIsPreRendered = false` (default) — legacy raster path. `srcCanvas`
+ *     is the full plot canvas (possibly boosted); we crop `sourceRect` and
+ *     upscale into `targetRect`.
  */
 function renderInset(
   ctx: CanvasRenderingContext2D,
@@ -485,16 +493,10 @@ function renderInset(
   inset: Inset,
   plotRect: LayoutRect,
   scale: number,
+  options: { srcIsPreRendered?: boolean } = {},
 ) {
   const sr = inset.sourceRect;
   const tr = inset.targetRect;
-
-  // Source-canvas coordinates (for drawImage crop — based on actual canvas size,
-  // which may be boosted for crisp insets)
-  const cropX = sr.x * srcCanvas.width;
-  const cropY = sr.y * srcCanvas.height;
-  const cropW = sr.w * srcCanvas.width;
-  const cropH = sr.h * srcCanvas.height;
 
   // Output-canvas coordinates (for borders, connectors — in output space)
   const sx = plotRect.x + sr.x * plotRect.w;
@@ -507,8 +509,17 @@ function renderInset(
   const tw = tr.w * plotRect.w;
   const th = tr.h * plotRect.h;
 
-  // Draw source region from (possibly boosted) canvas into target rect
-  ctx.drawImage(srcCanvas, cropX, cropY, cropW, cropH, tx, ty, tw, th);
+  if (options.srcIsPreRendered) {
+    // Geometric render: srcCanvas IS the inset content, draw whole into target.
+    ctx.drawImage(srcCanvas, 0, 0, srcCanvas.width, srcCanvas.height, tx, ty, tw, th);
+  } else {
+    // Raster path: crop the source region from the full plot canvas and stretch.
+    const cropX = sr.x * srcCanvas.width;
+    const cropY = sr.y * srcCanvas.height;
+    const cropW = sr.w * srcCanvas.width;
+    const cropH = sr.h * srcCanvas.height;
+    ctx.drawImage(srcCanvas, cropX, cropY, cropW, cropH, tx, ty, tw, th);
+  }
 
   // Border
   if (inset.border > 0) {
@@ -778,6 +789,10 @@ interface CompositeOptions {
   displayScale?: number;
   /** Higher-resolution plot canvas for crisp inset rendering. Falls back to plotCanvas. */
   insetPlotCanvas?: HTMLCanvasElement;
+  /** Per-inset geometric renders, one entry per `state.insets`. When the entry
+   *  for inset i is non-null, it's drawn directly into the inset's target rect
+   *  (no crop/upscale). Indices that are null fall back to the raster path. */
+  insetRenders?: ReadonlyArray<HTMLCanvasElement | null>;
 }
 
 /**
@@ -836,10 +851,17 @@ export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptio
     }
   }
 
-  // Insets — use boosted canvas if available for crisp rendering
+  // Insets — prefer per-inset geometric renders (sharp, native point sizes);
+  // fall back to the raster path with the boosted canvas when none provided.
   const insetSrc = opts.insetPlotCanvas ?? plotCanvas;
-  for (const inset of state.insets) {
-    renderInset(ctx, insetSrc, inset, plotRect, overlayScale);
+  for (let i = 0; i < state.insets.length; i++) {
+    const inset = state.insets[i];
+    const preRender = opts.insetRenders?.[i] ?? null;
+    if (preRender) {
+      renderInset(ctx, preRender, inset, plotRect, overlayScale, { srcIsPreRendered: true });
+    } else {
+      renderInset(ctx, insetSrc, inset, plotRect, overlayScale);
+    }
   }
 
   // Overlays

@@ -712,7 +712,13 @@ export class WebGLRenderer {
    * @param dpr Device pixel ratio to use (defaults to 1 for max resolution control)
    * @returns 2D canvas containing the rendered frame
    */
-  public renderToCanvas(width: number, height: number, dpr: number = 1): HTMLCanvasElement {
+  public renderToCanvas(
+    width: number,
+    height: number,
+    dpr: number = 1,
+    dataDomain?: { xMin: number; xMax: number; yMin: number; yMax: number },
+    pointSizeReference?: { width: number; height: number },
+  ): HTMLCanvasElement {
     // Validate dimensions
     const physicalWidth = Math.floor(width * dpr);
     const physicalHeight = Math.floor(height * dpr);
@@ -738,7 +744,7 @@ export class WebGLRenderer {
     }
 
     // Create scales for export dimensions
-    const exportScales = this.createExportScales(points, physicalWidth, physicalHeight);
+    const exportScales = this.createExportScales(points, physicalWidth, physicalHeight, dataDomain);
     if (!exportScales) {
       throw new Error('Could not create scales for export rendering');
     }
@@ -763,7 +769,15 @@ export class WebGLRenderer {
 
     try {
       // Initialize WebGL state for the off-screen context
-      this.initializeOffscreenContext(gl, physicalWidth, physicalHeight, points, exportScales, dpr);
+      this.initializeOffscreenContext(
+        gl,
+        physicalWidth,
+        physicalHeight,
+        points,
+        exportScales,
+        dpr,
+        pointSizeReference,
+      );
 
       // Copy WebGL canvas to 2D canvas for safe export
       const outputCanvas = document.createElement('canvas');
@@ -795,6 +809,7 @@ export class WebGLRenderer {
     points: PlotDataPoint[],
     exportWidth: number,
     exportHeight: number,
+    dataDomain?: { xMin: number; xMax: number; yMin: number; yMax: number },
   ): ScalePair | null {
     if (points.length === 0) return null;
 
@@ -816,7 +831,88 @@ export class WebGLRenderer {
       left: margin.left * scaleX,
     };
 
-    // Compute data extent
+    let xDomMin: number;
+    let xDomMax: number;
+    let yDomMin: number;
+    let yDomMax: number;
+    let useFullBleed = false;
+    if (dataDomain) {
+      // Caller supplied an exact viewport — used by inset (geometric zoom)
+      // rendering. Skip the 5% padding AND skip margins so the data domain
+      // fills the canvas edge-to-edge. The caller is responsible for picking
+      // a domain that already accounts for the source plot's margins, so the
+      // inset's data fills aligns 1:1 with the source rect's data region.
+      xDomMin = dataDomain.xMin;
+      xDomMax = dataDomain.xMax;
+      yDomMin = dataDomain.yMin;
+      yDomMax = dataDomain.yMax;
+      useFullBleed = true;
+    } else {
+      // Compute data extent + 5% padding (ScaleManager.createScales convention).
+      let xMin = Infinity,
+        xMax = -Infinity,
+        yMin = Infinity,
+        yMax = -Infinity;
+      for (const p of points) {
+        if (p.x < xMin) xMin = p.x;
+        if (p.x > xMax) xMax = p.x;
+        if (p.y < yMin) yMin = p.y;
+        if (p.y > yMax) yMax = p.y;
+      }
+      const padding = 0.05;
+      const xPadding = Math.abs(xMax - xMin) * padding;
+      const yPadding = Math.abs(yMax - yMin) * padding;
+      xDomMin = xMin - xPadding;
+      xDomMax = xMax + xPadding;
+      yDomMin = yMin - yPadding;
+      yDomMax = yMax + yPadding;
+    }
+
+    const xRangeStart = useFullBleed ? 0 : scaledMargin.left;
+    const xRangeEnd = useFullBleed ? exportWidth : exportWidth - scaledMargin.right;
+    const yRangeStart = useFullBleed ? exportHeight : exportHeight - scaledMargin.bottom;
+    const yRangeEnd = useFullBleed ? 0 : scaledMargin.top;
+
+    const xScale = d3.scaleLinear().domain([xDomMin, xDomMax]).range([xRangeStart, xRangeEnd]);
+    const yScale = d3.scaleLinear().domain([yDomMin, yDomMax]).range([yRangeStart, yRangeEnd]);
+
+    return { x: xScale, y: yScale };
+  }
+
+  /**
+   * Display configuration the renderer would apply to a render at the given
+   * export dimensions. Returned values are in *export pixel space* (i.e.
+   * `marginLeft` is the pixel offset of the data area's left edge inside an
+   * `exportWidth × exportHeight` canvas). Used by the publish modal to
+   * translate inset source rects (canvas-norm) into data-coord viewports
+   * with margin-aware accuracy.
+   */
+  public getRenderInfo(
+    exportWidth: number,
+    exportHeight: number,
+  ): { marginLeft: number; marginRight: number; marginTop: number; marginBottom: number } {
+    const config = this.getConfig();
+    const displayWidth = config.width ?? 800;
+    const displayHeight = config.height ?? 600;
+    const margin = config.margin ?? { top: 20, right: 20, bottom: 20, left: 20 };
+    const scaleX = exportWidth / displayWidth;
+    const scaleY = exportHeight / displayHeight;
+    return {
+      marginLeft: margin.left * scaleX,
+      marginRight: margin.right * scaleX,
+      marginTop: margin.top * scaleY,
+      marginBottom: margin.bottom * scaleY,
+    };
+  }
+
+  /**
+   * Data extent of the most recently rendered points, or null when nothing
+   * has been rendered yet. Used by the publish modal to translate inset
+   * source rects (in normalized canvas coords) into data-coordinate viewports.
+   */
+  public getDataExtent(): { xMin: number; xMax: number; yMin: number; yMax: number } | null {
+    const points = this.lastRenderedPoints;
+    if (!points || points.length === 0) return null;
     let xMin = Infinity,
       xMax = -Infinity,
       yMin = Infinity,
@@ -827,24 +923,7 @@ export class WebGLRenderer {
       if (p.y < yMin) yMin = p.y;
       if (p.y > yMax) yMax = p.y;
     }
-
-    // Add padding (same as ScaleManager.createScales uses 5% padding)
-    const padding = 0.05;
-    const xPadding = Math.abs(xMax - xMin) * padding;
-    const yPadding = Math.abs(yMax - yMin) * padding;
-
-    // Create d3 scales for export dimensions
-    const xScale = d3
-      .scaleLinear()
-      .domain([xMin - xPadding, xMax + xPadding])
-      .range([scaledMargin.left, exportWidth - scaledMargin.right]);
-
-    const yScale = d3
-      .scaleLinear()
-      .domain([yMin - yPadding, yMax + yPadding])
-      .range([exportHeight - scaledMargin.bottom, scaledMargin.top]);
-
-    return { x: xScale, y: yScale };
+    return { xMin, xMax, yMin, yMax };
   }
 
   /**
@@ -857,12 +936,18 @@ export class WebGLRenderer {
     points: PlotDataPoint[],
     scales: ScalePair,
     dpr: number,
+    pointSizeReference?: { width: number; height: number },
   ): void {
-    // Calculate size scale factor based on export vs display dimensions
+    // Calculate size scale factor based on export vs display dimensions.
+    // For inset (zoom) renders, callers pass `pointSizeReference` set to the
+    // source plot's render size so points stay visually the same size as in
+    // the main plot — instead of shrinking when the inset target is small.
     const config = this.getConfig();
     const displayWidth = config.width ?? 800;
     const displayHeight = config.height ?? 600;
-    const sizeScaleFactor = Math.sqrt((width * height) / (displayWidth * displayHeight));
+    const refW = pointSizeReference?.width ?? width;
+    const refH = pointSizeReference?.height ?? height;
+    const sizeScaleFactor = Math.sqrt((refW * refH) / (displayWidth * displayHeight));
     // Enable extensions for float textures (needed for gamma pipeline)
     const colorBufferFloatExt = gl.getExtension('EXT_color_buffer_float');
     const floatBlendExt = gl.getExtension('EXT_float_blend');

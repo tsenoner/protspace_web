@@ -5,10 +5,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   computeLayout,
   computeInsetBoost,
+  composeFigure,
   MAX_CANVAS_PIXELS,
   capturePlotCanvas,
   waitForFonts,
 } from './publish-compositor';
+import { createDefaultPublishState } from './publish-state';
 import type { LegendLayout } from './publish-state';
 
 function makeLegend(overrides: Partial<LegendLayout> = {}): LegendLayout {
@@ -356,6 +358,125 @@ describe('computeInsetBoost area cap', () => {
   it('ignores plotPixelArea when undefined or zero', () => {
     expect(computeInsetBoost([inset(4)], 4, undefined)).toBe(4);
     expect(computeInsetBoost([inset(4)], 4, 0)).toBe(4);
+  });
+});
+
+describe('composeFigure geometric inset path', () => {
+  function makeStateWithInset() {
+    return {
+      ...createDefaultPublishState(),
+      insets: [
+        {
+          sourceRect: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+          targetRect: { x: 0.6, y: 0.6, w: 0.3, h: 0.3 },
+          border: 0,
+          connector: 'none' as const,
+        },
+      ],
+      legend: { ...createDefaultPublishState().legend, visible: false, position: 'none' as const },
+    };
+  }
+
+  /**
+   * Spy on drawImage on the output canvas's 2d context. Returns the calls
+   * recorded on the *output* canvas (the inset render canvas itself doesn't
+   * receive any drawImage calls during composeFigure).
+   */
+  function spyDrawImage(outCanvas: HTMLCanvasElement) {
+    const calls: Array<unknown[]> = [];
+    const ctx = {
+      clearRect: () => {},
+      fillRect: () => {},
+      strokeRect: () => {},
+      setLineDash: () => {},
+      save: () => {},
+      restore: () => {},
+      drawImage: (...args: unknown[]) => calls.push(args),
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 0,
+      globalAlpha: 1,
+      font: '',
+      textAlign: 'left',
+      textBaseline: 'top',
+      fillText: () => {},
+      measureText: () => ({ width: 0 }),
+      beginPath: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      stroke: () => {},
+      closePath: () => {},
+    } as unknown as CanvasRenderingContext2D;
+    outCanvas.getContext = (() => ctx) as HTMLCanvasElement['getContext'];
+    return calls;
+  }
+
+  it('draws pre-rendered inset whole into target (geometric path)', () => {
+    const out = document.createElement('canvas');
+    out.width = 1000;
+    out.height = 1000;
+    const calls = spyDrawImage(out);
+
+    const plotCanvas = document.createElement('canvas');
+    plotCanvas.width = 1000;
+    plotCanvas.height = 1000;
+    const insetCanvas = document.createElement('canvas');
+    insetCanvas.width = 300;
+    insetCanvas.height = 300;
+
+    composeFigure(out, {
+      state: makeStateWithInset(),
+      plotCanvas,
+      legendItems: [],
+      legendTitle: '',
+      insetRenders: [insetCanvas],
+    });
+
+    // The 2nd drawImage call (after the main plot) should draw the inset.
+    // Geometric path: source rect = full src canvas, target = inset target rect.
+    const insetCall = calls[1];
+    expect(insetCall[0]).toBe(insetCanvas);
+    // ctx.drawImage(srcCanvas, 0, 0, srcW, srcH, tx, ty, tw, th)
+    expect(insetCall[1]).toBe(0); // sx0 = 0 (no crop offset)
+    expect(insetCall[2]).toBe(0); // sy0 = 0
+    expect(insetCall[3]).toBe(300); // src width = whole inset canvas
+    expect(insetCall[4]).toBe(300); // src height = whole inset canvas
+    expect(insetCall[5]).toBe(600); // tx = 0.6 × 1000
+    expect(insetCall[6]).toBe(600); // ty = 0.6 × 1000
+    expect(insetCall[7]).toBe(300); // tw = 0.3 × 1000
+    expect(insetCall[8]).toBe(300); // th = 0.3 × 1000
+  });
+
+  it('falls back to raster crop path when insetRenders entry is null', () => {
+    const out = document.createElement('canvas');
+    out.width = 1000;
+    out.height = 1000;
+    const calls = spyDrawImage(out);
+
+    const plotCanvas = document.createElement('canvas');
+    plotCanvas.width = 1000;
+    plotCanvas.height = 1000;
+
+    composeFigure(out, {
+      state: makeStateWithInset(),
+      plotCanvas,
+      legendItems: [],
+      legendTitle: '',
+      insetRenders: [null],
+    });
+
+    const insetCall = calls[1];
+    // Raster path: crops sourceRect from plotCanvas. sourceRect (0.1, 0.1, 0.2, 0.2)
+    // → cropX=100, cropY=100, cropW=200, cropH=200 on the 1000×1000 plot.
+    expect(insetCall[0]).toBe(plotCanvas);
+    expect(insetCall[1]).toBe(100);
+    expect(insetCall[2]).toBe(100);
+    expect(insetCall[3]).toBe(200);
+    expect(insetCall[4]).toBe(200);
+    expect(insetCall[5]).toBe(600);
+    expect(insetCall[6]).toBe(600);
+    expect(insetCall[7]).toBe(300);
+    expect(insetCall[8]).toBe(300);
   });
 });
 

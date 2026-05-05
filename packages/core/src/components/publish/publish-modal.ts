@@ -25,7 +25,6 @@ import { sanitizePublishState } from './publish-state-validator';
 import {
   capturePlotCanvas,
   composeFigure,
-  computeInsetBoost,
   computeLayout,
   waitForFonts,
   type LegendItem,
@@ -57,8 +56,25 @@ interface CaptureablePlotElement extends HTMLElement {
   captureAtResolution?: (
     w: number,
     h: number,
-    opts: { dpr?: number; backgroundColor?: string },
+    opts: {
+      dpr?: number;
+      backgroundColor?: string;
+      dataDomain?: { xMin: number; xMax: number; yMin: number; yMax: number };
+      pointSizeReference?: { width: number; height: number };
+    },
   ) => HTMLCanvasElement;
+  getDataExtent?: (options?: {
+    padded?: boolean;
+  }) => { xMin: number; xMax: number; yMin: number; yMax: number } | null;
+  getRenderInfo?: (
+    exportWidth: number,
+    exportHeight: number,
+  ) => {
+    marginLeft: number;
+    marginRight: number;
+    marginTop: number;
+    marginBottom: number;
+  } | null;
 }
 
 // ── Legend data reader (mirrors export-utils pattern) ─────────
@@ -124,11 +140,24 @@ export class ProtspacePublishModal extends LitElement {
   @query('.publish-preview-canvas') private _previewCanvas!: HTMLCanvasElement;
 
   private _overlayController: PublishOverlayController | null = null;
-  private _debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private _redrawHandle: number | null = null;
   private _plotCacheKey = '';
   private _cachedPlotCanvas: HTMLCanvasElement | null = null;
-  private _insetCacheKey = '';
-  private _cachedInsetCanvas: HTMLCanvasElement | null = null;
+  /** Per-inset geometric capture cache. Keyed by sourceRect + target dims +
+   *  plotRect dims + dot scale + bgColor — renders at the target rect's
+   *  exact pixel dims so dot pixel sizes map 1:1 to display. */
+  private _insetRenderCache = new Map<string, HTMLCanvasElement>();
+  /** Last WebGL-rendered canvas per inset index. Used as a stretchable
+   *  fallback during high-frequency state updates (drag-resize) to skip
+   *  the ~15–30 ms WebGL context setup + shader compile per frame. The
+   *  compositor's drawImage stretches it to the live target rect — minor
+   *  blur during drag, replaced by a fresh render once activity settles. */
+  private _lastInsetCanvases: Array<HTMLCanvasElement | null> = [];
+  private _lastInsetRenderAt = 0;
+  /** When fastPath skipped a render, fire a follow-up rAF tick after the
+   *  user stops moving so we replace the stretched cache with a fresh,
+   *  full-resolution render. */
+  private _settleTimer: ReturnType<typeof setTimeout> | null = null;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -151,7 +180,8 @@ export class ProtspacePublishModal extends LitElement {
     super.disconnectedCallback();
     this._overlayController?.destroy();
     this._overlayController = null;
-    if (this._debounceTimer) clearTimeout(this._debounceTimer);
+    if (this._redrawHandle !== null) cancelAnimationFrame(this._redrawHandle);
+    if (this._settleTimer !== null) clearTimeout(this._settleTimer);
   }
 
   override firstUpdated() {
@@ -257,9 +287,20 @@ export class ProtspacePublishModal extends LitElement {
 
   // ── Redraw pipeline ────────────────────────────────
 
+  /**
+   * Coalesce redraws to a single rAF tick. The previous 120 ms debounce only
+   * fired *after* drag activity stopped — during a continuous resize the
+   * inset content stayed frozen and snapped at the end. With rAF, redraws
+   * happen at most once per frame, giving live feedback during drag while
+   * still avoiding redundant work when many state updates arrive in the
+   * same tick.
+   */
   private _scheduleRedraw() {
-    if (this._debounceTimer) clearTimeout(this._debounceTimer);
-    this._debounceTimer = setTimeout(() => this._redraw(), 120);
+    if (this._redrawHandle !== null) return;
+    this._redrawHandle = requestAnimationFrame(() => {
+      this._redrawHandle = null;
+      this._redraw();
+    });
   }
 
   private _redraw() {
@@ -289,21 +330,11 @@ export class ProtspacePublishModal extends LitElement {
       this._plotCacheKey = cacheKey;
     }
 
-    // Boosted capture for crisp inset rendering
-    let insetPlotCanvas: HTMLCanvasElement | undefined;
-    const boost = computeInsetBoost(s.insets, 4, plotRect.w * plotRect.h);
-    if (boost > 1) {
-      const insetKey = `${plotRect.w * boost}x${plotRect.h * boost}`;
-      if (insetKey !== this._insetCacheKey || !this._cachedInsetCanvas) {
-        this._cachedInsetCanvas = capturePlotCanvas(plotEl, {
-          width: plotRect.w * boost,
-          height: plotRect.h * boost,
-          backgroundColor: bgColor,
-        });
-        this._insetCacheKey = insetKey;
-      }
-      insetPlotCanvas = this._cachedInsetCanvas;
-    }
+    // Geometric per-inset captures: each inset is a fresh WebGL render
+    // scoped to its source data domain at the inset's target pixel size.
+    // Points stay native size (no raster crop+upscale), so quality keeps
+    // improving with the inset's pixel budget instead of plateauing at 4×.
+    const insetRenders = this._captureInsetRenders(plotEl, s, plotRect, bgColor);
 
     composeFigure(this._previewCanvas, {
       state: s,
@@ -314,7 +345,7 @@ export class ProtspacePublishModal extends LitElement {
       displayScale:
         this._previewCanvas.width /
         (this._previewCanvas.getBoundingClientRect().width || this._previewCanvas.width),
-      insetPlotCanvas,
+      insetRenders,
     });
 
     // Draw overlay indicators and selection handles
@@ -333,28 +364,24 @@ export class ProtspacePublishModal extends LitElement {
       this._state = { ...this._state, preset: 'custom' };
     }
     this._plotCacheKey = '';
-    this._insetCacheKey = ''; // invalidate
     this._showResampleNote = false;
   }
 
   private _updateLegend(partial: Partial<PublishState['legend']>) {
     this._state = { ...this._state, legend: { ...this._state.legend, ...partial } };
     this._plotCacheKey = '';
-    this._insetCacheKey = '';
     this._showResampleNote = false;
   }
 
   private _updateWidthPx(widthPx: number) {
     this._state = { ...this._state, ...computeWidthPxUpdate(this._state, widthPx) };
     this._plotCacheKey = '';
-    this._insetCacheKey = '';
     this._showResampleNote = false;
   }
 
   private _updateWidthMm(widthMm: number) {
     this._state = { ...this._state, ...computeWidthMmUpdate(this._state, widthMm) };
     this._plotCacheKey = '';
-    this._insetCacheKey = '';
     this._showResampleNote = false;
   }
 
@@ -366,7 +393,6 @@ export class ProtspacePublishModal extends LitElement {
       this._state = { ...this._state, ...computeHeightPxUpdate(this._state, heightPx) };
     }
     this._plotCacheKey = '';
-    this._insetCacheKey = '';
     this._showResampleNote = false;
   }
 
@@ -378,14 +404,12 @@ export class ProtspacePublishModal extends LitElement {
       if (constrained) {
         this._state = { ...this._state, ...constrained };
         this._plotCacheKey = '';
-        this._insetCacheKey = '';
         this._showResampleNote = false;
         return;
       }
     }
     this._state = { ...this._state, ...computeHeightMmUpdate(this._state, heightMm) };
     this._plotCacheKey = '';
-    this._insetCacheKey = '';
     this._showResampleNote = false;
   }
 
@@ -405,7 +429,6 @@ export class ProtspacePublishModal extends LitElement {
   private _updateDpi(dpi: number) {
     this._state = { ...this._state, ...computeDpiUpdate(this._state, dpi) };
     this._plotCacheKey = '';
-    this._insetCacheKey = '';
     this._showResampleNote = false;
   }
 
@@ -430,7 +453,6 @@ export class ProtspacePublishModal extends LitElement {
       heightPx,
     };
     this._plotCacheKey = '';
-    this._insetCacheKey = '';
     if (wasResampleOff) {
       this._showResampleNote = true;
     } else {
@@ -438,10 +460,147 @@ export class ProtspacePublishModal extends LitElement {
     }
   }
 
+  /**
+   * Render each zoom inset as its own scoped WebGL pass so points stay native
+   * pixel size in the inset (instead of the giant blobs raster crop+upscale
+   * produces). Returns one entry per `state.insets`; null when the plot
+   * element doesn't expose `getDataExtent` (older builds) or has no points
+   * yet — the compositor falls back to the legacy raster path in that case.
+   *
+   * Renders are cached by sourceRect + plot dims, so resizing the target rect
+   * (drag-to-grow the inset) doesn't trigger a re-render — the compositor
+   * scales the cached canvas to the new target. The WebGL pass only fires
+   * when the user actually changes the source region or the plot resizes.
+   */
+  private _captureInsetRenders(
+    plotEl: CaptureablePlotElement,
+    state: PublishState,
+    plotRect: { w: number; h: number },
+    bgColor: string,
+  ): Array<HTMLCanvasElement | null> {
+    if (state.insets.length === 0) {
+      this._insetRenderCache.clear();
+      return [];
+    }
+    if (!plotEl.captureAtResolution || !plotEl.getDataExtent) {
+      return state.insets.map(() => null);
+    }
+    const fullExtent = plotEl.getDataExtent({ padded: true });
+    if (!fullExtent) return state.insets.map(() => null);
+    const xRange = fullExtent.xMax - fullExtent.xMin;
+    const yRange = fullExtent.yMax - fullExtent.yMin;
+    // Margin-aware inversion so the inset's data domain matches what the user
+    // sees inside the source rect outline pixel-for-pixel. Without this, the
+    // raw `sr.x → xMin + sr.x*xRange` mapping would be off by ~margin/canvas
+    // (a couple of percent) — visible when the user compares the source rect
+    // outline against the inset content.
+    const margin = plotEl.getRenderInfo?.(plotRect.w, plotRect.h) ?? {
+      marginLeft: 0,
+      marginRight: 0,
+      marginTop: 0,
+      marginBottom: 0,
+    };
+    const dataAreaW = Math.max(1, plotRect.w - margin.marginLeft - margin.marginRight);
+    const dataAreaH = Math.max(1, plotRect.h - margin.marginTop - margin.marginBottom);
+    const canvasToDataX = (canvasX: number) =>
+      fullExtent.xMin + ((canvasX - margin.marginLeft) / dataAreaW) * xRange;
+    const canvasToDataY = (canvasY: number) =>
+      fullExtent.yMax - ((canvasY - margin.marginTop) / dataAreaH) * yRange;
+    // High-frequency state churn (active drag/resize) → skip the WebGL
+    // pass and reuse whichever canvas we last rendered for this inset. The
+    // compositor stretches it to the live target rect via drawImage. Once
+    // updates settle for ~80 ms, the next redraw renders fresh.
+    const now =
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+    const fastPath = now - this._lastInsetRenderAt < 80;
+    const livingKeys = new Set<string>();
+    if (this._lastInsetCanvases.length !== state.insets.length) {
+      this._lastInsetCanvases.length = state.insets.length;
+    }
+    let didFreshRender = false;
+    const renders = state.insets.map((inset, i) => {
+      const sr = inset.sourceRect;
+      const tr = inset.targetRect;
+      // Render the inset at the target rect's exact pixel dims so a fresh
+      // pass produces dots at the correct main-plot scale (1:1 pixel mapping
+      // between rendered and displayed). Caching at plot dims would shrink
+      // dots by `target/plot` after drawImage downscale.
+      const renderW = Math.max(1, Math.round(tr.w * plotRect.w));
+      const renderH = Math.max(1, Math.round(tr.h * plotRect.h));
+      const pointScale = inset.pointSizeScale ?? 1;
+      const key = `${sr.x.toFixed(5)}:${sr.y.toFixed(5)}:${sr.w.toFixed(5)}:${sr.h.toFixed(5)}|${renderW}x${renderH}|${plotRect.w}x${plotRect.h}|${pointScale.toFixed(3)}|${bgColor}`;
+      livingKeys.add(key);
+      const cached = this._insetRenderCache.get(key);
+      if (cached) {
+        this._lastInsetCanvases[i] = cached;
+        return cached;
+      }
+      // No exact match. During high-frequency updates, return the previous
+      // render (any size) and let the compositor stretch it — saves the
+      // ~15–30 ms WebGL setup cost per frame.
+      if (fastPath && this._lastInsetCanvases[i]) {
+        return this._lastInsetCanvases[i];
+      }
+      const cx0 = sr.x * plotRect.w;
+      const cx1 = (sr.x + sr.w) * plotRect.w;
+      const cy0 = sr.y * plotRect.h;
+      const cy1 = (sr.y + sr.h) * plotRect.h;
+      const dataDomain = {
+        xMin: canvasToDataX(cx0),
+        xMax: canvasToDataX(cx1),
+        yMax: canvasToDataY(cy0),
+        yMin: canvasToDataY(cy1),
+      };
+      // sizeScaleFactor = sqrt(refW × refH / displayArea), so scaling the
+      // reference dims by `pointScale` linearly multiplies the rendered dot
+      // size by exactly `pointScale`. With render dims = target dims and
+      // pointScale = 1, the inset matches the main plot's pixel dot size.
+      try {
+        const canvas = plotEl.captureAtResolution!(renderW, renderH, {
+          dpr: 1,
+          backgroundColor: bgColor,
+          dataDomain,
+          pointSizeReference: {
+            width: plotRect.w * pointScale,
+            height: plotRect.h * pointScale,
+          },
+        });
+        this._insetRenderCache.set(key, canvas);
+        this._lastInsetCanvases[i] = canvas;
+        didFreshRender = true;
+        return canvas;
+      } catch {
+        return this._lastInsetCanvases[i] ?? null;
+      }
+    });
+    if (didFreshRender) {
+      this._lastInsetRenderAt = now;
+      // Activity settled enough to render fresh — drop any pending follow-up.
+      if (this._settleTimer !== null) {
+        clearTimeout(this._settleTimer);
+        this._settleTimer = null;
+      }
+    } else if (fastPath) {
+      // fastPath was taken: queue one more redraw so the cached canvas gets
+      // replaced with a crisp render once the user stops dragging.
+      if (this._settleTimer !== null) clearTimeout(this._settleTimer);
+      this._settleTimer = setTimeout(() => {
+        this._settleTimer = null;
+        this._scheduleRedraw();
+      }, 120);
+    }
+    // Evict cache entries no longer referenced (inset removed, sourceRect changed).
+    for (const k of this._insetRenderCache.keys()) {
+      if (!livingKeys.has(k)) this._insetRenderCache.delete(k);
+    }
+    return renders;
+  }
+
   private _toggleResample() {
     this._state = { ...this._state, resample: !this._state.resample };
     this._plotCacheKey = '';
-    this._insetCacheKey = '';
     this._showResampleNote = false;
   }
 
@@ -502,16 +661,8 @@ export class ProtspacePublishModal extends LitElement {
       backgroundColor: bgColor,
     });
 
-    // Boosted capture for crisp inset rendering
-    let insetPlotCanvas: HTMLCanvasElement | undefined;
-    const boost = computeInsetBoost(s.insets, 4, plotRect.w * plotRect.h);
-    if (boost > 1) {
-      insetPlotCanvas = capturePlotCanvas(plotEl, {
-        width: plotRect.w * boost,
-        height: plotRect.h * boost,
-        backgroundColor: bgColor,
-      });
-    }
+    // Per-inset geometric renders for the export.
+    const insetRenders = this._captureInsetRenders(plotEl, s, plotRect, bgColor);
 
     const outCanvas = document.createElement('canvas');
     outCanvas.width = s.widthPx;
@@ -522,7 +673,7 @@ export class ProtspacePublishModal extends LitElement {
       plotCanvas,
       legendItems: this._legendItems,
       legendTitle: this._legendTitle,
-      insetPlotCanvas,
+      insetRenders,
     });
 
     this.dispatchEvent(
@@ -568,7 +719,6 @@ export class ProtspacePublishModal extends LitElement {
     this._showFingerprintWarning = false;
     this._showResampleNote = false;
     this._plotCacheKey = '';
-    this._insetCacheKey = '';
     this._overlayController?.destroy();
     this._overlayController = null;
     this.updateComplete.then(() => this._setupOverlay());
@@ -1279,6 +1429,19 @@ export class ProtspacePublishModal extends LitElement {
                 <button class="delete-btn" @click=${() => this._removeInset(i)} title="Remove">
                   <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
+              </div>
+              <div class="publish-row" style="margin-bottom: 0;">
+                <label title="Dot size in the zoomed view, relative to the main plot. 1× matches.">
+                  Dot size
+                </label>
+                ${this._renderSliderInput({
+                  min: 0.5,
+                  max: 20,
+                  step: 0.1,
+                  value: Number((inset.pointSizeScale ?? 1).toFixed(1)),
+                  unit: '×',
+                  onChange: (v) => this._updateInset(i, { pointSizeScale: v }),
+                })}
               </div>
               <div class="publish-row" style="margin-bottom: 0;">
                 <label>Border</label>

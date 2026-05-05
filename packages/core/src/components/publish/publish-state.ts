@@ -63,6 +63,10 @@ export interface Inset {
   targetRect: NormRect;
   border: number;
   connector: 'lines' | 'none';
+  /** Multiplier applied to the rendered dot size inside the zoomed inset.
+   *  1 (default) matches the main plot's dot size; >1 makes points more
+   *  visible after zooming, <1 makes them less prominent. */
+  pointSizeScale?: number;
 }
 
 // ── Legend layout ────────────────────────────────────────
