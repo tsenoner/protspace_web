@@ -72,7 +72,9 @@ export function capturePlotCanvas(
     const ctx = out.getContext('2d')!;
     ctx.fillStyle = opts.backgroundColor;
     ctx.fillRect(0, 0, opts.width, opts.height);
-    ctx.drawImage(existing, 0, 0, opts.width, opts.height);
+    // Pass the full source pixel rect so HiDPI live canvases (where existing.width
+    // > opts.width) aren't silently halved.
+    ctx.drawImage(existing, 0, 0, existing.width, existing.height, 0, 0, opts.width, opts.height);
     return out;
   }
   // Last resort: blank canvas
