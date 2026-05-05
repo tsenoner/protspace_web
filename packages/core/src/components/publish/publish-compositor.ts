@@ -791,7 +791,11 @@ interface CompositeOptions {
  */
 export function composeFigure(outCanvas: HTMLCanvasElement, opts: CompositeOptions): void {
   const { state, plotCanvas, legendItems, legendTitle } = opts;
-  const ctx = outCanvas.getContext('2d')!;
+  const ctx = outCanvas.getContext('2d');
+  if (!ctx) {
+    console.warn('composeFigure: 2D context unavailable; skipping render');
+    return;
+  }
   const W = outCanvas.width;
   const H = outCanvas.height;
 

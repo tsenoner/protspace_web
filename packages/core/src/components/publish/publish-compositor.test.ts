@@ -605,3 +605,22 @@ describe('waitForFonts', () => {
     await expect(waitForFonts()).resolves.toBeUndefined();
   });
 });
+
+describe('composeFigure null context', () => {
+  it('composeFigure does not throw when getContext returns null', () => {
+    const out = document.createElement('canvas');
+    out.width = 100;
+    out.height = 100;
+    const orig = out.getContext;
+    (out as unknown as { getContext: typeof out.getContext }).getContext = () => null;
+    expect(() =>
+      composeFigure(out, {
+        state: createDefaultPublishState(),
+        plotCanvas: document.createElement('canvas'),
+        legendItems: [],
+        legendTitle: '',
+      }),
+    ).not.toThrow();
+    (out as unknown as { getContext: typeof out.getContext }).getContext = orig;
+  });
+});
