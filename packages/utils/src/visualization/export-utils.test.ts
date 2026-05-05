@@ -690,14 +690,7 @@ describe('exportCanvasAsPdf', () => {
         orientation: 'landscape',
       }),
     );
-    expect(addImage).toHaveBeenCalledWith(
-      'data:image/png;base64,AAA=',
-      'PNG',
-      0,
-      0,
-      89,
-      50,
-    );
+    expect(addImage).toHaveBeenCalledWith('data:image/png;base64,AAA=', 'PNG', 0, 0, 89, 50);
     expect(save).toHaveBeenCalledWith('fig.pdf');
     vi.doUnmock('jspdf');
   });
@@ -721,9 +714,7 @@ describe('exportCanvasAsPdf', () => {
 
     await exportCanvasAsPdf(canvas, { widthMm: 89, heightMm: 247 });
 
-    expect(jsPdfCtor).toHaveBeenCalledWith(
-      expect.objectContaining({ orientation: 'portrait' }),
-    );
+    expect(jsPdfCtor).toHaveBeenCalledWith(expect.objectContaining({ orientation: 'portrait' }));
     vi.doUnmock('jspdf');
   });
 });
