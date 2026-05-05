@@ -434,7 +434,7 @@ export const publishModalStyles = css`
     border-color: var(--border-hover);
   }
 
-  .publish-overlay-item.highlighted {
+  .publish-overlay-item.selected {
     background: var(--primary-light);
     border-color: var(--primary);
   }

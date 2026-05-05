@@ -90,6 +90,24 @@ export class PublishOverlayController {
     this.canvas.style.cursor = value === 'select' ? 'default' : 'crosshair';
   }
 
+  /** Current selection — exposed for the modal to mirror in its sidebar. */
+  getSelection(): { kind: 'overlay' | 'inset'; index: number } | null {
+    return this.selected;
+  }
+
+  /**
+   * Update selection from outside (e.g. sidebar click). Pass null to clear.
+   * Drag handles redraw to match. Skipped while a drag is active so we
+   * don't yank handles out from under the user mid-gesture.
+   */
+  setSelection(sel: { kind: 'overlay' | 'inset'; index: number } | null): void {
+    if (this.drag.active) return;
+    this.selected = sel;
+    this.handleMode = null;
+    this.callbacks.onSelectionChanged(sel?.kind ?? null, sel?.index ?? -1);
+    this.callbacks.requestRedraw();
+  }
+
   destroy() {
     if (this.activePointerId !== null) {
       try {

@@ -609,3 +609,207 @@ describe('<protspace-publish-modal> _captureInsetRenders', () => {
     expect(renders).toEqual([null]);
   });
 });
+
+interface SelectionInternals {
+  _state: {
+    overlays: Array<Record<string, unknown>>;
+    insets: Array<Record<string, unknown>>;
+  };
+  _selectedItem: { kind: 'overlay' | 'inset'; index: number } | null;
+  requestUpdate: () => void;
+}
+
+const sampleCircle = {
+  type: 'circle',
+  cx: 0.5,
+  cy: 0.5,
+  rx: 0.1,
+  ry: 0.1,
+  rotation: 0,
+  color: '#000',
+  strokeWidth: 2,
+};
+
+const sampleInset = {
+  sourceRect: { x: 0.1, y: 0.1, w: 0.1, h: 0.1 },
+  targetRect: { x: 0.5, y: 0.5, w: 0.2, h: 0.2 },
+  border: 2,
+  connector: 'lines',
+  pointSizeScale: 1,
+};
+
+describe('<protspace-publish-modal> selection + keyboard delete', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('clicking a sidebar overlay item selects it (sets _selectedItem)', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as SelectionInternals;
+
+    internals._state = { ...internals._state, overlays: [sampleCircle] };
+    internals.requestUpdate();
+    await modal.updateComplete;
+
+    const item = modal.shadowRoot!.querySelector<HTMLElement>('[data-publish-item="overlay-0"]');
+    expect(item).not.toBeNull();
+    item!.click();
+    await modal.updateComplete;
+
+    expect(internals._selectedItem).toEqual({ kind: 'overlay', index: 0 });
+    expect(item!.classList.contains('selected')).toBe(true);
+  });
+
+  it('clicking a sidebar inset item selects it', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as SelectionInternals;
+
+    internals._state = { ...internals._state, insets: [sampleInset] };
+    internals.requestUpdate();
+    await modal.updateComplete;
+
+    const item = modal.shadowRoot!.querySelector<HTMLElement>('[data-publish-item="inset-0"]');
+    item!.click();
+    await modal.updateComplete;
+
+    expect(internals._selectedItem).toEqual({ kind: 'inset', index: 0 });
+  });
+
+  it('clicking the per-row delete button does not also select the row', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as SelectionInternals;
+    internals._state = { ...internals._state, overlays: [sampleCircle] };
+    internals.requestUpdate();
+    await modal.updateComplete;
+
+    const deleteBtn = modal.shadowRoot!.querySelector<HTMLButtonElement>(
+      '[data-publish-item="overlay-0"] .delete-btn',
+    );
+    deleteBtn!.click();
+    await modal.updateComplete;
+
+    expect(internals._state.overlays).toHaveLength(0);
+    expect(internals._selectedItem).toBeNull();
+  });
+
+  it('Delete key removes the selected overlay', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as SelectionInternals;
+    internals._state = { ...internals._state, overlays: [sampleCircle] };
+    internals._selectedItem = { kind: 'overlay', index: 0 };
+    internals.requestUpdate();
+    await modal.updateComplete;
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+    await modal.updateComplete;
+
+    expect(internals._state.overlays).toHaveLength(0);
+    expect(internals._selectedItem).toBeNull();
+  });
+
+  it('Backspace key removes the selected inset', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as SelectionInternals;
+    internals._state = { ...internals._state, insets: [sampleInset] };
+    internals._selectedItem = { kind: 'inset', index: 0 };
+    internals.requestUpdate();
+    await modal.updateComplete;
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace' }));
+    await modal.updateComplete;
+
+    expect(internals._state.insets).toHaveLength(0);
+    expect(internals._selectedItem).toBeNull();
+  });
+
+  it('Backspace inside an input does NOT delete the selected overlay', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as SelectionInternals;
+    const labelOverlay = {
+      type: 'label',
+      x: 0.5,
+      y: 0.5,
+      text: 'hi',
+      fontSize: 14,
+      rotation: 0,
+      color: '#000',
+    };
+    internals._state = { ...internals._state, overlays: [labelOverlay] };
+    internals._selectedItem = { kind: 'overlay', index: 0 };
+    internals.requestUpdate();
+    await modal.updateComplete;
+
+    // Find the label-text input inside the overlay row.
+    const input = modal.shadowRoot!.querySelector<HTMLInputElement>(
+      '[data-publish-item="overlay-0"] input[type="text"]',
+    );
+    expect(input).not.toBeNull();
+    // Dispatch Backspace as if focus is on that input — composedPath() will
+    // include the input through shadow DOM, so the handler must skip it.
+    input!.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, composed: true }),
+    );
+    await modal.updateComplete;
+
+    expect(internals._state.overlays).toHaveLength(1);
+    expect(internals._selectedItem).toEqual({ kind: 'overlay', index: 0 });
+  });
+
+  it('Escape clears selection without removing the item', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as SelectionInternals;
+    internals._state = { ...internals._state, overlays: [sampleCircle] };
+    internals._selectedItem = { kind: 'overlay', index: 0 };
+    internals.requestUpdate();
+    await modal.updateComplete;
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await modal.updateComplete;
+
+    expect(internals._state.overlays).toHaveLength(1);
+    expect(internals._selectedItem).toBeNull();
+  });
+
+  it('keydown is a no-op when nothing is selected', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as SelectionInternals;
+    internals._state = {
+      ...internals._state,
+      overlays: [sampleCircle],
+      insets: [sampleInset],
+    };
+    internals.requestUpdate();
+    await modal.updateComplete;
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace' }));
+    await modal.updateComplete;
+
+    expect(internals._state.overlays).toHaveLength(1);
+    expect(internals._state.insets).toHaveLength(1);
+  });
+
+  it('removing the modal removes the keydown listener', async () => {
+    const modal = makeModal();
+    await modal.updateComplete;
+    const internals = modal as unknown as SelectionInternals;
+    internals._state = { ...internals._state, overlays: [sampleCircle] };
+    internals._selectedItem = { kind: 'overlay', index: 0 };
+    internals.requestUpdate();
+    await modal.updateComplete;
+
+    modal.remove();
+
+    // Without the listener, Delete must NOT mutate state any further.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+    expect(internals._state.overlays).toHaveLength(1);
+  });
+});

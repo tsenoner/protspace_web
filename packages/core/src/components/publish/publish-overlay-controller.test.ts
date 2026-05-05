@@ -597,4 +597,35 @@ describe('PublishOverlayController', () => {
       expect(last.x2).toBeGreaterThan(1);
     });
   });
+
+  describe('external selection API', () => {
+    it('setSelection() updates selection, fires callback, requests redraw', () => {
+      controller.setSelection({ kind: 'overlay', index: 2 });
+      expect(controller.getSelection()).toEqual({ kind: 'overlay', index: 2 });
+      expect(callbacks.onSelectionChanged).toHaveBeenCalledWith('overlay', 2);
+      expect(callbacks.requestRedraw).toHaveBeenCalled();
+    });
+
+    it('setSelection(null) clears selection and fires (null, -1)', () => {
+      controller.setSelection({ kind: 'inset', index: 0 });
+      callbacks.onSelectionChanged.mockClear();
+
+      controller.setSelection(null);
+      expect(controller.getSelection()).toBeNull();
+      expect(callbacks.onSelectionChanged).toHaveBeenCalledWith(null, -1);
+    });
+
+    it('setSelection() during an active drag is a no-op', () => {
+      // Start dragging a fresh circle so drag.active becomes true.
+      controller.tool = 'circle';
+      canvas.dispatchEvent(pointerEvent('pointerdown', 500, 250));
+      canvas.dispatchEvent(pointerEvent('pointermove', 600, 250));
+
+      callbacks.onSelectionChanged.mockClear();
+      controller.setSelection({ kind: 'overlay', index: 0 });
+
+      expect(controller.getSelection()).toBeNull();
+      expect(callbacks.onSelectionChanged).not.toHaveBeenCalled();
+    });
+  });
 });

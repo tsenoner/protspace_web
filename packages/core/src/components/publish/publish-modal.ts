@@ -50,6 +50,23 @@ const RESAMPLE_TOOLTIP =
   'When on, changing the resolution re-renders the figure at a new pixel count. ' +
   'When off, only print-size metadata changes — pixels stay the same.';
 
+/**
+ * True when the keyboard event originated inside an editable element
+ * (input, textarea, select, contenteditable). Walk the composed path so
+ * elements inside the modal's shadow DOM are detected — `event.target` is
+ * retargeted to the host on a window-level listener.
+ */
+function isEditableTarget(event: KeyboardEvent): boolean {
+  const path = event.composedPath();
+  for (const node of path) {
+    if (!(node instanceof HTMLElement)) continue;
+    const tag = node.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (node.isContentEditable) return true;
+  }
+  return false;
+}
+
 // ── Types ─────────────────────────────────────────────────────
 
 interface CaptureablePlotElement extends HTMLElement {
@@ -131,7 +148,9 @@ export class ProtspacePublishModal extends LitElement {
 
   @state() private _state: PublishState = createDefaultPublishState();
   @state() private _tool: OverlayTool = 'select';
-  @state() private _highlightedItem: { kind: 'overlay' | 'inset'; index: number } | null = null;
+  /** Currently selected overlay/inset, or null. Click sets it (sidebar or
+   *  canvas). Delete/Backspace removes it. Escape clears it. */
+  @state() private _selectedItem: { kind: 'overlay' | 'inset'; index: number } | null = null;
   @state() private _showFingerprintWarning = false;
   @state() private _showResampleNote = false;
   @state() private _legendItems: LegendItem[] = [];
@@ -174,15 +193,40 @@ export class ProtspacePublishModal extends LitElement {
       this.currentProjection,
     );
     this._readLegend();
+    window.addEventListener('keydown', this._onKeyDown);
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
+    window.removeEventListener('keydown', this._onKeyDown);
     this._overlayController?.destroy();
     this._overlayController = null;
     if (this._redrawHandle !== null) cancelAnimationFrame(this._redrawHandle);
     if (this._settleTimer !== null) clearTimeout(this._settleTimer);
   }
+
+  /**
+   * Delete/Backspace removes the selected overlay or inset; Escape clears
+   * the selection. Skipped while focus is in an editable element so typing
+   * Backspace inside the label-text input still erases characters instead
+   * of deleting the overlay.
+   */
+  private _onKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== 'Delete' && e.key !== 'Backspace' && e.key !== 'Escape') return;
+    if (isEditableTarget(e)) return;
+    const sel = this._selectedItem;
+    if (e.key === 'Escape') {
+      if (sel) {
+        this._setSelection(null);
+        e.preventDefault();
+      }
+      return;
+    }
+    if (!sel) return;
+    if (sel.kind === 'overlay') this._removeOverlay(sel.index);
+    else this._removeInset(sel.index);
+    e.preventDefault();
+  };
 
   override firstUpdated() {
     this._setupOverlay();
@@ -196,7 +240,7 @@ export class ProtspacePublishModal extends LitElement {
   }
 
   override updated(changed: Map<string, unknown>) {
-    if (changed.has('_state') || changed.has('_tool') || changed.has('_highlightedItem')) {
+    if (changed.has('_state') || changed.has('_tool') || changed.has('_selectedItem')) {
       this._scheduleRedraw();
     }
   }
@@ -275,8 +319,10 @@ export class ProtspacePublishModal extends LitElement {
         ins[i] = inset;
         this._state = { ...this._state, insets: ins };
       },
-      onSelectionChanged: () => {
-        /* selection visual handled in redraw */
+      onSelectionChanged: (kind, index) => {
+        // Mirror canvas selection into modal state so sidebar items
+        // highlight in lockstep with the canvas.
+        this._selectedItem = kind === null ? null : { kind, index };
       },
       onLegendMoved: (nx: number, ny: number) => {
         this._updateLegend({ freePos: { nx, ny } });
@@ -341,7 +387,7 @@ export class ProtspacePublishModal extends LitElement {
       plotCanvas: this._cachedPlotCanvas,
       legendItems: this._legendItems,
       legendTitle: this._legendTitle,
-      highlightedItem: this._highlightedItem,
+      highlightedItem: this._selectedItem,
       displayScale:
         this._previewCanvas.width /
         (this._previewCanvas.getBoundingClientRect().width || this._previewCanvas.width),
@@ -621,9 +667,19 @@ export class ProtspacePublishModal extends LitElement {
     }
   }
 
+  /** Single source of truth for selection. Mirrors to the controller so
+   *  drag handles redraw to match the sidebar/canvas state. */
+  private _setSelection(sel: { kind: 'overlay' | 'inset'; index: number } | null) {
+    this._selectedItem = sel;
+    this._overlayController?.setSelection(sel);
+  }
+
   private _removeOverlay(index: number) {
     const anns = this._state.overlays.filter((_, i) => i !== index);
     this._state = { ...this._state, overlays: anns };
+    if (this._selectedItem?.kind === 'overlay' && this._selectedItem.index === index) {
+      this._setSelection(null);
+    }
   }
 
   private _updateOverlay(index: number, partial: Partial<Overlay>) {
@@ -635,6 +691,9 @@ export class ProtspacePublishModal extends LitElement {
   private _removeInset(index: number) {
     const ins = this._state.insets.filter((_, i) => i !== index);
     this._state = { ...this._state, insets: ins };
+    if (this._selectedItem?.kind === 'inset' && this._selectedItem.index === index) {
+      this._setSelection(null);
+    }
   }
 
   private _updateInset(index: number, partial: Partial<Inset>) {
@@ -715,7 +774,7 @@ export class ProtspacePublishModal extends LitElement {
   private _applyStateAndRebuild(newState: PublishState) {
     this._state = newState;
     this._tool = 'select';
-    this._highlightedItem = null;
+    this._setSelection(null);
     this._showFingerprintWarning = false;
     this._showResampleNote = false;
     this._plotCacheKey = '';
@@ -1310,22 +1369,24 @@ export class ProtspacePublishModal extends LitElement {
       <div class="publish-section">
         <div class="publish-section-title">Overlays (${anns.length})</div>
         ${anns.map((a, i) => {
-          const isHi =
-            this._highlightedItem?.kind === 'overlay' && this._highlightedItem.index === i;
+          const isSel = this._selectedItem?.kind === 'overlay' && this._selectedItem.index === i;
           return html`
             <div
-              class="publish-overlay-item ${isHi ? 'highlighted' : ''}"
+              class="publish-overlay-item ${isSel ? 'selected' : ''}"
               style="flex-direction: column; align-items: stretch; gap: 4px;"
-              @mouseenter=${() => {
-                this._highlightedItem = { kind: 'overlay', index: i };
-              }}
-              @mouseleave=${() => {
-                this._highlightedItem = null;
-              }}
+              data-publish-item="overlay-${i}"
+              @click=${() => this._setSelection({ kind: 'overlay', index: i })}
             >
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span>${a.type}${a.type === 'label' ? `: ${a.text}` : ''}</span>
-                <button class="delete-btn" @click=${() => this._removeOverlay(i)} title="Remove">
+                <button
+                  class="delete-btn"
+                  @click=${(e: Event) => {
+                    e.stopPropagation();
+                    this._removeOverlay(i);
+                  }}
+                  title="Remove"
+                >
                   <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
@@ -1412,21 +1473,24 @@ export class ProtspacePublishModal extends LitElement {
         ${ins.map(
           (inset, i) => html`
             <div
-              class="publish-overlay-item ${this._highlightedItem?.kind === 'inset' &&
-              this._highlightedItem.index === i
-                ? 'highlighted'
+              class="publish-overlay-item ${this._selectedItem?.kind === 'inset' &&
+              this._selectedItem.index === i
+                ? 'selected'
                 : ''}"
               style="flex-direction: column; align-items: stretch; gap: 4px;"
-              @mouseenter=${() => {
-                this._highlightedItem = { kind: 'inset', index: i };
-              }}
-              @mouseleave=${() => {
-                this._highlightedItem = null;
-              }}
+              data-publish-item="inset-${i}"
+              @click=${() => this._setSelection({ kind: 'inset', index: i })}
             >
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span>Inset ${i + 1}</span>
-                <button class="delete-btn" @click=${() => this._removeInset(i)} title="Remove">
+                <button
+                  class="delete-btn"
+                  @click=${(e: Event) => {
+                    e.stopPropagation();
+                    this._removeInset(i);
+                  }}
+                  title="Remove"
+                >
                   <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
