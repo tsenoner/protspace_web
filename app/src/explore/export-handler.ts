@@ -142,11 +142,12 @@ export function createExportHandler({
               }
             }
             notify.success(getExportSuccessNotification(fname));
+            modal.remove();
           } catch (err) {
             console.error('Publish export failed:', err);
             notify.error(getExportFailureNotification(err));
+            // Leave the modal open so the user can retry without losing context.
           }
-          modal.remove();
         }) as EventListener);
 
         // Handle close — persist state to localStorage
