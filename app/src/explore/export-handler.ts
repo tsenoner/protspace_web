@@ -74,13 +74,21 @@ export function createExportHandler({
   function setupPublishEditorHandler() {
     controlBar.addEventListener('open-publish-editor', async () => {
       try {
-        // Lazy-import the publish modal component
+        // Lazy-import the publish modal component (side-effect registers
+        // the custom element on first open).
         const { ProtspacePublishModal } = await import('@protspace/core/publish');
 
         // Remove any existing modal
         document.querySelector('protspace-publish-modal')?.remove();
 
-        const modal = new ProtspacePublishModal();
+        // Construct via the registry, not `new ProtspacePublishModal()`.
+        // After Vite HMR re-evaluates publish-modal.ts the class object on
+        // the import diverges from the one registered for the tag, and
+        // `new` on the unregistered class throws "Illegal constructor".
+        // createElement always uses the registered class.
+        const modal = document.createElement('protspace-publish-modal') as InstanceType<
+          typeof ProtspacePublishModal
+        >;
         modal.plotElement = plotElement as unknown as HTMLElement;
         modal.legendElement = legendElement as unknown as HTMLElement;
         modal.currentProjection = getCurrentProjection();
