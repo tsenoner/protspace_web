@@ -813,3 +813,62 @@ describe('<protspace-publish-modal> selection + keyboard delete', () => {
     expect(internals._state.overlays).toHaveLength(1);
   });
 });
+
+describe('<protspace-publish-modal> plot cache key', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('invalidates the plot cache when background toggles white ↔ transparent', async () => {
+    const captures: Array<{ bg: string }> = [];
+    const fakePlotEl = {
+      captureAtResolution: (w: number, h: number, opts: { backgroundColor?: string }) => {
+        captures.push({ bg: opts.backgroundColor ?? '' });
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        return c;
+      },
+    } as unknown as HTMLElement;
+
+    // jsdom doesn't implement canvas getContext; stub it so composeFigure
+    // (called downstream of _redraw) doesn't throw an unhandled exception
+    // inside a requestAnimationFrame callback.
+    const stubCtx = new Proxy(
+      {},
+      { get: () => () => undefined },
+    ) as unknown as CanvasRenderingContext2D;
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return stubCtx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+        plotElement: HTMLElement;
+        _state: { background: 'white' | 'transparent' };
+        requestUpdate: () => void;
+        updateComplete: Promise<unknown>;
+      };
+      modal.plotElement = fakePlotEl;
+      document.body.appendChild(modal);
+      await modal.updateComplete;
+
+      modal._state = { ...modal._state, background: 'white' };
+      modal.requestUpdate();
+      await modal.updateComplete;
+      await new Promise((r) => requestAnimationFrame(r));
+
+      modal._state = { ...modal._state, background: 'transparent' };
+      modal.requestUpdate();
+      await modal.updateComplete;
+      await new Promise((r) => requestAnimationFrame(r));
+
+      expect(captures.some((c) => c.bg === '#ffffff')).toBe(true);
+      expect(captures.some((c) => c.bg === 'rgba(0,0,0,0)')).toBe(true);
+      modal.remove();
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+    }
+  });
+});

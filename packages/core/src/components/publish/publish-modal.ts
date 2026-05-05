@@ -366,7 +366,7 @@ export class ProtspacePublishModal extends LitElement {
     const plotEl = this.plotElement as CaptureablePlotElement;
     const bgColor = s.background === 'white' ? '#ffffff' : 'rgba(0,0,0,0)';
 
-    const cacheKey = `${plotRect.w}x${plotRect.h}`;
+    const cacheKey = `${plotRect.w}x${plotRect.h}|${bgColor}`;
     if (cacheKey !== this._plotCacheKey || !this._cachedPlotCanvas) {
       this._cachedPlotCanvas = capturePlotCanvas(plotEl, {
         width: plotRect.w,
