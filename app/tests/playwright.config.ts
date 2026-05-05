@@ -103,6 +103,14 @@ export default defineConfig({
       },
       testMatch: /load-large-bundle\.spec\.ts/,
     },
+    {
+      name: 'figure-editor',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /figure-editor\.spec\.ts/,
+    },
   ],
 
   outputDir: '../test-results/',
