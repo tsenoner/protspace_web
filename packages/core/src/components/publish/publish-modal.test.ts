@@ -1014,3 +1014,75 @@ describe('<protspace-publish-modal> disconnect guard', () => {
     }
   });
 });
+
+describe('<protspace-publish-modal> fingerprint warning', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('renders the fingerprint warning when saved fingerprint mismatches current', async () => {
+    const stubCtx = new Proxy(
+      {},
+      { get: () => () => undefined },
+    ) as unknown as CanvasRenderingContext2D;
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return stubCtx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+        savedPublishState: Record<string, unknown>;
+        currentProjection: { projection: string; dimensionality: number };
+        updateComplete: Promise<unknown>;
+        shadowRoot: ShadowRoot;
+      };
+      modal.savedPublishState = {
+        viewFingerprint: { projection: 'umap', dimensionality: 2 },
+        overlays: [{ type: 'label', x: 0.5, y: 0.5, text: 't', fontSize: 14, color: '#000' }],
+      };
+      modal.currentProjection = { projection: 'pca', dimensionality: 2 };
+      document.body.appendChild(modal);
+      await modal.updateComplete;
+
+      const warn = modal.shadowRoot.querySelector('.publish-warning');
+      expect(warn).not.toBeNull();
+      modal.remove();
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+    }
+  });
+
+  it('does not render the fingerprint warning when fingerprints match', async () => {
+    const stubCtx = new Proxy(
+      {},
+      { get: () => () => undefined },
+    ) as unknown as CanvasRenderingContext2D;
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return stubCtx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+        savedPublishState: Record<string, unknown>;
+        currentProjection: { projection: string; dimensionality: number };
+        updateComplete: Promise<unknown>;
+        shadowRoot: ShadowRoot;
+      };
+      modal.savedPublishState = {
+        viewFingerprint: { projection: 'umap', dimensionality: 2 },
+        overlays: [],
+      };
+      modal.currentProjection = { projection: 'umap', dimensionality: 2 };
+      document.body.appendChild(modal);
+      await modal.updateComplete;
+
+      const warn = modal.shadowRoot.querySelector('.publish-warning');
+      expect(warn).toBeNull();
+      modal.remove();
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+    }
+  });
+});
