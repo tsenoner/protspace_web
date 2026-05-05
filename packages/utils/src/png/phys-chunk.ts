@@ -14,6 +14,7 @@
 
 const PNG_SIGNATURE_LENGTH = 8;
 const INCH_PER_METRE = 39.3700787401575;
+const PNG_SIGNATURE: ReadonlyArray<number> = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 const CRC_TABLE: Uint32Array = (() => {
   const table = new Uint32Array(256);
@@ -72,33 +73,46 @@ export async function pngWithDpi(blob: Blob, dpi: number): Promise<Blob> {
   const ab: ArrayBuffer = await blob.arrayBuffer();
   const buf = new Uint8Array(ab);
   if (buf.length < PNG_SIGNATURE_LENGTH) return blob;
+  for (let i = 0; i < PNG_SIGNATURE_LENGTH; i++) {
+    if (buf[i] !== PNG_SIGNATURE[i]) {
+      console.warn('pngWithDpi: input is not a PNG (signature mismatch); returning unchanged');
+      return blob;
+    }
+  }
 
   // IHDR is always the first chunk, fixed-size: 4 length + 4 type + 13 data + 4 crc = 25 bytes.
   const ihdrEnd = PNG_SIGNATURE_LENGTH + 25;
   if (ihdrEnd > buf.length) return blob;
 
-  // Collect the byte ranges to include in the output (as [start, end) offsets into buf).
-  const ranges: Array<[number, number]> = [[0, ihdrEnd]]; // head (sig + IHDR)
+  const ranges: Array<[number, number]> = [[0, ihdrEnd]];
 
-  // Scan the tail, collecting non-pHYs chunk ranges.
   let cursor = ihdrEnd;
+  let malformed = false;
   while (cursor < buf.length) {
     if (cursor + 8 > buf.length) {
       ranges.push([cursor, buf.length]);
       break;
     }
     const length = readUint32(buf, cursor);
+    const total = 12 + length;
+    if (cursor + total > buf.length) {
+      malformed = true;
+      break;
+    }
     const tag = String.fromCharCode(
       buf[cursor + 4],
       buf[cursor + 5],
       buf[cursor + 6],
       buf[cursor + 7],
     );
-    const total = 12 + length;
     if (tag !== 'pHYs') {
       ranges.push([cursor, cursor + total]);
     }
     cursor += total;
+  }
+  if (malformed) {
+    console.warn('pngWithDpi: chunk length runs past end of buffer; returning unchanged');
+    return blob;
   }
 
   const phys = buildPhysChunk(dpi);
