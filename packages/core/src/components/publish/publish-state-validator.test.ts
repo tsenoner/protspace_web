@@ -265,4 +265,58 @@ describe('sanitizePublishState', () => {
     expect(result.resample).toBe(true);
     expect(result.aspectLocked).toBe(true);
   });
+
+  it('clamps NormRect width when x + w slightly exceeds 1', () => {
+    const out = sanitizePublishState({
+      insets: [
+        {
+          sourceRect: { x: 0.5, y: 0.5, w: 0.5009, h: 0.4 },
+          targetRect: { x: 0, y: 0, w: 0.2, h: 0.2 },
+          border: 0,
+          connector: 'none',
+        },
+      ],
+    });
+    expect(out.insets).toHaveLength(1);
+    expect(out.insets[0].sourceRect.x + out.insets[0].sourceRect.w).toBeLessThanOrEqual(1);
+  });
+
+  it('rejects NormRect when x + w exceeds the slack tolerance', () => {
+    const out = sanitizePublishState({
+      insets: [
+        {
+          sourceRect: { x: 0.5, y: 0, w: 0.6, h: 0.2 },
+          targetRect: { x: 0, y: 0, w: 0.2, h: 0.2 },
+          border: 0,
+          connector: 'none',
+        },
+      ],
+    });
+    expect(out.insets).toHaveLength(0);
+  });
+
+  it('caps label text length to MAX_LABEL_TEXT_LENGTH', () => {
+    const huge = 'a'.repeat(10_000);
+    const out = sanitizePublishState({
+      overlays: [{ type: 'label', x: 0.1, y: 0.1, text: huge, fontSize: 14, color: '#000' }],
+    });
+    expect(out.overlays).toHaveLength(1);
+    const label = out.overlays[0] as { text: string };
+    expect(label.text.length).toBe(256);
+  });
+
+  it('does not mutate Object.prototype when given a __proto__ payload', () => {
+    const originalToString = Object.prototype.toString;
+    sanitizePublishState(JSON.parse('{"__proto__": {"isAdmin": true}, "overlays": []}'));
+    expect((Object.prototype as unknown as { isAdmin?: boolean }).isAdmin).toBeUndefined();
+    expect(Object.prototype.toString).toBe(originalToString);
+  });
+
+  it('survives deeply nested junk values without throwing', () => {
+    let nested: unknown = 'leaf';
+    for (let i = 0; i < 200; i++) nested = { wrap: nested };
+    expect(() =>
+      sanitizePublishState({ overlays: [nested], insets: [{ sourceRect: nested }] }),
+    ).not.toThrow();
+  });
 });
