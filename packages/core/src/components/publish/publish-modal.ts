@@ -523,6 +523,7 @@ export class ProtspacePublishModal extends LitElement {
     state: PublishState,
     plotRect: { w: number; h: number },
     bgColor: string,
+    opts: { forExport?: boolean } = {},
   ): Array<HTMLCanvasElement | null> {
     if (state.insets.length === 0) {
       this._insetRenderCache.clear();
@@ -560,7 +561,7 @@ export class ProtspacePublishModal extends LitElement {
       typeof performance !== 'undefined' && typeof performance.now === 'function'
         ? performance.now()
         : Date.now();
-    const fastPath = now - this._lastInsetRenderAt < 80;
+    const fastPath = !opts.forExport && now - this._lastInsetRenderAt < 80;
     const livingKeys = new Set<string>();
     if (this._lastInsetCanvases.length !== state.insets.length) {
       this._lastInsetCanvases.length = state.insets.length;
@@ -721,7 +722,9 @@ export class ProtspacePublishModal extends LitElement {
     });
 
     // Per-inset geometric renders for the export.
-    const insetRenders = this._captureInsetRenders(plotEl, s, plotRect, bgColor);
+    const insetRenders = this._captureInsetRenders(plotEl, s, plotRect, bgColor, {
+      forExport: true,
+    });
 
     const outCanvas = document.createElement('canvas');
     outCanvas.width = s.widthPx;

@@ -871,4 +871,62 @@ describe('<protspace-publish-modal> plot cache key', () => {
       HTMLCanvasElement.prototype.getContext = origGetContext;
     }
   });
+
+  it('inset render skips fast-path when invoked from export', async () => {
+    const captures: Array<{ w: number; h: number }> = [];
+    const fakePlotEl = {
+      captureAtResolution: (w: number, h: number) => {
+        captures.push({ w, h });
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        return c;
+      },
+      getDataExtent: () => ({ xMin: 0, xMax: 1, yMin: 0, yMax: 1 }),
+      getRenderInfo: () => ({ marginLeft: 0, marginRight: 0, marginTop: 0, marginBottom: 0 }),
+    } as unknown as HTMLElement;
+
+    const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+      plotElement: HTMLElement;
+      _state: Record<string, unknown>;
+      _lastInsetRenderAt: number;
+      _lastInsetCanvases: Array<HTMLCanvasElement | undefined>;
+      _captureInsetRenders: (
+        plotEl: unknown,
+        state: unknown,
+        plotRect: { w: number; h: number },
+        bgColor: string,
+        opts?: { forExport?: boolean },
+      ) => Array<HTMLCanvasElement | null>;
+    };
+    modal.plotElement = fakePlotEl;
+    document.body.appendChild(modal);
+    modal._lastInsetRenderAt = performance.now();
+    // Simulate a prior preview-resolution render sitting in the cache. Without
+    // the export bypass this is what _handleExport would silently return at
+    // tiny preview dims instead of a fresh export-resolution render.
+    const previewCanvas = document.createElement('canvas');
+    previewCanvas.width = 100;
+    previewCanvas.height = 60;
+    modal._lastInsetCanvases = [previewCanvas];
+    modal._state = {
+      ...(modal._state as Record<string, unknown>),
+      insets: [
+        {
+          sourceRect: { x: 0, y: 0, w: 0.5, h: 0.5 },
+          targetRect: { x: 0.5, y: 0.5, w: 0.4, h: 0.4 },
+          border: 0,
+          connector: 'none',
+        },
+      ],
+    };
+    captures.length = 0;
+
+    modal._captureInsetRenders(fakePlotEl, modal._state, { w: 1000, h: 600 }, '#ffffff', {
+      forExport: true,
+    });
+
+    expect(captures.length).toBeGreaterThan(0);
+    modal.remove();
+  });
 });
