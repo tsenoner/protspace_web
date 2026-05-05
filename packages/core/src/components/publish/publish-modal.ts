@@ -20,7 +20,15 @@ import {
   type Overlay,
   type Inset,
 } from './publish-state';
-import { pxToMm, mmToIn, mmToCm, inToMm, cmToMm, mmToPx } from './dimension-utils';
+import {
+  pxToMm,
+  mmToIn,
+  mmToCm,
+  inToMm,
+  cmToMm,
+  mmToPx,
+  SIZE_MODE_WIDTH_MM,
+} from './dimension-utils';
 import { sanitizePublishState } from './publish-state-validator';
 import {
   capturePlotCanvas,
@@ -496,17 +504,20 @@ export class ProtspacePublishModal extends LitElement {
       const maxPx = mmToPx(preset.maxHeightMm, preset.dpi);
       heightPx = Math.min(heightPx, maxPx);
     }
+    // Match the preset's mm width to the corresponding sizeMode so the UI's
+    // width-locked logic stays consistent with the dimensions being applied.
+    let sizeMode = this._state.sizeMode;
+    if (preset?.widthMm === SIZE_MODE_WIDTH_MM['1-column']) sizeMode = '1-column';
+    else if (preset?.widthMm === SIZE_MODE_WIDTH_MM['2-column']) sizeMode = '2-column';
+    else if (preset?.widthMm === undefined) sizeMode = 'flexible';
     this._state = {
       ...this._state,
       ...patch,
       heightPx,
+      sizeMode,
     };
     this._plotCacheKey = '';
-    if (wasResampleOff) {
-      this._showResampleNote = true;
-    } else {
-      this._showResampleNote = false;
-    }
+    this._showResampleNote = wasResampleOff;
   }
 
   /**

@@ -931,6 +931,37 @@ describe('<protspace-publish-modal> plot cache key', () => {
   });
 });
 
+describe('<protspace-publish-modal> preset sizeMode sync', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('switches sizeMode to 1-column when applying a 1-column preset', async () => {
+    const stubCtx = new Proxy(
+      {},
+      { get: () => () => undefined },
+    ) as unknown as CanvasRenderingContext2D;
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return stubCtx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+        _state: { sizeMode: string; preset: string };
+        _applyPreset: (id: string) => void;
+      };
+      document.body.appendChild(modal);
+      modal._state = { ...modal._state, sizeMode: '2-column' };
+      modal._applyPreset('nature-1col');
+      expect(modal._state.sizeMode).toBe('1-column');
+      modal.remove();
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+    }
+  });
+});
+
 describe('<protspace-publish-modal> disconnect guard', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
