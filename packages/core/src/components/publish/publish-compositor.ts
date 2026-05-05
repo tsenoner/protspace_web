@@ -229,20 +229,8 @@ function renderLegendCanvas(items: LegendItem[], opts: LegendRenderOptions): HTM
     );
   }
 
-  // Compute cumulative Y offsets per column
+  // Compute cumulative Y offsets per column from each item's actual height.
   const colYOffsets: number[][] = Array.from({ length: columns }, () => []);
-  for (let i = 0; i < renderItems.length; i++) {
-    const col = Math.floor(i / itemsPerCol);
-    const row = i % itemsPerCol;
-    const prevY =
-      row === 0
-        ? 0
-        : colYOffsets[col][row - 1] +
-          Math.max(itemHeight, lineCounts[i - columns >= 0 ? i : i] * lineHeight + itemPadding * 2);
-    colYOffsets[col].push(row === 0 ? 0 : prevY);
-  }
-
-  // Recompute properly: accumulate based on previous item's actual height
   for (let col = 0; col < columns; col++) {
     let y = 0;
     for (let row = 0; row < itemsPerCol; row++) {
