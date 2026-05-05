@@ -24,11 +24,13 @@ Click **Figure Editor** to open a full-screen editor with live preview. This is 
 Key features:
 
 - **Journal presets** for Nature, Science, Cell, PNAS, PLOS, and presentations
-- **DPI/mm linkage** — set dimensions in physical units for print
+- **Photoshop-style Dimensions panel** — Width/Height/DPI, unit toggle (px/mm/in/cm), Resample on/off, aspect-lock chain
 - **Overlays** — circles, arrows, and text labels to annotate your figure
-- **Zoom insets** — magnify regions of interest
-- **Legend customization** — position, font size, columns, free-floating placement
-- **Persistent settings** — your layout is saved and restored between sessions
+- **Zoom insets** — true geometric magnification with a per-inset Dot size slider
+- **Legend customization** — position, font size in pt or px, columns, free-floating placement
+- **Click-to-select + Delete/Backspace** — click an overlay or inset (canvas or sidebar) and press Delete to remove it
+- **Persistent settings** — your layout is saved to localStorage and optionally embedded in `.parquetbundle` files
+- **Print-correct output** — PNG includes pHYs DPI metadata; PDF page size is mm-accurate
 
 ### Quick Export
 
