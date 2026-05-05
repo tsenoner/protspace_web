@@ -39,6 +39,7 @@ export type {
   LegendOverflow,
 } from './components/publish/publish-state';
 export type { PresetId, JournalPreset } from './components/publish/journal-presets';
+export { pxToMm } from './components/publish/dimension-utils';
 
 // Utilities for data loading
 export { readFileOptimized } from './components/data-loader/utils/file-io';

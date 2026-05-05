@@ -170,20 +170,10 @@ export class ProtspacePublishModal extends LitElement {
   private _redrawHandle: number | null = null;
   private _plotCacheKey = '';
   private _cachedPlotCanvas: HTMLCanvasElement | null = null;
-  /** Per-inset geometric capture cache. Keyed by sourceRect + target dims +
-   *  plotRect dims + dot scale + bgColor — renders at the target rect's
-   *  exact pixel dims so dot pixel sizes map 1:1 to display. */
   private _insetRenderCache = new Map<string, HTMLCanvasElement>();
-  /** Last WebGL-rendered canvas per inset index. Used as a stretchable
-   *  fallback during high-frequency state updates (drag-resize) to skip
-   *  the ~15–30 ms WebGL context setup + shader compile per frame. The
-   *  compositor's drawImage stretches it to the live target rect — minor
-   *  blur during drag, replaced by a fresh render once activity settles. */
+  /** Stretchable fallback during drag — saves ~15–30 ms WebGL setup per frame. */
   private _lastInsetCanvases: Array<HTMLCanvasElement | null> = [];
   private _lastInsetRenderAt = 0;
-  /** When fastPath skipped a render, fire a follow-up rAF tick after the
-   *  user stops moving so we replace the stretched cache with a fresh,
-   *  full-resolution render. */
   private _settleTimer: ReturnType<typeof setTimeout> | null = null;
   private _disposed = false;
 
