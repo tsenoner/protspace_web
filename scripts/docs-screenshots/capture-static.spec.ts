@@ -400,6 +400,40 @@ test.describe('Control Bar Screenshots', () => {
     console.log('📸 Captured: control-bar-annotation.png');
   });
 
+  test('figure-editor-overview.png - Figure Editor modal full layout', async ({ page }) => {
+    // Open the Figure Editor by dispatching the same event the Export-menu's
+    // "Figure Editor" button fires. Skips dropdown timing, viewport clipping.
+    await page.evaluate(() => {
+      const cb = document.querySelector('protspace-control-bar');
+      cb?.dispatchEvent(new CustomEvent('open-publish-editor', { bubbles: true, composed: true }));
+    });
+
+    // Wait for the modal to mount + its preview canvas to have non-zero pixels.
+    await page.waitForFunction(() => !!document.querySelector('protspace-publish-modal'), {
+      timeout: 10_000,
+    });
+    await page.waitForFunction(
+      () => {
+        const m = document.querySelector('protspace-publish-modal') as
+          | (HTMLElement & { shadowRoot: ShadowRoot })
+          | null;
+        const c = m?.shadowRoot?.querySelector(
+          '.publish-preview-canvas',
+        ) as HTMLCanvasElement | null;
+        return !!c && c.width > 0 && c.height > 0;
+      },
+      { timeout: 10_000, polling: 250 },
+    );
+    // Settle: rAF redraw + font readiness.
+    await page.waitForTimeout(800);
+
+    await page.screenshot({
+      path: path.join(IMAGES_DIR, 'figure-editor-overview.png'),
+      fullPage: false,
+    });
+    console.log('📸 Captured: figure-editor-overview.png');
+  });
+
   test('control-bar-export.png - Export menu', async ({ page }) => {
     // Open export dropdown
     await page.evaluate(() => {
