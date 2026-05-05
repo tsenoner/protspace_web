@@ -111,50 +111,6 @@ describe('ProtSpaceExporter.validateCanvasDimensions', () => {
   });
 });
 
-describe('Export dimension calculations', () => {
-  describe('legend width percentage calculations', () => {
-    it('calculates correct legend width from percentage', () => {
-      // If scatterplot is 2048px and legend is 25%, total should be 2048 / 0.75 = 2730.67
-      // Legend width = 2730.67 * 0.25 = 682.67
-      const scatterWidth = 2048;
-      const legendPercent = 25 / 100;
-      const legendWidth = Math.round(scatterWidth * (legendPercent / (1 - legendPercent)));
-
-      expect(legendWidth).toBe(683); // Rounded
-    });
-
-    it('handles different legend percentages', () => {
-      const scatterWidth = 1000;
-
-      // 15% legend
-      const legend15 = Math.round(scatterWidth * (0.15 / 0.85));
-      expect(legend15).toBe(176);
-
-      // 50% legend
-      const legend50 = Math.round(scatterWidth * (0.5 / 0.5));
-      expect(legend50).toBe(1000);
-    });
-  });
-
-  describe('target dimensions for export', () => {
-    it('calculates target width excluding legend', () => {
-      const imageWidth = 2048;
-      const legendPercent = 25 / 100;
-      const targetWidth = Math.round(imageWidth * (1 - legendPercent));
-
-      expect(targetWidth).toBe(1536);
-    });
-
-    it('handles various image widths', () => {
-      const legendPercent = 0.25;
-
-      expect(Math.round(800 * (1 - legendPercent))).toBe(600);
-      expect(Math.round(4096 * (1 - legendPercent))).toBe(3072);
-      expect(Math.round(8192 * (1 - legendPercent))).toBe(6144);
-    });
-  });
-});
-
 describe('Export scale factor calculations', () => {
   const BASE_FONT_SIZE = 24;
 
@@ -244,28 +200,6 @@ describe('Export options validation', () => {
   });
 });
 
-describe('getOptionsWithDefaults includeLegend behavior', () => {
-  // getOptionsWithDefaults is private, so we test its behavior via the
-  // static defaults and the ExportOptions contract it consumes.
-
-  it('should default includeLegend to true when not specified', () => {
-    // The private method does: includeLegend: options.includeLegend ?? true
-    // Verify the default is correct by checking the contract:
-    const unset = undefined ?? true;
-    expect(unset).toBe(true);
-  });
-
-  it('should respect explicit false', () => {
-    const explicit = false ?? true;
-    expect(explicit).toBe(false);
-  });
-
-  it('should respect explicit true', () => {
-    const explicit = true ?? true;
-    expect(explicit).toBe(true);
-  });
-});
-
 describe('Export filename generation', () => {
   it('generates consistent filename format', () => {
     // Expected format: protspace_{projection}_{annotation}_{date}.{ext}
@@ -290,51 +224,6 @@ describe('Export filename generation', () => {
     expect(removeDimensionSuffix('pca_2')).toBe('pca');
     expect(removeDimensionSuffix('umap_3')).toBe('umap');
     expect(removeDimensionSuffix('tsne_2d')).toBe('tsne_2d'); // Only removes _2 or _3
-  });
-});
-
-describe('Export constants', () => {
-  // These tests verify the expected export constant values
-  describe('canvas limits', () => {
-    const MAX_CANVAS_DIMENSION = 8192;
-    const MAX_CANVAS_AREA = 268435456;
-    const SAFE_DIMENSION_MARGIN = 0.95;
-
-    it('has correct maximum dimension limit', () => {
-      expect(MAX_CANVAS_DIMENSION).toBe(8192);
-    });
-
-    it('has correct maximum area limit (~268M pixels)', () => {
-      expect(MAX_CANVAS_AREA).toBe(268435456);
-    });
-
-    it('calculates safe dimension correctly', () => {
-      const safeDimension = Math.floor(MAX_CANVAS_DIMENSION * SAFE_DIMENSION_MARGIN);
-      expect(safeDimension).toBe(7782);
-    });
-
-    it('calculates safe area correctly', () => {
-      const safeArea = MAX_CANVAS_AREA * SAFE_DIMENSION_MARGIN;
-      expect(safeArea).toBe(255013683.2);
-    });
-  });
-
-  describe('PDF constants', () => {
-    const PDF_MARGIN = 2;
-    const PDF_GAP = 4;
-    const PDF_MAX_WIDTH = 210; // A4 width in mm
-
-    it('has correct PDF margin', () => {
-      expect(PDF_MARGIN).toBe(2);
-    });
-
-    it('has correct PDF gap', () => {
-      expect(PDF_GAP).toBe(4);
-    });
-
-    it('has correct A4 max width', () => {
-      expect(PDF_MAX_WIDTH).toBe(210);
-    });
   });
 });
 
