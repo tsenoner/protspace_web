@@ -14,7 +14,7 @@ Download example datasets from the [data folder on GitHub](https://github.com/ts
 
 ## What Can You Do?
 
-- **Visualize** protein embeddings in 2D using PCA, UMAP, t-SNE
+- **Visualize** protein embeddings in 2D or 3D using PCA, UMAP, t-SNE, PaCMAP, or MDS
 - **Color** points by biological annotations (taxonomy, family, function, etc.)
 - **Filter** and isolate specific protein groups
 - **Search** for specific proteins by ID

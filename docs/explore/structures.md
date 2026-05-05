@@ -10,7 +10,7 @@ When you select a protein with a UniProt accession:
 
 1. The structure viewer appears in the sidebar below the legend
 2. Links to [AlphaFold Database](https://alphafold.ebi.ac.uk/), [UniProt](https://www.uniprot.org/), and [InterPro](https://www.interpro.org/) appear at the top - click them anytime
-3. The AlphaFold structure loads automatically via [3D-Beacons API](https://www.ebi.ac.uk/pdbe/pdbe-kb/3dbeacons/)
+3. The AlphaFold structure file is fetched directly from the [AlphaFold Database API](https://alphafold.ebi.ac.uk/api-docs); the [3D-Beacons API](https://www.ebi.ac.uk/pdbe/pdbe-kb/3dbeacons/) is used only to look up the model page link
 
 ::: tip Supported Structures
 Currently, ProtSpace supports **AlphaFold structures** only. PDB experimental structures are not yet integrated.

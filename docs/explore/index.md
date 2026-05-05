@@ -19,7 +19,7 @@ The ProtSpace Explore page provides an interactive environment for visualizing a
 
 The control bar contains:
 
-1. **Projection dropdown** - Switch between PCA, UMAP, t-SNE
+1. **Projection dropdown** - Switch between PCA, UMAP, t-SNE, PaCMAP, or MDS
 2. **Annotation dropdown** - Color points by annotation
 3. **Search box** - Find proteins by ID
 4. **Select button** - Rectangle or lasso selection mode
