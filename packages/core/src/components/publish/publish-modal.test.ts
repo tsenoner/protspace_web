@@ -930,3 +930,56 @@ describe('<protspace-publish-modal> plot cache key', () => {
     modal.remove();
   });
 });
+
+describe('<protspace-publish-modal> disconnect guard', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('does not call _setupOverlay after disconnect during _applyStateAndRebuild', async () => {
+    // jsdom doesn't implement canvas getContext; stub it so the redraw
+    // path triggered by _applyStateAndRebuild doesn't throw inside a rAF
+    // callback.
+    const stubCtx = new Proxy(
+      {},
+      { get: () => () => undefined },
+    ) as unknown as CanvasRenderingContext2D;
+    const origGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function () {
+      return stubCtx;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    try {
+      const modal = document.createElement('protspace-publish-modal') as HTMLElement & {
+        _setupOverlay: () => void;
+        _applyStateAndRebuild: (s: unknown) => void;
+        _state: Record<string, unknown>;
+        plotElement: HTMLElement;
+        updateComplete: Promise<unknown>;
+      };
+      modal.plotElement = document.createElement('div');
+      document.body.appendChild(modal);
+      // Wait for the first render so firstUpdated() (which itself calls
+      // _setupOverlay) has already fired before we start counting.
+      await modal.updateComplete;
+
+      let setupCalls = 0;
+      const orig = modal._setupOverlay.bind(modal);
+      modal._setupOverlay = () => {
+        setupCalls++;
+        orig();
+      };
+
+      modal._applyStateAndRebuild({ ...modal._state });
+      modal.remove();
+
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((r) => requestAnimationFrame(r));
+
+      expect(setupCalls).toBe(0);
+    } finally {
+      HTMLCanvasElement.prototype.getContext = origGetContext;
+    }
+  });
+});

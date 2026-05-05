@@ -177,9 +177,11 @@ export class ProtspacePublishModal extends LitElement {
    *  user stops moving so we replace the stretched cache with a fresh,
    *  full-resolution render. */
   private _settleTimer: ReturnType<typeof setTimeout> | null = null;
+  private _disposed = false;
 
   override connectedCallback() {
     super.connectedCallback();
+    this._disposed = false;
     this._state = this.savedPublishState
       ? sanitizePublishState(this.savedPublishState)
       : createDefaultPublishState();
@@ -198,6 +200,7 @@ export class ProtspacePublishModal extends LitElement {
 
   override disconnectedCallback() {
     super.disconnectedCallback();
+    this._disposed = true;
     window.removeEventListener('keydown', this._onKeyDown);
     this._overlayController?.destroy();
     this._overlayController = null;
@@ -783,7 +786,10 @@ export class ProtspacePublishModal extends LitElement {
     this._plotCacheKey = '';
     this._overlayController?.destroy();
     this._overlayController = null;
-    this.updateComplete.then(() => this._setupOverlay());
+    this.updateComplete.then(() => {
+      if (this._disposed) return;
+      this._setupOverlay();
+    });
   }
 
   private _clearOverlays() {
