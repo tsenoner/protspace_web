@@ -63,6 +63,20 @@ OPFS may be unavailable in private/incognito browsing mode, when browser storage
 ProtSpace still works normally without OPFS. Your dataset loads for the current session, but you will need to import it again after reloading the page.
 :::
 
+## When a Previous Load Crashed
+
+If a previous session failed to finish loading a dataset (browser crash, tab closed mid-load, or a corrupt file), ProtSpace shows a recovery banner above the scatterplot when you return. The banner names the file that didn't finish and offers three actions:
+
+- **Try again** — re-attempts the load from the stored copy. Useful if the previous failure was transient (network hiccup, momentary browser stall).
+- **Load default** — replaces the stored file with the demo dataset. Use this if you don't need to recover the specific file.
+- **Clear stored data** — deletes the stored file without loading anything. Choose this if the file is corrupt or you'd rather import a fresh copy yourself.
+
+After three failed retries the banner shifts tone, recommending you clear or load the demo rather than continue retrying.
+
+::: info Why a banner instead of just retrying?
+Auto-retry would loop forever on a genuinely broken file. The banner makes the failure visible and lets you choose the recovery path that fits the situation.
+:::
+
 ## Need a Data File?
 
 To create your own `.parquetbundle` files:

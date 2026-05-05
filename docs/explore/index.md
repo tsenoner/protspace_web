@@ -61,6 +61,16 @@ When you select a protein, the 3D viewer appears and fetches its structure from 
 
 <img src="./images/structure-viewer.png" alt="Structure Viewer - showing 3D protein structure" style="max-width: 50%; display: block; margin: 1em 0;" />
 
+## Product Tour
+
+The first time you load a dataset, ProtSpace plays a short guided tour highlighting the projection picker, search, selection tools, the Export menu, and the legend. The tour pauses on each step until you click **Next**, and you can dismiss it any time with **Skip** or by pressing <kbd>Esc</kbd>.
+
+To replay the tour later, click the **?** icon in the top-right of the scatterplot to open the Tips popover, then click **Take a Tour**.
+
+::: tip Keyboard Shortcuts
+The same Tips popover lists all keyboard shortcuts (search, selection, navigation). Worth a glance even if you skip the tour.
+:::
+
 ## Next Steps
 
 - [Importing Data](/explore/importing-data) - Load your protein data
