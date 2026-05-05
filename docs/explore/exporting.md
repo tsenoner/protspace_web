@@ -1,14 +1,10 @@
 # Exporting Results
 
-ProtSpace allows you to export images and data for further use.
+ProtSpace allows you to export publication-ready figures, raw data, and protein IDs.
 
 ## Export Button
 
-Click **Export** in the control bar to see available options:
-
-![Export options](./images/control-bar-export.png)
-
-## Available Formats
+Click **Export** in the control bar to see available formats:
 
 | Format          | Description                                               |
 | --------------- | --------------------------------------------------------- |
@@ -19,28 +15,37 @@ Click **Export** in the control bar to see available options:
 
 ## Image Export (PNG / PDF)
 
-When exporting as PNG or PDF, you can customize the output:
+When PNG or PDF is selected, you have two export paths:
 
-| Setting               | Range       | Default | Description                             |
-| --------------------- | ----------- | ------- | --------------------------------------- |
-| **Width**             | 800–8192 px | 2048    | Image width in pixels                   |
-| **Height**            | 600–8192 px | 1024    | Image height in pixels                  |
-| **Lock aspect ratio** | on/off      | on      | Maintain proportions when changing size |
-| **Legend width**      | 15–50%      | 25%     | Percentage of image width for legend    |
-| **Legend font size**  | 8–120 px    | 24      | Font size for legend labels             |
+### Figure Editor (Recommended)
 
-The exported image includes the scatterplot and legend side by side.
+Click **Figure Editor** to open a full-screen editor with live preview. This is the primary workflow for creating publication-quality figures. See the [Figure Editor guide](./figure-editor) for full documentation.
+
+Key features:
+
+- **Journal presets** for Nature, Science, Cell, PNAS, PLOS, and presentations
+- **Photoshop-style Dimensions panel** — Width/Height/DPI, unit toggle (px/mm/in/cm), Resample on/off, aspect-lock chain
+- **Overlays** — circles, arrows, and text labels to annotate your figure
+- **Zoom insets** — true geometric magnification with a per-inset Dot size slider
+- **Legend customization** — position, font size in pt or px, columns, free-floating placement
+- **Click-to-select + Delete/Backspace** — click an overlay or inset (canvas or sidebar) and press Delete to remove it
+- **Persistent settings** — your layout is saved to localStorage and optionally embedded in `.parquetbundle` files
+- **Print-correct output** — PNG includes pHYs DPI metadata; PDF page size is mm-accurate
+
+### Quick Export
+
+Click **Quick Export** to download an image immediately using default or previously saved settings. No preview — useful when you've already configured the Figure Editor and want the same output again.
 
 ## Parquet Export
 
-Export a `.parquetbundle` file that can be loaded back into ProtSpace or shared with others.
+Export a `.parquetbundle` file that can be loaded back into ProtSpace or shared.
 
-- **Include legend settings**: When checked, your current legend customizations (colors, shapes, ordering, visibility, palette) are saved inside the file. Anyone who loads it will see the same visual configuration.
-- **Include export options**: When checked, your current image export settings (width, height, aspect ratio lock, legend width, legend font size) are saved inside the file. This lets you preserve consistent export dimensions across sessions or when sharing files.
+- **Include legend settings**: Saves your current legend customizations (colors, shapes, ordering, visibility, palette) inside the file. Anyone who loads it will see the same visual configuration.
+- **Figure editor settings**: When legend settings are included, the Figure Editor state (dimensions, DPI, legend layout, overlays, insets) is also saved. This lets you reopen the Figure Editor exactly where you left off.
 
 ## Protein IDs Export
 
-Exports a plain text file with one protein ID per line. Useful for downstream analysis in other tools.
+Exports a plain text file with one protein ID per line. Useful for downstream analysis.
 
 ## What Gets Exported
 
@@ -53,5 +58,6 @@ Use isolation to export specific subsets.
 
 ## Next Steps
 
+- [Figure Editor](./figure-editor) - Full guide to the publication figure editor
 - [FAQ](/guide/faq) - Common questions
 - [Data Format Reference](/guide/data-format) - Understanding the file format

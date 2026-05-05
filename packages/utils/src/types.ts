@@ -153,6 +153,8 @@ export type ExportOptionsMap = Record<string, PersistedExportOptions>;
 export interface BundleSettings {
   legendSettings: LegendSettingsMap;
   exportOptions: ExportOptionsMap;
+  /** Serialised publish/figure editor state. Free-form JSON — validated on load. */
+  publishState?: Record<string, unknown>;
 }
 
 /**

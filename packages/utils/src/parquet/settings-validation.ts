@@ -169,6 +169,17 @@ export function isNormalizedBundleSettings(obj: unknown): obj is BundleSettings 
   }
 
   const settings = obj as Record<string, unknown>;
+
+  // publishState is optional and free-form — just check it's an object if present
+  if (
+    settings.publishState !== undefined &&
+    (typeof settings.publishState !== 'object' ||
+      settings.publishState === null ||
+      Array.isArray(settings.publishState))
+  ) {
+    return false;
+  }
+
   return (
     isValidLegendSettingsMap(settings.legendSettings) &&
     isValidExportOptionsMap(settings.exportOptions)
@@ -280,14 +291,27 @@ function sanitizeExportOptionsMap(obj: unknown): ExportOptionsMap | null {
   return result;
 }
 
+export interface NormalizeBundleSettingsOptions {
+  /** Optional sanitizer applied to `publishState` before it leaves the boundary.
+   *  Injected because `@protspace/utils` cannot depend on `@protspace/core`. */
+  sanitizePublishState?: (input: unknown) => unknown;
+}
+
 /**
  * Normalize bundle settings to the current format.
  */
-export function normalizeBundleSettings(obj: unknown): BundleSettings | null {
+export function normalizeBundleSettings(
+  obj: unknown,
+  options: NormalizeBundleSettingsOptions = {},
+): BundleSettings | null {
   if (isNormalizedBundleSettings(obj)) {
     return {
       legendSettings: sanitizeLegendSettingsMap(obj.legendSettings) ?? obj.legendSettings,
       exportOptions: sanitizeExportOptionsMap(obj.exportOptions) ?? obj.exportOptions,
+      publishState:
+        options.sanitizePublishState && obj.publishState !== undefined
+          ? (options.sanitizePublishState(obj.publishState) as Record<string, unknown>)
+          : obj.publishState,
     };
   }
 
@@ -305,9 +329,20 @@ export function normalizeBundleSettings(obj: unknown): BundleSettings | null {
     const sanitizedExportOptions = sanitizeExportOptionsMap(settings.exportOptions) ?? {};
 
     if (sanitizedLegendSettings) {
+      const rawPublishState =
+        typeof settings.publishState === 'object' &&
+        settings.publishState !== null &&
+        !Array.isArray(settings.publishState)
+          ? (settings.publishState as Record<string, unknown>)
+          : undefined;
+      const publishState =
+        options.sanitizePublishState && rawPublishState !== undefined
+          ? (options.sanitizePublishState(rawPublishState) as Record<string, unknown>)
+          : rawPublishState;
       return {
         legendSettings: sanitizedLegendSettings,
         exportOptions: sanitizedExportOptions,
+        publishState,
       };
     }
   }

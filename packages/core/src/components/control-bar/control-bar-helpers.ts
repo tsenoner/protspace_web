@@ -3,8 +3,6 @@
  * These functions contain the core logic extracted from the component for better testability
  */
 
-import type { PersistedExportOptions } from '@protspace/utils';
-
 /**
  * Export default settings
  */
@@ -20,44 +18,6 @@ export const EXPORT_DEFAULTS = {
   LOCK_ASPECT_RATIO: true,
   INCLUDE_LEGEND: true,
 };
-
-export function createDefaultExportOptions(): PersistedExportOptions {
-  return {
-    imageWidth: EXPORT_DEFAULTS.IMAGE_WIDTH,
-    imageHeight: EXPORT_DEFAULTS.IMAGE_HEIGHT,
-    lockAspectRatio: EXPORT_DEFAULTS.LOCK_ASPECT_RATIO,
-    legendWidthPercent: EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT,
-    legendFontSizePx: EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX,
-    includeLegendSettings: true,
-    includeExportOptions: true,
-  };
-}
-
-/**
- * Calculate new height when width changes with locked aspect ratio
- */
-export function calculateHeightFromWidth(
-  newWidth: number,
-  oldWidth: number,
-  currentHeight: number,
-): number {
-  if (oldWidth <= 0) return currentHeight;
-  const ratio = newWidth / oldWidth;
-  return Math.round(currentHeight * ratio);
-}
-
-/**
- * Calculate new width when height changes with locked aspect ratio
- */
-export function calculateWidthFromHeight(
-  newHeight: number,
-  oldHeight: number,
-  currentWidth: number,
-): number {
-  if (oldHeight <= 0) return currentWidth;
-  const ratio = newHeight / oldHeight;
-  return Math.round(currentWidth * ratio);
-}
 
 /**
  * Check if projection is 3D based on metadata

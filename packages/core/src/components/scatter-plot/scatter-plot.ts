@@ -2342,7 +2342,18 @@ export class ProtspaceScatterplot extends LitElement {
   public captureAtResolution(
     width: number,
     height: number,
-    options: { dpr?: number; backgroundColor?: string } = {},
+    options: {
+      dpr?: number;
+      backgroundColor?: string;
+      /** Render only this data-coordinate region. Used by zoom-inset rendering
+       *  so the inset is a real geometric zoom (native point sizes) rather
+       *  than a raster crop+upscale of the main plot. */
+      dataDomain?: { xMin: number; xMax: number; yMin: number; yMax: number };
+      /** Override the canvas dims used to compute point sizing. Inset renders
+       *  pass the source plot's render size so dots stay the same visual size
+       *  as in the main plot, instead of shrinking with the inset. */
+      pointSizeReference?: { width: number; height: number };
+    } = {},
   ): HTMLCanvasElement {
     if (!this._webglRenderer) {
       throw new Error('WebGL renderer not initialized');
@@ -2352,10 +2363,16 @@ export class ProtspaceScatterplot extends LitElement {
       throw new Error('Width and height must be positive numbers');
     }
 
-    const { dpr = 1, backgroundColor = '#ffffff' } = options;
+    const { dpr = 1, backgroundColor = '#ffffff', dataDomain, pointSizeReference } = options;
 
     // Capture WebGL content using native off-screen rendering
-    const webglCanvas = this._webglRenderer.renderToCanvas(width, height, dpr);
+    const webglCanvas = this._webglRenderer.renderToCanvas(
+      width,
+      height,
+      dpr,
+      dataDomain,
+      pointSizeReference,
+    );
 
     // Composite with badges canvas if present
     const badgesCanvas = this._badgesCanvas;
@@ -2392,6 +2409,42 @@ export class ProtspaceScatterplot extends LitElement {
     }
 
     return webglCanvas;
+  }
+
+  /**
+   * Margin used for a render at the given export dimensions. Returned values
+   * are in *export pixel space*. The publish modal uses this to translate
+   * inset source rects (in canvas-norm 0–1) into accurate data-coordinate
+   * viewports, instead of approximating with the raw extent.
+   */
+  public getRenderInfo(
+    exportWidth: number,
+    exportHeight: number,
+  ): { marginLeft: number; marginRight: number; marginTop: number; marginBottom: number } | null {
+    if (!this._webglRenderer) return null;
+    return this._webglRenderer.getRenderInfo(exportWidth, exportHeight);
+  }
+
+  /**
+   * Data extent of the most recently rendered points. With `padded: true`
+   * applies the same 5% padding the renderer uses by default — so the
+   * returned domain matches what the main plot is actually showing.
+   */
+  public getDataExtent(
+    options: { padded?: boolean } = {},
+  ): { xMin: number; xMax: number; yMin: number; yMax: number } | null {
+    if (!this._webglRenderer) return null;
+    const ext = this._webglRenderer.getDataExtent();
+    if (!ext) return null;
+    if (!options.padded) return ext;
+    const xPad = Math.abs(ext.xMax - ext.xMin) * 0.05;
+    const yPad = Math.abs(ext.yMax - ext.yMin) * 0.05;
+    return {
+      xMin: ext.xMin - xPad,
+      xMax: ext.xMax + xPad,
+      yMin: ext.yMin - yPad,
+      yMax: ext.yMax + yPad,
+    };
   }
 }
 

@@ -139,13 +139,10 @@ export function createDatasetController({
       const shouldApplyEmbeddedFileSettings = settings && loadMeta.kind !== 'opfs';
       if (shouldApplyEmbeddedFileSettings) {
         legendElement.setFileSettings(settings.legendSettings, datasetHash, true);
-        controlBar.setFileSettings(settings.exportOptions, datasetHash, false);
       }
 
       controlBar.hasFileSettings =
-        settings != null &&
-        (Object.keys(settings.legendSettings).length > 0 ||
-          Object.keys(settings.exportOptions).length > 0);
+        settings != null && Object.keys(settings.legendSettings).length > 0;
 
       if ((loadMeta.kind === 'user' || loadMeta.kind === 'opfs') && file) {
         setCurrentDatasetName(file.name);

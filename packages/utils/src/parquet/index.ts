@@ -31,6 +31,7 @@ export {
   isValidExportOptionsMap,
   isValidSortMode,
   normalizeBundleSettings,
+  type NormalizeBundleSettingsOptions,
 } from './settings-validation';
 
 // Types

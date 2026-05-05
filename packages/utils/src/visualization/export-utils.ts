@@ -73,6 +73,16 @@ export interface ExportOptions {
   includeShapes?: boolean;
   /** Whether to include the legend panel in the exported image (default: true) */
   includeLegend?: boolean;
+
+  // ── Extended options (used by the publish/figure editor) ──
+  /** Legend placement — defaults to 'right' for backwards compatibility */
+  legendPosition?: 'right' | 'left' | 'top' | 'bottom' | 'tr' | 'tl' | 'br' | 'bl' | 'none';
+  /** Number of legend columns (default: 1) */
+  legendColumns?: number;
+  /** Strategy when legend items exceed available space */
+  legendOverflow?: 'scale' | 'truncate' | 'multi-column';
+  /** Target DPI — informational, used for filename/metadata */
+  dpi?: number;
 }
 
 export class ProtSpaceExporter {
@@ -648,16 +658,45 @@ export class ProtSpaceExporter {
     const itemFontSize = baseItemFont * scaleFactor;
     const bg = options.backgroundColor || '#ffffff';
 
-    // Compute required height and scale vertically if needed
-    const requiredHeight = padding + headerHeight + items.length * itemHeight + padding;
-    const scaleY = Math.min(1, canvas.height / requiredHeight);
+    // ── Overflow strategy ────────────────────────────────
+    // Extended options from the publish editor; default to legacy 'scale' for
+    // backwards compatibility with the quick-export flow.
+    const overflowMode = options.legendOverflow ?? 'scale';
+    let columns = Math.max(1, options.legendColumns ?? 1);
+    const availableContentHeight = canvas.height - padding * 2 - headerHeight;
 
-    // No horizontal scaling - canvas width is already sized correctly
+    // Auto-compute columns for multi-column overflow
+    if (overflowMode === 'multi-column' && columns === 1) {
+      const singleColHeight = items.length * itemHeight;
+      if (singleColHeight > availableContentHeight && availableContentHeight > 0) {
+        columns = Math.ceil(singleColHeight / availableContentHeight);
+      }
+    }
+
+    // Decide which items to render (truncation)
+    let renderItems = items;
+    let truncatedCount = 0;
+    if (overflowMode === 'truncate') {
+      const maxPerCol = Math.max(1, Math.floor(availableContentHeight / itemHeight));
+      const maxItems = maxPerCol * columns;
+      if (items.length > maxItems) {
+        truncatedCount = items.length - maxItems;
+        renderItems = items.slice(0, maxItems);
+      }
+    }
+
+    // Legacy Y-scale mode (only when explicitly requested or defaulting)
+    let scaleY = 1;
+    if (overflowMode === 'scale') {
+      const requiredHeight = padding + headerHeight + items.length * itemHeight + padding;
+      scaleY = Math.min(1, canvas.height / requiredHeight);
+    }
+
     ctx.save();
-    ctx.scale(1, scaleY);
+    if (scaleY < 1) ctx.scale(1, scaleY);
 
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height / scaleY);
+    ctx.fillRect(0, 0, canvas.width, scaleY < 1 ? canvas.height / scaleY : canvas.height);
 
     ctx.fillStyle = '#1f2937';
     ctx.font = `600 ${headerFontSize}px Arial, sans-serif`;
@@ -665,20 +704,28 @@ export class ProtSpaceExporter {
     const headerLabel = overrideAnnotationName || items[0]?.annotation || 'Legend';
     ctx.fillText(`${headerLabel}`, padding, padding + headerHeight / 2);
 
-    // Items
-    let y = padding + headerHeight;
+    // Items — distribute across columns
+    const colWidth = (canvas.width - padding * 2) / columns;
+    const itemsPerCol = Math.ceil(renderItems.length / columns);
+
     const includeShapes =
       typeof options.includeShapes === 'boolean'
         ? options.includeShapes
         : this.readUseShapesFromScatterplot();
 
-    for (const it of items) {
-      const cx = padding + symbolSize / 2;
+    for (let i = 0; i < renderItems.length; i++) {
+      const col = Math.floor(i / itemsPerCol);
+      const row = i % itemsPerCol;
+      const it = renderItems[i];
+
+      const xBase = padding + col * colWidth;
+      const y = padding + headerHeight + row * itemHeight;
+      const cx = xBase + symbolSize / 2;
       const cy = y + itemHeight / 2;
+
       if (includeShapes) {
         this.drawCanvasSymbol(ctx, it.shape, it.color, cx, cy, symbolSize);
       } else {
-        // Draw a simple color swatch (circle) to match no-shape mode
         ctx.save();
         ctx.fillStyle = it.color || '#888';
         ctx.strokeStyle = '#333';
@@ -696,21 +743,33 @@ export class ProtSpaceExporter {
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'left';
       const textOffset = 8 * scaleFactor;
+      const maxTextWidth = colWidth - symbolSize - textOffset - padding;
       ctx.fillText(
         it.displayValue ?? toDisplayValue(it.value),
-        padding + symbolSize + textOffset,
+        xBase + symbolSize + textOffset,
         cy,
+        maxTextWidth > 0 ? maxTextWidth : undefined,
       );
 
-      // Draw count (right-aligned)
-      const countStr = String(it.count);
-      ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
-      ctx.fillStyle = '#4b5563';
-      ctx.textAlign = 'right';
-      const countX = canvas.width - padding;
-      ctx.fillText(countStr, countX, cy);
+      // Draw count (right-aligned, only for single-column)
+      if (columns === 1) {
+        const countStr = String(it.count);
+        ctx.font = `500 ${itemFontSize}px Arial, sans-serif`;
+        ctx.fillStyle = '#4b5563';
+        ctx.textAlign = 'right';
+        const countX = canvas.width - padding;
+        ctx.fillText(countStr, countX, cy);
+      }
+    }
 
-      y += itemHeight;
+    // Truncation notice
+    if (truncatedCount > 0) {
+      const lastRow = Math.min(itemsPerCol, renderItems.length);
+      const y = padding + headerHeight + lastRow * itemHeight + itemHeight / 2;
+      ctx.fillStyle = '#6b7280';
+      ctx.font = `italic 500 ${itemFontSize * 0.85}px Arial, sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.fillText(`+ ${truncatedCount} more`, padding, y);
     }
 
     ctx.restore();
@@ -946,3 +1005,32 @@ export const exportUtils = {
 
   // SVG export removed per requirements
 };
+
+/**
+ * Export an already-composited canvas as a single-page PDF whose page size
+ * is exactly the chosen physical dimensions in mm. Drop into a Word/InDesign
+ * placeholder at 100% and the figure lands at the journal's required width.
+ */
+export async function exportCanvasAsPdf(
+  canvas: HTMLCanvasElement,
+  opts: { widthMm: number; heightMm: number; filename?: string },
+): Promise<void> {
+  const { default: jsPDF } = await import('jspdf');
+  const imgData = canvas.toDataURL('image/png', 1.0);
+  const { widthMm, heightMm, filename } = opts;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdf: any = new (jsPDF as any)({
+    orientation: widthMm > heightMm ? 'landscape' : 'portrait',
+    unit: 'mm',
+    format: [widthMm, heightMm],
+  });
+  pdf.setProperties({
+    title: 'ProtSpace Figure',
+    subject: 'ProtSpace export',
+    author: 'ProtSpace',
+    creator: 'ProtSpace',
+  });
+  pdf.addImage(imgData, 'PNG', 0, 0, widthMm, heightMm);
+  pdf.save(filename || 'protspace_figure.pdf');
+}

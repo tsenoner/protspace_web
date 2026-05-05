@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   EXPORT_DEFAULTS,
-  createDefaultExportOptions,
-  calculateHeightFromWidth,
-  calculateWidthFromHeight,
   isProjection3D,
   getProjectionPlane,
   shouldDisableSelection,
@@ -50,18 +47,6 @@ describe('control-bar-helpers', () => {
       });
     });
 
-    it('creates default export options including parquet toggles', () => {
-      expect(createDefaultExportOptions()).toEqual({
-        imageWidth: EXPORT_DEFAULTS.IMAGE_WIDTH,
-        imageHeight: EXPORT_DEFAULTS.IMAGE_HEIGHT,
-        lockAspectRatio: EXPORT_DEFAULTS.LOCK_ASPECT_RATIO,
-        legendWidthPercent: EXPORT_DEFAULTS.LEGEND_WIDTH_PERCENT,
-        legendFontSizePx: EXPORT_DEFAULTS.LEGEND_FONT_SIZE_PX,
-        includeLegendSettings: true,
-        includeExportOptions: true,
-      });
-    });
-
     it('defaults INCLUDE_LEGEND to true', () => {
       expect(EXPORT_DEFAULTS.INCLUDE_LEGEND).toBe(true);
     });
@@ -104,92 +89,6 @@ describe('control-bar-helpers', () => {
           EXPORT_DEFAULTS.MAX_LEGEND_FONT_SIZE_PX / EXPORT_DEFAULTS.BASE_FONT_SIZE;
         expect(scaleFactor).toBe(5.0); // 120 / 24 = 5.0
       });
-    });
-
-    describe('aspect ratio calculations with defaults', () => {
-      it('calculates default aspect ratio', () => {
-        const aspectRatio = EXPORT_DEFAULTS.IMAGE_WIDTH / EXPORT_DEFAULTS.IMAGE_HEIGHT;
-        expect(aspectRatio).toBe(2); // 2048 / 1024 = 2
-      });
-
-      it('maintains aspect ratio when doubling width', () => {
-        const newWidth = EXPORT_DEFAULTS.IMAGE_WIDTH * 2;
-        const newHeight = calculateHeightFromWidth(
-          newWidth,
-          EXPORT_DEFAULTS.IMAGE_WIDTH,
-          EXPORT_DEFAULTS.IMAGE_HEIGHT,
-        );
-        expect(newHeight).toBe(2048); // 1024 * 2
-      });
-
-      it('maintains aspect ratio when doubling height', () => {
-        const newHeight = EXPORT_DEFAULTS.IMAGE_HEIGHT * 2;
-        const newWidth = calculateWidthFromHeight(
-          newHeight,
-          EXPORT_DEFAULTS.IMAGE_HEIGHT,
-          EXPORT_DEFAULTS.IMAGE_WIDTH,
-        );
-        expect(newWidth).toBe(4096); // 2048 * 2
-      });
-    });
-  });
-
-  describe('calculateHeightFromWidth', () => {
-    it('calculates height proportionally when width changes', () => {
-      const result = calculateHeightFromWidth(4096, 2048, 1024);
-      expect(result).toBe(2048); // doubled width, doubled height
-    });
-
-    it('rounds to nearest integer', () => {
-      const result = calculateHeightFromWidth(2049, 2048, 1024);
-      expect(Number.isInteger(result)).toBe(true);
-    });
-
-    it('returns current height when old width is 0', () => {
-      const result = calculateHeightFromWidth(2048, 0, 1024);
-      expect(result).toBe(1024);
-    });
-
-    it('returns current height when old width is negative', () => {
-      const result = calculateHeightFromWidth(2048, -100, 1024);
-      expect(result).toBe(1024);
-    });
-
-    it('handles width reduction', () => {
-      const result = calculateHeightFromWidth(1024, 2048, 1024);
-      expect(result).toBe(512); // halved width, halved height
-    });
-
-    it('handles fractional scaling', () => {
-      const result = calculateHeightFromWidth(3000, 2000, 1000);
-      expect(result).toBe(1500); // 1.5x width, 1.5x height
-    });
-  });
-
-  describe('calculateWidthFromHeight', () => {
-    it('calculates width proportionally when height changes', () => {
-      const result = calculateWidthFromHeight(2048, 1024, 2048);
-      expect(result).toBe(4096); // doubled height, doubled width
-    });
-
-    it('rounds to nearest integer', () => {
-      const result = calculateWidthFromHeight(1025, 1024, 2048);
-      expect(Number.isInteger(result)).toBe(true);
-    });
-
-    it('returns current width when old height is 0', () => {
-      const result = calculateWidthFromHeight(1024, 0, 2048);
-      expect(result).toBe(2048);
-    });
-
-    it('returns current width when old height is negative', () => {
-      const result = calculateWidthFromHeight(1024, -100, 2048);
-      expect(result).toBe(2048);
-    });
-
-    it('handles height reduction', () => {
-      const result = calculateWidthFromHeight(512, 1024, 2048);
-      expect(result).toBe(1024); // halved height, halved width
     });
   });
 
