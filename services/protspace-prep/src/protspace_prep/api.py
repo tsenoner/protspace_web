@@ -1,5 +1,7 @@
 from __future__ import annotations
+import asyncio
 import logging
+import re
 from typing import AsyncIterator
 
 from fastapi import APIRouter, FastAPI, File, HTTPException, Request, UploadFile, status
@@ -11,6 +13,22 @@ from .sse import KEEPALIVE_FRAME, format_event
 from .validation import FastaValidationError, ValidationCode, parse_and_validate
 
 logger = logging.getLogger("protspace_prep.api")
+
+# Extracted as a module-level constant so tests can monkeypatch it.
+_KEEPALIVE_INTERVAL_SECONDS = 15.0
+
+
+def _safe_download_name(original_name: str) -> str:
+    """Sanitize a user-supplied filename to safe ASCII for Content-Disposition.
+
+    Allows only [A-Za-z0-9._-] in the stem, replaces anything else with '_',
+    strips leading/trailing dots and dashes, caps at 80 chars, and appends
+    the .parquetbundle extension.
+    """
+    stem = original_name.rsplit(".", 1)[0] if "." in original_name else original_name
+    safe = re.sub(r"[^A-Za-z0-9._\-]+", "_", stem).strip("._-")
+    safe = (safe[:80] if safe else "") or "protspace"
+    return f"{safe}.parquetbundle"
 
 
 def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
@@ -53,8 +71,20 @@ def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
             raise HTTPException(status_code=404, detail="Unknown job_id")
 
         async def stream() -> AsyncIterator[bytes]:
+            aiter = registry.subscribe(job_id).__aiter__()
             try:
-                async for event in registry.subscribe(job_id):
+                while True:
+                    try:
+                        event = await asyncio.wait_for(
+                            aiter.__anext__(), timeout=_KEEPALIVE_INTERVAL_SECONDS
+                        )
+                    except asyncio.TimeoutError:
+                        if await request.is_disconnected():
+                            return
+                        yield KEEPALIVE_FRAME.encode("utf-8")
+                        continue
+                    except StopAsyncIteration:
+                        return
                     if await request.is_disconnected():
                         return
                     yield format_event(event.event, event.data).encode("utf-8")
@@ -84,15 +114,25 @@ def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
             raise HTTPException(status_code=409, detail="Job not finished.")
         if state.consumed:
             raise HTTPException(status_code=410, detail="Bundle already downloaded.")
-        path = registry.consume_bundle(job_id)
+
+        # Fix 6: peek without consuming; mark consumed only after a successful read.
+        path = registry.peek_bundle(job_id)
         if path is None or not path.exists():
             raise HTTPException(status_code=410, detail="Bundle expired.")
-        download_name = (state.original_name.rsplit(".", 1)[0] or "protspace") + ".parquetbundle"
         try:
             content = path.read_bytes()
         except FileNotFoundError:
             raise HTTPException(status_code=410, detail="Bundle expired.")
+        except OSError:
+            # Do NOT mark consumed — the file is still there; surface a 500 so the
+            # caller can retry.
+            raise HTTPException(status_code=500, detail="Failed to read bundle.")
+
+        # Only after a successful read do we mark as consumed and clean up.
+        registry.mark_consumed(job_id)
         path.unlink(missing_ok=True)
+
+        download_name = _safe_download_name(state.original_name)
         return Response(
             content=content,
             media_type="application/octet-stream",

@@ -110,16 +110,23 @@ class JobRegistry:
             yield Event("queued", {"job_id": job_id})
             yield state.terminal_event
             return
-        # Synthesize a queued event so every subscriber receives the full stream
-        # from the beginning, regardless of when they subscribed relative to submit().
-        yield Event("queued", {"job_id": job_id})
-        # Re-check: pipeline may have finished while we were yielding.
-        if state.terminal_event is not None:
-            yield state.terminal_event
-            return
+
+        # Fix 3: Register queue FIRST to avoid the race where pipeline completes
+        # between the initial terminal_event check and registration.
         queue: asyncio.Queue[Optional[Event]] = asyncio.Queue(maxsize=128)
-        self._subscribers[job_id].append(queue)
+        self._subscribers.setdefault(job_id, []).append(queue)
         try:
+            # Synthesize a queued event so every subscriber receives the full stream
+            # from the beginning, regardless of when they subscribed relative to submit().
+            yield Event("queued", {"job_id": job_id})
+            # Re-check after registration: pipeline may have completed between the
+            # initial terminal_event check and our queue registration. In that case
+            # the event is already in the queue (published to us via _publish), or
+            # terminal_event is already set. Either path is covered below.
+            if state.terminal_event is not None:
+                # Terminal happened just before our registration — yield from state.
+                yield state.terminal_event
+                return
             while True:
                 event = await queue.get()
                 if event is None:
@@ -129,16 +136,30 @@ class JobRegistry:
                     return
         finally:
             try:
-                self._subscribers[job_id].remove(queue)
+                self._subscribers.get(job_id, []).remove(queue)
             except (ValueError, KeyError):
                 pass
 
     def consume_bundle(self, job_id: str) -> Optional[Path]:
+        """Legacy method: marks consumed and returns path. Kept for backwards compat."""
         state = self._jobs.get(job_id)
         if state is None or state.status is not JobStatus.DONE or state.consumed:
             return None
         state.consumed = True
         return state.bundle_path
+
+    def peek_bundle(self, job_id: str) -> Optional[Path]:
+        """Return bundle path if available, without marking consumed."""
+        state = self._jobs.get(job_id)
+        if state is None or state.status is not JobStatus.DONE or state.consumed:
+            return None
+        return state.bundle_path
+
+    def mark_consumed(self, job_id: str) -> None:
+        """Mark the bundle as consumed after a successful read."""
+        state = self._jobs.get(job_id)
+        if state is not None:
+            state.consumed = True
 
     # --- internals ---
 
@@ -206,6 +227,12 @@ class JobRegistry:
                     job_id,
                     Event("done", {"download_url": f"/api/prepare/{job_id}/bundle"}),
                 )
+        except asyncio.CancelledError:
+            # Fix 5: Handle cancellation cleanly so subscribers don't hang.
+            state.status = JobStatus.ERROR
+            state.error_message = "Job cancelled."
+            await self._publish(job_id, Event("error", {"message": "Job cancelled."}))
+            raise
         except PipelineFailure as exc:
             state.status = JobStatus.ERROR
             state.error_message = str(exc)
@@ -236,6 +263,18 @@ class JobRegistry:
                 if entry.stat().st_mtime < cutoff:
                     shutil.rmtree(entry, ignore_errors=True)
                     removed.append(entry.name)
+                    # Fix 4: Notify live subscribers BEFORE forgetting them,
+                    # so they don't hang blocked on queue.get() indefinitely.
+                    for queue in self._subscribers.get(entry.name, []):
+                        try:
+                            queue.put_nowait(None)
+                        except asyncio.QueueFull:
+                            # Drop oldest, retry once.
+                            try:
+                                queue.get_nowait()
+                                queue.put_nowait(None)
+                            except (asyncio.QueueEmpty, asyncio.QueueFull):
+                                pass
                     self._jobs.pop(entry.name, None)
                     self._subscribers.pop(entry.name, None)
                     self._tasks.pop(entry.name, None)

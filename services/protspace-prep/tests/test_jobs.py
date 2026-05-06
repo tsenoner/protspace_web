@@ -210,3 +210,147 @@ async def test_sweep_removes_expired_directories(tmp_path):
     assert job_id in removed
     assert not job_dir.exists()
     assert registry.get(job_id) is None
+
+
+# ---------------------------------------------------------------------------
+# Fix 3 — subscribe() race between yield queued and queue registration
+# ---------------------------------------------------------------------------
+
+async def test_subscribe_after_instant_pipeline_receives_done(tmp_job_root):
+    """Submit with an instantly-terminating pipeline and subscribe immediately.
+
+    Should reliably receive [queued, done] without hanging regardless of the
+    race between pipeline completion and queue registration.
+    """
+    registry = JobRegistry(
+        job_root=tmp_job_root,
+        max_concurrent=4,
+        pipeline=_fake_pipeline_success,
+    )
+    job_id = await registry.submit(b">id\nMKT\n", original_name="t.fasta")
+    # Give the task a chance to run (may already be done by here)
+    await asyncio.sleep(0)
+    events = [e async for e in registry.subscribe(job_id)]
+    statuses = [e.event for e in events]
+    assert statuses[0] == "queued"
+    assert statuses[-1] in {"done", "error"}
+    assert "done" in statuses
+
+
+async def test_subscribe_race_repeated(tmp_job_root):
+    """Stress test: run the instant-pipeline subscribe race many times."""
+    for _ in range(20):
+        registry = JobRegistry(
+            job_root=tmp_job_root,
+            max_concurrent=4,
+            pipeline=_fake_pipeline_success,
+        )
+        job_id = await registry.submit(b">id\nMKT\n", original_name="t.fasta")
+        # Yield control so the pipeline task can run
+        await asyncio.sleep(0)
+        events = [e async for e in registry.subscribe(job_id)]
+        assert events[-1].event == "done", f"Expected done, got {[e.event for e in events]}"
+
+
+# ---------------------------------------------------------------------------
+# Fix 4 — Sweeper hangs live subscribers
+# ---------------------------------------------------------------------------
+
+async def test_sweep_notifies_live_subscriber(tmp_job_root):
+    """A subscriber blocked on queue.get() must unblock when sweep_expired runs."""
+    gate = asyncio.Event()
+
+    async def gated_pipeline(ctx, emit):
+        await gate.wait()
+        bundle = ctx.output_dir / "data.parquetbundle"
+        bundle.parent.mkdir(parents=True, exist_ok=True)
+        bundle.write_bytes(b"x")
+        return bundle
+
+    registry = JobRegistry(
+        job_root=tmp_job_root,
+        max_concurrent=1,
+        pipeline=gated_pipeline,
+    )
+    job_id = await registry.submit(b">id\nMKT\n", original_name="t.fasta")
+
+    collected: list[str] = []
+
+    async def consume():
+        async for event in registry.subscribe(job_id):
+            collected.append(event.event)
+
+    consumer_task = asyncio.create_task(consume())
+    # Let consumer register and block
+    await asyncio.sleep(0.05)
+
+    # Backdate the job directory so sweep_expired considers it expired
+    import os, time
+    job_dir = tmp_job_root / job_id
+    past = time.time() - 10_000
+    os.utime(job_dir, (past, past))
+
+    registry.sweep_expired(ttl_seconds=3600)
+
+    # Consumer should unblock (receive None sentinel) and finish promptly
+    try:
+        await asyncio.wait_for(consumer_task, timeout=1.0)
+    except asyncio.TimeoutError:
+        consumer_task.cancel()
+        pytest.fail("Subscriber task hung after sweep_expired — sentinel not delivered")
+
+    # Gate never released, so no done event; subscriber simply terminates on None
+    assert "queued" in collected
+
+
+# ---------------------------------------------------------------------------
+# Fix 5 — _run() doesn't handle CancelledError
+# ---------------------------------------------------------------------------
+
+async def test_cancelled_job_publishes_error_event(tmp_job_root):
+    """Cancelling a running job task must publish an error event and set ERROR status."""
+    gate = asyncio.Event()
+
+    async def gated_pipeline(ctx, emit):
+        await gate.wait()
+        bundle = ctx.output_dir / "data.parquetbundle"
+        bundle.parent.mkdir(parents=True, exist_ok=True)
+        bundle.write_bytes(b"x")
+        return bundle
+
+    registry = JobRegistry(
+        job_root=tmp_job_root,
+        max_concurrent=1,
+        pipeline=gated_pipeline,
+    )
+    job_id = await registry.submit(b">id\nMKT\n", original_name="t.fasta")
+
+    collected: list = []
+
+    async def consume():
+        async for event in registry.subscribe(job_id):
+            collected.append(event)
+
+    consumer_task = asyncio.create_task(consume())
+    # Let the pipeline task start and block on gate
+    await asyncio.sleep(0.05)
+
+    # Cancel the pipeline task
+    pipeline_task = registry._tasks[job_id]
+    pipeline_task.cancel()
+
+    # Consumer should receive the error event and finish
+    try:
+        await asyncio.wait_for(consumer_task, timeout=1.0)
+    except asyncio.TimeoutError:
+        consumer_task.cancel()
+        pytest.fail("Subscriber did not receive error event after job cancellation")
+
+    events = [e.event for e in collected]
+    assert "error" in events, f"Expected error event, got {events}"
+    error_data = next(e.data for e in collected if e.event == "error")
+    assert "cancelled" in error_data.get("message", "").lower()
+
+    state = registry.get(job_id)
+    assert state is not None
+    assert state.status is JobStatus.ERROR
