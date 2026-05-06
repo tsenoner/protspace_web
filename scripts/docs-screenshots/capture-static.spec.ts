@@ -478,36 +478,46 @@ test.describe('Control Bar Screenshots', () => {
         | null;
       if (!m) return;
       const cur = m._state as Record<string, unknown>;
-      // Anchored on a real cluster (right-lower region of the demo plot)
-      // so overlays line up with visible points instead of empty whitespace.
+      // Hand-placed coordinates from a real editor session: a circle around
+      // the PLD cluster (right) with a rotated "PLD" label, plus an arrow
+      // pointing into the Kunitz cluster (upper-left) with its label.
       m._state = {
         ...cur,
         overlays: [
           {
             type: 'circle',
-            cx: 0.8975,
-            cy: 0.6771,
-            rx: 0.0527,
-            ry: 0.09,
-            rotation: 0,
+            cx: 0.8974835927960928,
+            cy: 0.6770896911621094,
+            rx: 0.05272120639084891,
+            ry: 0.04386187901646462,
+            rotation: -0.2022103412448651,
             color: '#000000',
-            strokeWidth: 3,
-          },
-          {
-            type: 'arrow',
-            x1: 0.66,
-            y1: 0.42,
-            x2: 0.84,
-            y2: 0.6,
-            color: '#000000',
-            width: 3,
+            strokeWidth: 2,
           },
           {
             type: 'label',
-            x: 0.5,
-            y: 0.38,
-            text: 'Cluster A',
-            fontSize: 22,
+            x: 0.8792687347374848,
+            y: 0.6228675842285156,
+            text: 'PLD',
+            fontSize: 24,
+            rotation: -0.26409924802458146,
+            color: '#000000',
+          },
+          {
+            type: 'arrow',
+            x1: 0.3920487065018315,
+            y1: 0.317230224609375,
+            x2: 0.4429801968864469,
+            y2: 0.17986679077148438,
+            color: '#000000',
+            width: 2,
+          },
+          {
+            type: 'label',
+            x: 0.3910065628815629,
+            y: 0.33621978759765625,
+            text: 'Kunitz',
+            fontSize: 24,
             rotation: 0,
             color: '#000000',
           },
@@ -537,14 +547,25 @@ test.describe('Control Bar Screenshots', () => {
         | null;
       if (!m) return;
       const cur = m._state as Record<string, unknown>;
-      // Source rect tightly bounds the same cluster the overlays target
-      // (right-lower region); target rect lands in upper-left whitespace.
+      // Hand-placed source/target from a real editor session: source rect
+      // tightly bounds a small mid-plot cluster; target rect drops the
+      // magnified view into the lower-left whitespace.
       m._state = {
         ...cur,
         insets: [
           {
-            sourceRect: { x: 0.84, y: 0.58, w: 0.12, h: 0.18 },
-            targetRect: { x: 0.04, y: 0.06, w: 0.32, h: 0.42 },
+            sourceRect: {
+              x: 0.2973972641941392,
+              y: 0.4712409973144531,
+              w: 0.06317011981074483,
+              h: 0.047016143798828125,
+            },
+            targetRect: {
+              x: 0.09312042124542119,
+              y: 0.7035446166992188,
+              w: 0.23986473595848598,
+              h: 0.1785260967033006,
+            },
             border: 2,
             connector: 'lines',
             pointSizeScale: 2,
