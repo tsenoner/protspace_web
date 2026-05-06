@@ -478,48 +478,48 @@ test.describe('Control Bar Screenshots', () => {
         | null;
       if (!m) return;
       const cur = m._state as Record<string, unknown>;
-      // Hand-placed coordinates from a real editor session: a circle around
-      // the PLD cluster (right) with a rotated "PLD" label, plus an arrow
+      // Hand-placed coordinates from a real editor session: a rotated circle
+      // around the PLD cluster (right) with a "PLD" label, plus an arrow
       // pointing into the Kunitz cluster (upper-left) with its label.
       m._state = {
         ...cur,
         overlays: [
           {
             type: 'circle',
-            cx: 0.8974835927960928,
-            cy: 0.6770896911621094,
-            rx: 0.05272120639084891,
-            ry: 0.04386187901646462,
-            rotation: -0.2022103412448651,
+            cx: 0.8737195856124373,
+            cy: 0.6619266620785421,
+            rx: 0.04240957253752543,
+            ry: 0.046662343237108606,
+            rotation: -0.20396168731157882,
             color: '#000000',
             strokeWidth: 2,
           },
           {
             type: 'label',
-            x: 0.8792687347374848,
-            y: 0.6228675842285156,
+            x: 0.8490372746852966,
+            y: 0.5941603427694406,
             text: 'PLD',
             fontSize: 24,
-            rotation: -0.26409924802458146,
+            rotation: 0,
             color: '#000000',
-          },
-          {
-            type: 'arrow',
-            x1: 0.3920487065018315,
-            y1: 0.317230224609375,
-            x2: 0.4429801968864469,
-            y2: 0.17986679077148438,
-            color: '#000000',
-            width: 2,
           },
           {
             type: 'label',
-            x: 0.3910065628815629,
-            y: 0.33621978759765625,
+            x: 0.3576617410178119,
+            y: 0.42456087994542974,
             text: 'Kunitz',
             fontSize: 24,
             rotation: 0,
             color: '#000000',
+          },
+          {
+            type: 'arrow',
+            x1: 0.36300882685603014,
+            y1: 0.40204531889495226,
+            x2: 0.4461934912139551,
+            y2: 0.19846201398362892,
+            color: '#000000',
+            width: 4,
           },
         ],
       };
@@ -555,20 +555,20 @@ test.describe('Control Bar Screenshots', () => {
         insets: [
           {
             sourceRect: {
-              x: 0.2973972641941392,
-              y: 0.4712409973144531,
-              w: 0.06317011981074483,
-              h: 0.047016143798828125,
+              x: 0.30612982591154486,
+              y: 0.475006394952251,
+              w: 0.0630622977144123,
+              h: 0.04193489938608458,
             },
             targetRect: {
-              x: 0.09312042124542119,
-              y: 0.7035446166992188,
-              w: 0.23986473595848598,
-              h: 0.1785260967033006,
+              x: 0.056294980577438314,
+              y: 0.693431318212824,
+              w: 0.279788520581097,
+              h: 0.18605258427284216,
             },
             border: 2,
             connector: 'lines',
-            pointSizeScale: 2,
+            pointSizeScale: 2.3,
           },
         ],
       };
