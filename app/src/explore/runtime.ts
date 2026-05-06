@@ -65,6 +65,16 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
         return next(queuedFile, queuedOptions);
       }
 
+      // embed and annotate are emitted back-to-back at the start of the
+      // backend pipeline; bumping annotating past embedding keeps the bar
+      // visibly advancing. Values clamped <100 so bundle->done can complete it.
+      const stageProgress: Record<string, number> = {
+        queued: 10,
+        embedding: 25,
+        annotating: 45,
+        projecting: 70,
+        bundling: 90,
+      };
       const stageLabels: Record<string, string> = {
         queued: 'Waiting for prep slot…',
         embedding: 'Embedding sequences…',
@@ -76,12 +86,20 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
       const abortController = new AbortController();
       overlayController.update(true, 5, 'Preparing FASTA…', 'Uploading…');
       overlayController.setCancelHandler(() => abortController.abort());
+      let lastProgress = 5;
       try {
         const bundleFile = await prepareFastaBundle(queuedFile, {
           baseUrl: import.meta.env.VITE_PREP_API_BASE ?? '',
           signal: abortController.signal,
           onProgress: (stage) => {
-            overlayController.update(true, 25, 'Preparing FASTA…', stageLabels[stage] ?? stage);
+            const next = stageProgress[stage] ?? lastProgress;
+            lastProgress = Math.max(lastProgress, next);
+            overlayController.update(
+              true,
+              lastProgress,
+              'Preparing FASTA…',
+              stageLabels[stage] ?? stage,
+            );
           },
         });
         overlayController.setCancelHandler(null);
