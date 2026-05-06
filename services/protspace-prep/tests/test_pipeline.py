@@ -94,7 +94,7 @@ async def test_success_path_writes_bundle_and_emits_stages(ctx):
 
     settings = load_settings()
     with patch("asyncio.create_subprocess_exec", new=_make_step_router(ctx)):
-        result = await run_protspace_prepare(ctx, emit, settings)
+        result = await run_protspace_prepare(ctx, emit, settings=settings)
     assert result == bundle_path
     assert bundle_path.read_bytes() == b"BUNDLE"
     stages = [stage for stage, _ in emitted]
@@ -136,7 +136,7 @@ async def test_embed_and_annotate_run_concurrently(ctx):
 
     settings = load_settings()
     with patch("asyncio.create_subprocess_exec", new=fake_create):
-        await run_protspace_prepare(ctx, AsyncMock(), settings)
+        await run_protspace_prepare(ctx, AsyncMock(), settings=settings)
     assert max_in_flight[0] == 2, "embed and annotate did not run concurrently"
 
 
@@ -148,7 +148,7 @@ async def test_embed_failure_raises_pipeline_failure(ctx):
     )
     with patch("asyncio.create_subprocess_exec", new=fake):
         with pytest.raises(PipelineFailure) as exc:
-            await run_protspace_prepare(ctx, AsyncMock(), settings)
+            await run_protspace_prepare(ctx, AsyncMock(), settings=settings)
     assert "Biocentral returned 503" in str(exc.value)
 
 
@@ -160,7 +160,7 @@ async def test_annotate_failure_raises_pipeline_failure(ctx):
     )
     with patch("asyncio.create_subprocess_exec", new=fake):
         with pytest.raises(PipelineFailure) as exc:
-            await run_protspace_prepare(ctx, AsyncMock(), settings)
+            await run_protspace_prepare(ctx, AsyncMock(), settings=settings)
     assert "UniProt" in str(exc.value)
 
 
@@ -191,7 +191,7 @@ async def test_pipeline_timeout_kills_subprocess_and_raises(ctx):
     settings = type(base)(**fields)
     with patch("asyncio.create_subprocess_exec", new=fake_create):
         with pytest.raises(PipelineFailure) as exc:
-            await run_protspace_prepare(ctx, AsyncMock(), settings)
+            await run_protspace_prepare(ctx, AsyncMock(), settings=settings)
     assert "timed out" in str(exc.value).lower()
     assert proc.kill.called
 
@@ -214,7 +214,7 @@ async def test_missing_bundle_after_success_raises_pipeline_failure(ctx):
     settings = load_settings()
     with patch("asyncio.create_subprocess_exec", new=fake_create):
         with pytest.raises(PipelineFailure):
-            await run_protspace_prepare(ctx, AsyncMock(), settings)
+            await run_protspace_prepare(ctx, AsyncMock(), settings=settings)
 
 
 async def test_missing_h5_after_embed_raises_pipeline_failure(ctx):
@@ -226,7 +226,7 @@ async def test_missing_h5_after_embed_raises_pipeline_failure(ctx):
     settings = load_settings()
     with patch("asyncio.create_subprocess_exec", new=fake_create):
         with pytest.raises(PipelineFailure) as exc:
-            await run_protspace_prepare(ctx, AsyncMock(), settings)
+            await run_protspace_prepare(ctx, AsyncMock(), settings=settings)
     assert "no HDF5" in str(exc.value)
 
 
@@ -288,7 +288,7 @@ async def test_pipeline_uses_normalized_fasta_for_embed_and_annotate(ctx):
 
     settings = load_settings()
     with patch("asyncio.create_subprocess_exec", new=fake_create):
-        await run_protspace_prepare(ctx, AsyncMock(), settings)
+        await run_protspace_prepare(ctx, AsyncMock(), settings=settings)
 
     normalized = ctx.output_dir / "input.normalized.fasta"
     assert seen_inputs["embed"] == str(normalized)

@@ -103,9 +103,9 @@ export function createLoadingOverlayController(doc: Document = document): Loadin
 
     overlay.setAttribute('aria-label', [subMessage, message].filter(Boolean).join('. '));
 
-    const progressBar = doc.getElementById('progress-bar');
-    const progressText = doc.getElementById('progress-text');
-    const processingText = doc.getElementById('processing-text');
+    const progressBar = overlay.querySelector<HTMLElement>('#progress-bar');
+    const progressText = overlay.querySelector<HTMLElement>('#progress-text');
+    const processingText = overlay.querySelector<HTMLElement>('#processing-text');
 
     if (progressBar) progressBar.style.width = `${progress}%`;
     if (progressText) progressText.textContent = message;

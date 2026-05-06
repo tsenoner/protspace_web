@@ -154,7 +154,7 @@ async def test_get_returns_none_for_unknown_job(tmp_job_root):
     assert registry.get("does-not-exist") is None
 
 
-async def test_consume_bundle_returns_path_then_marks_consumed(tmp_job_root):
+async def test_peek_bundle_and_mark_consumed(tmp_job_root):
     registry = JobRegistry(
         job_root=tmp_job_root,
         max_concurrent=1,
@@ -163,10 +163,10 @@ async def test_consume_bundle_returns_path_then_marks_consumed(tmp_job_root):
     job_id = await registry.submit(b">id\nMKT\n", original_name="t.fasta")
     async for _ in registry.subscribe(job_id):
         pass
-    first = registry.consume_bundle(job_id)
-    assert first is not None and first.exists()
-    second = registry.consume_bundle(job_id)
-    assert second is None
+    path = registry.peek_bundle(job_id)
+    assert path is not None and path.exists()
+    registry.mark_consumed(job_id)
+    assert registry.peek_bundle(job_id) is None
 
 
 async def test_running_and_queued_counts(tmp_job_root):

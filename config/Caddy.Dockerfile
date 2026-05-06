@@ -1,6 +1,4 @@
-# Custom Caddy build with the caddy-ratelimit plugin baked in.
-# Required by the prep backend's hardening posture (and matches the
-# `Caddyfile.example` deployment recipe).
+# Custom Caddy build with caddy-ratelimit baked in.
 
 FROM caddy:2-builder AS builder
 RUN xcaddy build \

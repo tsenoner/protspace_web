@@ -1,7 +1,6 @@
 from __future__ import annotations
 import asyncio
 import logging
-import shutil
 from pathlib import Path
 from typing import Awaitable, Callable, Sequence
 
@@ -18,22 +17,14 @@ EmitFn = Callable[[str, dict], Awaitable[None]]
 def _normalize_fasta_headers(input_path: Path, output_path: Path) -> None:
     """Rewrite *input_path* into *output_path* with parsed-identifier headers.
 
-    `protspace embed` keys H5 by the first whitespace-delimited token of the
-    FASTA header (e.g. ``sp|P12345|NAME_HUMAN``), and `protspace project`
-    propagates that raw key into ``projections_data.identifier``. But
-    `protspace annotate` runs the same header through ``parse_identifier``
-    (``sp|P12345|NAME_HUMAN`` → ``P12345``), and `protspace bundle` renames
-    that to ``protein_id``. The bundle then carries two different keys for
-    the same protein, and the frontend join in
-    ``packages/core/src/components/data-loader/utils/bundle.ts`` produces
-    zero merged annotations.
-
-    Normalising headers up-front means both downstream paths see — and emit —
-    identical identifiers, so the join holds. Plain headers (no UniProt
-    pattern, no pipes) are left untouched, matching ``parse_identifier``'s
-    fall-through behaviour.
+    ``embed`` keys H5 by the raw first token (e.g. ``sp|P12345|NAME_HUMAN``)
+    while ``annotate`` runs the same header through ``parse_identifier``
+    (→ ``P12345``). Without normalisation the bundle carries two different keys
+    for the same protein and the frontend join in ``bundle.ts`` produces zero
+    merged annotations. Normalising up-front makes both paths emit identical
+    identifiers. Plain headers (no UniProt pipes) are left untouched.
     """
-    with open(input_path) as fin, open(output_path, "w") as fout:
+    with open(input_path, encoding="utf-8") as fin, open(output_path, "w", encoding="utf-8") as fout:
         for line in fin:
             if line.startswith(">"):
                 stripped = line[1:].strip()
@@ -49,15 +40,15 @@ def _normalize_fasta_headers(input_path: Path, output_path: Path) -> None:
 async def run_protspace_prepare(
     ctx: JobContext,
     emit: EmitFn,
+    *,
     settings: Settings,
 ) -> Path:
     """Drive the protspace pipeline as four subprocess calls.
 
-    `embed` (Biocentral) and `annotate` (UniProt) are network-bound and
-    independent, so they run in parallel. `project` then `bundle` run in
-    sequence. The whole run shares a single wall-clock budget set by
-    ``settings.pipeline_timeout_seconds`` so the overall watchdog still
-    matches the SSE contract.
+    ``embed`` and ``annotate`` are network-bound and independent, so they run
+    in parallel via a TaskGroup. ``project`` then ``bundle`` run in sequence.
+    The whole run shares a single wall-clock budget from
+    ``settings.pipeline_timeout_seconds``.
     """
     embed_dir = ctx.output_dir / "embed"
     project_dir = ctx.output_dir / "project"
@@ -98,8 +89,11 @@ async def run_protspace_prepare(
                 async with asyncio.TaskGroup() as tg:
                     tg.create_task(_run_step(ctx.job_id, "embed", embed_cmd))
                     tg.create_task(_run_step(ctx.job_id, "annotate", annotate_cmd))
-            except* PipelineFailure as eg:
-                raise eg.exceptions[0]
+            except ExceptionGroup as eg:
+                failures = [e for e in eg.exceptions if isinstance(e, PipelineFailure)]
+                if failures:
+                    raise PipelineFailure("; ".join(str(e) for e in failures)) from eg
+                raise
 
             h5_files = sorted(embed_dir.glob("*.h5"))
             if not h5_files:
@@ -145,10 +139,9 @@ async def run_protspace_prepare(
 async def _run_step(job_id: str, name: str, cmd: Sequence[str]) -> None:
     """Run one protspace subcommand. Raise PipelineFailure on non-zero exit.
 
-    Stderr is consumed line-by-line so the subprocess never blocks on a
-    full pipe; the last 50 lines are kept for inclusion in failure messages.
-    Cancellation (e.g. from a sibling failure in the TaskGroup, or the
-    overall ``asyncio.timeout``) kills the subprocess before propagating.
+    Stderr is consumed line-by-line so the subprocess never blocks on a full
+    pipe; the last 50 lines are kept for failure messages. Cancellation kills
+    the subprocess before propagating.
     """
     logger.info("job=%s step=%s cmd=%s", job_id, name, " ".join(cmd))
     process = await asyncio.create_subprocess_exec(
@@ -190,6 +183,3 @@ async def _run_step(job_id: str, name: str, cmd: Sequence[str]) -> None:
         )
 
 
-def cleanup_job_dir(output_dir: Path) -> None:
-    """Best-effort delete of a job's output directory."""
-    shutil.rmtree(output_dir, ignore_errors=True)

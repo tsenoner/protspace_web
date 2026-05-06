@@ -4,8 +4,9 @@ import logging
 import re
 from typing import AsyncIterator
 
-from fastapi import APIRouter, FastAPI, File, HTTPException, Request, UploadFile, status
-from fastapi.responses import JSONResponse, StreamingResponse, Response
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from starlette.background import BackgroundTask
 
 from .config import Settings
 from .jobs import JobRegistry, JobStatus
@@ -14,7 +15,6 @@ from .validation import FastaValidationError, ValidationCode, parse_and_validate
 
 logger = logging.getLogger("protspace_prep.api")
 
-# Extracted as a module-level constant so tests can monkeypatch it.
 _KEEPALIVE_INTERVAL_SECONDS = 15.0
 
 
@@ -31,6 +31,13 @@ def _safe_download_name(original_name: str) -> str:
     return f"{safe}.parquetbundle"
 
 
+def fasta_validation_error_handler(request: Request, exc: FastaValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content={"error": exc.message, "code": exc.code.value},
+    )
+
+
 def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
     router = APIRouter()
 
@@ -38,30 +45,18 @@ def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
     async def submit(file: UploadFile = File(...)):
         body = await file.read(settings.upload_max_bytes + 1)
         if len(body) > settings.upload_max_bytes:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": f"File exceeds {settings.upload_max_bytes} bytes.",
-                    "code": ValidationCode.FILE_TOO_LARGE.value,
-                },
+            raise FastaValidationError(
+                ValidationCode.FILE_TOO_LARGE,
+                f"File exceeds {settings.upload_max_bytes} bytes.",
             )
         try:
             text = body.decode("utf-8")
         except UnicodeDecodeError:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "FASTA must be UTF-8 text.",
-                    "code": ValidationCode.MALFORMED_FASTA.value,
-                },
+            raise FastaValidationError(
+                ValidationCode.MALFORMED_FASTA,
+                "FASTA must be UTF-8 text.",
             )
-        try:
-            parse_and_validate(text, settings)
-        except FastaValidationError as exc:
-            return JSONResponse(
-                status_code=400,
-                content={"error": exc.message, "code": exc.code.value},
-            )
+        parse_and_validate(text, settings)
         job_id = await registry.submit(body, original_name=file.filename or "input.fasta")
         return {"job_id": job_id}
 
@@ -72,12 +67,10 @@ def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
 
         async def stream() -> AsyncIterator[bytes]:
             aiter = registry.subscribe(job_id).__aiter__()
-            # Keep one in-flight `__anext__()` task across keepalive timeouts.
-            # `wait_for(aiter.__anext__(), ...)` cancels its inner coroutine on
-            # timeout, which exhausts the underlying async generator and
-            # silently truncates the stream after the first keepalive frame —
-            # the EventSource client then fires its built-in error event,
-            # surfacing as "Bundle preparation failed." in the UI.
+            # Shield the in-flight __anext__() task across keepalive timeouts.
+            # Using wait_for directly on __anext__() would cancel the coroutine
+            # on timeout, exhausting the generator and silently truncating the
+            # stream. shield() keeps the task alive; we only cancel it in finally.
             pending: asyncio.Task | None = None
             try:
                 while True:
@@ -111,7 +104,7 @@ def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
                     pending.cancel()
                     try:
                         await pending
-                    except (asyncio.CancelledError, StopAsyncIteration, Exception):
+                    except (asyncio.CancelledError, StopAsyncIteration):
                         pass
 
         headers = {
@@ -133,28 +126,17 @@ def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
         if state.consumed:
             raise HTTPException(status_code=410, detail="Bundle already downloaded.")
 
-        # Fix 6: peek without consuming; mark consumed only after a successful read.
         path = registry.peek_bundle(job_id)
         if path is None or not path.exists():
             raise HTTPException(status_code=410, detail="Bundle expired.")
-        try:
-            content = path.read_bytes()
-        except FileNotFoundError:
-            raise HTTPException(status_code=410, detail="Bundle expired.")
-        except OSError:
-            # Do NOT mark consumed — the file is still there; surface a 500 so the
-            # caller can retry.
-            raise HTTPException(status_code=500, detail="Failed to read bundle.")
-
-        # Only after a successful read do we mark as consumed and clean up.
-        registry.mark_consumed(job_id)
-        path.unlink(missing_ok=True)
 
         download_name = _safe_download_name(state.original_name)
-        return Response(
-            content=content,
+        registry.mark_consumed(job_id)
+        return FileResponse(
+            path,
             media_type="application/octet-stream",
-            headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+            filename=download_name,
+            background=BackgroundTask(path.unlink, missing_ok=True),
         )
 
     return router

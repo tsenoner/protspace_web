@@ -2,6 +2,7 @@ from __future__ import annotations
 import asyncio
 import enum
 import logging
+import shutil
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -45,7 +46,7 @@ class JobState:
     output_dir: Path
     bundle_path: Optional[Path] = None
     error_message: Optional[str] = None
-    created_at: float = field(default_factory=time.monotonic)
+    created_at: float = field(default_factory=time.time)
     ready_at: Optional[float] = None
     consumed: bool = False
     terminal_event: Optional[Event] = None
@@ -111,20 +112,17 @@ class JobRegistry:
             yield state.terminal_event
             return
 
-        # Fix 3: Register queue FIRST to avoid the race where pipeline completes
-        # between the initial terminal_event check and registration.
+        # Register the queue before yielding the synthetic queued event to avoid
+        # the race where the pipeline completes between the terminal_event check
+        # above and registration here.
         queue: asyncio.Queue[Optional[Event]] = asyncio.Queue(maxsize=128)
-        self._subscribers.setdefault(job_id, []).append(queue)
+        self._subscribers[job_id].append(queue)
         try:
-            # Synthesize a queued event so every subscriber receives the full stream
-            # from the beginning, regardless of when they subscribed relative to submit().
             yield Event("queued", {"job_id": job_id})
-            # Re-check after registration: pipeline may have completed between the
-            # initial terminal_event check and our queue registration. In that case
-            # the event is already in the queue (published to us via _publish), or
-            # terminal_event is already set. Either path is covered below.
+            # Re-check after registration: if the pipeline finished in the window
+            # between our initial check and queue registration, terminal_event is
+            # already set (or the event was already enqueued for us).
             if state.terminal_event is not None:
-                # Terminal happened just before our registration — yield from state.
                 yield state.terminal_event
                 return
             while True:
@@ -140,14 +138,6 @@ class JobRegistry:
             except (ValueError, KeyError):
                 pass
 
-    def consume_bundle(self, job_id: str) -> Optional[Path]:
-        """Legacy method: marks consumed and returns path. Kept for backwards compat."""
-        state = self._jobs.get(job_id)
-        if state is None or state.status is not JobStatus.DONE or state.consumed:
-            return None
-        state.consumed = True
-        return state.bundle_path
-
     def peek_bundle(self, job_id: str) -> Optional[Path]:
         """Return bundle path if available, without marking consumed."""
         state = self._jobs.get(job_id)
@@ -156,12 +146,10 @@ class JobRegistry:
         return state.bundle_path
 
     def mark_consumed(self, job_id: str) -> None:
-        """Mark the bundle as consumed after a successful read."""
+        """Mark the bundle as consumed after a successful transfer."""
         state = self._jobs.get(job_id)
         if state is not None:
             state.consumed = True
-
-    # --- internals ---
 
     async def _publish(self, job_id: str, event: Event) -> None:
         is_terminal = event.event in {"done", "error"}
@@ -171,31 +159,27 @@ class JobRegistry:
             self._enqueue(queue, event, terminal=is_terminal)
 
     @staticmethod
+    def _force_put(queue: asyncio.Queue, item) -> None:
+        while True:
+            try:
+                queue.put_nowait(item)
+                return
+            except asyncio.QueueFull:
+                try:
+                    queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    return
+
+    @staticmethod
     def _enqueue(
         queue: asyncio.Queue[Optional[Event]],
         event: Event,
         *,
         terminal: bool,
     ) -> None:
-        while True:
-            try:
-                queue.put_nowait(event)
-                break
-            except asyncio.QueueFull:
-                try:
-                    queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
+        JobRegistry._force_put(queue, event)
         if terminal:
-            while True:
-                try:
-                    queue.put_nowait(None)
-                    return
-                except asyncio.QueueFull:
-                    try:
-                        queue.get_nowait()
-                    except asyncio.QueueEmpty:
-                        return
+            JobRegistry._force_put(queue, None)
 
     async def _run(self, job_id: str) -> None:
         state = self._jobs[job_id]
@@ -222,13 +206,12 @@ class JobRegistry:
                 bundle = await self._pipeline(ctx, emit)
                 state.bundle_path = bundle
                 state.status = JobStatus.DONE
-                state.ready_at = time.monotonic()
+                state.ready_at = time.time()
                 await self._publish(
                     job_id,
                     Event("done", {"download_url": f"/api/prepare/{job_id}/bundle"}),
                 )
         except asyncio.CancelledError:
-            # Fix 5: Handle cancellation cleanly so subscribers don't hang.
             state.status = JobStatus.ERROR
             state.error_message = "Job cancelled."
             await self._publish(job_id, Event("error", {"message": "Job cancelled."}))
@@ -251,7 +234,6 @@ class JobRegistry:
                 self._queued = max(0, self._queued - 1)
 
     def sweep_expired(self, ttl_seconds: int) -> list[str]:
-        import shutil, time
         removed: list[str] = []
         if not self._job_root.exists():
             return removed
@@ -263,18 +245,10 @@ class JobRegistry:
                 if entry.stat().st_mtime < cutoff:
                     shutil.rmtree(entry, ignore_errors=True)
                     removed.append(entry.name)
-                    # Fix 4: Notify live subscribers BEFORE forgetting them,
-                    # so they don't hang blocked on queue.get() indefinitely.
+                    # Notify live subscribers before removing state so they
+                    # unblock from queue.get() rather than hanging indefinitely.
                     for queue in self._subscribers.get(entry.name, []):
-                        try:
-                            queue.put_nowait(None)
-                        except asyncio.QueueFull:
-                            # Drop oldest, retry once.
-                            try:
-                                queue.get_nowait()
-                                queue.put_nowait(None)
-                            except (asyncio.QueueEmpty, asyncio.QueueFull):
-                                pass
+                        JobRegistry._force_put(queue, None)
                     self._jobs.pop(entry.name, None)
                     self._subscribers.pop(entry.name, None)
                     self._tasks.pop(entry.name, None)

@@ -2,23 +2,18 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from functools import partial
 from typing import Optional
 
 from fastapi import FastAPI
 
-from .api import make_router
+from .api import fasta_validation_error_handler, make_router
 from .config import Settings, load_settings
-from .jobs import JobContext, JobRegistry, PipelineFn
+from .jobs import JobRegistry, PipelineFn
 from .pipeline import run_protspace_prepare
+from .validation import FastaValidationError
 
 logger = logging.getLogger("protspace_prep")
-
-
-def _default_pipeline(settings: Settings) -> PipelineFn:
-    async def _pipeline(ctx: JobContext, emit):
-        return await run_protspace_prepare(ctx, emit, settings)
-
-    return _pipeline
 
 
 def create_app(*, pipeline: Optional[PipelineFn] = None) -> FastAPI:
@@ -28,7 +23,7 @@ def create_app(*, pipeline: Optional[PipelineFn] = None) -> FastAPI:
     registry = JobRegistry(
         job_root=settings.job_root,
         max_concurrent=settings.max_concurrent_jobs,
-        pipeline=pipeline or _default_pipeline(settings),
+        pipeline=pipeline or partial(run_protspace_prepare, settings=settings),
     )
 
     @asynccontextmanager
@@ -56,6 +51,8 @@ def create_app(*, pipeline: Optional[PipelineFn] = None) -> FastAPI:
     app = FastAPI(title="protspace-prep", version="0.1.0", lifespan=lifespan)
     app.state.registry = registry
     app.state.settings = settings
+
+    app.add_exception_handler(FastaValidationError, fasta_validation_error_handler)
 
     @app.get("/healthz")
     async def healthz() -> dict:

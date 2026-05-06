@@ -1,20 +1,8 @@
-# Example Caddy snippet for the FASTA prep backend.
-# Drop into your existing Caddyfile or include via `import`.
-#
+# Example Caddyfile for the protspace FASTA prep backend.
 # REQUIRED: Caddy must be built with the `caddy-ratelimit` plugin
-# (https://github.com/mholt/caddy-ratelimit). Deploying without it
-# leaves the unauthenticated POST /api/prepare endpoint open to abuse.
+# (https://github.com/mholt/caddy-ratelimit).
 
-protspace.example.com {
-    encode zstd gzip
-
-    # Static frontend (existing site root) — adjust to your deployment.
-    root * /srv/protspace
-    file_server
-
-    # Hard-cap submit body size at 9 MB so oversized uploads are rejected at
-    # the proxy before they buffer in the FastAPI process. The backend's own
-    # 8 MB limit (PREP_UPLOAD_MAX_BYTES) stays as the authoritative check.
+(prep_backend) {
     @prepare_post {
         method POST
         path /api/prepare
@@ -29,15 +17,22 @@ protspace.example.com {
             window 15m
         }
     }
-
-    handle_path /api/prepare* {
-        reverse_proxy protspace-prep:8000 {
-            # SSE-friendly defaults: Caddy v2 doesn't buffer responses, so no
-            # extra config is required for the events stream.
+    handle /api/prepare* {
+        reverse_proxy {args[0]} {
             transport http {
                 read_timeout 10m
                 response_header_timeout 10m
             }
         }
     }
+}
+
+protspace.example.com {
+    encode zstd gzip
+
+    # Static frontend (existing site root) — adjust to your deployment.
+    root * /srv/protspace
+    file_server
+
+    import prep_backend protspace-prep:8000
 }

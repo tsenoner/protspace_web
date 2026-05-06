@@ -241,10 +241,9 @@ async def test_sse_keepalive_frame_emitted_on_slow_pipeline(app_factory, monkeyp
 # Fix 6 — bundle() marks consumed before read
 # ---------------------------------------------------------------------------
 
-async def test_bundle_read_error_does_not_consume(app_factory, monkeypatch, tmp_path):
-    """If read_bytes raises OSError, consumed flag must NOT be set (retry possible)."""
-    import protspace_prep.api as api_module
-
+async def test_bundle_expired_returns_410_and_does_not_consume(app_factory):
+    """If the bundle file is missing when the download is requested, return 410.
+    The consumed flag must not be set so the state is preserved for diagnostics."""
     app = app_factory()
     async with await _client(app) as c:
         files = {"file": ("seq.fasta", b">P12345\nMKTAYIAK\n", "text/plain")}
@@ -252,33 +251,18 @@ async def test_bundle_read_error_does_not_consume(app_factory, monkeypatch, tmp_
         assert r.status_code == 202
         job_id = r.json()["job_id"]
 
-        # Wait for job to finish
         async with c.stream("GET", f"/api/prepare/{job_id}/events") as stream:
             async for chunk in stream.aiter_lines():
                 if "done" in chunk or "error" in chunk:
                     pass
 
-        # Patch Path.read_bytes to raise PermissionError on first call only
-        original_read_bytes = Path.read_bytes
-        call_count = 0
+        # Delete the bundle file to simulate expiry before download
+        registry = app.state.registry
+        state = registry.get(job_id)
+        assert state is not None and state.bundle_path is not None
+        state.bundle_path.unlink(missing_ok=True)
 
-        def failing_read_bytes(self):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise PermissionError("simulated permission denied")
-            return original_read_bytes(self)
-
-        monkeypatch.setattr(Path, "read_bytes", failing_read_bytes)
-
-        # First download attempt should fail with 500
         r1 = await c.get(f"/api/prepare/{job_id}/bundle")
-        assert r1.status_code == 500
-
-        # Restore normal read_bytes
-        monkeypatch.setattr(Path, "read_bytes", original_read_bytes)
-
-        # Second attempt should succeed (bundle not yet consumed)
-        r2 = await c.get(f"/api/prepare/{job_id}/bundle")
-        assert r2.status_code == 200
-        assert r2.content == b"FAKE_BUNDLE"
+        assert r1.status_code == 410
+        # consumed must not have been set
+        assert not state.consumed

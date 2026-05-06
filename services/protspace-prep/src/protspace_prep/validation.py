@@ -30,10 +30,11 @@ class FastaValidationError(ValueError):
 
 _PROTEIN_ALPHABET = set("ACDEFGHIKLMNPQRSTVWYBXZUO*-")
 _NUCLEOTIDE_ALPHABET = set("ACGTUN")
+_NUCLEOTIDE_HEURISTIC_MIN_LEN = 50
 
 
 def _looks_like_nucleotide(seq: str) -> bool:
-    if len(seq) < 50:
+    if len(seq) < _NUCLEOTIDE_HEURISTIC_MIN_LEN:
         return False
     return all(ch in _NUCLEOTIDE_ALPHABET for ch in seq)
 
@@ -68,7 +69,7 @@ def _iter_records(text: str) -> Iterable[FastaRecord]:
 
 
 def parse_and_validate(text: str, settings: Settings) -> list[FastaRecord]:
-    text = text.lstrip("﻿")
+    text = text.lstrip("\ufeff")
     if not text.strip():
         raise FastaValidationError(ValidationCode.EMPTY_FASTA, "Input is empty.")
 
