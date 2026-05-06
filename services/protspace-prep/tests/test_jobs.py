@@ -130,7 +130,7 @@ async def test_multiple_concurrent_subscribers_each_receive_full_stream(tmp_job_
     assert "progress" in stages_a and "progress" in stages_b
 
 
-async def test_late_subscriber_receives_terminal_event_only(tmp_job_root):
+async def test_late_subscriber_receives_queued_then_terminal(tmp_job_root):
     registry = JobRegistry(
         job_root=tmp_job_root,
         max_concurrent=1,
@@ -140,8 +140,9 @@ async def test_late_subscriber_receives_terminal_event_only(tmp_job_root):
     async for _ in registry.subscribe(job_id):
         pass
     events = [e async for e in registry.subscribe(job_id)]
-    assert len(events) == 1
-    assert events[0].event in {"done", "error"}
+    assert len(events) == 2
+    assert events[0].event == "queued"
+    assert events[1].event in {"done", "error"}
 
 
 async def test_get_returns_none_for_unknown_job(tmp_job_root):

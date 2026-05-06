@@ -105,8 +105,9 @@ class JobRegistry:
         state = self._jobs.get(job_id)
         if state is None:
             return
-        # Late subscriber: replay terminal event and close.
+        # Late subscriber: synthesize queued then replay terminal event and close.
         if state.terminal_event is not None:
+            yield Event("queued", {"job_id": job_id})
             yield state.terminal_event
             return
         # Synthesize a queued event so every subscriber receives the full stream

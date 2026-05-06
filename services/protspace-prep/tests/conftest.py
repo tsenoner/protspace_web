@@ -1,3 +1,12 @@
+import os
+import tempfile
+
+# Set the job root before importing the app, so the module-level create_app()
+# call uses a writable directory on developer machines.
+os.environ.setdefault(
+    "PREP_JOB_ROOT", tempfile.mkdtemp(prefix="protspace-prep-test-")
+)
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
