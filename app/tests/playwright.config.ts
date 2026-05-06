@@ -111,6 +111,14 @@ export default defineConfig({
       },
       testMatch: /figure-editor\.spec\.ts/,
     },
+    {
+      name: 'fasta-prep',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /fasta-prep\.spec\.ts/,
+    },
   ],
 
   outputDir: '../test-results/',
