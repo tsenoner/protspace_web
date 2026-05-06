@@ -222,3 +222,23 @@ class JobRegistry:
                 self._running -= 1
             else:
                 self._queued = max(0, self._queued - 1)
+
+    def sweep_expired(self, ttl_seconds: int) -> list[str]:
+        import shutil, time
+        removed: list[str] = []
+        if not self._job_root.exists():
+            return removed
+        cutoff = time.time() - ttl_seconds
+        for entry in self._job_root.iterdir():
+            try:
+                if not entry.is_dir():
+                    continue
+                if entry.stat().st_mtime < cutoff:
+                    shutil.rmtree(entry, ignore_errors=True)
+                    removed.append(entry.name)
+                    self._jobs.pop(entry.name, None)
+                    self._subscribers.pop(entry.name, None)
+                    self._tasks.pop(entry.name, None)
+            except OSError:
+                continue
+        return removed

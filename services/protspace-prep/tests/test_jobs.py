@@ -188,3 +188,25 @@ async def test_running_and_queued_counts(tmp_job_root):
     async for _ in registry.subscribe(a): pass
     async for _ in registry.subscribe(b): pass
     assert registry.counts() == {"running": 0, "queued": 0}
+
+
+async def test_sweep_removes_expired_directories(tmp_path):
+    from protspace_prep.jobs import JobRegistry
+    job_root = tmp_path / "jobs"
+    registry = JobRegistry(
+        job_root=job_root,
+        max_concurrent=1,
+        pipeline=lambda ctx, emit: _fake_pipeline_success(ctx, emit),
+    )
+    job_id = await registry.submit(b">id\nMKT\n", original_name="t.fasta")
+    async for _ in registry.subscribe(job_id):
+        pass
+    import os, time
+    job_dir = job_root / job_id
+    past = time.time() - 10_000
+    os.utime(job_dir, (past, past))
+
+    removed = registry.sweep_expired(ttl_seconds=3600)
+    assert job_id in removed
+    assert not job_dir.exists()
+    assert registry.get(job_id) is None
