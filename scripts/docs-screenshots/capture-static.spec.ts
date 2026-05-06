@@ -18,6 +18,37 @@ test.beforeAll(async () => {
 });
 
 /**
+ * Open the Figure Editor and wait for its preview canvas to render.
+ * Dispatches the same event the Export-menu's "Figure Editor" button fires —
+ * skips dropdown timing and viewport clipping.
+ */
+async function openFigureEditor(
+  page: import('@playwright/test').Page,
+  timeout = 10_000,
+): Promise<void> {
+  await page.evaluate(() => {
+    const cb = document.querySelector('protspace-control-bar');
+    cb?.dispatchEvent(new CustomEvent('open-publish-editor', { bubbles: true, composed: true }));
+  });
+
+  await page.waitForFunction(() => !!document.querySelector('protspace-publish-modal'), {
+    timeout,
+  });
+  await page.waitForFunction(
+    () => {
+      const m = document.querySelector('protspace-publish-modal') as
+        | (HTMLElement & { shadowRoot: ShadowRoot })
+        | null;
+      const c = m?.shadowRoot?.querySelector('.publish-preview-canvas') as HTMLCanvasElement | null;
+      return !!c && c.width > 0 && c.height > 0;
+    },
+    { timeout, polling: 250 },
+  );
+  // Settle: rAF redraw + font readiness.
+  await page.waitForTimeout(800);
+}
+
+/**
  * Wait for the control bar to be fully rendered with all elements styled.
  * This fixes the gray control-bar issue by waiting for shadow DOM elements.
  */
@@ -401,37 +432,218 @@ test.describe('Control Bar Screenshots', () => {
   });
 
   test('figure-editor-overview.png - Figure Editor modal full layout', async ({ page }) => {
-    // Open the Figure Editor by dispatching the same event the Export-menu's
-    // "Figure Editor" button fires. Skips dropdown timing, viewport clipping.
-    await page.evaluate(() => {
-      const cb = document.querySelector('protspace-control-bar');
-      cb?.dispatchEvent(new CustomEvent('open-publish-editor', { bubbles: true, composed: true }));
-    });
-
-    // Wait for the modal to mount + its preview canvas to have non-zero pixels.
-    await page.waitForFunction(() => !!document.querySelector('protspace-publish-modal'), {
-      timeout: 10_000,
-    });
-    await page.waitForFunction(
-      () => {
-        const m = document.querySelector('protspace-publish-modal') as
-          | (HTMLElement & { shadowRoot: ShadowRoot })
-          | null;
-        const c = m?.shadowRoot?.querySelector(
-          '.publish-preview-canvas',
-        ) as HTMLCanvasElement | null;
-        return !!c && c.width > 0 && c.height > 0;
-      },
-      { timeout: 10_000, polling: 250 },
-    );
-    // Settle: rAF redraw + font readiness.
-    await page.waitForTimeout(800);
-
+    await openFigureEditor(page);
     await page.screenshot({
       path: path.join(IMAGES_DIR, 'figure-editor-overview.png'),
       fullPage: false,
     });
     console.log('📸 Captured: figure-editor-overview.png');
+  });
+
+  test('figure-editor-presets.png - Journal preset grid (sidebar close-up)', async ({ page }) => {
+    await openFigureEditor(page);
+
+    const clip = await page.evaluate(() => {
+      const m = document.querySelector('protspace-publish-modal') as
+        | (HTMLElement & { shadowRoot: ShadowRoot })
+        | null;
+      const sidebar = m?.shadowRoot?.querySelector('.publish-sidebar') as HTMLElement | null;
+      if (!sidebar) return null;
+      const r = sidebar.getBoundingClientRect();
+      return { x: r.left, y: r.top, width: r.width, height: Math.min(r.height, 540) };
+    });
+
+    if (clip) {
+      await page.screenshot({
+        path: path.join(IMAGES_DIR, 'figure-editor-presets.png'),
+        clip,
+      });
+    } else {
+      await page.screenshot({ path: path.join(IMAGES_DIR, 'figure-editor-presets.png') });
+    }
+    console.log('📸 Captured: figure-editor-presets.png');
+  });
+
+  test('figure-editor-overlays.png - Editor with circle, arrow, and label overlays', async ({
+    page,
+  }) => {
+    await openFigureEditor(page);
+
+    await page.evaluate(() => {
+      const m = document.querySelector('protspace-publish-modal') as
+        | (HTMLElement & {
+            _state: Record<string, unknown>;
+            requestUpdate: () => void;
+          })
+        | null;
+      if (!m) return;
+      const cur = m._state as Record<string, unknown>;
+      m._state = {
+        ...cur,
+        overlays: [
+          {
+            type: 'circle',
+            cx: 0.32,
+            cy: 0.45,
+            rx: 0.09,
+            ry: 0.12,
+            rotation: 0,
+            color: '#dc2626',
+            strokeWidth: 3,
+          },
+          {
+            type: 'arrow',
+            x1: 0.55,
+            y1: 0.2,
+            x2: 0.4,
+            y2: 0.4,
+            color: '#000000',
+            width: 3,
+          },
+          {
+            type: 'label',
+            x: 0.58,
+            y: 0.18,
+            text: 'Cluster A',
+            fontSize: 22,
+            rotation: 0,
+            color: '#000000',
+          },
+        ],
+      };
+      m.requestUpdate();
+    });
+    // Allow rAF redraw and font load to complete.
+    await page.waitForTimeout(600);
+
+    await page.screenshot({
+      path: path.join(IMAGES_DIR, 'figure-editor-overlays.png'),
+      fullPage: false,
+    });
+    console.log('📸 Captured: figure-editor-overlays.png');
+  });
+
+  test('figure-editor-zoom-inset.png - Editor with a zoom inset placed', async ({ page }) => {
+    await openFigureEditor(page);
+
+    await page.evaluate(() => {
+      const m = document.querySelector('protspace-publish-modal') as
+        | (HTMLElement & {
+            _state: Record<string, unknown>;
+            requestUpdate: () => void;
+          })
+        | null;
+      if (!m) return;
+      const cur = m._state as Record<string, unknown>;
+      m._state = {
+        ...cur,
+        insets: [
+          {
+            sourceRect: { x: 0.18, y: 0.32, w: 0.16, h: 0.2 },
+            targetRect: { x: 0.6, y: 0.55, w: 0.32, h: 0.4 },
+            border: 2,
+            connector: 'lines',
+            pointSizeScale: 2,
+          },
+        ],
+      };
+      m.requestUpdate();
+    });
+    // Inset re-render is async (WebGL pass); give it room to settle.
+    await page.waitForTimeout(1500);
+
+    await page.screenshot({
+      path: path.join(IMAGES_DIR, 'figure-editor-zoom-inset.png'),
+      fullPage: false,
+    });
+    console.log('📸 Captured: figure-editor-zoom-inset.png');
+  });
+
+  test('filter-query-builder.png - Filter modal with example conditions', async ({ page }) => {
+    // Pre-populate the filter query so the modal opens with a meaningful state.
+    // Pick the first annotation and its first two unique non-null values from
+    // the currently loaded data — keeps the test independent of the dataset.
+    await page.evaluate(() => {
+      const cb = document.querySelector('#myControlBar') as
+        | (HTMLElement & {
+            annotations: string[];
+            _currentData?: {
+              annotations?: Record<string, { values: (string | null)[] }>;
+            };
+            filterQuery: unknown[];
+            requestUpdate: () => void;
+          })
+        | null;
+      if (!cb) return;
+      const ann = cb.annotations?.[0];
+      if (!ann) return;
+      const raw = cb._currentData?.annotations?.[ann]?.values ?? [];
+      const seen = new Set<string>();
+      const unique: string[] = [];
+      for (const v of raw) {
+        if (typeof v !== 'string' || !v) continue;
+        if (seen.has(v)) continue;
+        seen.add(v);
+        unique.push(v);
+        if (unique.length === 2) break;
+      }
+      cb.filterQuery = [{ id: 'q-demo-1', annotation: ann, values: unique }];
+      cb.requestUpdate();
+    });
+
+    // Open the filter modal via the same path the user clicks.
+    await page.evaluate(() => {
+      const cb = document.querySelector('#myControlBar') as
+        | (HTMLElement & {
+            shadowRoot: ShadowRoot | null;
+          })
+        | null;
+      const trigger = cb?.shadowRoot?.querySelector(
+        '.filter-container .dropdown-trigger',
+      ) as HTMLElement | null;
+      trigger?.click();
+    });
+
+    await page.waitForFunction(
+      () => {
+        const cb = document.querySelector('#myControlBar') as
+          | (HTMLElement & {
+              shadowRoot: ShadowRoot | null;
+            })
+          | null;
+        return !!cb?.shadowRoot?.querySelector('.query-builder-modal');
+      },
+      { timeout: 5_000, polling: 200 },
+    );
+    // Let the query builder finish first paint and resolve match counts.
+    await page.waitForTimeout(800);
+
+    const clip = await page.evaluate(() => {
+      const cb = document.querySelector('#myControlBar') as
+        | (HTMLElement & {
+            shadowRoot: ShadowRoot | null;
+          })
+        | null;
+      const modal = cb?.shadowRoot?.querySelector('.query-builder-modal') as HTMLElement | null;
+      if (!modal) return null;
+      const r = modal.getBoundingClientRect();
+      return {
+        x: Math.max(0, r.left - 12),
+        y: Math.max(0, r.top - 12),
+        width: r.width + 24,
+        height: r.height + 24,
+      };
+    });
+
+    if (clip) {
+      await page.screenshot({
+        path: path.join(IMAGES_DIR, 'filter-query-builder.png'),
+        clip,
+      });
+    } else {
+      await page.screenshot({ path: path.join(IMAGES_DIR, 'filter-query-builder.png') });
+    }
+    console.log('📸 Captured: filter-query-builder.png');
   });
 
   test('control-bar-export.png - Export menu', async ({ page }) => {

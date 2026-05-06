@@ -15,6 +15,8 @@ To export immediately with the last-used settings, use **Quick Export** instead 
 
 ## Journal Presets
 
+![Journal preset grid in the Figure Editor sidebar — Nature, Science, Cell, PNAS, PLOS, Slide and Flexible options with their column widths](./images/figure-editor-presets.png)
+
 The presets grid configures dimensions and DPI for specific journals:
 
 | Preset        | Width   | DPI | Max Height |
@@ -136,6 +138,8 @@ While focus is inside an editable input (e.g. a label's text field), Delete/Back
 
 ## Overlay tools
 
+![Figure Editor with three overlays placed: a red circle highlighting a protein cluster, an arrow pointing at the cluster, and a "Cluster A" label — sidebar shows the matching Overlays section](./images/figure-editor-overlays.png)
+
 The toolbar at the bottom of the preview switches between drawing tools.
 
 ### Select tool
@@ -165,6 +169,8 @@ Click to place a text label. Default text is "Label" and can be renamed in the s
 - A rotate handle for rotation around the anchor
 
 ### Zoom-inset tool
+
+![Figure Editor with a zoom inset placed: dashed source rectangle marks the magnified region on the left of the plot, the magnified target rectangle sits in the lower-right with a solid border, sidebar shows Zoom Insets with Dot size and Border controls](./images/figure-editor-zoom-inset.png)
 
 Creates a magnified view of a region. Two-phase workflow:
 
