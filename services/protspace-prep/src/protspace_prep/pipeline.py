@@ -5,12 +5,45 @@ import shutil
 from pathlib import Path
 from typing import Awaitable, Callable, Sequence
 
+from protspace.data.loaders.h5 import parse_identifier
+
 from .config import Settings
 from .jobs import JobContext, PipelineFailure
 
 logger = logging.getLogger("protspace_prep.pipeline")
 
 EmitFn = Callable[[str, dict], Awaitable[None]]
+
+
+def _normalize_fasta_headers(input_path: Path, output_path: Path) -> None:
+    """Rewrite *input_path* into *output_path* with parsed-identifier headers.
+
+    `protspace embed` keys H5 by the first whitespace-delimited token of the
+    FASTA header (e.g. ``sp|P12345|NAME_HUMAN``), and `protspace project`
+    propagates that raw key into ``projections_data.identifier``. But
+    `protspace annotate` runs the same header through ``parse_identifier``
+    (``sp|P12345|NAME_HUMAN`` → ``P12345``), and `protspace bundle` renames
+    that to ``protein_id``. The bundle then carries two different keys for
+    the same protein, and the frontend join in
+    ``packages/core/src/components/data-loader/utils/bundle.ts`` produces
+    zero merged annotations.
+
+    Normalising headers up-front means both downstream paths see — and emit —
+    identical identifiers, so the join holds. Plain headers (no UniProt
+    pattern, no pipes) are left untouched, matching ``parse_identifier``'s
+    fall-through behaviour.
+    """
+    with open(input_path) as fin, open(output_path, "w") as fout:
+        for line in fin:
+            if line.startswith(">"):
+                stripped = line[1:].strip()
+                if not stripped:
+                    fout.write(line)
+                    continue
+                token = stripped.split()[0]
+                fout.write(f">{parse_identifier(token)}\n")
+            else:
+                fout.write(line)
 
 
 async def run_protspace_prepare(
@@ -33,11 +66,14 @@ async def run_protspace_prepare(
     embed_dir.mkdir(parents=True, exist_ok=True)
     project_dir.mkdir(parents=True, exist_ok=True)
 
+    normalized_fasta = ctx.output_dir / "input.normalized.fasta"
+    _normalize_fasta_headers(ctx.fasta_path, normalized_fasta)
+
     embed_cmd = [
         "protspace",
         "embed",
         "-i",
-        str(ctx.fasta_path),
+        str(normalized_fasta),
         "-e",
         settings.embedder,
         "-o",
@@ -47,7 +83,7 @@ async def run_protspace_prepare(
         "protspace",
         "annotate",
         "-i",
-        str(ctx.fasta_path),
+        str(normalized_fasta),
         "-a",
         settings.annotations,
         "-o",

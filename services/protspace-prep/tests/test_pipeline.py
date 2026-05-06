@@ -6,7 +6,7 @@ import pytest
 
 from protspace_prep.config import load_settings
 from protspace_prep.jobs import JobContext, PipelineFailure
-from protspace_prep.pipeline import run_protspace_prepare
+from protspace_prep.pipeline import _normalize_fasta_headers, run_protspace_prepare
 
 
 @pytest.fixture
@@ -228,3 +228,69 @@ async def test_missing_h5_after_embed_raises_pipeline_failure(ctx):
         with pytest.raises(PipelineFailure) as exc:
             await run_protspace_prepare(ctx, AsyncMock(), settings)
     assert "no HDF5" in str(exc.value)
+
+
+def test_normalize_fasta_headers_strips_uniprot_prefix(tmp_path: Path):
+    """UniProt sp|/tr| headers must collapse to the bare accession.
+
+    Embed/project key by the FASTA header's first token, while annotate
+    parses it. If the two diverge (raw vs parsed), the bundle's annotation
+    join silently drops every row.
+    """
+    src = tmp_path / "in.fasta"
+    src.write_text(
+        ">sp|P12345|TEST_HUMAN Test protein\nMAAA\n"
+        ">tr|Q67890|FOO_HUMAN Another\nMBBB\n"
+        ">my_custom_id description here\nMCCC\n"
+    )
+    dst = tmp_path / "out.fasta"
+    _normalize_fasta_headers(src, dst)
+
+    headers = [
+        line[1:].strip()
+        for line in dst.read_text().splitlines()
+        if line.startswith(">")
+    ]
+    assert headers == ["P12345", "Q67890", "my_custom_id"]
+
+
+async def test_pipeline_uses_normalized_fasta_for_embed_and_annotate(ctx):
+    """Both subprocess calls must point at the normalized FASTA.
+
+    Otherwise embed keys H5 by ``sp|P12345|NAME`` while annotate keys parquet
+    by ``P12345``, and the frontend bundle join produces no annotations.
+    """
+    ctx.fasta_path.write_text(">sp|P12345|TEST_HUMAN\nMAAAAAA\n")
+    seen_inputs: dict[str, str] = {}
+
+    embed_dir = ctx.output_dir / "embed"
+    project_dir = ctx.output_dir / "project"
+    annotations_path = ctx.output_dir / "annotations.parquet"
+    bundle_path = ctx.output_dir / "data.parquetbundle"
+
+    async def fake_create(*args, **kwargs):
+        cmd = list(args)
+        step = cmd[1]
+        if step in {"embed", "annotate"}:
+            seen_inputs[step] = cmd[cmd.index("-i") + 1]
+        if step == "embed":
+            embed_dir.mkdir(parents=True, exist_ok=True)
+            (embed_dir / "prot_t5.h5").write_bytes(b"H5")
+        elif step == "annotate":
+            annotations_path.write_bytes(b"P")
+        elif step == "project":
+            project_dir.mkdir(parents=True, exist_ok=True)
+            (project_dir / "projections_metadata.parquet").write_bytes(b"M")
+            (project_dir / "projections_data.parquet").write_bytes(b"D")
+        elif step == "bundle":
+            bundle_path.write_bytes(b"BUNDLE")
+        return _mock_subprocess(returncode=0)
+
+    settings = load_settings()
+    with patch("asyncio.create_subprocess_exec", new=fake_create):
+        await run_protspace_prepare(ctx, AsyncMock(), settings)
+
+    normalized = ctx.output_dir / "input.normalized.fasta"
+    assert seen_inputs["embed"] == str(normalized)
+    assert seen_inputs["annotate"] == str(normalized)
+    assert ">P12345" in normalized.read_text()
