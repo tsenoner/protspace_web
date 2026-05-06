@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
 const TEST_DIR = fileURLToPath(new URL('.', import.meta.url));
+const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 /**
  * Playwright configuration for ProtSpace app e2e tests (product tour, etc.).
@@ -34,6 +35,7 @@ export default defineConfig({
     ? undefined
     : {
         command: 'pnpm dev:app',
+        cwd: REPO_ROOT,
         url: BASE_URL,
         reuseExistingServer: !process.env.CI,
         timeout: 180_000,
