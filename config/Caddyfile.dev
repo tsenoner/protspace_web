@@ -1,0 +1,65 @@
+# Backend Caddy for local development — mirrors the prod topology where the
+# SPA is hosted separately from the prep backend (cross-origin).
+#
+# In prod:
+#   - SPA at https://protspace.app (static hosting)
+#   - Backend Caddy at https://prep.protspace.app (this config, with TLS)
+#
+# In dev:
+#   - SPA at http://localhost:8080 (vite dev server)
+#   - Backend Caddy at http://localhost:9090 (this Caddy, mapped from :80)
+#
+# The frontend reads the absolute backend URL from VITE_PREP_API_BASE
+# (see app/.env.development).
+
+:80 {
+	encode zstd gzip
+
+	# CORS for the SPA dev origin. EventSource cross-origin needs these
+	# headers on the SSE response (no preflight is sent for SSE/GET, but the
+	# browser still validates Access-Control-Allow-Origin).
+	@cors_origin header Origin "http://localhost:8080"
+	header @cors_origin Access-Control-Allow-Origin "http://localhost:8080"
+	header @cors_origin Vary Origin
+	header @cors_origin Access-Control-Allow-Methods "GET, POST, OPTIONS"
+	header @cors_origin Access-Control-Allow-Headers "Content-Type"
+	header @cors_origin Access-Control-Max-Age "86400"
+
+	# Preflight short-circuit for the prep submit endpoint.
+	@cors_preflight {
+		method OPTIONS
+		path /api/prepare*
+	}
+	respond @cors_preflight 204
+
+	# Hard-cap submit body size at 9 MB (matches prod). The backend's
+	# PREP_UPLOAD_MAX_BYTES (8 MB) remains the authoritative check.
+	@prepare_post {
+		method POST
+		path /api/prepare
+	}
+	request_body @prepare_post {
+		max_size 9MB
+	}
+	rate_limit @prepare_post {
+		zone prepare_submit {
+			key {client_ip}
+			events 5
+			window 15m
+		}
+	}
+
+	# Route prep traffic upstream. `handle` preserves the path; `handle_path`
+	# would strip `/api/prepare` and break FastAPI route matching.
+	handle /api/prepare* {
+		reverse_proxy protspace-prep:8000 {
+			transport http {
+				read_timeout 10m
+				response_header_timeout 10m
+			}
+		}
+	}
+
+	# Anything else: 404. Frontend lives elsewhere in this topology.
+	respond 404
+}
