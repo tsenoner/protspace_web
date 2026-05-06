@@ -72,11 +72,21 @@ def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
 
         async def stream() -> AsyncIterator[bytes]:
             aiter = registry.subscribe(job_id).__aiter__()
+            # Keep one in-flight `__anext__()` task across keepalive timeouts.
+            # `wait_for(aiter.__anext__(), ...)` cancels its inner coroutine on
+            # timeout, which exhausts the underlying async generator and
+            # silently truncates the stream after the first keepalive frame —
+            # the EventSource client then fires its built-in error event,
+            # surfacing as "Bundle preparation failed." in the UI.
+            pending: asyncio.Task | None = None
             try:
                 while True:
+                    if pending is None:
+                        pending = asyncio.create_task(aiter.__anext__())
                     try:
                         event = await asyncio.wait_for(
-                            aiter.__anext__(), timeout=_KEEPALIVE_INTERVAL_SECONDS
+                            asyncio.shield(pending),
+                            timeout=_KEEPALIVE_INTERVAL_SECONDS,
                         )
                     except asyncio.TimeoutError:
                         if await request.is_disconnected():
@@ -85,6 +95,7 @@ def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
                         continue
                     except StopAsyncIteration:
                         return
+                    pending = None
                     if await request.is_disconnected():
                         return
                     yield format_event(event.event, event.data).encode("utf-8")
@@ -95,6 +106,13 @@ def make_router(registry: JobRegistry, settings: Settings) -> APIRouter:
                 yield format_event(
                     "error", {"message": "Internal server error."}
                 ).encode("utf-8")
+            finally:
+                if pending is not None and not pending.done():
+                    pending.cancel()
+                    try:
+                        await pending
+                    except (asyncio.CancelledError, StopAsyncIteration, Exception):
+                        pass
 
         headers = {
             "Cache-Control": "no-cache, no-transform",

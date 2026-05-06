@@ -183,7 +183,11 @@ async def test_bundle_download_with_hostile_filename_produces_safe_header(app_fa
 # ---------------------------------------------------------------------------
 
 async def test_sse_keepalive_frame_emitted_on_slow_pipeline(app_factory, monkeypatch):
-    """When no event arrives within the keepalive interval, a comment frame is sent."""
+    """When no event arrives within the keepalive interval, a comment frame
+    is sent — and the stream must keep flowing afterwards (regression: a prior
+    implementation cancelled the in-flight `__anext__()` on each keepalive,
+    exhausting the subscriber generator so the stream truncated silently).
+    """
     import asyncio
     import protspace_prep.api as api_module
 
@@ -193,6 +197,8 @@ async def test_sse_keepalive_frame_emitted_on_slow_pipeline(app_factory, monkeyp
     gate = asyncio.Event()
 
     async def gated_pipeline(ctx, emit):
+        # Hold long enough for several keepalive intervals to fire before we
+        # produce a terminal event.
         await gate.wait()
         out = ctx.output_dir / "data.parquetbundle"
         out.write_bytes(b"BUNDLE")
@@ -205,25 +211,30 @@ async def test_sse_keepalive_frame_emitted_on_slow_pipeline(app_factory, monkeyp
         assert r.status_code == 202
         job_id = r.json()["job_id"]
 
-        received: list[bytes] = []
+        # Release the gate after enough wall time for several keepalives
+        # to fire, so the stream is exercised across the keepalive boundary.
+        async def release_gate():
+            await asyncio.sleep(0.3)
+            gate.set()
 
-        async def collect_briefly():
-            async with c.stream("GET", f"/api/prepare/{job_id}/events") as stream:
-                async for chunk in stream.aiter_bytes():
-                    received.append(chunk)
-                    # Stop after we've seen a keepalive or done event
-                    combined = b"".join(received)
-                    if b":\n\n" in combined or b"event: done" in combined:
-                        break
+        release_task = asyncio.create_task(release_gate())
 
-        # Let SSE run briefly (pipeline is gated), collect until keepalive appears
-        await asyncio.wait_for(collect_briefly(), timeout=2.0)
+        text = ""
+        async with c.stream("GET", f"/api/prepare/{job_id}/events") as stream:
+            async for chunk in stream.aiter_text():
+                text += chunk
 
-        combined = b"".join(received)
-        assert b":\n\n" in combined, "Expected SSE keepalive comment frame"
+        await release_task
 
-        # Ungate so the pipeline can finish and resources are cleaned up
-        gate.set()
+        assert ":\n\n" in text, "Expected at least one SSE keepalive comment frame"
+        # The stream must keep delivering events after the keepalive — this
+        # is the regression we're guarding against.
+        assert "event: done" in text, (
+            f"Stream truncated after keepalive — got:\n{text!r}"
+        )
+        # And the keepalive must come BEFORE the done event (i.e. the stream
+        # really did wait through a keepalive interval before completing).
+        assert text.index(":\n\n") < text.index("event: done")
 
 
 # ---------------------------------------------------------------------------
