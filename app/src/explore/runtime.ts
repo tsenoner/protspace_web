@@ -6,6 +6,7 @@ import { getElements, waitForElements } from './elements';
 import { createExportHandler } from './export-handler';
 import { createInteractionController } from './interaction-controller';
 import { createLifecycle } from './lifecycle';
+import { isFastaFile, prepareFastaBundle } from './fasta-prep-client';
 import { createLoadQueue } from './load-queue';
 import { createLoadingOverlayController } from './loading-overlay';
 import { createPersistedLegendController } from './persisted-legend';
@@ -56,7 +57,33 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     isDisposed: lifecycle.isDisposed,
   });
   dataLoader.loadFromFileHandler = (file, options, next) =>
-    loadQueue.enqueueLoadFromFile(file, options, next);
+    loadQueue.enqueueLoadFromFile(file, options, async (queuedFile, queuedOptions) => {
+      if (!isFastaFile(queuedFile)) {
+        return next(queuedFile, queuedOptions);
+      }
+
+      const stageLabels: Record<string, string> = {
+        queued: 'Waiting for prep slot…',
+        embedding: 'Embedding sequences…',
+        projecting: 'Projecting…',
+        annotating: 'Fetching annotations…',
+        bundling: 'Bundling…',
+      };
+
+      overlayController.update(true, 5, 'Preparing FASTA…', 'Uploading…');
+      try {
+        const bundleFile = await prepareFastaBundle(queuedFile, {
+          baseUrl: '',
+          onProgress: (stage) => {
+            overlayController.update(true, 25, 'Preparing FASTA…', stageLabels[stage] ?? stage);
+          },
+        });
+        return next(bundleFile, queuedOptions);
+      } catch (error) {
+        overlayController.update(false, 0, '', '');
+        throw error;
+      }
+    });
   lifecycle.addCleanup(() => {
     dataLoader.loadFromFileHandler = undefined;
     loadQueue.dispose();

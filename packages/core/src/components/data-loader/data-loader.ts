@@ -96,7 +96,7 @@ export class DataLoader extends LitElement {
       <input
         type="file"
         class="hidden-input"
-        accept=".parquetbundle"
+        accept=".parquetbundle,.fasta,.fa,.fna"
         @change=${this.handleFileSelect}
         style="display:none"
       />
