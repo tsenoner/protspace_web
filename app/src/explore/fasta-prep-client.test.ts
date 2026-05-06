@@ -121,6 +121,34 @@ describe('prepareFastaBundle', () => {
     expect(es.closed).toBe(true);
   });
 
+  it('surfaces a friendly message with Retry-After when the server returns 429', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response('rate limited', {
+            status: 429,
+            headers: { 'Retry-After': '90' },
+          }),
+      ),
+    );
+    const file = new File([new Uint8Array([0])], 'seq.fasta');
+    await expect(prepareFastaBundle(file, { baseUrl: '' })).rejects.toThrow(
+      /Too many upload attempts.*try again in 2 minutes\./,
+    );
+  });
+
+  it('falls back to a generic rate-limit message when Retry-After is missing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('rate limited', { status: 429 })),
+    );
+    const file = new File([new Uint8Array([0])], 'seq.fasta');
+    await expect(prepareFastaBundle(file, { baseUrl: '' })).rejects.toThrow(
+      /Too many upload attempts.*wait a few minutes/,
+    );
+  });
+
   it('rejects when POST returns a 400 with code', async () => {
     vi.stubGlobal(
       'fetch',

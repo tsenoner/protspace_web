@@ -4,6 +4,50 @@ export function isFastaFile(file: File): boolean {
   return FASTA_EXT_PATTERN.test(file.name);
 }
 
+function formatRetryAfter(headerValue: string | null): string | null {
+  if (!headerValue) return null;
+  const seconds = Number(headerValue);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    if (seconds < 60) return `${Math.ceil(seconds)} seconds`;
+    const minutes = Math.ceil(seconds / 60);
+    return minutes === 1 ? '1 minute' : `${minutes} minutes`;
+  }
+  const dateMs = Date.parse(headerValue);
+  if (!Number.isNaN(dateMs)) {
+    const diff = Math.max(0, dateMs - Date.now());
+    return formatRetryAfter(String(Math.ceil(diff / 1000)));
+  }
+  return null;
+}
+
+async function describeSubmitFailure(response: Response): Promise<string> {
+  let serverMessage: string | undefined;
+  try {
+    const body = await response.json();
+    if (body?.error) serverMessage = String(body.error);
+  } catch {
+    /* non-JSON body (e.g. Caddy plain-text 429) */
+  }
+
+  switch (response.status) {
+    case 429: {
+      const wait = formatRetryAfter(response.headers.get('Retry-After'));
+      const base = 'Too many upload attempts. The server is rate-limiting submissions';
+      return wait
+        ? `${base} — try again in ${wait}.`
+        : `${base}; please wait a few minutes and try again.`;
+    }
+    case 413:
+      return serverMessage ?? 'FASTA file is too large for the prep backend (max 8 MB).';
+    case 503:
+      return serverMessage ?? 'Prep backend is busy or unavailable. Please try again shortly.';
+    case 504:
+      return serverMessage ?? 'Prep backend timed out before responding. Please try again.';
+    default:
+      return serverMessage ?? `Upload failed (HTTP ${response.status}).`;
+  }
+}
+
 /** @public */
 export type FastaPrepStage = 'queued' | 'embedding' | 'projecting' | 'annotating' | 'bundling';
 
@@ -29,14 +73,7 @@ export async function prepareFastaBundle(
   });
 
   if (!submitResponse.ok) {
-    let message = `Upload failed (${submitResponse.status}).`;
-    try {
-      const body = await submitResponse.json();
-      if (body?.error) message = String(body.error);
-    } catch {
-      /* swallow */
-    }
-    throw new Error(message);
+    throw new Error(await describeSubmitFailure(submitResponse));
   }
 
   const { job_id: jobId } = (await submitResponse.json()) as { job_id: string };
