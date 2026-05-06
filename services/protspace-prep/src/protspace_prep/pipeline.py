@@ -1,22 +1,14 @@
 from __future__ import annotations
 import asyncio
 import logging
-import re
 import shutil
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Sequence
 
 from .config import Settings
 from .jobs import JobContext, PipelineFailure
 
 logger = logging.getLogger("protspace_prep.pipeline")
-
-_STAGE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\bembed", re.IGNORECASE), "embedding"),
-    (re.compile(r"\bproject|\bPCA|\bUMAP|\btSNE", re.IGNORECASE), "projecting"),
-    (re.compile(r"\bannotat", re.IGNORECASE), "annotating"),
-    (re.compile(r"\bbundl", re.IGNORECASE), "bundling"),
-)
 
 EmitFn = Callable[[str, dict], Awaitable[None]]
 
@@ -26,27 +18,103 @@ async def run_protspace_prepare(
     emit: EmitFn,
     settings: Settings,
 ) -> Path:
-    """Drive `protspace prepare` as a subprocess.
+    """Drive the protspace pipeline as four subprocess calls.
 
-    Stage transitions are derived from CLI stderr lines. Returns the resulting
-    bundle path on success; raises PipelineFailure on any failure mode.
+    `embed` (Biocentral) and `annotate` (UniProt) are network-bound and
+    independent, so they run in parallel. `project` then `bundle` run in
+    sequence. The whole run shares a single wall-clock budget set by
+    ``settings.pipeline_timeout_seconds`` so the overall watchdog still
+    matches the SSE contract.
     """
-    cmd = [
+    embed_dir = ctx.output_dir / "embed"
+    project_dir = ctx.output_dir / "project"
+    annotations_path = ctx.output_dir / "annotations.parquet"
+    bundle_path = ctx.output_dir / "data.parquetbundle"
+    embed_dir.mkdir(parents=True, exist_ok=True)
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    embed_cmd = [
         "protspace",
-        "prepare",
+        "embed",
         "-i",
         str(ctx.fasta_path),
         "-e",
         settings.embedder,
-        "-m",
-        settings.methods,
+        "-o",
+        str(embed_dir),
+    ]
+    annotate_cmd = [
+        "protspace",
+        "annotate",
+        "-i",
+        str(ctx.fasta_path),
         "-a",
         settings.annotations,
         "-o",
-        str(ctx.output_dir),
+        str(annotations_path),
     ]
-    logger.info("job=%s cmd=%s", ctx.job_id, " ".join(cmd))
 
+    try:
+        async with asyncio.timeout(settings.pipeline_timeout_seconds):
+            await emit("embedding", {})
+            await emit("annotating", {})
+            try:
+                async with asyncio.TaskGroup() as tg:
+                    tg.create_task(_run_step(ctx.job_id, "embed", embed_cmd))
+                    tg.create_task(_run_step(ctx.job_id, "annotate", annotate_cmd))
+            except* PipelineFailure as eg:
+                raise eg.exceptions[0]
+
+            h5_files = sorted(embed_dir.glob("*.h5"))
+            if not h5_files:
+                raise PipelineFailure("protspace embed produced no HDF5 file.")
+
+            await emit("projecting", {})
+            project_cmd = [
+                "protspace",
+                "project",
+                "-i",
+                str(h5_files[0]),
+                "-m",
+                settings.methods,
+                "-o",
+                str(project_dir),
+            ]
+            await _run_step(ctx.job_id, "project", project_cmd)
+
+            await emit("bundling", {})
+            bundle_cmd = [
+                "protspace",
+                "bundle",
+                "-p",
+                str(project_dir),
+                "-a",
+                str(annotations_path),
+                "-o",
+                str(bundle_path),
+            ]
+            await _run_step(ctx.job_id, "bundle", bundle_cmd)
+    except asyncio.TimeoutError:
+        raise PipelineFailure(
+            f"protspace pipeline timed out after {settings.pipeline_timeout_seconds}s."
+        )
+
+    if not bundle_path.exists():
+        raise PipelineFailure(
+            "protspace bundle reported success but produced no .parquetbundle file."
+        )
+    return bundle_path
+
+
+async def _run_step(job_id: str, name: str, cmd: Sequence[str]) -> None:
+    """Run one protspace subcommand. Raise PipelineFailure on non-zero exit.
+
+    Stderr is consumed line-by-line so the subprocess never blocks on a
+    full pipe; the last 50 lines are kept for inclusion in failure messages.
+    Cancellation (e.g. from a sibling failure in the TaskGroup, or the
+    overall ``asyncio.timeout``) kills the subprocess before propagating.
+    """
+    logger.info("job=%s step=%s cmd=%s", job_id, name, " ".join(cmd))
     process = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.DEVNULL,
@@ -54,7 +122,6 @@ async def run_protspace_prepare(
     )
 
     last_lines: list[str] = []
-    seen_stages: set[str] = set()
 
     async def _drain() -> int:
         assert process.stderr is not None
@@ -68,50 +135,23 @@ async def run_protspace_prepare(
             last_lines.append(line)
             if len(last_lines) > 50:
                 last_lines.pop(0)
-            for pattern, stage in _STAGE_PATTERNS:
-                if stage in seen_stages:
-                    continue
-                if pattern.search(line):
-                    seen_stages.add(stage)
-                    await emit(stage, {})
-                    break
         return await process.wait()
 
     try:
-        returncode = await asyncio.wait_for(
-            _drain(), timeout=settings.pipeline_timeout_seconds
-        )
-    except asyncio.TimeoutError:
+        returncode = await _drain()
+    except asyncio.CancelledError:
         process.kill()
         try:
             await asyncio.wait_for(process.wait(), timeout=5)
         except asyncio.TimeoutError:
             pass
-        raise PipelineFailure(
-            f"protspace prepare timed out after {settings.pipeline_timeout_seconds}s."
-        )
-    except asyncio.CancelledError:
-        process.kill()
         raise
 
     if returncode != 0:
         tail = "\n".join(last_lines[-10:]) or "no output"
         raise PipelineFailure(
-            f"protspace prepare exited with code {returncode}: {tail}"
+            f"protspace {name} exited with code {returncode}: {tail}"
         )
-
-    bundle = _find_bundle(ctx.output_dir)
-    if bundle is None:
-        raise PipelineFailure(
-            "protspace prepare reported success but produced no .parquetbundle file."
-        )
-    return bundle
-
-
-def _find_bundle(output_dir: Path) -> Path | None:
-    for path in output_dir.rglob("*.parquetbundle"):
-        return path
-    return None
 
 
 def cleanup_job_dir(output_dir: Path) -> None:

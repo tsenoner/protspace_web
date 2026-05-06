@@ -23,7 +23,8 @@ def ctx(tmp_path: Path):
     )
 
 
-def _mock_subprocess(returncode: int, stderr_lines: list[bytes]):
+def _mock_subprocess(returncode: int, stderr_lines: list[bytes] | None = None):
+    """Build an asyncio-style subprocess mock with a one-shot stderr stream."""
     proc = MagicMock()
     proc.returncode = returncode
 
@@ -33,70 +34,137 @@ def _mock_subprocess(returncode: int, stderr_lines: list[bytes]):
     proc.wait = _wait
     proc.stderr = MagicMock()
 
-    async def _readline_side_effect():
-        for line in stderr_lines:
-            yield line
-        yield b""  # EOF
-
-    iterator = _readline_side_effect()
+    lines = list(stderr_lines or [])
 
     async def _readline():
-        try:
-            return await iterator.__anext__()
-        except StopAsyncIteration:
-            return b""
+        if lines:
+            return lines.pop(0)
+        return b""
 
     proc.stderr.readline = _readline
     proc.kill = MagicMock()
     return proc
 
 
-async def test_success_path_writes_bundle_and_emits_stages(ctx, tmp_path: Path):
+def _make_step_router(ctx: JobContext, *, fail_step: str | None = None,
+                      fail_returncode: int = 2,
+                      fail_stderr: list[bytes] | None = None):
+    """Return a fake create_subprocess_exec that simulates each protspace step.
+
+    Each successful step writes its expected output artifact so the next step
+    sees a populated filesystem (mirrors what the real CLI does).
+    """
+    embed_dir = ctx.output_dir / "embed"
+    project_dir = ctx.output_dir / "project"
+    annotations_path = ctx.output_dir / "annotations.parquet"
     bundle_path = ctx.output_dir / "data.parquetbundle"
-    stderr = [
-        b"INFO Loading FASTA\n",
-        b"INFO Embedding sequences via Biocentral\n",
-        b"INFO Running PCA projection\n",
-        b"INFO Fetching annotations\n",
-        b"INFO Bundling output\n",
-    ]
-    proc = _mock_subprocess(returncode=0, stderr_lines=stderr)
 
     async def fake_create(*args, **kwargs):
-        bundle_path.write_bytes(b"BUNDLE")
-        return proc
+        cmd = args
+        if not cmd or cmd[0] != "protspace":
+            return _mock_subprocess(returncode=0)
+        step = cmd[1] if len(cmd) > 1 else ""
+        if step == fail_step:
+            return _mock_subprocess(
+                returncode=fail_returncode,
+                stderr_lines=fail_stderr or [b"ERROR mock failure\n"],
+            )
+        if step == "embed":
+            embed_dir.mkdir(parents=True, exist_ok=True)
+            (embed_dir / "prot_t5.h5").write_bytes(b"H5")
+        elif step == "annotate":
+            annotations_path.write_bytes(b"PARQUET")
+        elif step == "project":
+            project_dir.mkdir(parents=True, exist_ok=True)
+            (project_dir / "projections_metadata.parquet").write_bytes(b"M")
+            (project_dir / "projections_data.parquet").write_bytes(b"D")
+        elif step == "bundle":
+            bundle_path.write_bytes(b"BUNDLE")
+        return _mock_subprocess(returncode=0)
 
+    return fake_create
+
+
+async def test_success_path_writes_bundle_and_emits_stages(ctx):
+    bundle_path = ctx.output_dir / "data.parquetbundle"
     emitted = []
 
     async def emit(stage, payload):
         emitted.append((stage, payload))
 
     settings = load_settings()
-    with patch("asyncio.create_subprocess_exec", new=fake_create):
+    with patch("asyncio.create_subprocess_exec", new=_make_step_router(ctx)):
         result = await run_protspace_prepare(ctx, emit, settings)
     assert result == bundle_path
+    assert bundle_path.read_bytes() == b"BUNDLE"
     stages = [stage for stage, _ in emitted]
-    assert "embedding" in stages
-    assert "projecting" in stages
-    assert "annotating" in stages
-    assert "bundling" in stages
+    # Embed and annotate run in parallel, but both stages must be announced
+    # before projection so the UI can communicate what's happening.
+    assert stages.index("embedding") < stages.index("projecting")
+    assert stages.index("annotating") < stages.index("projecting")
+    assert stages.index("projecting") < stages.index("bundling")
 
 
-async def test_nonzero_exit_raises_pipeline_failure(ctx):
-    stderr = [b"ERROR Biocentral returned 503: unavailable\n"]
-    proc = _mock_subprocess(returncode=2, stderr_lines=stderr)
+async def test_embed_and_annotate_run_concurrently(ctx):
+    """Both subprocess invocations must be in flight before either completes."""
+    in_flight: set[str] = set()
+    max_in_flight: list[int] = [0]
+    embed_dir = ctx.output_dir / "embed"
+    project_dir = ctx.output_dir / "project"
+    annotations_path = ctx.output_dir / "annotations.parquet"
+    bundle_path = ctx.output_dir / "data.parquetbundle"
 
     async def fake_create(*args, **kwargs):
-        return proc
+        step = args[1]
+        if step in {"embed", "annotate"}:
+            in_flight.add(step)
+            max_in_flight[0] = max(max_in_flight[0], len(in_flight))
+            await asyncio.sleep(0.01)  # yield so the sibling can start
+            if step == "embed":
+                embed_dir.mkdir(parents=True, exist_ok=True)
+                (embed_dir / "prot_t5.h5").write_bytes(b"H5")
+            else:
+                annotations_path.write_bytes(b"P")
+            in_flight.discard(step)
+        elif step == "project":
+            project_dir.mkdir(parents=True, exist_ok=True)
+            (project_dir / "projections_metadata.parquet").write_bytes(b"M")
+            (project_dir / "projections_data.parquet").write_bytes(b"D")
+        elif step == "bundle":
+            bundle_path.write_bytes(b"BUNDLE")
+        return _mock_subprocess(returncode=0)
 
     settings = load_settings()
     with patch("asyncio.create_subprocess_exec", new=fake_create):
+        await run_protspace_prepare(ctx, AsyncMock(), settings)
+    assert max_in_flight[0] == 2, "embed and annotate did not run concurrently"
+
+
+async def test_embed_failure_raises_pipeline_failure(ctx):
+    settings = load_settings()
+    fake = _make_step_router(
+        ctx, fail_step="embed",
+        fail_stderr=[b"ERROR Biocentral returned 503: unavailable\n"],
+    )
+    with patch("asyncio.create_subprocess_exec", new=fake):
         with pytest.raises(PipelineFailure) as exc:
             await run_protspace_prepare(ctx, AsyncMock(), settings)
     assert "Biocentral returned 503" in str(exc.value)
 
 
-async def test_pipeline_timeout_kills_subprocess_and_raises(ctx, monkeypatch):
+async def test_annotate_failure_raises_pipeline_failure(ctx):
+    settings = load_settings()
+    fake = _make_step_router(
+        ctx, fail_step="annotate",
+        fail_stderr=[b"ERROR UniProt query failed\n"],
+    )
+    with patch("asyncio.create_subprocess_exec", new=fake):
+        with pytest.raises(PipelineFailure) as exc:
+            await run_protspace_prepare(ctx, AsyncMock(), settings)
+    assert "UniProt" in str(exc.value)
+
+
+async def test_pipeline_timeout_kills_subprocess_and_raises(ctx):
     proc = MagicMock()
     proc.returncode = None
     proc.kill = MagicMock()
@@ -129,12 +197,34 @@ async def test_pipeline_timeout_kills_subprocess_and_raises(ctx, monkeypatch):
 
 
 async def test_missing_bundle_after_success_raises_pipeline_failure(ctx):
-    proc = _mock_subprocess(returncode=0, stderr_lines=[])
+    """Every step exits 0 but the bundle file never appears on disk."""
+    embed_dir = ctx.output_dir / "embed"
+    annotations_path = ctx.output_dir / "annotations.parquet"
 
     async def fake_create(*args, **kwargs):
-        return proc  # bundle file never created
+        step = args[1] if len(args) > 1 else ""
+        if step == "embed":
+            embed_dir.mkdir(parents=True, exist_ok=True)
+            (embed_dir / "prot_t5.h5").write_bytes(b"H5")
+        elif step == "annotate":
+            annotations_path.write_bytes(b"P")
+        # project and bundle "succeed" but write nothing.
+        return _mock_subprocess(returncode=0)
 
     settings = load_settings()
     with patch("asyncio.create_subprocess_exec", new=fake_create):
         with pytest.raises(PipelineFailure):
             await run_protspace_prepare(ctx, AsyncMock(), settings)
+
+
+async def test_missing_h5_after_embed_raises_pipeline_failure(ctx):
+    """Embed exits 0 but no H5 file appears — surface a clear failure."""
+
+    async def fake_create(*args, **kwargs):
+        return _mock_subprocess(returncode=0)
+
+    settings = load_settings()
+    with patch("asyncio.create_subprocess_exec", new=fake_create):
+        with pytest.raises(PipelineFailure) as exc:
+            await run_protspace_prepare(ctx, AsyncMock(), settings)
+    assert "no HDF5" in str(exc.value)
