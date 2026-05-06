@@ -478,32 +478,34 @@ test.describe('Control Bar Screenshots', () => {
         | null;
       if (!m) return;
       const cur = m._state as Record<string, unknown>;
+      // Anchored on a real cluster (right-lower region of the demo plot)
+      // so overlays line up with visible points instead of empty whitespace.
       m._state = {
         ...cur,
         overlays: [
           {
             type: 'circle',
-            cx: 0.32,
-            cy: 0.45,
-            rx: 0.09,
-            ry: 0.12,
+            cx: 0.8975,
+            cy: 0.6771,
+            rx: 0.0527,
+            ry: 0.09,
             rotation: 0,
-            color: '#dc2626',
+            color: '#000000',
             strokeWidth: 3,
           },
           {
             type: 'arrow',
-            x1: 0.55,
-            y1: 0.2,
-            x2: 0.4,
-            y2: 0.4,
+            x1: 0.66,
+            y1: 0.42,
+            x2: 0.84,
+            y2: 0.6,
             color: '#000000',
             width: 3,
           },
           {
             type: 'label',
-            x: 0.58,
-            y: 0.18,
+            x: 0.5,
+            y: 0.38,
             text: 'Cluster A',
             fontSize: 22,
             rotation: 0,
@@ -535,12 +537,14 @@ test.describe('Control Bar Screenshots', () => {
         | null;
       if (!m) return;
       const cur = m._state as Record<string, unknown>;
+      // Source rect tightly bounds the same cluster the overlays target
+      // (right-lower region); target rect lands in upper-left whitespace.
       m._state = {
         ...cur,
         insets: [
           {
-            sourceRect: { x: 0.18, y: 0.32, w: 0.16, h: 0.2 },
-            targetRect: { x: 0.6, y: 0.55, w: 0.32, h: 0.4 },
+            sourceRect: { x: 0.84, y: 0.58, w: 0.12, h: 0.18 },
+            targetRect: { x: 0.04, y: 0.06, w: 0.32, h: 0.42 },
             border: 2,
             connector: 'lines',
             pointSizeScale: 2,
