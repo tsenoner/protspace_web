@@ -6,9 +6,15 @@ const TEST_DIR = fileURLToPath(new URL('.', import.meta.url));
 /**
  * Playwright configuration for ProtSpace app e2e tests (product tour, etc.).
  *
- * Assumes the dev server is already running on port 8080.
- * Start it with: pnpm dev:app
+ * The dev server on port 8080 is auto-started via the `webServer` block below
+ * (and reused if already running locally). To run against an existing server,
+ * just leave it up — Playwright will detect it.
+ *
+ * The `fasta-prep-live` project requires the real prep backend and is opt-in:
+ * set RUN_LIVE_E2E=1 to include it.
  */
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080';
+
 export default defineConfig({
   testDir: TEST_DIR,
 
@@ -20,12 +26,23 @@ export default defineConfig({
 
   workers: 1,
 
-  reporter: 'list',
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
 
   timeout: 60_000,
 
+  webServer: process.env.PLAYWRIGHT_BASE_URL
+    ? undefined
+    : {
+        command: 'pnpm dev:app',
+        url: BASE_URL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 180_000,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080',
+    baseURL: BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -119,16 +136,22 @@ export default defineConfig({
       },
       testMatch: /fasta-prep\.spec\.ts/,
     },
-    {
-      name: 'fasta-prep-live',
-      use: {
-        ...devices['Desktop Chrome'],
-        viewport: { width: 1280, height: 720 },
-      },
-      testMatch: /fasta-prep\.live\.spec\.ts/,
-      // Real embedding takes ~60s; allow generous headroom for cold starts.
-      timeout: 6 * 60_000,
-    },
+    // Live FASTA prep requires the real backend (caddy + protspace-prep +
+    // Biocentral embedding). Opt-in via RUN_LIVE_E2E=1.
+    ...(process.env.RUN_LIVE_E2E
+      ? [
+          {
+            name: 'fasta-prep-live',
+            use: {
+              ...devices['Desktop Chrome'],
+              viewport: { width: 1280, height: 720 },
+            },
+            testMatch: /fasta-prep\.live\.spec\.ts/,
+            // Real embedding takes ~60s; allow generous headroom for cold starts.
+            timeout: 6 * 60_000,
+          },
+        ]
+      : []),
   ],
 
   outputDir: '../test-results/',
