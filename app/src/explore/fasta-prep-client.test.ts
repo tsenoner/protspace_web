@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { prepareFastaBundle, isFastaFile } from './fasta-prep-client';
+import { prepareFastaBundle, isFastaFile, FastaPrepError } from './fasta-prep-client';
 
 /** Drain all pending microtasks (works across multiple async hops). */
 const flushPromises = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -117,8 +117,36 @@ describe('prepareFastaBundle', () => {
     await flushPromises();
     const es = MockEventSource.instances[0];
     es.emit('error', { message: 'Biocentral 503' });
-    await expect(promise).rejects.toThrow(/Biocentral 503/);
+    const error = await promise.catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(FastaPrepError);
+    expect((error as FastaPrepError).message).toMatch(/Biocentral 503/);
+    expect((error as FastaPrepError).code).toBeUndefined();
     expect(es.closed).toBe(true);
+  });
+
+  it('attaches the error code from the server payload to FastaPrepError', async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ job_id: 'abc' }), { status: 202 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const file = new File([new Uint8Array([0])], 'seq.fasta');
+    const promise = prepareFastaBundle(file, { baseUrl: '' });
+    await flushPromises();
+    const es = MockEventSource.instances[0];
+    es.emit('error', { message: 'down', code: 'BIOCENTRAL_UNAVAILABLE' });
+    const error = await promise.catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(FastaPrepError);
+    expect((error as FastaPrepError).code).toBe('BIOCENTRAL_UNAVAILABLE');
+  });
+
+  it('wraps submit failures in FastaPrepError', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('unavailable', { status: 503 })),
+    );
+    const file = new File([new Uint8Array([0])], 'seq.fasta');
+    const error = await prepareFastaBundle(file, { baseUrl: '' }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(FastaPrepError);
   });
 
   it('surfaces a friendly message with Retry-After when the server returns 429', async () => {

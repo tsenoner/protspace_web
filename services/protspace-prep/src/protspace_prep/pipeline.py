@@ -13,6 +13,29 @@ logger = logging.getLogger("protspace_prep.pipeline")
 
 EmitFn = Callable[[str, dict], Awaitable[None]]
 
+_BIOCENTRAL_DOWN_PATTERNS = (
+    "connection refused",
+    "cannot connect to host",
+    "connectionerror",
+    "temporary failure in name resolution",
+    "name or service not known",
+    "503 service unavailable",
+    "503 server error",
+)
+
+_BIOCENTRAL_FRIENDLY_MESSAGE = (
+    "Biocentral embedding service is unavailable. "
+    "For larger jobs or while we're down, you can run the same pipeline in Google Colab."
+)
+
+
+def _classify_failure(exc: PipelineFailure) -> PipelineFailure:
+    """Return a possibly re-tagged PipelineFailure. Pass-through if no match."""
+    haystack = str(exc).lower()
+    if any(p in haystack for p in _BIOCENTRAL_DOWN_PATTERNS):
+        return PipelineFailure(_BIOCENTRAL_FRIENDLY_MESSAGE, code="BIOCENTRAL_UNAVAILABLE")
+    return exc
+
 
 def _normalize_fasta_headers(input_path: Path, output_path: Path) -> None:
     """Rewrite *input_path* into *output_path* with parsed-identifier headers.
@@ -92,6 +115,9 @@ async def run_protspace_prepare(
             except ExceptionGroup as eg:
                 failures = [e for e in eg.exceptions if isinstance(e, PipelineFailure)]
                 if failures:
+                    classified = [_classify_failure(e) for e in failures]
+                    if any(c.code == "BIOCENTRAL_UNAVAILABLE" for c in classified):
+                        raise PipelineFailure(_BIOCENTRAL_FRIENDLY_MESSAGE, code="BIOCENTRAL_UNAVAILABLE") from eg
                     raise PipelineFailure("; ".join(str(e) for e in failures)) from eg
                 raise
 

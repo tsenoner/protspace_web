@@ -213,6 +213,74 @@ async def test_sweep_removes_expired_directories(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# §2.2 — queue_position + running in queued event
+# ---------------------------------------------------------------------------
+
+async def test_queued_event_includes_queue_position_and_running(tmp_job_root):
+    gate = asyncio.Event()
+
+    async def blocking_pipeline(ctx, emit):
+        await gate.wait()
+        bundle = ctx.output_dir / "data.parquetbundle"
+        bundle.parent.mkdir(parents=True, exist_ok=True)
+        bundle.write_bytes(b"x")
+        return bundle
+
+    registry = JobRegistry(job_root=tmp_job_root, max_concurrent=1, pipeline=blocking_pipeline)
+    job_id_a = await registry.submit(b">a\nM\n", original_name="a.fasta")
+    job_id_b = await registry.submit(b">b\nM\n", original_name="b.fasta")
+    # Let the tasks start so the semaphore is acquired by job A
+    await asyncio.sleep(0.05)
+
+    # Use direct state inspection — the queued event was published at submit time
+    state_a = registry.get(job_id_a)
+    state_b = registry.get(job_id_b)
+    assert state_a.queue_position == 0
+    assert state_b.queue_position == 1
+
+    # Verify the queued event payload by subscribing to the late-subscriber path
+    # (job A is running, so terminal_event may not be set yet; check job B which is queued)
+    collected_b: list = []
+    async def collect_b():
+        async for e in registry.subscribe(job_id_b):
+            collected_b.append(e)
+            if e.event == "queued":
+                break
+
+    await asyncio.create_task(collect_b())
+    queued_b = next(e for e in collected_b if e.event == "queued")
+    assert queued_b.data["queue_position"] == 1
+    assert "running" in queued_b.data
+
+    gate.set()
+    # Drain both jobs so tmp dirs are cleaned up
+    async for _ in registry.subscribe(job_id_a): pass
+    async for _ in registry.subscribe(job_id_b): pass
+
+
+async def test_error_event_includes_code_when_pipeline_failure_has_code(tmp_job_root):
+    async def coded_failure_pipeline(ctx, emit):
+        raise PipelineFailure("nope", code="BIOCENTRAL_UNAVAILABLE")
+
+    registry = JobRegistry(job_root=tmp_job_root, max_concurrent=1, pipeline=coded_failure_pipeline)
+    job_id = await registry.submit(b">id\nM\n", original_name="t.fasta")
+    events = [e async for e in registry.subscribe(job_id)]
+    error_event = next(e for e in events if e.event == "error")
+    assert error_event.data.get("code") == "BIOCENTRAL_UNAVAILABLE"
+
+
+async def test_error_event_omits_code_when_pipeline_failure_has_no_code(tmp_job_root):
+    async def plain_failure_pipeline(ctx, emit):
+        raise PipelineFailure("nope")
+
+    registry = JobRegistry(job_root=tmp_job_root, max_concurrent=1, pipeline=plain_failure_pipeline)
+    job_id = await registry.submit(b">id\nM\n", original_name="t.fasta")
+    events = [e async for e in registry.subscribe(job_id)]
+    error_event = next(e for e in events if e.event == "error")
+    assert "code" not in error_event.data
+
+
+# ---------------------------------------------------------------------------
 # Fix 3 — subscribe() race between yield queued and queue registration
 # ---------------------------------------------------------------------------
 

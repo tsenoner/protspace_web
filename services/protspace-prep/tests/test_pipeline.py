@@ -6,7 +6,7 @@ import pytest
 
 from protspace_prep.config import load_settings
 from protspace_prep.jobs import JobContext, PipelineFailure
-from protspace_prep.pipeline import _normalize_fasta_headers, run_protspace_prepare
+from protspace_prep.pipeline import _classify_failure, _normalize_fasta_headers, run_protspace_prepare
 
 
 @pytest.fixture
@@ -294,3 +294,38 @@ async def test_pipeline_uses_normalized_fasta_for_embed_and_annotate(ctx):
     assert seen_inputs["embed"] == str(normalized)
     assert seen_inputs["annotate"] == str(normalized)
     assert ">P12345" in normalized.read_text()
+
+
+async def test_embed_failure_with_connection_refused_is_classified_as_biocentral_unavailable(ctx):
+    settings = load_settings()
+    fake = _make_step_router(
+        ctx,
+        fail_step="embed",
+        fail_stderr=[b"aiohttp.ClientConnectorError: Cannot connect to host biocentral.example.com:443\n"],
+    )
+    with patch("asyncio.create_subprocess_exec", new=fake):
+        with pytest.raises(PipelineFailure) as exc_info:
+            await run_protspace_prepare(ctx, AsyncMock(), settings=settings)
+    assert exc_info.value.code == "BIOCENTRAL_UNAVAILABLE"
+    assert "Biocentral embedding service is unavailable" in str(exc_info.value)
+
+
+async def test_embed_failure_with_unrelated_error_passes_through(ctx):
+    settings = load_settings()
+    fake = _make_step_router(
+        ctx,
+        fail_step="embed",
+        fail_stderr=[b"some random parse error\n"],
+    )
+    with patch("asyncio.create_subprocess_exec", new=fake):
+        with pytest.raises(PipelineFailure) as exc_info:
+            await run_protspace_prepare(ctx, AsyncMock(), settings=settings)
+    assert exc_info.value.code is None
+    assert "some random parse error" in str(exc_info.value)
+
+
+def test_classify_failure_matches_503_service_unavailable():
+    exc = PipelineFailure("protspace embed exited with code 1: 503 Service Unavailable")
+    result = _classify_failure(exc)
+    assert result.code == "BIOCENTRAL_UNAVAILABLE"
+    assert "Biocentral embedding service is unavailable" in str(result)

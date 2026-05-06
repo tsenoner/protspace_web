@@ -15,6 +15,10 @@ logger = logging.getLogger("protspace_prep.jobs")
 class PipelineFailure(Exception):
     """Raised by the pipeline coroutine to surface a user-visible error."""
 
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+
 
 class JobStatus(str, enum.Enum):
     QUEUED = "queued"
@@ -95,10 +99,16 @@ class JobRegistry:
             fasta_path=fasta_path,
             output_dir=job_dir,
         )
+        queue_position = self._queued
+        running = self._running
+        state.queue_position = queue_position
         self._jobs[job_id] = state
         self._subscribers[job_id] = []
         self._queued += 1
-        await self._publish(job_id, Event("queued", {"job_id": job_id}))
+        await self._publish(
+            job_id,
+            Event("queued", {"job_id": job_id, "queue_position": queue_position, "running": running}),
+        )
         self._tasks[job_id] = asyncio.create_task(self._run(job_id))
         return job_id
 
@@ -108,7 +118,7 @@ class JobRegistry:
             return
         # Late subscriber: synthesize queued then replay terminal event and close.
         if state.terminal_event is not None:
-            yield Event("queued", {"job_id": job_id})
+            yield Event("queued", {"job_id": job_id, "queue_position": state.queue_position, "running": self._running})
             yield state.terminal_event
             return
 
@@ -118,7 +128,7 @@ class JobRegistry:
         queue: asyncio.Queue[Optional[Event]] = asyncio.Queue(maxsize=128)
         self._subscribers[job_id].append(queue)
         try:
-            yield Event("queued", {"job_id": job_id})
+            yield Event("queued", {"job_id": job_id, "queue_position": state.queue_position, "running": self._running})
             # Re-check after registration: if the pipeline finished in the window
             # between our initial check and queue registration, terminal_event is
             # already set (or the event was already enqueued for us).
@@ -219,7 +229,10 @@ class JobRegistry:
         except PipelineFailure as exc:
             state.status = JobStatus.ERROR
             state.error_message = str(exc)
-            await self._publish(job_id, Event("error", {"message": str(exc)}))
+            payload = {"message": str(exc)}
+            if getattr(exc, "code", None):
+                payload["code"] = exc.code
+            await self._publish(job_id, Event("error", payload))
         except Exception:
             logger.exception("Unexpected pipeline failure for job %s", job_id)
             state.status = JobStatus.ERROR

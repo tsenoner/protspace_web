@@ -1,5 +1,14 @@
 const FASTA_EXT_PATTERN = /\.(fa|fasta|fna)$/i;
 
+export class FastaPrepError extends Error {
+  readonly code?: string;
+  constructor(message: string, options?: { code?: string }) {
+    super(message);
+    this.name = 'FastaPrepError';
+    this.code = options?.code;
+  }
+}
+
 export function isFastaFile(file: File): boolean {
   return FASTA_EXT_PATTERN.test(file.name);
 }
@@ -73,7 +82,7 @@ export async function prepareFastaBundle(
   });
 
   if (!submitResponse.ok) {
-    throw new Error(await describeSubmitFailure(submitResponse));
+    throw new FastaPrepError(await describeSubmitFailure(submitResponse));
   }
 
   const { job_id: jobId } = (await submitResponse.json()) as { job_id: string };
@@ -118,23 +127,25 @@ export async function prepareFastaBundle(
 
     es.addEventListener('error', (ev) => {
       let message = 'Bundle preparation failed.';
+      let code: string | undefined;
       const data = (ev as MessageEvent).data;
       if (typeof data === 'string' && data) {
         try {
-          const parsed = JSON.parse(data) as { message?: string };
+          const parsed = JSON.parse(data) as { message?: string; code?: string };
           if (parsed?.message) message = parsed.message;
+          if (parsed?.code) code = parsed.code;
         } catch {
           /* connection error, no payload */
         }
       }
       cleanup();
-      reject(new Error(message));
+      reject(new FastaPrepError(message, { code }));
     });
   });
 
   const bundleResponse = await fetch(`${baseUrl}${downloadUrl}`, { signal: options.signal });
   if (!bundleResponse.ok) {
-    throw new Error(`Bundle download failed (${bundleResponse.status}).`);
+    throw new FastaPrepError(`Bundle download failed (${bundleResponse.status}).`);
   }
   const blob = await bundleResponse.blob();
   const stem = file.name.replace(FASTA_EXT_PATTERN, '');

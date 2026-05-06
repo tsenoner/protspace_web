@@ -1,5 +1,17 @@
+export interface OverlayNote {
+  text: string;
+  href?: string;
+  linkText?: string;
+}
+
 interface LoadingOverlayController {
-  update(show: boolean, progress?: number, message?: string, subMessage?: string): void;
+  update(
+    show: boolean,
+    progress?: number,
+    message?: string,
+    subMessage?: string,
+    note?: OverlayNote | null,
+  ): void;
   setCancelHandler(handler: (() => void) | null, label?: string): void;
   dispose(): void;
 }
@@ -11,6 +23,7 @@ export function createLoadingOverlayController(doc: Document = document): Loadin
   let overlayRemovalTimeout = 0;
   let cancelHandler: (() => void) | null = null;
   let cancelLabel = CANCEL_DEFAULT_LABEL;
+  let currentNote: OverlayNote | null = null;
 
   const renderCancelButton = (overlay: HTMLElement) => {
     let button = overlay.querySelector<HTMLButtonElement>(`#${CANCEL_BUTTON_ID}`);
@@ -38,15 +51,43 @@ export function createLoadingOverlayController(doc: Document = document): Loadin
     button.textContent = cancelLabel;
   };
 
+  const renderNote = (overlay: HTMLElement) => {
+    overlay.querySelector('#loading-note')?.remove();
+    if (!currentNote) return;
+    const noteEl = doc.createElement('div');
+    noteEl.id = 'loading-note';
+    noteEl.style.cssText = 'font-size: 13px; opacity: 0.75; margin-top: 16px;';
+    const textSpan = doc.createElement('span');
+    textSpan.textContent = currentNote.text;
+    noteEl.appendChild(textSpan);
+    if (currentNote.href) {
+      const anchor = doc.createElement('a');
+      anchor.href = currentNote.href;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.textContent = currentNote.linkText || currentNote.href;
+      anchor.style.cssText = 'color: #06b6d4; text-decoration: underline; margin-left: 4px;';
+      noteEl.appendChild(anchor);
+    }
+    const progressText = overlay.querySelector('#progress-text');
+    if (progressText) {
+      progressText.insertAdjacentElement('afterend', noteEl);
+    } else {
+      (overlay.firstElementChild ?? overlay).appendChild(noteEl);
+    }
+  };
+
   const update = (
     show: boolean,
     progress: number = 0,
     message: string = '',
     subMessage: string = '',
+    note?: OverlayNote | null,
   ) => {
     let overlay = doc.getElementById('progressive-loading');
 
     if (!show) {
+      currentNote = null;
       if (overlay) {
         if (overlayRemovalTimeout) {
           clearTimeout(overlayRemovalTimeout);
@@ -111,6 +152,10 @@ export function createLoadingOverlayController(doc: Document = document): Loadin
     if (progressText) progressText.textContent = message;
     if (processingText) processingText.textContent = subMessage;
 
+    if (note !== undefined) {
+      currentNote = note;
+    }
+    renderNote(overlay);
     renderCancelButton(overlay);
   };
 
@@ -130,6 +175,7 @@ export function createLoadingOverlayController(doc: Document = document): Loadin
         overlayRemovalTimeout = 0;
       }
       cancelHandler = null;
+      currentNote = null;
       doc.getElementById('progressive-loading')?.remove();
     },
   };
