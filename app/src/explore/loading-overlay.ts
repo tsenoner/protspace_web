@@ -1,10 +1,42 @@
 interface LoadingOverlayController {
   update(show: boolean, progress?: number, message?: string, subMessage?: string): void;
+  setCancelHandler(handler: (() => void) | null, label?: string): void;
   dispose(): void;
 }
 
+const CANCEL_BUTTON_ID = 'progressive-loading-cancel';
+const CANCEL_DEFAULT_LABEL = 'Cancel';
+
 export function createLoadingOverlayController(doc: Document = document): LoadingOverlayController {
   let overlayRemovalTimeout = 0;
+  let cancelHandler: (() => void) | null = null;
+  let cancelLabel = CANCEL_DEFAULT_LABEL;
+
+  const renderCancelButton = (overlay: HTMLElement) => {
+    let button = overlay.querySelector<HTMLButtonElement>(`#${CANCEL_BUTTON_ID}`);
+
+    if (!cancelHandler) {
+      button?.remove();
+      return;
+    }
+
+    if (!button) {
+      button = doc.createElement('button');
+      button.id = CANCEL_BUTTON_ID;
+      button.type = 'button';
+      button.style.cssText = `
+        margin-top: 24px; padding: 8px 20px; font-size: 14px;
+        background: rgba(255,255,255,0.08); color: white;
+        border: 1px solid rgba(255,255,255,0.35); border-radius: 4px;
+        cursor: pointer; font-family: inherit;
+      `;
+      button.addEventListener('click', () => cancelHandler?.());
+      const inner = overlay.firstElementChild;
+      (inner ?? overlay).appendChild(button);
+    }
+
+    button.textContent = cancelLabel;
+  };
 
   const update = (
     show: boolean,
@@ -78,15 +110,26 @@ export function createLoadingOverlayController(doc: Document = document): Loadin
     if (progressBar) progressBar.style.width = `${progress}%`;
     if (progressText) progressText.textContent = message;
     if (processingText) processingText.textContent = subMessage;
+
+    renderCancelButton(overlay);
+  };
+
+  const setCancelHandler = (handler: (() => void) | null, label?: string) => {
+    cancelHandler = handler;
+    cancelLabel = label ?? CANCEL_DEFAULT_LABEL;
+    const overlay = doc.getElementById('progressive-loading');
+    if (overlay) renderCancelButton(overlay);
   };
 
   return {
     update,
+    setCancelHandler,
     dispose() {
       if (overlayRemovalTimeout) {
         clearTimeout(overlayRemovalTimeout);
         overlayRemovalTimeout = 0;
       }
+      cancelHandler = null;
       doc.getElementById('progressive-loading')?.remove();
     },
   };

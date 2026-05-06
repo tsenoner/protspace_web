@@ -53,6 +53,9 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     controlBar.currentDatasetIsDemo = isDemo;
   };
 
+  const overlayController = createLoadingOverlayController();
+  lifecycle.addCleanup(() => overlayController.dispose());
+
   const loadQueue = createLoadQueue({
     isDisposed: lifecycle.isDisposed,
   });
@@ -70,16 +73,21 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
         bundling: 'Bundling…',
       };
 
+      const abortController = new AbortController();
       overlayController.update(true, 5, 'Preparing FASTA…', 'Uploading…');
+      overlayController.setCancelHandler(() => abortController.abort());
       try {
         const bundleFile = await prepareFastaBundle(queuedFile, {
-          baseUrl: '',
+          baseUrl: import.meta.env.VITE_PREP_API_BASE ?? '',
+          signal: abortController.signal,
           onProgress: (stage) => {
             overlayController.update(true, 25, 'Preparing FASTA…', stageLabels[stage] ?? stage);
           },
         });
+        overlayController.setCancelHandler(null);
         return next(bundleFile, queuedOptions);
       } catch (error) {
+        overlayController.setCancelHandler(null);
         overlayController.update(false, 0, '', '');
         throw error;
       }
@@ -88,9 +96,6 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     dataLoader.loadFromFileHandler = undefined;
     loadQueue.dispose();
   });
-
-  const overlayController = createLoadingOverlayController();
-  lifecycle.addCleanup(() => overlayController.dispose());
 
   const viewController = createViewController({
     plotElement,
