@@ -43,14 +43,16 @@ export async function prepareFastaBundle(
 
   const downloadUrl = await new Promise<string>((resolve, reject) => {
     const es = new EventSource(`${baseUrl}/api/prepare/${jobId}/events`);
-    const cleanup = () => es.close();
+    const cleanup = () => {
+      es.close();
+      options.signal?.removeEventListener('abort', abortHandler);
+    };
+    const abortHandler = () => {
+      cleanup();
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
 
-    if (options.signal) {
-      options.signal.addEventListener('abort', () => {
-        cleanup();
-        reject(new DOMException('Aborted', 'AbortError'));
-      });
-    }
+    options.signal?.addEventListener('abort', abortHandler);
 
     const handleProgress = (stage: FastaPrepStage, payload: Record<string, unknown>) => {
       try {

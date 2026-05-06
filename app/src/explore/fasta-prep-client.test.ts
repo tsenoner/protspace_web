@@ -80,6 +80,33 @@ describe('prepareFastaBundle', () => {
     expect(es.closed).toBe(true);
   });
 
+  it('removes the abort listener after the SSE stream resolves', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      if (init?.method === 'POST' && url.endsWith('/api/prepare')) {
+        return new Response(JSON.stringify({ job_id: 'abc' }), { status: 202 });
+      }
+      if (url.endsWith('/api/prepare/abc/bundle')) {
+        return new Response(new Blob([new Uint8Array([1])]), { status: 200 });
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const controller = new AbortController();
+    const removeSpy = vi.spyOn(controller.signal, 'removeEventListener');
+
+    const file = new File([new Uint8Array([0])], 'seq.fasta');
+    const promise = prepareFastaBundle(file, { baseUrl: '', signal: controller.signal });
+
+    await flushPromises();
+    const es = MockEventSource.instances[0];
+    es.emit('done', { download_url: '/api/prepare/abc/bundle' });
+    await promise;
+
+    expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+  });
+
   it('rejects when the server emits an error event', async () => {
     const fetchMock = vi.fn(
       async () => new Response(JSON.stringify({ job_id: 'abc' }), { status: 202 }),
