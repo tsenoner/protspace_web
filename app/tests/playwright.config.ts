@@ -25,7 +25,7 @@ export default defineConfig({
   timeout: 60_000,
 
   use: {
-    baseURL: 'http://localhost:8080',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:8080',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -118,6 +118,16 @@ export default defineConfig({
         viewport: { width: 1280, height: 720 },
       },
       testMatch: /fasta-prep\.spec\.ts/,
+    },
+    {
+      name: 'fasta-prep-live',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /fasta-prep\.live\.spec\.ts/,
+      // Real embedding takes ~60s; allow generous headroom for cold starts.
+      timeout: 6 * 60_000,
     },
   ],
 
