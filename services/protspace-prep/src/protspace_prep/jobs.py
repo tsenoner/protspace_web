@@ -1,0 +1,223 @@
+from __future__ import annotations
+import asyncio
+import enum
+import logging
+import time
+import uuid
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, AsyncIterator, Awaitable, Callable, Optional
+
+logger = logging.getLogger("protspace_prep.jobs")
+
+
+class PipelineFailure(Exception):
+    """Raised by the pipeline coroutine to surface a user-visible error."""
+
+
+class JobStatus(str, enum.Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    DONE = "done"
+    ERROR = "error"
+
+
+@dataclass
+class Event:
+    event: str  # "queued" | "progress" | "done" | "error"
+    data: dict[str, Any]
+
+
+@dataclass
+class JobContext:
+    job_id: str
+    fasta_path: Path
+    output_dir: Path
+    original_name: str
+
+
+@dataclass
+class JobState:
+    id: str
+    status: JobStatus
+    original_name: str
+    fasta_path: Path
+    output_dir: Path
+    bundle_path: Optional[Path] = None
+    error_message: Optional[str] = None
+    created_at: float = field(default_factory=time.monotonic)
+    ready_at: Optional[float] = None
+    consumed: bool = False
+    terminal_event: Optional[Event] = None
+    queue_position: int = 0
+
+
+PipelineFn = Callable[
+    [JobContext, Callable[[str, dict[str, Any]], Awaitable[None]]],
+    Awaitable[Path],
+]
+
+
+class JobRegistry:
+    def __init__(
+        self,
+        *,
+        job_root: Path,
+        max_concurrent: int,
+        pipeline: PipelineFn,
+    ) -> None:
+        self._job_root = job_root
+        self._semaphore = asyncio.Semaphore(max_concurrent)
+        self._pipeline = pipeline
+        self._jobs: dict[str, JobState] = {}
+        self._subscribers: dict[str, list[asyncio.Queue[Optional[Event]]]] = {}
+        self._tasks: dict[str, asyncio.Task] = {}
+        self._running = 0
+        self._queued = 0
+
+    def get(self, job_id: str) -> Optional[JobState]:
+        return self._jobs.get(job_id)
+
+    def counts(self) -> dict[str, int]:
+        return {"running": self._running, "queued": self._queued}
+
+    async def submit(self, fasta_bytes: bytes, *, original_name: str) -> str:
+        job_id = uuid.uuid4().hex
+        job_dir = self._job_root / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        fasta_path = job_dir / "input.fasta"
+        fasta_path.write_bytes(fasta_bytes)
+        state = JobState(
+            id=job_id,
+            status=JobStatus.QUEUED,
+            original_name=original_name,
+            fasta_path=fasta_path,
+            output_dir=job_dir,
+        )
+        self._jobs[job_id] = state
+        self._subscribers[job_id] = []
+        self._queued += 1
+        await self._publish(job_id, Event("queued", {"job_id": job_id}))
+        self._tasks[job_id] = asyncio.create_task(self._run(job_id))
+        return job_id
+
+    async def subscribe(self, job_id: str) -> AsyncIterator[Event]:
+        state = self._jobs.get(job_id)
+        if state is None:
+            return
+        # Late subscriber: replay terminal event and close.
+        if state.terminal_event is not None:
+            yield state.terminal_event
+            return
+        # Synthesize a queued event so every subscriber receives the full stream
+        # from the beginning, regardless of when they subscribed relative to submit().
+        yield Event("queued", {"job_id": job_id})
+        # Re-check: pipeline may have finished while we were yielding.
+        if state.terminal_event is not None:
+            yield state.terminal_event
+            return
+        queue: asyncio.Queue[Optional[Event]] = asyncio.Queue(maxsize=128)
+        self._subscribers[job_id].append(queue)
+        try:
+            while True:
+                event = await queue.get()
+                if event is None:
+                    return
+                yield event
+                if event.event in {"done", "error"}:
+                    return
+        finally:
+            try:
+                self._subscribers[job_id].remove(queue)
+            except (ValueError, KeyError):
+                pass
+
+    def consume_bundle(self, job_id: str) -> Optional[Path]:
+        state = self._jobs.get(job_id)
+        if state is None or state.status is not JobStatus.DONE or state.consumed:
+            return None
+        state.consumed = True
+        return state.bundle_path
+
+    # --- internals ---
+
+    async def _publish(self, job_id: str, event: Event) -> None:
+        is_terminal = event.event in {"done", "error"}
+        if is_terminal:
+            self._jobs[job_id].terminal_event = event
+        for queue in list(self._subscribers.get(job_id, [])):
+            self._enqueue(queue, event, terminal=is_terminal)
+
+    @staticmethod
+    def _enqueue(
+        queue: asyncio.Queue[Optional[Event]],
+        event: Event,
+        *,
+        terminal: bool,
+    ) -> None:
+        while True:
+            try:
+                queue.put_nowait(event)
+                break
+            except asyncio.QueueFull:
+                try:
+                    queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+        if terminal:
+            while True:
+                try:
+                    queue.put_nowait(None)
+                    return
+                except asyncio.QueueFull:
+                    try:
+                        queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        return
+
+    async def _run(self, job_id: str) -> None:
+        state = self._jobs[job_id]
+        acquired = False
+        try:
+            async with self._semaphore:
+                acquired = True
+                self._queued -= 1
+                self._running += 1
+                state.status = JobStatus.RUNNING
+                ctx = JobContext(
+                    job_id=job_id,
+                    fasta_path=state.fasta_path,
+                    output_dir=state.output_dir,
+                    original_name=state.original_name,
+                )
+
+                async def emit(stage: str, payload: dict[str, Any]) -> None:
+                    await self._publish(
+                        job_id,
+                        Event("progress", {"stage": stage, **payload}),
+                    )
+
+                bundle = await self._pipeline(ctx, emit)
+                state.bundle_path = bundle
+                state.status = JobStatus.DONE
+                state.ready_at = time.monotonic()
+                await self._publish(
+                    job_id,
+                    Event("done", {"download_url": f"/api/prepare/{job_id}/bundle"}),
+                )
+        except PipelineFailure as exc:
+            state.status = JobStatus.ERROR
+            state.error_message = str(exc)
+            await self._publish(job_id, Event("error", {"message": str(exc)}))
+        except Exception:
+            logger.exception("Unexpected pipeline failure for job %s", job_id)
+            state.status = JobStatus.ERROR
+            state.error_message = "Internal server error."
+            await self._publish(
+                job_id, Event("error", {"message": "Internal server error."})
+            )
+        finally:
+            if acquired:
+                self._running -= 1
+            else:
+                self._queued = max(0, self._queued - 1)
