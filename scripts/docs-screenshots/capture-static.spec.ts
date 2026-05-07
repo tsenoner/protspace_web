@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test, type BrowserContext, type Page } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
 import {
@@ -10,12 +10,90 @@ import {
   clickProteinPoint,
 } from './helpers';
 
-// Ensure output directory exists
-test.beforeAll(async () => {
+// Static screenshots share one page across the whole spec — the dataset is
+// large to load and parse, so we pay that cost once in beforeAll and reset
+// only the per-test mutations in beforeEach.
+let sharedContext: BrowserContext | null = null;
+let sharedPage: Page | null = null;
+
+function getPage(): Page {
+  if (!sharedPage) {
+    throw new Error('sharedPage not initialized — beforeAll did not run');
+  }
+  return sharedPage;
+}
+
+test.beforeAll(async ({ browser }) => {
   if (!fs.existsSync(IMAGES_DIR)) {
     fs.mkdirSync(IMAGES_DIR, { recursive: true });
   }
+
+  sharedContext = await browser.newContext({
+    viewport: { width: 1536, height: 864 },
+  });
+  sharedPage = await sharedContext.newPage();
+
+  await sharedPage.goto('/explore');
+  await dismissProductTour(sharedPage);
+  await waitForDataLoad(sharedPage);
+  await waitForLegend(sharedPage);
+  await waitForControlBar(sharedPage);
 });
+
+test.afterAll(async () => {
+  if (sharedPage) {
+    await sharedPage.close();
+    sharedPage = null;
+  }
+  if (sharedContext) {
+    await sharedContext.close();
+    sharedContext = null;
+  }
+});
+
+/**
+ * Roll back any DOM/state changes a prior test may have left behind, so each
+ * test starts from a known-clean page without paying the goto/load cost again.
+ *
+ * Cleans up: injected callout overlays (control-bar-annotated), the publish
+ * modal (figure-editor tests), the structure viewer (structure-viewer.png),
+ * the filter query (filter-query-builder.png), and any open shadow-DOM
+ * dropdowns / modals (Escape closes them at the Lit/native level).
+ */
+async function resetStaticState(page: Page): Promise<void> {
+  // Close any open dropdown / modal via Escape — handles control-bar-projection,
+  // -annotation, -export, query builder, and the publish modal's outer trap.
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+
+  await page.evaluate(() => {
+    // Annotated control bar appends red callout circles to document.body.
+    document.querySelectorAll('div[data-test-callout]').forEach((el) => el.remove());
+
+    // Figure editor leaves a publish modal element behind even after Escape.
+    document.querySelectorAll('protspace-publish-modal').forEach((el) => el.remove());
+
+    // structure-viewer.png unhides the viewer and selects a protein.
+    const sv = document.querySelector('#myStructureViewer') as HTMLElement | null;
+    if (sv) sv.style.display = 'none';
+    const plot = document.querySelector('#myPlot') as
+      | (HTMLElement & { selectedProteinIds?: string[] })
+      | null;
+    if (plot && Array.isArray(plot.selectedProteinIds)) plot.selectedProteinIds = [];
+
+    // filter-query-builder seeds an example query — clear it.
+    const cb = document.querySelector('#myControlBar') as
+      | (HTMLElement & { filterQuery?: unknown[]; requestUpdate?: () => void })
+      | null;
+    if (cb) {
+      cb.filterQuery = [];
+      cb.requestUpdate?.();
+    }
+  });
+
+  // Brief settle for Lit/rAF updates following the resets above.
+  await page.waitForTimeout(150);
+}
 
 /**
  * Open the Figure Editor and wait for its preview canvas to render.
@@ -90,15 +168,12 @@ async function waitForControlBar(
 }
 
 test.describe('Interface Overview Screenshots', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/explore');
-    await dismissProductTour(page);
-    await waitForDataLoad(page);
-    await waitForLegend(page);
-    await waitForControlBar(page);
+  test.beforeEach(async () => {
+    await resetStaticState(getPage());
   });
 
-  test('interface-overview.png - Full page layout', async ({ page }) => {
+  test('interface-overview.png - Full page layout', async () => {
+    const page = getPage();
     await page.screenshot({
       path: path.join(IMAGES_DIR, 'interface-overview.png'),
       fullPage: false,
@@ -106,7 +181,8 @@ test.describe('Interface Overview Screenshots', () => {
     console.log('📸 Captured: interface-overview.png');
   });
 
-  test('scatterplot-example.png - Scatterplot with colored proteins', async ({ page }) => {
+  test('scatterplot-example.png - Scatterplot with colored proteins', async () => {
+    const page = getPage();
     const plot = page.locator('#myPlot');
     await plot.screenshot({
       path: path.join(IMAGES_DIR, 'scatterplot-example.png'),
@@ -114,7 +190,8 @@ test.describe('Interface Overview Screenshots', () => {
     console.log('📸 Captured: scatterplot-example.png');
   });
 
-  test('legend-panel.png - Legend with categories', async ({ page }) => {
+  test('legend-panel.png - Legend with categories', async () => {
+    const page = getPage();
     const legend = page.locator('#myLegend');
     await legend.screenshot({
       path: path.join(IMAGES_DIR, 'legend-panel.png'),
@@ -122,7 +199,8 @@ test.describe('Interface Overview Screenshots', () => {
     console.log('📸 Captured: legend-panel.png');
   });
 
-  test('structure-viewer.png - 3D structure viewer', async ({ page }) => {
+  test('structure-viewer.png - 3D structure viewer', async () => {
+    const page = getPage();
     // Click on a protein to load it in the structure viewer
     await clickProteinPoint(page);
 
@@ -160,16 +238,12 @@ test.describe('Interface Overview Screenshots', () => {
 });
 
 test.describe('Control Bar Screenshots', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/explore');
-    await dismissProductTour(page);
-    await waitForDataLoad(page);
-    await waitForControlBar(page);
+  test.beforeEach(async () => {
+    await resetStaticState(getPage());
   });
 
-  test('control-bar-annotated.png - Annotated control bar with numbered callouts', async ({
-    page,
-  }) => {
+  test('control-bar-annotated.png - Annotated control bar with numbered callouts', async () => {
+    const page = getPage();
     // Inject numbered callout annotations
     await page.evaluate(() => {
       const controlBar = document.querySelector('#myControlBar') as any;
@@ -228,6 +302,7 @@ test.describe('Control Bar Screenshots', () => {
           z-index: 10000;
         `;
         callout.textContent = label;
+        callout.dataset.testCallout = 'true';
         document.body.appendChild(callout);
       });
     });
@@ -257,9 +332,8 @@ test.describe('Control Bar Screenshots', () => {
     console.log('📸 Captured: control-bar-annotated.png');
   });
 
-  test('control-bar-projection.png - Projection dropdown with options overlay', async ({
-    page,
-  }) => {
+  test('control-bar-projection.png - Projection dropdown with options overlay', async () => {
+    const page = getPage();
     // Click the projection trigger to open the real custom dropdown
     await page.evaluate(() => {
       const controlBar = document.querySelector('#myControlBar') as any;
@@ -339,9 +413,8 @@ test.describe('Control Bar Screenshots', () => {
     console.log('📸 Captured: control-bar-projection.png');
   });
 
-  test('control-bar-annotation.png - Annotation dropdown with options overlay', async ({
-    page,
-  }) => {
+  test('control-bar-annotation.png - Annotation dropdown with options overlay', async () => {
+    const page = getPage();
     // Click the annotation select trigger to open the real dropdown
     await page.evaluate(() => {
       const controlBar = document.querySelector('#myControlBar') as any;
@@ -431,7 +504,8 @@ test.describe('Control Bar Screenshots', () => {
     console.log('📸 Captured: control-bar-annotation.png');
   });
 
-  test('figure-editor-overview.png - Figure Editor modal full layout', async ({ page }) => {
+  test('figure-editor-overview.png - Figure Editor modal full layout', async () => {
+    const page = getPage();
     await openFigureEditor(page);
     await page.screenshot({
       path: path.join(IMAGES_DIR, 'figure-editor-overview.png'),
@@ -440,7 +514,8 @@ test.describe('Control Bar Screenshots', () => {
     console.log('📸 Captured: figure-editor-overview.png');
   });
 
-  test('figure-editor-presets.png - Journal preset grid (sidebar close-up)', async ({ page }) => {
+  test('figure-editor-presets.png - Journal preset grid (sidebar close-up)', async () => {
+    const page = getPage();
     await openFigureEditor(page);
 
     const clip = await page.evaluate(() => {
@@ -464,9 +539,8 @@ test.describe('Control Bar Screenshots', () => {
     console.log('📸 Captured: figure-editor-presets.png');
   });
 
-  test('figure-editor-overlays.png - Editor with circle, arrow, and label overlays', async ({
-    page,
-  }) => {
+  test('figure-editor-overlays.png - Editor with circle, arrow, and label overlays', async () => {
+    const page = getPage();
     await openFigureEditor(page);
 
     await page.evaluate(() => {
@@ -535,7 +609,8 @@ test.describe('Control Bar Screenshots', () => {
     console.log('📸 Captured: figure-editor-overlays.png');
   });
 
-  test('figure-editor-zoom-inset.png - Editor with a zoom inset placed', async ({ page }) => {
+  test('figure-editor-zoom-inset.png - Editor with a zoom inset placed', async () => {
+    const page = getPage();
     await openFigureEditor(page);
 
     await page.evaluate(() => {
@@ -584,7 +659,8 @@ test.describe('Control Bar Screenshots', () => {
     console.log('📸 Captured: figure-editor-zoom-inset.png');
   });
 
-  test('filter-query-builder.png - Filter modal with example conditions', async ({ page }) => {
+  test('filter-query-builder.png - Filter modal with example conditions', async () => {
+    const page = getPage();
     // Pre-populate the filter query so the modal opens with a meaningful state.
     // Pick the first annotation and its first two unique non-null values from
     // the currently loaded data — keeps the test independent of the dataset.
@@ -671,7 +747,8 @@ test.describe('Control Bar Screenshots', () => {
     console.log('📸 Captured: filter-query-builder.png');
   });
 
-  test('control-bar-export.png - Export menu', async ({ page }) => {
+  test('control-bar-export.png - Export menu', async () => {
+    const page = getPage();
     // Open export dropdown
     await page.evaluate(() => {
       const controlBar = document.querySelector('#myControlBar') as any;
