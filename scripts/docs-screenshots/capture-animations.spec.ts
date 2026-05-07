@@ -87,6 +87,7 @@ import {
   doubleClickLegendItem,
   enableSelectionMode,
   initVisualIndicators,
+  showActionLabel,
   showClickIndicator,
   showKeyboardIndicator,
   hideKeyboardIndicator,
@@ -317,11 +318,14 @@ test.describe('Scatterplot Animation Captures', () => {
       return;
     }
 
+    const modLabel = modifierKey === 'Meta' ? '⌘+Click' : 'Ctrl+Click';
+
     // Click sequence: 5 points with specific pattern
     // 1. Click first point
     const point1 = pointCoords[0];
     await trackedMouseMove(page, point1.screenX, point1.screenY, { steps: 15 });
     await page.waitForTimeout(400);
+    await showActionLabel(page, 'Click', point1.screenX, point1.screenY);
     await showClickIndicator(page, point1.screenX, point1.screenY);
     await trackedMouseClick(page, point1.screenX, point1.screenY);
     await page.waitForTimeout(1500);
@@ -330,11 +334,13 @@ test.describe('Scatterplot Animation Captures', () => {
     const point2 = pointCoords[1];
     await trackedMouseMove(page, point2.screenX, point2.screenY, { steps: 15 });
     await page.waitForTimeout(400);
+    await showActionLabel(page, 'Click', point2.screenX, point2.screenY);
     await showClickIndicator(page, point2.screenX, point2.screenY);
     await trackedMouseClick(page, point2.screenX, point2.screenY);
     await page.waitForTimeout(1500);
 
     // 3. Click second point again (to deselect it)
+    await showActionLabel(page, 'Click', point2.screenX, point2.screenY);
     await showClickIndicator(page, point2.screenX, point2.screenY);
     await trackedMouseClick(page, point2.screenX, point2.screenY);
     await page.waitForTimeout(1500);
@@ -343,6 +349,7 @@ test.describe('Scatterplot Animation Captures', () => {
     const point3 = pointCoords[2];
     await trackedMouseMove(page, point3.screenX, point3.screenY, { steps: 15 });
     await page.waitForTimeout(400);
+    await showActionLabel(page, 'Click', point3.screenX, point3.screenY);
     await showClickIndicator(page, point3.screenX, point3.screenY);
     await trackedMouseClick(page, point3.screenX, point3.screenY);
     await page.waitForTimeout(1500);
@@ -354,6 +361,7 @@ test.describe('Scatterplot Animation Captures', () => {
     await page.waitForTimeout(300); // Show indicator before moving
     await trackedMouseMove(page, point4.screenX, point4.screenY, { steps: 15 });
     await page.waitForTimeout(400);
+    await showActionLabel(page, modLabel, point4.screenX, point4.screenY);
     await showClickIndicator(page, point4.screenX, point4.screenY, { modifier: modifierKey });
     await trackedMouseClick(page, point4.screenX, point4.screenY);
     await page.waitForTimeout(800); // Keep indicator visible after click
@@ -366,6 +374,7 @@ test.describe('Scatterplot Animation Captures', () => {
     await page.waitForTimeout(300); // Show indicator before moving
     await trackedMouseMove(page, point5.screenX, point5.screenY, { steps: 15 });
     await page.waitForTimeout(400);
+    await showActionLabel(page, modLabel, point5.screenX, point5.screenY);
     await showClickIndicator(page, point5.screenX, point5.screenY, { modifier: modifierKey });
     await trackedMouseClick(page, point5.screenX, point5.screenY);
     await page.waitForTimeout(800); // Keep indicator visible after click
@@ -378,6 +387,7 @@ test.describe('Scatterplot Animation Captures', () => {
     if (clearButtonCoords) {
       await trackedMouseMove(page, clearButtonCoords.x, clearButtonCoords.y, { steps: 15 });
       await page.waitForTimeout(400);
+      await showActionLabel(page, 'Click', clearButtonCoords.x, clearButtonCoords.y);
       await showClickIndicator(page, clearButtonCoords.x, clearButtonCoords.y);
       await trackedMouseClick(page, clearButtonCoords.x, clearButtonCoords.y);
       await page.waitForTimeout(1500);
@@ -569,6 +579,7 @@ test.describe('Legend Animation Captures', () => {
     if (naCoords) {
       await trackedMouseMove(page, naCoords.x, naCoords.y, { steps: 15 });
       await page.waitForTimeout(300);
+      await showActionLabel(page, 'Click', naCoords.x, naCoords.y);
       await showClickIndicator(page, naCoords.x, naCoords.y);
     }
     await toggleLegendItem(page, naIdx);
@@ -579,6 +590,7 @@ test.describe('Legend Animation Captures', () => {
     if (otherCoords) {
       await trackedMouseMove(page, otherCoords.x, otherCoords.y, { steps: 15 });
       await page.waitForTimeout(300);
+      await showActionLabel(page, 'Click', otherCoords.x, otherCoords.y);
       await showClickIndicator(page, otherCoords.x, otherCoords.y);
     }
     await toggleLegendItem(page, otherIdx);
@@ -589,6 +601,8 @@ test.describe('Legend Animation Captures', () => {
     if (threefingerCoords) {
       await trackedMouseMove(page, threefingerCoords.x, threefingerCoords.y, { steps: 15 });
       await page.waitForTimeout(300);
+      // Stretch the label so it's visible across both ripples of the dbl-click.
+      await showActionLabel(page, 'Double-Click', threefingerCoords.x, threefingerCoords.y, 1100);
       await showClickIndicator(page, threefingerCoords.x, threefingerCoords.y);
       await page.waitForTimeout(100);
       await showClickIndicator(page, threefingerCoords.x, threefingerCoords.y);
@@ -603,6 +617,7 @@ test.describe('Legend Animation Captures', () => {
         steps: 15,
       });
       await page.waitForTimeout(300);
+      await showActionLabel(page, 'Click', threefingerCoordsAfter.x, threefingerCoordsAfter.y);
       await showClickIndicator(page, threefingerCoordsAfter.x, threefingerCoordsAfter.y);
     }
     await toggleLegendItem(page, threefingerIdx);
@@ -710,15 +725,33 @@ test.describe('Legend Animation Captures', () => {
     // Initialize visual indicators and action logging
     await initVisualIndicators(page);
 
-    // Step 1: Move 2 categories into "Other" by reducing maxVisibleValues
-    // This happens before INITIAL_PAUSE so it gets trimmed from the GIF
-    await page.evaluate(() => {
+    // Step 1: Move 2 categories into "Other" while keeping N/A as a separate
+    // top-level entry, matching the default appearance in the other docs GIFs.
+    //
+    // Naively reducing `maxVisibleValues` by 2 falls back on size-desc sort,
+    // which pushes the lowest-count items into Other — and N/A typically has
+    // a low count, so it'd be the first to go. Instead, route through the
+    // legend's own merge action for two specific non-N/A categories: that
+    // path uses `pendingMergeValue` and leaves N/A's slot untouched.
+    //
+    // Happens before INITIAL_PAUSE so it's trimmed from the GIF.
+    await page.evaluate(async () => {
       const legend = document.querySelector('#myLegend') as any;
-      if (legend) {
-        legend.maxVisibleValues = Math.max(1, legend.maxVisibleValues - 2);
+      if (!legend?._legendItems) return;
+
+      const targets: string[] = legend._legendItems
+        .filter((i: any) => i.value !== '__NA__' && i.value !== 'Other')
+        .slice()
+        .sort((a: any, b: any) => a.count - b.count)
+        .slice(0, 2)
+        .map((i: any) => i.value);
+
+      for (const value of targets) {
+        legend._handleMergeToOther(value);
+        await legend.updateComplete;
       }
     });
-    // Wait for legend to re-render after reducing visible items
+    // Wait for legend to re-render after merging items into Other
     await waitForLegend(page);
     await page.waitForTimeout(500);
 

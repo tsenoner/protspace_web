@@ -33,6 +33,15 @@ const MAX_LABELS = 8;
 const LABEL_TEXTURE_WIDTH = 2048;
 const DIAMOND_SIZE_SCALE = 1.25;
 
+// Stable reference dimensions for margin scaling at export time. Tying margin
+// scaling to the live display canvas (via `config.width/height`, which track
+// `clientWidth/clientHeight`) made captured plots window-size dependent — same
+// data lands at slightly different pixel positions when the browser is resized,
+// causing publish-modal overlays to drift relative to clusters across sessions.
+// Anchoring to a fixed reference makes the export render reproducible.
+const EXPORT_MARGIN_REFERENCE_WIDTH = 800;
+const EXPORT_MARGIN_REFERENCE_HEIGHT = 600;
+
 const POINT_VERTEX_SHADER = `#version 300 es
 precision highp float;
 
@@ -814,15 +823,14 @@ export class WebGLRenderer {
     if (points.length === 0) return null;
 
     const config = this.getConfig();
-    const displayWidth = config.width ?? 800;
-    const displayHeight = config.height ?? 600;
 
     // Default margin if not specified
     const margin = config.margin ?? { top: 20, right: 20, bottom: 20, left: 20 };
 
-    // Scale margins proportionally to export size
-    const scaleX = exportWidth / displayWidth;
-    const scaleY = exportHeight / displayHeight;
+    // Scale margins from a fixed reference instead of the live display size,
+    // so the export render is reproducible across browser-window resizes.
+    const scaleX = exportWidth / EXPORT_MARGIN_REFERENCE_WIDTH;
+    const scaleY = exportHeight / EXPORT_MARGIN_REFERENCE_HEIGHT;
 
     const scaledMargin = {
       top: margin.top * scaleY,
@@ -892,11 +900,11 @@ export class WebGLRenderer {
     exportHeight: number,
   ): { marginLeft: number; marginRight: number; marginTop: number; marginBottom: number } {
     const config = this.getConfig();
-    const displayWidth = config.width ?? 800;
-    const displayHeight = config.height ?? 600;
     const margin = config.margin ?? { top: 20, right: 20, bottom: 20, left: 20 };
-    const scaleX = exportWidth / displayWidth;
-    const scaleY = exportHeight / displayHeight;
+    // Match createExportScales: anchor to the same fixed reference so insets'
+    // data-domain inversion stays consistent with the export render.
+    const scaleX = exportWidth / EXPORT_MARGIN_REFERENCE_WIDTH;
+    const scaleY = exportHeight / EXPORT_MARGIN_REFERENCE_HEIGHT;
     return {
       marginLeft: margin.left * scaleX,
       marginRight: margin.right * scaleX,
