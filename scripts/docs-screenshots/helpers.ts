@@ -390,15 +390,15 @@ export async function panScatterplot(page: Page, deltaX: number, deltaY: number)
  * Toggle a legend item visibility.
  */
 export async function toggleLegendItem(page: Page, index = 0): Promise<void> {
-  // Click on a legend item to toggle it
+  // The @click handler lives on the inner `.legend-item-main` button, not the
+  // wrapper `.legend-item` div — clicking the wrapper would be a no-op.
   await page.evaluate((idx) => {
     const legend = document.querySelector('#myLegend');
     if (!legend || !legend.shadowRoot) return;
 
     const items = legend.shadowRoot.querySelectorAll('.legend-item');
-    if (items[idx]) {
-      (items[idx] as HTMLElement).click();
-    }
+    const button = items[idx]?.querySelector('.legend-item-main') as HTMLElement | null;
+    button?.click();
   }, index);
 
   await logAction(page, 'mouse', 'Toggle Legend Item', `Toggle category ${index}`);
@@ -409,20 +409,23 @@ export async function toggleLegendItem(page: Page, index = 0): Promise<void> {
  * Double-click a legend item to isolate it (show only that category).
  */
 export async function doubleClickLegendItem(page: Page, index = 0): Promise<void> {
-  // Double-click on a legend item to isolate it
+  // Same caveat as toggleLegendItem: the @dblclick handler is on the inner
+  // `.legend-item-main` button. Dispatching on the wrapper does not bubble
+  // down to children, so we must dispatch on the button itself.
   await page.evaluate((idx) => {
     const legend = document.querySelector('#myLegend');
     if (!legend || !legend.shadowRoot) return;
 
     const items = legend.shadowRoot.querySelectorAll('.legend-item');
-    if (items[idx]) {
-      const event = new MouseEvent('dblclick', {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-      });
-      items[idx].dispatchEvent(event);
-    }
+    const button = items[idx]?.querySelector('.legend-item-main') as HTMLElement | null;
+    if (!button) return;
+
+    const event = new MouseEvent('dblclick', {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+    });
+    button.dispatchEvent(event);
   }, index);
 
   await logAction(page, 'mouse', 'Double Click Legend Item', `Isolate category ${index}`);
@@ -880,6 +883,70 @@ export async function showKeyboardIndicator(page: Page, key: string): Promise<vo
     indicator.style.display = 'block';
   });
   await logAction(page, 'keyboard', 'Modifier Key', `Hold ${key === 'Meta' ? '⌘ (Cmd)' : 'Ctrl'}`);
+}
+
+/**
+ * Show a transient action label (e.g. "Click", "Double-Click") next to a
+ * click point. The label sits centered above (x, y) and flips below when
+ * (x, y) is near the top of the viewport. Auto-hides after `durationMs`.
+ * Reuses a single DOM node so back-to-back calls replace each other
+ * instead of stacking.
+ */
+export async function showActionLabel(
+  page: Page,
+  label: string,
+  x: number,
+  y: number,
+  durationMs = 700,
+): Promise<void> {
+  await page.evaluate(
+    ({ text, dur, posX, posY }) => {
+      const overlay = document.getElementById('playwright-visual-indicators');
+      if (!overlay) return;
+
+      let badge = document.getElementById('playwright-action-label') as HTMLDivElement | null;
+      if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'playwright-action-label';
+        overlay.appendChild(badge);
+      }
+
+      const margin = 18;
+      const flipBelow = posY < 80;
+      const anchorY = flipBelow ? posY + margin : posY - margin;
+      const transform = flipBelow ? 'translate(-50%, 0)' : 'translate(-50%, -100%)';
+
+      badge.style.cssText = `
+        position: fixed;
+        left: ${posX}px;
+        top: ${anchorY}px;
+        transform: ${transform};
+        background: rgba(77, 171, 247, 0.95);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: 700;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        z-index: 1000001;
+        pointer-events: none;
+        white-space: nowrap;
+      `;
+      badge.textContent = text;
+      badge.style.display = 'block';
+
+      const prev = (badge as unknown as { _hideTimer?: number })._hideTimer;
+      if (prev) window.clearTimeout(prev);
+      (badge as unknown as { _hideTimer?: number })._hideTimer = window.setTimeout(() => {
+        if (badge) badge.style.display = 'none';
+      }, dur);
+    },
+    { text: label, dur: durationMs, posX: x, posY: y },
+  );
+  await logAction(page, 'mouse', 'Action Label', label);
 }
 
 /**
