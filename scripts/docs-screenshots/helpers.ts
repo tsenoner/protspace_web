@@ -22,54 +22,70 @@ export async function dismissProductTour(page: Page): Promise<void> {
 }
 
 /**
- * Wait for the scatterplot to finish loading data.
- * Waits for the data-loaded event and for points to be rendered.
+ * Settle for two animation frames so Lit's update cycle and the next paint
+ * have committed before we proceed. Cheaper and more deterministic than a
+ * fixed `waitForTimeout` since it ties to the actual render loop.
+ */
+async function awaitTwoFrames(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+}
+
+/**
+ * Wait for the scatterplot to finish loading data and for the first render
+ * pass to populate the plot's internal layout state. Also waits for the
+ * `#progressive-loading` overlay (loading-overlay.ts) to fully remove
+ * itself — without this, screenshots can land during the 500 ms fade-out.
  */
 export async function waitForDataLoad(page: Page, timeout = 30000): Promise<void> {
-  // Wait for the scatterplot element to exist
   await page.waitForSelector('#myPlot', { timeout });
 
-  // Wait for data to be loaded by checking the data property on the element
-  // The scatterplot uses canvas rendering, not SVG circles
+  // Wait for the data property AND the post-render derived state used by
+  // the animation tests (`_plotData`, `_scales`). When both are populated
+  // the canvas has rendered at least once.
   await page.waitForFunction(
     () => {
       const plot = document.querySelector('#myPlot') as any;
       if (!plot) return false;
-
-      // Check if the data property is set and has proteins
-      if (plot.data && plot.data.protein_ids && plot.data.protein_ids.length > 0) {
-        return true;
-      }
-
-      return false;
+      if (!plot.data?.protein_ids?.length) return false;
+      if (!Array.isArray(plot._plotData) || plot._plotData.length === 0) return false;
+      if (!plot._scales) return false;
+      return true;
     },
-    { timeout, polling: 1000 },
+    { timeout, polling: 200 },
   );
 
-  // Additional wait for rendering to stabilize
-  await page.waitForTimeout(1000);
+  // The loading overlay fades out (opacity 0.5s) then removes itself ~500 ms
+  // later. Wait for the element to be gone from the DOM.
+  await page.waitForFunction(() => !document.getElementById('progressive-loading'), {
+    timeout,
+    polling: 100,
+  });
+
+  await awaitTwoFrames(page);
 }
 
 /**
- * Wait for the legend to populate with items.
+ * Wait for the legend to populate with items and finish its first paint.
  */
 export async function waitForLegend(page: Page, timeout = 15000): Promise<void> {
   await page.waitForSelector('#myLegend', { timeout });
 
-  // Wait for legend items to be rendered
   await page.waitForFunction(
     () => {
       const legend = document.querySelector('#myLegend');
       if (!legend || !legend.shadowRoot) return false;
-
-      // Check for legend items
       const items = legend.shadowRoot.querySelectorAll('.legend-item');
       return items.length > 0;
     },
-    { timeout, polling: 1000 },
+    { timeout, polling: 200 },
   );
 
-  await page.waitForTimeout(500);
+  await awaitTwoFrames(page);
 }
 
 /**

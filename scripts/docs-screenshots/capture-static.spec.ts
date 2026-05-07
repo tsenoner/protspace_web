@@ -160,11 +160,16 @@ async function waitForControlBar(
       // Check that annotation select has annotations loaded
       return annotationSelect.annotations && annotationSelect.annotations.length > 0;
     },
-    { timeout, polling: 500 },
+    { timeout, polling: 200 },
   );
 
-  // Additional wait for CSS transitions to complete
-  await page.waitForTimeout(300);
+  // Settle for two frames so any Lit transition is committed.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
 }
 
 test.describe('Interface Overview Screenshots', () => {
