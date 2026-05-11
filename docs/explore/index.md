@@ -19,7 +19,7 @@ The ProtSpace Explore page provides an interactive environment for visualizing a
 
 The control bar contains:
 
-1. **Projection dropdown** - Switch between PCA, UMAP, t-SNE
+1. **Projection dropdown** - Switch between PCA, UMAP, t-SNE, PaCMAP, MDS, or LocalMAP
 2. **Annotation dropdown** - Color points by annotation
 3. **Search box** - Find proteins by ID
 4. **Select button** - Rectangle or lasso selection mode
@@ -60,6 +60,16 @@ The legend shows the current coloring scheme:
 When you select a protein, the 3D viewer appears and fetches its structure from AlphaFold (if available). The viewer includes direct links to the [AlphaFold Database](https://alphafold.ebi.ac.uk/), [UniProt](https://www.uniprot.org/), and [InterPro](https://www.interpro.org/) entries for the selected protein.
 
 <img src="./images/structure-viewer.png" alt="Structure Viewer - showing 3D protein structure" style="max-width: 50%; display: block; margin: 1em 0;" />
+
+## Product Tour
+
+The first time you load a dataset, ProtSpace plays a short guided tour highlighting the projection picker, search, selection tools, the Export menu, and the legend. The tour pauses on each step until you click **Next**, and you can dismiss it any time with **Skip** or by pressing <kbd>Esc</kbd>.
+
+To replay the tour later, click the **?** icon in the top-right of the scatterplot to open the Tips popover, then click **Take a Tour**.
+
+::: tip Keyboard Shortcuts
+The same Tips popover lists all keyboard shortcuts (search, selection, navigation). Worth a glance even if you skip the tour.
+:::
 
 ## Next Steps
 

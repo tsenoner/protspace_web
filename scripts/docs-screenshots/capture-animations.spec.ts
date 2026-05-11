@@ -1,14 +1,93 @@
-import { test } from '@playwright/test';
+import { test, type Page } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
+
+/**
+ * Collects screen-space coordinates of points whose currently-selected
+ * annotation value contains `substringMatch`, then trims outliers via MAD.
+ * Reads annotation indices from `plot.data` (handles both Int32Array and
+ * number[][] storage) since the on-plot points are bare lazy objects after
+ * Phase 2.5.
+ */
+async function collectClusterScreenPoints(
+  page: Page,
+  substringMatch: string,
+): Promise<Array<{ sx: number; sy: number }> | null> {
+  return page.evaluate((needle: string) => {
+    const plot = document.querySelector('#myPlot') as any;
+    if (!plot?._plotData?.length || !plot._scales || !plot.data) return null;
+
+    const plotData = plot._plotData;
+    const scales = plot._scales;
+    const transform = plot._transform || { x: 0, y: 0, k: 1 };
+    const plotRect = plot.getBoundingClientRect();
+    const annotation = plot.selectedAnnotation;
+
+    const annotationDef = plot.data.annotations?.[annotation];
+    const annotationRows = plot.data.annotation_data?.[annotation];
+    if (!annotationDef || !annotationRows) return null;
+    const annotationValues: Array<string | null> = annotationDef.values;
+
+    const readValuesAt = (originalIndex: number): string[] => {
+      let indices: number[];
+      if (annotationRows instanceof Int32Array) {
+        const i = annotationRows[originalIndex];
+        indices = i < 0 ? [] : [i];
+      } else {
+        indices = annotationRows[originalIndex] ?? [];
+      }
+      const out: string[] = [];
+      for (const i of indices) {
+        const v = annotationValues[i];
+        if (v != null) out.push(v);
+      }
+      return out;
+    };
+
+    const targetPoints: Array<{ sx: number; sy: number }> = [];
+    for (const point of plotData) {
+      const values = readValuesAt(point.originalIndex);
+      if (values.some((v) => v?.includes(needle))) {
+        const sx = plotRect.left + scales.x(point.x) * transform.k + transform.x;
+        const sy = plotRect.top + scales.y(point.y) * transform.k + transform.y;
+        targetPoints.push({ sx, sy });
+      }
+    }
+
+    if (targetPoints.length === 0) return null;
+
+    // MAD outlier trim: keep points within 2 × MAD of the median in both axes.
+    const median = (arr: number[]) => {
+      const sorted = [...arr].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    };
+    const xs = targetPoints.map((p) => p.sx);
+    const ys = targetPoints.map((p) => p.sy);
+    const medX = median(xs);
+    const medY = median(ys);
+    const madX = median(xs.map((x) => Math.abs(x - medX))) * 1.4826;
+    const madY = median(ys.map((y) => Math.abs(y - medY))) * 1.4826;
+    const threshold = 2;
+
+    const filtered = targetPoints.filter(
+      (p) =>
+        (madX === 0 || Math.abs(p.sx - medX) <= threshold * madX) &&
+        (madY === 0 || Math.abs(p.sy - medY) <= threshold * madY),
+    );
+    return filtered.length > 0 ? filtered : targetPoints;
+  }, substringMatch);
+}
 import {
   TEMP_VIDEOS_DIR,
+  dismissProductTour,
   waitForDataLoad,
   waitForLegend,
   toggleLegendItem,
   doubleClickLegendItem,
   enableSelectionMode,
   initVisualIndicators,
+  showActionLabel,
   showClickIndicator,
   showKeyboardIndicator,
   hideKeyboardIndicator,
@@ -95,6 +174,7 @@ test.describe('Zoom Animation', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/explore');
+    await dismissProductTour(page);
     await waitForDataLoad(page);
     await waitForLegend(page);
   });
@@ -105,55 +185,14 @@ test.describe('Zoom Animation', () => {
     if (!box) throw new Error('Could not get plot bounding box');
 
     // Find the centroid of the dense "three-finger toxin" cluster, ignoring outliers
-    const clusterCenter = await page.evaluate(() => {
-      const plot = document.querySelector('#myPlot') as any;
-      if (!plot?._plotData?.length || !plot._scales) return null;
-
-      const plotData = plot._plotData;
-      const scales = plot._scales;
-      const transform = plot._transform || { x: 0, y: 0, k: 1 };
-      const plotRect = plot.getBoundingClientRect();
-      const annotation = plot.selectedAnnotation;
-
-      // Collect screen coordinates of all target family points
-      const targetPoints: Array<{ sx: number; sy: number }> = [];
-      for (const point of plotData) {
-        const values = point.annotationValues?.[annotation] || [];
-        if (values.some((v: string) => v?.includes('three-finger toxin'))) {
-          const px = scales.x(point.x) * transform.k + transform.x;
-          const py = scales.y(point.y) * transform.k + transform.y;
-          targetPoints.push({ sx: plotRect.left + px, sy: plotRect.top + py });
-        }
-      }
-
-      if (targetPoints.length === 0) return null;
-
-      // Filter outliers using median absolute deviation (MAD)
-      const median = (arr: number[]) => {
-        const sorted = [...arr].sort((a, b) => a - b);
-        const mid = Math.floor(sorted.length / 2);
-        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-      };
-      const xs = targetPoints.map((p) => p.sx);
-      const ys = targetPoints.map((p) => p.sy);
-      const medX = median(xs);
-      const medY = median(ys);
-      const madX = median(xs.map((x) => Math.abs(x - medX))) * 1.4826;
-      const madY = median(ys.map((y) => Math.abs(y - medY))) * 1.4826;
-      const threshold = 2;
-
-      // Keep only points within threshold * MAD of the median
-      const filtered = targetPoints.filter(
-        (p) =>
-          (madX === 0 || Math.abs(p.sx - medX) <= threshold * madX) &&
-          (madY === 0 || Math.abs(p.sy - medY) <= threshold * madY),
-      );
-      const pts = filtered.length > 0 ? filtered : targetPoints;
-
-      const avgX = pts.reduce((s, p) => s + p.sx, 0) / pts.length;
-      const avgY = pts.reduce((s, p) => s + p.sy, 0) / pts.length;
-      return { x: avgX, y: avgY };
-    });
+    const targetPoints = await collectClusterScreenPoints(page, 'three-finger toxin');
+    const clusterCenter =
+      targetPoints && targetPoints.length > 0
+        ? {
+            x: targetPoints.reduce((s, p) => s + p.sx, 0) / targetPoints.length,
+            y: targetPoints.reduce((s, p) => s + p.sy, 0) / targetPoints.length,
+          }
+        : null;
 
     // Use the cluster centroid, or fall back to upper-right quadrant
     const zoomX = clusterCenter ? clusterCenter.x : box.x + box.width * 0.85;
@@ -185,6 +224,7 @@ test.describe('Zoom Animation', () => {
 test.describe('Scatterplot Animation Captures', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/explore');
+    await dismissProductTour(page);
     await waitForDataLoad(page);
     await waitForLegend(page);
   });
@@ -278,11 +318,14 @@ test.describe('Scatterplot Animation Captures', () => {
       return;
     }
 
+    const modLabel = modifierKey === 'Meta' ? '⌘+Click' : 'Ctrl+Click';
+
     // Click sequence: 5 points with specific pattern
     // 1. Click first point
     const point1 = pointCoords[0];
     await trackedMouseMove(page, point1.screenX, point1.screenY, { steps: 15 });
     await page.waitForTimeout(400);
+    await showActionLabel(page, 'Click', point1.screenX, point1.screenY);
     await showClickIndicator(page, point1.screenX, point1.screenY);
     await trackedMouseClick(page, point1.screenX, point1.screenY);
     await page.waitForTimeout(1500);
@@ -291,11 +334,13 @@ test.describe('Scatterplot Animation Captures', () => {
     const point2 = pointCoords[1];
     await trackedMouseMove(page, point2.screenX, point2.screenY, { steps: 15 });
     await page.waitForTimeout(400);
+    await showActionLabel(page, 'Click', point2.screenX, point2.screenY);
     await showClickIndicator(page, point2.screenX, point2.screenY);
     await trackedMouseClick(page, point2.screenX, point2.screenY);
     await page.waitForTimeout(1500);
 
     // 3. Click second point again (to deselect it)
+    await showActionLabel(page, 'Click', point2.screenX, point2.screenY);
     await showClickIndicator(page, point2.screenX, point2.screenY);
     await trackedMouseClick(page, point2.screenX, point2.screenY);
     await page.waitForTimeout(1500);
@@ -304,6 +349,7 @@ test.describe('Scatterplot Animation Captures', () => {
     const point3 = pointCoords[2];
     await trackedMouseMove(page, point3.screenX, point3.screenY, { steps: 15 });
     await page.waitForTimeout(400);
+    await showActionLabel(page, 'Click', point3.screenX, point3.screenY);
     await showClickIndicator(page, point3.screenX, point3.screenY);
     await trackedMouseClick(page, point3.screenX, point3.screenY);
     await page.waitForTimeout(1500);
@@ -315,6 +361,7 @@ test.describe('Scatterplot Animation Captures', () => {
     await page.waitForTimeout(300); // Show indicator before moving
     await trackedMouseMove(page, point4.screenX, point4.screenY, { steps: 15 });
     await page.waitForTimeout(400);
+    await showActionLabel(page, modLabel, point4.screenX, point4.screenY);
     await showClickIndicator(page, point4.screenX, point4.screenY, { modifier: modifierKey });
     await trackedMouseClick(page, point4.screenX, point4.screenY);
     await page.waitForTimeout(800); // Keep indicator visible after click
@@ -327,6 +374,7 @@ test.describe('Scatterplot Animation Captures', () => {
     await page.waitForTimeout(300); // Show indicator before moving
     await trackedMouseMove(page, point5.screenX, point5.screenY, { steps: 15 });
     await page.waitForTimeout(400);
+    await showActionLabel(page, modLabel, point5.screenX, point5.screenY);
     await showClickIndicator(page, point5.screenX, point5.screenY, { modifier: modifierKey });
     await trackedMouseClick(page, point5.screenX, point5.screenY);
     await page.waitForTimeout(800); // Keep indicator visible after click
@@ -339,6 +387,7 @@ test.describe('Scatterplot Animation Captures', () => {
     if (clearButtonCoords) {
       await trackedMouseMove(page, clearButtonCoords.x, clearButtonCoords.y, { steps: 15 });
       await page.waitForTimeout(400);
+      await showActionLabel(page, 'Click', clearButtonCoords.x, clearButtonCoords.y);
       await showClickIndicator(page, clearButtonCoords.x, clearButtonCoords.y);
       await trackedMouseClick(page, clearButtonCoords.x, clearButtonCoords.y);
       await page.waitForTimeout(1500);
@@ -385,66 +434,22 @@ test.describe('Scatterplot Animation Captures', () => {
     if (!box) throw new Error('Could not get plot bounding box');
 
     // Find the bounding box of the dense "phospholipase A2" cluster, ignoring outliers
-    const clusterBBox = await page.evaluate(() => {
-      const plot = document.querySelector('#myPlot') as any;
-      if (!plot?._plotData?.length || !plot._scales) return null;
-
-      const plotData = plot._plotData;
-      const scales = plot._scales;
-      const transform = plot._transform || { x: 0, y: 0, k: 1 };
-      const plotRect = plot.getBoundingClientRect();
-      const annotation = plot.selectedAnnotation;
-
-      // Collect screen coordinates of all target family points
-      const targetPoints: Array<{ sx: number; sy: number }> = [];
-      for (const point of plotData) {
-        const values = point.annotationValues?.[annotation] || [];
-        if (values.some((v: string) => v?.includes('phospholipase A2'))) {
-          const sx = plotRect.left + scales.x(point.x) * transform.k + transform.x;
-          const sy = plotRect.top + scales.y(point.y) * transform.k + transform.y;
-          targetPoints.push({ sx, sy });
-        }
-      }
-
-      if (targetPoints.length === 0) return null;
-
-      // Filter outliers using median absolute deviation (MAD)
-      const median = (arr: number[]) => {
-        const sorted = [...arr].sort((a, b) => a - b);
-        const mid = Math.floor(sorted.length / 2);
-        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-      };
-      const xs = targetPoints.map((p) => p.sx);
-      const ys = targetPoints.map((p) => p.sy);
-      const medX = median(xs);
-      const medY = median(ys);
-      const madX = median(xs.map((x) => Math.abs(x - medX))) * 1.4826;
-      const madY = median(ys.map((y) => Math.abs(y - medY))) * 1.4826;
-      const threshold = 2;
-
-      // Keep only points within threshold * MAD of the median
-      const filtered = targetPoints.filter(
-        (p) =>
-          (madX === 0 || Math.abs(p.sx - medX) <= threshold * madX) &&
-          (madY === 0 || Math.abs(p.sy - medY) <= threshold * madY),
-      );
-      const pts = filtered.length > 0 ? filtered : targetPoints;
-
+    const targetPoints = await collectClusterScreenPoints(page, 'phospholipase A2');
+    let clusterBBox: { x1: number; y1: number; x2: number; y2: number } | null = null;
+    if (targetPoints && targetPoints.length > 0) {
       let minX = Infinity,
         minY = Infinity,
         maxX = -Infinity,
         maxY = -Infinity;
-      for (const p of pts) {
+      for (const p of targetPoints) {
         if (p.sx < minX) minX = p.sx;
         if (p.sy < minY) minY = p.sy;
         if (p.sx > maxX) maxX = p.sx;
         if (p.sy > maxY) maxY = p.sy;
       }
-
-      // Add padding around the cluster
       const pad = 20;
-      return { x1: minX - pad, y1: minY - pad, x2: maxX + pad, y2: maxY + pad };
-    });
+      clusterBBox = { x1: minX - pad, y1: minY - pad, x2: maxX + pad, y2: maxY + pad };
+    }
 
     // Use cluster bbox or fall back to center region
     const startX = clusterBBox ? clusterBBox.x1 : box.x + box.width * 0.3;
@@ -514,6 +519,7 @@ test.describe('Scatterplot Animation Captures', () => {
 test.describe('Legend Animation Captures', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/explore');
+    await dismissProductTour(page);
     await waitForDataLoad(page);
     await waitForLegend(page);
   });
@@ -573,6 +579,7 @@ test.describe('Legend Animation Captures', () => {
     if (naCoords) {
       await trackedMouseMove(page, naCoords.x, naCoords.y, { steps: 15 });
       await page.waitForTimeout(300);
+      await showActionLabel(page, 'Click', naCoords.x, naCoords.y);
       await showClickIndicator(page, naCoords.x, naCoords.y);
     }
     await toggleLegendItem(page, naIdx);
@@ -583,6 +590,7 @@ test.describe('Legend Animation Captures', () => {
     if (otherCoords) {
       await trackedMouseMove(page, otherCoords.x, otherCoords.y, { steps: 15 });
       await page.waitForTimeout(300);
+      await showActionLabel(page, 'Click', otherCoords.x, otherCoords.y);
       await showClickIndicator(page, otherCoords.x, otherCoords.y);
     }
     await toggleLegendItem(page, otherIdx);
@@ -593,6 +601,8 @@ test.describe('Legend Animation Captures', () => {
     if (threefingerCoords) {
       await trackedMouseMove(page, threefingerCoords.x, threefingerCoords.y, { steps: 15 });
       await page.waitForTimeout(300);
+      // Stretch the label so it's visible across both ripples of the dbl-click.
+      await showActionLabel(page, 'Double-Click', threefingerCoords.x, threefingerCoords.y, 1100);
       await showClickIndicator(page, threefingerCoords.x, threefingerCoords.y);
       await page.waitForTimeout(100);
       await showClickIndicator(page, threefingerCoords.x, threefingerCoords.y);
@@ -607,6 +617,7 @@ test.describe('Legend Animation Captures', () => {
         steps: 15,
       });
       await page.waitForTimeout(300);
+      await showActionLabel(page, 'Click', threefingerCoordsAfter.x, threefingerCoordsAfter.y);
       await showClickIndicator(page, threefingerCoordsAfter.x, threefingerCoordsAfter.y);
     }
     await toggleLegendItem(page, threefingerIdx);
@@ -714,15 +725,33 @@ test.describe('Legend Animation Captures', () => {
     // Initialize visual indicators and action logging
     await initVisualIndicators(page);
 
-    // Step 1: Move 2 categories into "Other" by reducing maxVisibleValues
-    // This happens before INITIAL_PAUSE so it gets trimmed from the GIF
-    await page.evaluate(() => {
+    // Step 1: Move 2 categories into "Other" while keeping N/A as a separate
+    // top-level entry, matching the default appearance in the other docs GIFs.
+    //
+    // Naively reducing `maxVisibleValues` by 2 falls back on size-desc sort,
+    // which pushes the lowest-count items into Other — and N/A typically has
+    // a low count, so it'd be the first to go. Instead, route through the
+    // legend's own merge action for two specific non-N/A categories: that
+    // path uses `pendingMergeValue` and leaves N/A's slot untouched.
+    //
+    // Happens before INITIAL_PAUSE so it's trimmed from the GIF.
+    await page.evaluate(async () => {
       const legend = document.querySelector('#myLegend') as any;
-      if (legend) {
-        legend.maxVisibleValues = Math.max(1, legend.maxVisibleValues - 2);
+      if (!legend?._legendItems) return;
+
+      const targets: string[] = legend._legendItems
+        .filter((i: any) => i.value !== '__NA__' && i.value !== 'Other')
+        .slice()
+        .sort((a: any, b: any) => a.count - b.count)
+        .slice(0, 2)
+        .map((i: any) => i.value);
+
+      for (const value of targets) {
+        legend._handleMergeToOther(value);
+        await legend.updateComplete;
       }
     });
-    // Wait for legend to re-render after reducing visible items
+    // Wait for legend to re-render after merging items into Other
     await waitForLegend(page);
     await page.waitForTimeout(500);
 

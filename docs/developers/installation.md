@@ -70,7 +70,7 @@ pnpm install
 pnpm dev
 ```
 
-The dev server runs at `http://localhost:5173`
+The dev server runs at `http://localhost:8080`
 
 ## Requirements
 

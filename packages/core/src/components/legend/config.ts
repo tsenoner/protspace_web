@@ -2,8 +2,12 @@ import { DEFAULT_CONFIG } from '../scatter-plot/config';
 import {
   LEGEND_VALUES,
   toDisplayValue,
-  toInternalValue,
   SHAPE_PATH_GENERATORS,
+  NA_VALUE,
+  NA_DISPLAY,
+  NA_DEFAULT_COLOR,
+  isNAValue,
+  toInternalValue,
 } from '@protspace/utils';
 
 const SYMBOL_SIZE_MULTIPLIER = 8;
@@ -33,23 +37,24 @@ export const LEGEND_STYLES = {
   legendDisplaySize: 16,
 } as const;
 
-// Re-export legend utilities from utils package
-export { LEGEND_VALUES, toDisplayValue, toInternalValue, SHAPE_PATH_GENERATORS };
-
-/**
- * Check if an internal legend value is N/A.
- * Use this when working with LegendItem.value.
- */
-export function isNAValue(value: string): boolean {
-  return value === LEGEND_VALUES.NA_VALUE;
-}
+// Re-export legend utilities so existing imports from './config' keep working
+export {
+  LEGEND_VALUES,
+  toDisplayValue,
+  toInternalValue,
+  SHAPE_PATH_GENERATORS,
+  NA_VALUE,
+  NA_DISPLAY,
+  NA_DEFAULT_COLOR,
+  isNAValue,
+};
 
 /**
  * Convert internal legend value back to raw data value for matching.
- * LEGEND_VALUES.NA_VALUE becomes null for matching against raw annotation data.
+ * NA_VALUE becomes null for matching against raw annotation data.
  */
 export function toDataValue(value: string): string | null {
-  return value === LEGEND_VALUES.NA_VALUE ? null : value;
+  return value === NA_VALUE ? null : value;
 }
 
 /** Event name constants for legend component */
@@ -60,7 +65,6 @@ export const LEGEND_EVENTS = {
   CUSTOMIZE: 'legend-customize',
   DOWNLOAD: 'legend-download',
   ERROR: 'legend-error',
-  // External events the legend listens to
   DATA_CHANGE: 'data-change',
   ANNOTATION_CHANGE: 'annotation-change',
 } as const;

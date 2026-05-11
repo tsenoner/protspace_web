@@ -4,7 +4,7 @@ import { QuadtreeIndex, pointInPolygon } from './quadtree-index';
 import type { PlotDataPoint } from '@protspace/utils';
 
 function makePoint(id: string, x: number, y: number): PlotDataPoint {
-  return { id, x, y, annotationValues: {} };
+  return { id, x, y, originalIndex: 0 };
 }
 
 function buildIndex(points: PlotDataPoint[]): QuadtreeIndex {

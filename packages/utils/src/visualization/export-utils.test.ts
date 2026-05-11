@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ProtSpaceExporter, createExporter } from './export-utils';
 import type { ExportableElement, ExportableData, ExportOptions } from './export-utils';
-import { LEGEND_VALUES } from './shapes';
+import { NA_VALUE } from './missing-values';
 
 /**
  * Mock ExportableElement for testing
@@ -111,50 +111,6 @@ describe('ProtSpaceExporter.validateCanvasDimensions', () => {
   });
 });
 
-describe('Export dimension calculations', () => {
-  describe('legend width percentage calculations', () => {
-    it('calculates correct legend width from percentage', () => {
-      // If scatterplot is 2048px and legend is 25%, total should be 2048 / 0.75 = 2730.67
-      // Legend width = 2730.67 * 0.25 = 682.67
-      const scatterWidth = 2048;
-      const legendPercent = 25 / 100;
-      const legendWidth = Math.round(scatterWidth * (legendPercent / (1 - legendPercent)));
-
-      expect(legendWidth).toBe(683); // Rounded
-    });
-
-    it('handles different legend percentages', () => {
-      const scatterWidth = 1000;
-
-      // 15% legend
-      const legend15 = Math.round(scatterWidth * (0.15 / 0.85));
-      expect(legend15).toBe(176);
-
-      // 50% legend
-      const legend50 = Math.round(scatterWidth * (0.5 / 0.5));
-      expect(legend50).toBe(1000);
-    });
-  });
-
-  describe('target dimensions for export', () => {
-    it('calculates target width excluding legend', () => {
-      const imageWidth = 2048;
-      const legendPercent = 25 / 100;
-      const targetWidth = Math.round(imageWidth * (1 - legendPercent));
-
-      expect(targetWidth).toBe(1536);
-    });
-
-    it('handles various image widths', () => {
-      const legendPercent = 0.25;
-
-      expect(Math.round(800 * (1 - legendPercent))).toBe(600);
-      expect(Math.round(4096 * (1 - legendPercent))).toBe(3072);
-      expect(Math.round(8192 * (1 - legendPercent))).toBe(6144);
-    });
-  });
-});
-
 describe('Export scale factor calculations', () => {
   const BASE_FONT_SIZE = 24;
 
@@ -244,28 +200,6 @@ describe('Export options validation', () => {
   });
 });
 
-describe('getOptionsWithDefaults includeLegend behavior', () => {
-  // getOptionsWithDefaults is private, so we test its behavior via the
-  // static defaults and the ExportOptions contract it consumes.
-
-  it('should default includeLegend to true when not specified', () => {
-    // The private method does: includeLegend: options.includeLegend ?? true
-    // Verify the default is correct by checking the contract:
-    const unset = undefined ?? true;
-    expect(unset).toBe(true);
-  });
-
-  it('should respect explicit false', () => {
-    const explicit = false ?? true;
-    expect(explicit).toBe(false);
-  });
-
-  it('should respect explicit true', () => {
-    const explicit = true ?? true;
-    expect(explicit).toBe(true);
-  });
-});
-
 describe('Export filename generation', () => {
   it('generates consistent filename format', () => {
     // Expected format: protspace_{projection}_{annotation}_{date}.{ext}
@@ -290,51 +224,6 @@ describe('Export filename generation', () => {
     expect(removeDimensionSuffix('pca_2')).toBe('pca');
     expect(removeDimensionSuffix('umap_3')).toBe('umap');
     expect(removeDimensionSuffix('tsne_2d')).toBe('tsne_2d'); // Only removes _2 or _3
-  });
-});
-
-describe('Export constants', () => {
-  // These tests verify the expected export constant values
-  describe('canvas limits', () => {
-    const MAX_CANVAS_DIMENSION = 8192;
-    const MAX_CANVAS_AREA = 268435456;
-    const SAFE_DIMENSION_MARGIN = 0.95;
-
-    it('has correct maximum dimension limit', () => {
-      expect(MAX_CANVAS_DIMENSION).toBe(8192);
-    });
-
-    it('has correct maximum area limit (~268M pixels)', () => {
-      expect(MAX_CANVAS_AREA).toBe(268435456);
-    });
-
-    it('calculates safe dimension correctly', () => {
-      const safeDimension = Math.floor(MAX_CANVAS_DIMENSION * SAFE_DIMENSION_MARGIN);
-      expect(safeDimension).toBe(7782);
-    });
-
-    it('calculates safe area correctly', () => {
-      const safeArea = MAX_CANVAS_AREA * SAFE_DIMENSION_MARGIN;
-      expect(safeArea).toBe(255013683.2);
-    });
-  });
-
-  describe('PDF constants', () => {
-    const PDF_MARGIN = 2;
-    const PDF_GAP = 4;
-    const PDF_MAX_WIDTH = 210; // A4 width in mm
-
-    it('has correct PDF margin', () => {
-      expect(PDF_MARGIN).toBe(2);
-    });
-
-    it('has correct PDF gap', () => {
-      expect(PDF_GAP).toBe(4);
-    });
-
-    it('has correct A4 max width', () => {
-      expect(PDF_MAX_WIDTH).toBe(210);
-    });
   });
 });
 
@@ -401,7 +290,7 @@ describe('N/A handling in export', () => {
 
       const items = callComputeLegend(data, 'species');
       expect(items[0].value).toBe('human');
-      expect(items[1].value).toBe(LEGEND_VALUES.NA_VALUE);
+      expect(items[1].value).toBe(NA_VALUE);
     });
 
     it('should count N/A items correctly', () => {
@@ -418,7 +307,7 @@ describe('N/A handling in export', () => {
       };
 
       const items = callComputeLegend(data, 'species');
-      const naItem = items.find((it) => it.value === LEGEND_VALUES.NA_VALUE);
+      const naItem = items.find((it) => it.value === NA_VALUE);
       expect(naItem).toBeDefined();
       expect(naItem!.count).toBe(2);
     });
@@ -437,7 +326,7 @@ describe('N/A handling in export', () => {
       };
 
       const items = callComputeLegend(data, 'species', ['P2']); // only P2 selected
-      const naItem = items.find((it) => it.value === LEGEND_VALUES.NA_VALUE);
+      const naItem = items.find((it) => it.value === NA_VALUE);
       expect(naItem).toBeDefined();
       expect(naItem!.count).toBe(1);
     });
@@ -458,7 +347,7 @@ describe('N/A handling in export', () => {
       };
 
       // Simulate the visibility filtering logic from exportProteinIds
-      const hiddenValues = [LEGEND_VALUES.NA_VALUE];
+      const hiddenValues = [NA_VALUE];
       const hiddenSet = new Set(hiddenValues);
       const annotationInfo = data.annotations.species;
       const indices = data.annotation_data.species;
@@ -466,14 +355,14 @@ describe('N/A handling in export', () => {
       const visibleIds = data.protein_ids.filter((_id, i) => {
         const viArray = indices[i];
         if (!Array.isArray(viArray) || viArray.length === 0) {
-          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
+          return !hiddenSet.has(NA_VALUE);
         }
         return viArray.some((vi) => {
           const value =
             typeof vi === 'number' && vi >= 0 && vi < annotationInfo.values.length
               ? (annotationInfo.values[vi] ?? null)
               : null;
-          const key = value === null ? LEGEND_VALUES.NA_VALUE : String(value);
+          const key = value === null ? NA_VALUE : String(value);
           return !hiddenSet.has(key);
         });
       });
@@ -503,14 +392,14 @@ describe('N/A handling in export', () => {
       const visibleIds = data.protein_ids.filter((_id, i) => {
         const viArray = indices[i];
         if (!Array.isArray(viArray) || viArray.length === 0) {
-          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
+          return !hiddenSet.has(NA_VALUE);
         }
         return viArray.some((vi) => {
           const value =
             typeof vi === 'number' && vi >= 0 && vi < annotationInfo.values.length
               ? (annotationInfo.values[vi] ?? null)
               : null;
-          const key = value === null ? LEGEND_VALUES.NA_VALUE : String(value);
+          const key = value === null ? NA_VALUE : String(value);
           return !hiddenSet.has(key);
         });
       });
@@ -531,13 +420,13 @@ describe('N/A handling in export', () => {
         annotation_data: { species: [[0], []] }, // P2 has empty annotation data
       };
 
-      const hiddenValues = [LEGEND_VALUES.NA_VALUE];
+      const hiddenValues = [NA_VALUE];
       const hiddenSet = new Set(hiddenValues);
 
       const visibleIds = data.protein_ids.filter((_id, i) => {
         const viArray = data.annotation_data.species[i];
         if (!Array.isArray(viArray) || viArray.length === 0) {
-          return !hiddenSet.has(LEGEND_VALUES.NA_VALUE);
+          return !hiddenSet.has(NA_VALUE);
         }
         return true;
       });
@@ -596,7 +485,7 @@ describe('exportProteinIds integration', () => {
   });
 
   it('excludes N/A proteins when __NA__ is hidden', () => {
-    const ids = callExportProteinIds(baseData, 'species', [LEGEND_VALUES.NA_VALUE]);
+    const ids = callExportProteinIds(baseData, 'species', [NA_VALUE]);
     expect(ids).toEqual(['P1', 'P2', 'P4']);
     expect(ids).not.toContain('P3');
   });
@@ -608,16 +497,12 @@ describe('exportProteinIds integration', () => {
   });
 
   it('excludes multiple hidden values including N/A', () => {
-    const ids = callExportProteinIds(baseData, 'species', ['mouse', LEGEND_VALUES.NA_VALUE]);
+    const ids = callExportProteinIds(baseData, 'species', ['mouse', NA_VALUE]);
     expect(ids).toEqual(['P1', 'P4']);
   });
 
   it('returns no visible IDs when all values are hidden', () => {
-    const ids = callExportProteinIds(baseData, 'species', [
-      'human',
-      'mouse',
-      LEGEND_VALUES.NA_VALUE,
-    ]);
+    const ids = callExportProteinIds(baseData, 'species', ['human', 'mouse', NA_VALUE]);
     expect(ids).toEqual([]);
   });
 
@@ -634,12 +519,12 @@ describe('exportProteinIds integration', () => {
       annotation_data: { species: [[0], []] },
     };
 
-    const ids = callExportProteinIds(data, 'species', [LEGEND_VALUES.NA_VALUE]);
+    const ids = callExportProteinIds(data, 'species', [NA_VALUE]);
     expect(ids).toEqual(['P1']);
   });
 
   it('exports all IDs when annotation does not exist (fallback)', () => {
-    const ids = callExportProteinIds(baseData, 'nonexistent', [LEGEND_VALUES.NA_VALUE]);
+    const ids = callExportProteinIds(baseData, 'nonexistent', [NA_VALUE]);
     expect(ids).toEqual(['P1', 'P2', 'P3', 'P4']);
   });
 
@@ -657,7 +542,68 @@ describe('exportProteinIds integration', () => {
     };
 
     // P1 has both 'alpha' and N/A — hiding N/A still keeps P1 because 'alpha' is visible
-    const ids = callExportProteinIds(data, 'tags', [LEGEND_VALUES.NA_VALUE]);
+    const ids = callExportProteinIds(data, 'tags', [NA_VALUE]);
     expect(ids).toEqual(['P1', 'P2']);
+  });
+});
+
+describe('exportCanvasAsPdf', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('uses [widthMm, heightMm] as the page format with no margin', async () => {
+    const addImage = vi.fn();
+    const setProperties = vi.fn();
+    const save = vi.fn();
+    const jsPdfCtor = vi.fn().mockImplementation(function () {
+      return { addImage, setProperties, save };
+    });
+
+    vi.doMock('jspdf', () => ({ default: jsPdfCtor }));
+    const { exportCanvasAsPdf } = await import('./export-utils');
+
+    // Minimal canvas stub: only toDataURL is exercised.
+    const canvas = {
+      width: 1051,
+      height: 591,
+      toDataURL: () => 'data:image/png;base64,AAA=',
+    } as unknown as HTMLCanvasElement;
+
+    await exportCanvasAsPdf(canvas, { widthMm: 89, heightMm: 50, filename: 'fig.pdf' });
+
+    expect(jsPdfCtor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        unit: 'mm',
+        format: [89, 50],
+        orientation: 'landscape',
+      }),
+    );
+    expect(addImage).toHaveBeenCalledWith('data:image/png;base64,AAA=', 'PNG', 0, 0, 89, 50);
+    expect(save).toHaveBeenCalledWith('fig.pdf');
+    vi.doUnmock('jspdf');
+  });
+
+  it('uses portrait orientation when heightMm > widthMm', async () => {
+    const addImage = vi.fn();
+    const setProperties = vi.fn();
+    const save = vi.fn();
+    const jsPdfCtor = vi.fn().mockImplementation(function () {
+      return { addImage, setProperties, save };
+    });
+
+    vi.doMock('jspdf', () => ({ default: jsPdfCtor }));
+    const { exportCanvasAsPdf } = await import('./export-utils');
+
+    const canvas = {
+      width: 1051,
+      height: 2917,
+      toDataURL: () => 'data:image/png;base64,AAA=',
+    } as unknown as HTMLCanvasElement;
+
+    await exportCanvasAsPdf(canvas, { widthMm: 89, heightMm: 247 });
+
+    expect(jsPdfCtor).toHaveBeenCalledWith(expect.objectContaining({ orientation: 'portrait' }));
+    vi.doUnmock('jspdf');
   });
 });

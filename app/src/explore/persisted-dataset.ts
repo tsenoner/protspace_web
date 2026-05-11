@@ -4,9 +4,21 @@ import {
   StoredDatasetCorruptError,
   clearLastImportedFile,
   loadLastImportedFile,
+  markLastLoadStatus,
+  readLastLoadStatus,
 } from './opfs-dataset-store';
 import { getCorruptedPersistedDatasetNotification } from './notifications';
 import type { DatasetLoadKind } from './types';
+
+export type PersistedLoadOutcome =
+  | { kind: 'auto-loaded' }
+  | { kind: 'default-loaded' }
+  | {
+      kind: 'recovery-required';
+      file: File;
+      lastError?: string;
+      failedAttempts: number;
+    };
 
 interface PersistedDatasetOptions {
   dataLoader: ProtspaceDataLoader;
@@ -72,26 +84,53 @@ export function createPersistedDatasetController({
     await loadDefaultDataset();
   };
 
-  const loadPersistedOrDefaultDataset = async () => {
+  const loadPersistedFile = async (persistedFile: File): Promise<void> => {
+    await markLastLoadStatus('pending');
+    registerFileLoad(persistedFile, 'opfs');
+    setCurrentDatasetName(persistedFile.name);
+    setCurrentDatasetIsDemo(false);
+    await dataLoader.loadFromFile(persistedFile, { source: 'auto' });
+  };
+
+  const loadPersistedOrDefaultDataset = async (): Promise<PersistedLoadOutcome> => {
+    let persistedFile: File | null = null;
     try {
-      const persistedFile = await loadLastImportedFile();
-      if (persistedFile) {
-        console.log(`Restoring persisted dataset from OPFS: ${persistedFile.name}`);
-        registerFileLoad(persistedFile, 'opfs');
-        setCurrentDatasetName(persistedFile.name);
-        setCurrentDatasetIsDemo(false);
-        await dataLoader.loadFromFile(persistedFile, { source: 'auto' });
-        return;
-      }
+      persistedFile = await loadLastImportedFile();
     } catch (error) {
       console.error('Failed to restore persisted dataset:', error);
       if (error instanceof StoredDatasetCorruptError) {
         await recoverFromCorruptedPersistedDataset('in browser storage is corrupted');
-        return;
+        return { kind: 'default-loaded' };
       }
     }
 
-    await loadDefaultDataset();
+    if (!persistedFile) {
+      await loadDefaultDataset();
+      return { kind: 'default-loaded' };
+    }
+
+    const status = await readLastLoadStatus();
+    if (status?.status === 'pending' || status?.status === 'error') {
+      console.log(
+        `Persisted dataset has unresolved status (${status.status}). ` +
+          'Showing recovery banner instead of auto-loading.',
+      );
+      setCurrentDatasetName(persistedFile.name);
+      setCurrentDatasetIsDemo(false);
+      return {
+        kind: 'recovery-required',
+        file: persistedFile,
+        lastError: status.lastError,
+        failedAttempts: status.failedAttempts,
+      };
+    }
+
+    await loadPersistedFile(persistedFile);
+    return { kind: 'auto-loaded' };
+  };
+
+  const tryLoadPersistedAgain = async (file: File): Promise<void> => {
+    await loadPersistedFile(file);
   };
 
   const loadDefaultDatasetAndClearPersistedFile = async () => {
@@ -109,5 +148,6 @@ export function createPersistedDatasetController({
     loadPersistedOrDefaultDataset,
     loadDefaultDatasetAndClearPersistedFile,
     recoverFromCorruptedPersistedDataset,
+    tryLoadPersistedAgain,
   };
 }

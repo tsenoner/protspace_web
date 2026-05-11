@@ -61,3 +61,6 @@ docs/.vitepress/dist
 # Claude
 CLAUDE.md
 .claude
+
+# Local-only large fixture for the load-reliability Playwright spec
+app/tests/fixtures/sprot_50.parquetbundle

@@ -1,5 +1,6 @@
 import { LitElement, html } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+import { property, state, query } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import { StructureService } from '@protspace/utils';
 import type { StructureData } from '@protspace/utils';
 import { structureViewerStyles } from './structure-viewer.styles';

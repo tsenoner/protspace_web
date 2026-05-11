@@ -1,8 +1,9 @@
 import type { LegendErrorEventDetail, LegendErrorSource } from './legend.events';
+import type { AnnotationData } from '@protspace/utils';
 
 /**
  * A legend item representing a category.
- * N/A items use LEGEND_VALUES.NA_VALUE ('__NA__') as their value.
+ * N/A items use NA_VALUE ('__NA__') as their value.
  */
 export interface LegendItem {
   /** Category value. N/A items use '__NA__', "Other" uses 'Other' */
@@ -32,13 +33,14 @@ export interface ScatterplotData {
     {
       kind?: 'categorical' | 'numeric';
       sourceKind?: 'categorical' | 'numeric';
+      numericType?: 'int' | 'float';
       values: (string | null)[];
       colors?: string[];
       shapes?: string[];
       numericMetadata?: LegendAnnotationData['numericMetadata'];
     }
   >;
-  annotation_data: Record<string, (number | number[])[]>;
+  annotation_data: Record<string, AnnotationData>;
   numeric_annotation_data?: Record<string, (number | null)[]>;
   projections?: Array<{ name: string }>;
 }
@@ -50,9 +52,11 @@ export interface LegendAnnotationData {
   shapes?: string[];
   kind?: 'categorical' | 'numeric';
   sourceKind?: 'categorical' | 'numeric';
+  numericType?: 'int' | 'float';
   numericMetadata?: {
     strategy: 'linear' | 'quantile' | 'logarithmic';
     binCount: number;
+    numericType?: 'int' | 'float';
     signature: string;
     topologySignature: string;
     logSupported: boolean;

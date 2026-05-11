@@ -9,7 +9,7 @@ The easiest way to prepare your data for ProtSpace - no local installation requi
 The Colab notebook converts protein embeddings into a visualization-ready `.parquetbundle` file:
 
 1. Reads your embeddings from an HDF5 file (.h5)
-2. Applies dimensionality reduction (PCA, UMAP, t-SNE, PaCMAP, MDS)
+2. Applies dimensionality reduction (PCA, UMAP, t-SNE, PaCMAP, MDS, LocalMAP)
 3. Retrieves annotations from UniProt, InterPro, and NCBI Taxonomy
 4. Creates the `.parquetbundle` file ready for ProtSpace
 
@@ -52,11 +52,13 @@ For advanced users with custom embeddings, save them as an HDF5 file where each 
 
 Choose which annotations to include from three sources:
 
-| Source       | Examples                                                  |
-| ------------ | --------------------------------------------------------- |
-| **UniProt**  | protein_families, ec, go_bp, cc_subcellular_location, ... |
-| **InterPro** | pfam, cath, panther, smart, superfamily, ...              |
-| **Taxonomy** | kingdom, phylum, class, order, family, genus, species     |
+| Source         | Examples                                                                                              |
+| -------------- | ----------------------------------------------------------------------------------------------------- |
+| **UniProt**    | protein_families, ec, go_bp, cc_subcellular_location, ...                                             |
+| **InterPro**   | pfam, cath, panther, smart, superfamily, ...                                                          |
+| **Taxonomy**   | kingdom, phylum, class, order, family, genus, species                                                 |
+| **TED**        | ted_domains (AlphaFold structure-based domain annotations)                                            |
+| **Biocentral** | predicted_subcellular_location, predicted_membrane, predicted_signal_peptide, predicted_transmembrane |
 
 See the [ProtSpace Python package](https://github.com/tsenoner/protspace) for the complete list of available annotations per source.
 
@@ -73,17 +75,19 @@ Choose which 2D projections to generate:
 - **t-SNE** - Great for clusters, slower on large datasets
 - **PaCMAP** - Alternative to t-SNE/UMAP
 - **MDS** - Preserves pairwise distances
+- **LocalMAP** - Local-first alternative to PaCMAP
 
 ### Parameters (Optional)
 
 Fine-tune settings for each method:
 
-| Method | Parameters                      |
-| ------ | ------------------------------- |
-| UMAP   | N Neighbors, Min Dist           |
-| t-SNE  | Perplexity, Learning Rate       |
-| PaCMAP | N Neighbors, MN Ratio, FP Ratio |
-| MDS    | N Init, Max Iter                |
+| Method   | Parameters                      |
+| -------- | ------------------------------- |
+| UMAP     | N Neighbors, Min Dist           |
+| t-SNE    | Perplexity, Learning Rate       |
+| PaCMAP   | N Neighbors, MN Ratio, FP Ratio |
+| MDS      | N Init, Max Iter                |
+| LocalMAP | N Neighbors, MN Ratio, FP Ratio |
 
 ## Step 4: Generate and Download
 

@@ -197,5 +197,96 @@ describe('settings-validation', () => {
         exportOptions: {},
       });
     });
+
+    it('drops legacy annotation type overrides while preserving settings', () => {
+      const normalized = normalizeBundleSettings({
+        legendSettings: {
+          score: {
+            ...createValidLegendSettings(),
+            annotationTypeOverride: 'numeric',
+          },
+        },
+        exportOptions: {},
+      });
+
+      expect('annotationTypeOverride' in (normalized?.legendSettings.score ?? {})).toBe(false);
+      expect(normalized?.legendSettings.score.maxVisibleValues).toBe(
+        createValidLegendSettings().maxVisibleValues,
+      );
+    });
+  });
+
+  describe('publishState in BundleSettings', () => {
+    it('accepts BundleSettings with publishState', () => {
+      const settings = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: { widthPx: 2048, heightPx: 1024 },
+      };
+      expect(isNormalizedBundleSettings(settings)).toBe(true);
+    });
+
+    it('accepts BundleSettings without publishState', () => {
+      const settings = {
+        legendSettings: {},
+        exportOptions: {},
+      };
+      expect(isNormalizedBundleSettings(settings)).toBe(true);
+    });
+
+    it('rejects publishState that is not an object', () => {
+      const settings = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: 'invalid',
+      };
+      expect(isNormalizedBundleSettings(settings)).toBe(false);
+    });
+
+    it('rejects publishState that is an array', () => {
+      const settings = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: [1, 2, 3],
+      };
+      expect(isNormalizedBundleSettings(settings)).toBe(false);
+    });
+
+    it('normalizes bundle with publishState', () => {
+      const raw = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: { widthPx: 1051, dpi: 300, annotations: [] },
+      };
+      const result = normalizeBundleSettings(raw);
+      expect(result).not.toBeNull();
+      expect(result!.publishState).toEqual({ widthPx: 1051, dpi: 300, annotations: [] });
+    });
+
+    it('runs the optional publishState sanitizer when provided', () => {
+      const calls: unknown[] = [];
+      const fakeSanitizer = (input: unknown) => {
+        calls.push(input);
+        return { sanitized: true };
+      };
+      const obj = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: { fromBundle: true },
+      };
+      const result = normalizeBundleSettings(obj, { sanitizePublishState: fakeSanitizer });
+      expect(calls).toEqual([{ fromBundle: true }]);
+      expect(result?.publishState).toEqual({ sanitized: true });
+    });
+
+    it('passes publishState through unchanged when no sanitizer is provided (back-compat)', () => {
+      const obj = {
+        legendSettings: {},
+        exportOptions: {},
+        publishState: { raw: 1 },
+      };
+      const result = normalizeBundleSettings(obj);
+      expect(result?.publishState).toEqual({ raw: 1 });
+    });
   });
 });

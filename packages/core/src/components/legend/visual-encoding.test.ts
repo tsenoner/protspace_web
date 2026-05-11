@@ -9,16 +9,13 @@ describe('visual-encoding', () => {
       expect(encoding.shape).toBe('circle');
     });
 
-    it('returns fixed color for N/A but regular shape assignment', () => {
+    it('treats "N/A" display name like a regular category in slot assignment', () => {
       const encoding = getVisualEncoding(1, true, 'N/A');
-      expect(encoding.color).toBe('#DDDDDD');
+      // NA no longer has special color logic in getVisualEncoding;
+      // the legend processor handles the NA_DEFAULT_COLOR override.
+      expect(encoding.color).not.toBe('#DDDDDD');
+      // Shape comes from the regular slot cycle: slot 1 -> 'square'.
       expect(encoding.shape).toBe('square');
-    });
-
-    it('returns fallback for negative slots', () => {
-      const encoding = getVisualEncoding(-1, true);
-      expect(encoding.color).toBe('#999999');
-      expect(encoding.shape).toBe('circle');
     });
 
     it('cycles through colors for regular categories', () => {

@@ -1,6 +1,7 @@
 import type { PropertyValues } from 'lit';
 import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import { parquetReadObjects } from 'hyparquet';
 import { isParquetBundle, type VisualizationData, type BundleSettings } from '@protspace/utils';
 import { dataLoaderStyles } from './data-loader.styles';
@@ -196,20 +197,13 @@ export class DataLoader extends LitElement {
       if (file.name.endsWith('.parquetbundle') || isParquetBundle(arrayBuffer)) {
         // For bundles: extract -> validate -> convert
         this.addSteps(3);
-        const {
-          rows: extractedData,
-          projectionsMetadata,
-          settings,
-        } = await extractRowsFromParquetBundle(arrayBuffer);
+        const extraction = await extractRowsFromParquetBundle(arrayBuffer);
         this.completeStep();
-        validateRowsBasic(extractedData);
+        validateRowsBasic(extraction.projections);
         this.completeStep();
-        const visualizationData = await convertParquetToVisualizationDataOptimized(
-          extractedData,
-          projectionsMetadata,
-        );
+        const visualizationData = await convertParquetToVisualizationDataOptimized(extraction);
         this.completeStep();
-        this.dispatchDataLoaded(visualizationData, settings, source, file);
+        this.dispatchDataLoaded(visualizationData, extraction.settings, source, file);
       } else {
         // For regular parquet: validate magic -> parse -> validate rows -> convert
         this.addSteps(4);

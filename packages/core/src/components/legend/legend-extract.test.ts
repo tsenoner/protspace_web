@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { LegendItem, OtherItem } from './types';
-import { LEGEND_VALUES, LEGEND_EVENTS } from './config';
+import { LEGEND_VALUES, NA_VALUE, LEGEND_EVENTS } from './config';
 
 // Import the component to register the custom element
 import './legend';
@@ -101,10 +101,10 @@ describe('legend extract methods', () => {
       el.addEventListener(LEGEND_EVENTS.ITEM_CLICK, ((e: CustomEvent) =>
         events.push(e)) as EventListener);
 
-      (el as AnyLegend)._handleExtractFromOther(LEGEND_VALUES.NA_VALUE);
+      (el as AnyLegend)._handleExtractFromOther(NA_VALUE);
 
-      expect(el._pendingExtractValue).toBe(LEGEND_VALUES.NA_VALUE);
-      expect(events[0].detail.value).toBe(LEGEND_VALUES.NA_VALUE);
+      expect(el._pendingExtractValue).toBe(NA_VALUE);
+      expect(events[0].detail.value).toBe(NA_VALUE);
     });
 
     it('schedules settings save after update completes', async () => {
@@ -123,7 +123,7 @@ describe('legend extract methods', () => {
     const otherItems: OtherItem[] = [
       { value: 'cat1', count: 5 },
       { value: 'cat2', count: 3 },
-      { value: LEGEND_VALUES.NA_VALUE, count: 2 },
+      { value: NA_VALUE, count: 2 },
     ];
 
     beforeEach(() => {
@@ -159,7 +159,7 @@ describe('legend extract methods', () => {
       expect(events).toHaveLength(3);
       expect(events[0].detail).toEqual({ value: 'cat1', action: 'extract' });
       expect(events[1].detail).toEqual({ value: 'cat2', action: 'extract' });
-      expect(events[2].detail).toEqual({ value: LEGEND_VALUES.NA_VALUE, action: 'extract' });
+      expect(events[2].detail).toEqual({ value: NA_VALUE, action: 'extract' });
     });
 
     it('dispatches events before setting maxVisibleValues', () => {

@@ -850,6 +850,23 @@ test.describe('Unified app notifications', () => {
     expect(await hasLegacyNotificationHelperArtifacts(page)).toBe(false);
   });
 
+  test('structure-error events stay inline and do not create global toasts', async ({ page }) => {
+    await dispatchCustomEvent(page, '#myStructureViewer', 'structure-error', {
+      message: 'No 3D structure was found for P12345.',
+      severity: 'error',
+      source: 'structure-viewer',
+      context: {
+        proteinId: 'P12345',
+      },
+    });
+
+    await page.waitForTimeout(500);
+
+    await expect(page.getByText('Structure could not be loaded.')).toHaveCount(0);
+    await expect(page.getByText('No 3D structure was found for P12345.')).toHaveCount(0);
+    expect(await hasLegacyNotificationHelperArtifacts(page)).toBe(false);
+  });
+
   test('successful parquet exports show the unified success toast', async ({ page }) => {
     const downloadPromise = page.waitForEvent('download');
 

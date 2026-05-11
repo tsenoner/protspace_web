@@ -2,7 +2,6 @@ import type {
   DataErrorEventDetail,
   LegendErrorEventDetail,
   SelectionDisabledNotificationDetail,
-  StructureErrorEventDetail,
 } from '@protspace/core';
 import type { NotifyOptions } from '../lib/notify';
 
@@ -111,11 +110,40 @@ export function getLegendErrorNotification(detail: LegendErrorEventDetail): Noti
   };
 }
 
-export function getStructureErrorNotification(detail: StructureErrorEventDetail): NotifyOptions {
+export interface RecoveryBannerCopy {
+  title: string;
+  body: string;
+  retryLabel: string;
+  loadDefaultLabel: string;
+  clearLabel: string;
+}
+
+export function getLoadRecoveryCopy(
+  fileName: string,
+  failedAttempts: number,
+  lastError?: string,
+): RecoveryBannerCopy {
+  if (failedAttempts >= 3) {
+    return {
+      title: 'This dataset has failed to load multiple times',
+      body:
+        `"${fileName}" has not finished loading after ${failedAttempts} attempts.` +
+        (lastError ? ` Last error: ${lastError}.` : '') +
+        ' Consider clearing it or loading the default demo bundle.',
+      retryLabel: 'Try again',
+      loadDefaultLabel: 'Load default',
+      clearLabel: 'Clear stored data',
+    };
+  }
+
   return {
-    title: 'Structure could not be loaded.',
-    description: detail.message,
-    durationMs: 8_000,
-    dedupeKey: `structure-error:${detail.context?.proteinId ?? 'unknown'}:${detail.message}`,
+    title: 'Previous dataset did not finish loading',
+    body:
+      `"${fileName}" was not fully loaded last time` +
+      (lastError ? ` (${lastError})` : '') +
+      '. You can retry, switch to the default demo, or clear the stored copy.',
+    retryLabel: 'Try again',
+    loadDefaultLabel: 'Load default',
+    clearLabel: 'Clear stored data',
   };
 }

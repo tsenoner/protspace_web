@@ -2,10 +2,11 @@ import type { ProtspaceData } from './types';
 import type { FilterQuery, FilterQueryItem, FilterCondition } from './query-types';
 import { isFilterGroup } from './query-types';
 import { toInternalValue } from '../legend/config';
+import { getFirstAnnotationIndex } from '@protspace/utils';
 
 /**
  * Resolve the string annotation value for a protein at the given index.
- * Handles both number[] and number[][] formats in annotation_data.
+ * Handles both Int32Array and number[][] formats in annotation_data.
  */
 export function resolveAnnotationValue(
   proteinIndex: number,
@@ -15,12 +16,11 @@ export function resolveAnnotationValue(
   const idxData = data.annotation_data?.[annotation];
   const valuesArr = data.annotations?.[annotation]?.values;
 
-  if (!idxData || !valuesArr || proteinIndex >= idxData.length) return null;
+  if (!idxData || !valuesArr) return null;
 
-  const entry = idxData[proteinIndex];
-  const idx = Array.isArray(entry) ? (entry as number[])[0] : (entry as unknown as number);
+  const idx = getFirstAnnotationIndex(idxData, proteinIndex);
 
-  if (idx == null || idx < 0 || idx >= valuesArr.length) return null;
+  if (idx < 0 || idx >= valuesArr.length) return null;
 
   return valuesArr[idx] ?? null;
 }

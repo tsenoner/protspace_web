@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from 'lit';
 import { renderOtherDialog } from './legend-other-dialog';
 import type { OtherItem } from './types';
-import { LEGEND_VALUES } from './config';
+import { NA_VALUE } from './config';
 
 function renderToContainer(otherItems: OtherItem[], overrides = {}) {
   const callbacks = {
@@ -25,7 +25,7 @@ describe('renderOtherDialog', () => {
   const sampleItems: OtherItem[] = [
     { value: 'cat1', count: 5 },
     { value: 'cat2', count: 3 },
-    { value: LEGEND_VALUES.NA_VALUE, count: 2 },
+    { value: NA_VALUE, count: 2 },
   ];
 
   describe('extract-all button', () => {

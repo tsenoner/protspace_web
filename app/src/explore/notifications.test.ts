@@ -3,8 +3,8 @@ import type {
   DataErrorEventDetail,
   LegendErrorEventDetail,
   SelectionDisabledNotificationDetail,
-  StructureErrorEventDetail,
 } from '@protspace/core';
+import * as notificationMappers from './notifications';
 import {
   getCorruptedPersistedDatasetNotification,
   getDataLoadFailureNotification,
@@ -13,7 +13,6 @@ import {
   getExportSuccessNotification,
   getLegendErrorNotification,
   getSelectionDisabledNotification,
-  getStructureErrorNotification,
 } from './notifications';
 
 describe('explore notifications', () => {
@@ -69,7 +68,7 @@ describe('explore notifications', () => {
     });
   });
 
-  it('maps legend and structure errors to host notifications', () => {
+  it('maps legend errors to host notifications without exposing a structure toast mapper', () => {
     const legendDetail: LegendErrorEventDetail = {
       message: 'Failed to process legend data',
       severity: 'error',
@@ -78,19 +77,9 @@ describe('explore notifications', () => {
         annotation: 'phylum',
       },
     };
-    const structureDetail: StructureErrorEventDetail = {
-      message: 'No 3D structure was found for P12345.',
-      severity: 'error',
-      source: 'structure-viewer',
-      context: {
-        proteinId: 'P12345',
-      },
-    };
 
     expect(getLegendErrorNotification(legendDetail).title).toBe('Legend update failed.');
-    expect(getStructureErrorNotification(structureDetail).title).toBe(
-      'Structure could not be loaded.',
-    );
+    expect('getStructureErrorNotification' in notificationMappers).toBe(false);
   });
 
   it('maps successful exports to a success notification with the filename', () => {

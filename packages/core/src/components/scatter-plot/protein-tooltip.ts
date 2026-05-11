@@ -1,7 +1,8 @@
 import { LitElement, html } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
+import { customElement } from '../../utils/safe-custom-element';
 import { toDisplayValue, toInternalValue } from '@protspace/utils';
-import type { PlotDataPoint } from '@protspace/utils';
+import type { NumericAnnotationType, TooltipView } from '@protspace/utils';
 import { proteinTooltipStyles } from './protein-tooltip.styles';
 import {
   getAnnotationHeaderType,
@@ -29,6 +30,29 @@ const SUPERSCRIPT_DIGITS: Record<string, string> = {
   '-': '\u207B',
 };
 
+const RAW_FLOAT_VALUE_FORMATTER = new Intl.NumberFormat('en-US', {
+  useGrouping: true,
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 6,
+});
+
+function shouldUseTinyFloatFormat(value: number): boolean {
+  const abs = Math.abs(value);
+  return abs > 0 && abs < 0.001;
+}
+
+export function formatRawNumericTooltipValue(
+  value: number,
+  numericType: NumericAnnotationType = 'float',
+): string {
+  if (!Number.isFinite(value)) return String(value);
+  if (numericType === 'int') return String(Math.trunc(value));
+  if (shouldUseTinyFloatFormat(value)) {
+    return Number(value.toPrecision(6)).toString();
+  }
+  return RAW_FLOAT_VALUE_FORMATTER.format(value);
+}
+
 function formatScore(value: number): string {
   const abs = Math.abs(value);
   // Display as plain number when within 0.01 to 999 (or zero)
@@ -46,32 +70,32 @@ function formatScore(value: number): string {
 
 @customElement('protspace-protein-tooltip')
 class ProtspaceProteinTooltip extends LitElement {
-  @property({ type: Object }) protein: PlotDataPoint | null = null;
+  @property({ type: Object }) view: TooltipView | null = null;
   @property({ type: String }) selectedAnnotation = '';
 
   static styles = proteinTooltipStyles;
 
   render() {
-    if (!this.protein) {
+    if (!this.view) {
       return html``;
     }
 
-    const displayValues = this.protein.annotationDisplayValues ?? this.protein.annotationValues;
-    const geneName = getGeneName(displayValues);
-    const proteinName = getProteinName(displayValues);
-    const uniprotKbId = getUniprotKbId(displayValues);
-    const tooltipAnnotationValues = displayValues[this.selectedAnnotation] ?? [];
-    const rawNumericValue = this.protein.numericAnnotationValues?.[this.selectedAnnotation] ?? null;
-    const tooltipAnnotationScores = this.protein.annotationScores?.[this.selectedAnnotation] ?? [];
-    const tooltipAnnotationEvidence =
-      this.protein.annotationEvidence?.[this.selectedAnnotation] ?? [];
+    const view = this.view;
+    const geneName = getGeneName(view.geneName);
+    const proteinName = getProteinName(view.proteinName);
+    const uniprotKbId = getUniprotKbId(view.uniprotKbId);
+    const tooltipAnnotationValues = view.displayValues;
+    const rawNumericValue = view.numericValue;
+    const rawNumericType: NumericAnnotationType = view.numericType;
+    const tooltipAnnotationScores = view.scores;
+    const tooltipAnnotationEvidence = view.evidence;
     const headerType = getAnnotationHeaderType(tooltipAnnotationScores, tooltipAnnotationEvidence);
 
     return html`
       <div class="tooltip">
         <div class="tooltip-header">
           <div class="tooltip-protein-id">
-            <span class="tooltip-protein-id-main">${this.protein.id}</span>
+            <span class="tooltip-protein-id-main">${view.proteinId}</span>
             ${uniprotKbId
               ? html`<span class="tooltip-uniprot-separator"> · </span>
                   <span class="tooltip-uniprot-id">${uniprotKbId}</span>`
@@ -91,7 +115,8 @@ class ProtspaceProteinTooltip extends LitElement {
             : ''}
           ${rawNumericValue !== null
             ? html`<div class="tooltip-gene-name">
-                <span class="label">Raw value:</span> ${rawNumericValue}
+                <span class="label">Raw value:</span>
+                ${formatRawNumericTooltipValue(rawNumericValue, rawNumericType)}
               </div>`
             : ''}
           <div class="tooltip-annotations">

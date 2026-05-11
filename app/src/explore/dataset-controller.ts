@@ -13,11 +13,12 @@ import {
   getDataLoadFailureNotification,
   getDatasetPersistenceFailureNotification,
 } from './notifications';
-import { saveLastImportedFile } from './opfs-dataset-store';
+import { markLastLoadStatus, saveLastImportedFile } from './opfs-dataset-store';
 import { createDataRenderer } from './data-renderer';
 import type { InteractionController } from './interaction-controller';
 import type { LoadQueue } from './load-queue';
 import { createPersistedDatasetController } from './persisted-dataset';
+import type { PersistedLoadOutcome } from './persisted-dataset';
 import type { ViewController } from './view-controller';
 
 interface DatasetControllerOptions {
@@ -40,7 +41,8 @@ interface DatasetControllerOptions {
 
 export interface DatasetController {
   loadDefaultDatasetAndClearPersistedFile(): Promise<void>;
-  loadPersistedOrDefaultDataset(): Promise<void>;
+  loadPersistedOrDefaultDataset(): Promise<PersistedLoadOutcome>;
+  tryLoadPersistedAgain(file: File): Promise<void>;
   handleLoadingStart(): void;
   handleLoadingProgress(event: Event): void;
   handleDataLoaded(event: Event): Promise<void>;
@@ -137,13 +139,10 @@ export function createDatasetController({
       const shouldApplyEmbeddedFileSettings = settings && loadMeta.kind !== 'opfs';
       if (shouldApplyEmbeddedFileSettings) {
         legendElement.setFileSettings(settings.legendSettings, datasetHash, true);
-        controlBar.setFileSettings(settings.exportOptions, datasetHash, false);
       }
 
       controlBar.hasFileSettings =
-        settings != null &&
-        (Object.keys(settings.legendSettings).length > 0 ||
-          Object.keys(settings.exportOptions).length > 0);
+        settings != null && Object.keys(settings.legendSettings).length > 0;
 
       if ((loadMeta.kind === 'user' || loadMeta.kind === 'opfs') && file) {
         setCurrentDatasetName(file.name);
@@ -154,6 +153,14 @@ export function createDatasetController({
       }
 
       viewController.applyLatestViewForDatasetLoad(data);
+
+      try {
+        if (loadMeta.kind === 'user' || loadMeta.kind === 'opfs') {
+          await markLastLoadStatus('success');
+        }
+      } catch (statusError) {
+        console.warn('Failed to update OPFS load status to success:', statusError);
+      }
     } catch (error) {
       console.error('Failed to finalize loaded dataset state:', error);
     } finally {
@@ -168,6 +175,15 @@ export function createDatasetController({
     console.error('❌ Data loading error:', customEvent.detail.message);
     const runningLoadMeta = loadQueue.getRunningLoadMeta();
     const loadSequence = runningLoadMeta?.sequence ?? null;
+
+    if (runningLoadMeta?.kind === 'user' || runningLoadMeta?.kind === 'opfs') {
+      try {
+        const message = customEvent.detail.message ?? 'Unknown load error';
+        await markLastLoadStatus('error', { error: message });
+      } catch (statusError) {
+        console.warn('Failed to update OPFS load status to error:', statusError);
+      }
+    }
 
     if (runningLoadMeta?.kind === 'opfs') {
       if (loadSequence !== null) {
@@ -194,6 +210,7 @@ export function createDatasetController({
     loadDefaultDatasetAndClearPersistedFile:
       persistedDatasetController.loadDefaultDatasetAndClearPersistedFile,
     loadPersistedOrDefaultDataset: persistedDatasetController.loadPersistedOrDefaultDataset,
+    tryLoadPersistedAgain: persistedDatasetController.tryLoadPersistedAgain,
     handleLoadingStart() {
       console.log('Data loading started');
       overlayController.update(true, 5, 'Analyzing file structure...', 'Starting upload...');
@@ -208,3 +225,5 @@ export function createDatasetController({
     handleDataError,
   };
 }
+
+export type { PersistedLoadOutcome };

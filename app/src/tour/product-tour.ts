@@ -215,14 +215,14 @@ const steps: DriveStep[] = [
   shadowStep(CONTROL_BAR, 'selection', {
     title: 'Selection Tools',
     description:
-      '<strong>Select</strong> enters selection mode\u2009—\u2009click points or drag to select multiple. Choose <strong>rectangle</strong> or <strong>lasso</strong> to switch tools. Press <kbd>Esc</kbd> to exit.<br><br><strong>Clear</strong> deselects all, <strong>Isolate</strong> focuses on selected proteins, and <strong>Reset</strong> restores the full dataset.',
+      '<strong>Select</strong> enters selection mode\u2009—\u2009click points or drag to select multiple. Choose <strong>rectangle</strong> or <strong>lasso</strong> to switch tools. Press <kbd>Esc</kbd> to clear the current selection; press it again to exit selection mode.<br><br><strong>Clear</strong> deselects all, <strong>Isolate</strong> focuses on selected proteins, and <strong>Reset</strong> restores the full dataset.',
   }),
 
   // ── Step 6 – Filter, Export & Import (Shadow DOM) ──────────
   shadowStep(CONTROL_BAR, 'data-actions', {
     title: 'Filter, Export & Import',
     description:
-      '<strong>Filter</strong> narrows the dataset by annotation values. <strong>Export</strong> as PNG, PDF, protein IDs, or a <code>.parquetbundle</code> that preserves your legend customizations. <strong>Import</strong> loads a new dataset.',
+      '<strong>Filter</strong> opens a query builder for combining annotation conditions with AND/OR logic. <strong>Export</strong> opens the <strong>Figure Editor</strong> for publication-ready figures with journal presets, overlays, zoom insets, and legend customization — or use <strong>Quick Export</strong> for a fast PNG, PDF, protein IDs, or <code>.parquetbundle</code> dump. <strong>Import</strong> uploads a new dataset or restores the demo.',
   }),
 
   // ── Step 7 – Scatterplot ────────────────────────────────────
@@ -230,8 +230,7 @@ const steps: DriveStep[] = [
     element: '[data-driver-id="scatterplot"]',
     popover: {
       title: 'Interactive Scatterplot',
-      description:
-        'Each point represents a protein. <strong>Hover</strong> over a point to see its details. <strong>Pan</strong> by dragging, <strong>zoom</strong> with the mouse wheel, and <strong>click</strong> a point to view its 3D structure (when available).',
+      description: `Each point represents a protein. <strong>Hover</strong> over a point to see its details. <strong>Pan</strong> by dragging, <strong>zoom</strong> with the mouse wheel, and <strong>click</strong> a point to view its 3D structure (when available). Hold <kbd><span class="mod-key">${isMacOrIos() ? '⌘' : 'Ctrl'}</span>+Click</kbd> to toggle a point in or out of the current selection.`,
       onPrevClick: async (_el, _step, opts) => movePrevious(opts),
       onNextClick: async (_el, _step, opts) => moveNext(opts),
     },
