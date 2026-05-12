@@ -19,6 +19,7 @@ import type {
 
 const createValidLegendSettings = (): LegendPersistedSettings => ({
   maxVisibleValues: 10,
+  includeShapes: true,
   shapeSize: 24,
   sortMode: 'size-desc',
   hiddenValues: ['unknown'],
@@ -153,15 +154,22 @@ describe('settings-validation', () => {
         organism: createValidLegendSettings(),
       };
 
+      // `normalizeBundleSettings` runs the sanitiser, which drops `includeShapes`.
+      const { includeShapes: _ignore, ...sanitisedOrganism } = createValidLegendSettings();
       expect(normalizeBundleSettings(legacy)).toEqual({
-        legendSettings: legacy,
+        legendSettings: { organism: sanitisedOrganism },
         exportOptions: {},
       });
     });
 
     it('returns normalized settings unchanged', () => {
       const settings = createNormalizedBundleSettings();
-      expect(normalizeBundleSettings(settings)).toEqual(settings);
+      // `normalizeBundleSettings` runs the sanitiser, which drops `includeShapes`.
+      const { includeShapes: _ignore, ...sanitisedOrganism } = createValidLegendSettings();
+      expect(normalizeBundleSettings(settings)).toEqual({
+        ...settings,
+        legendSettings: { organism: sanitisedOrganism },
+      });
     });
 
     it('returns empty normalized settings for malformed settings objects', () => {
@@ -173,6 +181,8 @@ describe('settings-validation', () => {
     });
 
     it('drops invalid numeric settings but preserves the rest of the annotation settings', () => {
+      // `normalizeBundleSettings` runs the sanitiser, which drops `includeShapes`.
+      const { includeShapes: _ignore, ...sanitisedBase } = createValidLegendSettings();
       expect(
         normalizeBundleSettings({
           legendSettings: {
@@ -190,7 +200,7 @@ describe('settings-validation', () => {
       ).toEqual({
         legendSettings: {
           length: {
-            ...createValidLegendSettings(),
+            ...sanitisedBase,
             selectedPaletteId: 'viridis',
           },
         },
