@@ -20,7 +20,6 @@ export interface SettingsDialogState {
   enableDuplicateStackUI: boolean;
   selectedAnnotation: string;
   annotationSortModes: Record<string, LegendSortMode>;
-  isMultilabelAnnotation: boolean;
   isNumericAnnotation: boolean;
   selectedNumericStrategy: NumericBinningStrategy;
   logBinningAvailable: boolean;
@@ -158,7 +157,7 @@ function renderShapeSizeInput(
 }
 
 /**
- * Renders the checkbox options (shapes, duplicate stack)
+ * Renders the checkbox options for the settings dialog.
  */
 function renderCheckboxOptions(
   state: SettingsDialogState,

@@ -107,7 +107,6 @@ function renderSettingsDialogToContainer(overrides = {}) {
         enableDuplicateStackUI: false,
         selectedAnnotation: 'score',
         annotationSortModes: {},
-        isMultilabelAnnotation: false,
         isNumericAnnotation: true,
         selectedNumericStrategy: 'linear',
         logBinningAvailable: true,

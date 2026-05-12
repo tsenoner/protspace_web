@@ -2152,7 +2152,6 @@ export class ProtspaceLegend extends LitElement {
       enableDuplicateStackUI: this._dialogSettings.enableDuplicateStackUI,
       selectedAnnotation: this.selectedAnnotation,
       annotationSortModes: this._dialogSettings.annotationSortModes,
-      isMultilabelAnnotation: this._isMultilabelAnnotation(),
       isNumericAnnotation,
       selectedNumericStrategy: this._dialogSettings.numericStrategy,
       reverseGradient: this._dialogSettings.reverseGradient,
