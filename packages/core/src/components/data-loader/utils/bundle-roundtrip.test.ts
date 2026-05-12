@@ -57,7 +57,6 @@ describe('round-trip with real data files', () => {
       legendSettings: {
         testAnnotation: {
           maxVisibleValues: 10,
-          includeShapes: true,
           shapeSize: 24,
           sortMode: 'size-desc' as const,
           hiddenValues: [],
