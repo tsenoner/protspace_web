@@ -232,7 +232,6 @@ export class ProtspaceLegend extends LitElement {
       const isNumericAnnotation = this._isCurrentAnnotationNumeric();
       return {
         maxVisibleValues: this.maxVisibleValues,
-        includeShapes: this.includeShapes,
         shapeSize: this.shapeSize,
         sortMode: this._normalizeSortModeForEffectiveType(
           this._annotationSortModes[this.selectedAnnotation],
