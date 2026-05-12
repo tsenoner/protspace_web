@@ -1390,7 +1390,9 @@ export class ProtspaceLegend extends LitElement {
       }
 
       this.maxVisibleValues = resolvedMaxVisibleValues;
-      this.includeShapes = isNumericAnnotation ? false : settings.includeShapes;
+      this.includeShapes = isNumericAnnotation
+        ? false
+        : (settings.includeShapes ?? LEGEND_DEFAULTS.includeShapes);
       this.shapeSize = settings.shapeSize;
       this._hiddenValues = hasMatchingNumericTopology ? settings.hiddenValues : [];
       this._selectedPaletteId = resolvedPaletteId;

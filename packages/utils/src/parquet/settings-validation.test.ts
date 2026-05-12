@@ -8,6 +8,7 @@ import {
   isValidPersistedExportOptions,
   isValidSortMode,
   normalizeBundleSettings,
+  sanitizeLegendSettingsMap,
 } from './settings-validation';
 import type {
   BundleSettings,
@@ -18,7 +19,6 @@ import type {
 
 const createValidLegendSettings = (): LegendPersistedSettings => ({
   maxVisibleValues: 10,
-  includeShapes: true,
   shapeSize: 24,
   sortMode: 'size-desc',
   hiddenValues: ['unknown'],
@@ -288,5 +288,52 @@ describe('settings-validation', () => {
       const result = normalizeBundleSettings(obj);
       expect(result?.publishState).toEqual({ raw: 1 });
     });
+  });
+});
+
+describe('LegendPersistedSettings — includeShapes backward compat', () => {
+  it('isValidLegendSettings accepts a settings object missing includeShapes', () => {
+    const legacyMinusFlag = {
+      maxVisibleValues: 10,
+      shapeSize: 5,
+      sortMode: 'size-desc',
+      hiddenValues: [],
+      categories: {},
+      enableDuplicateStackUI: false,
+      selectedPaletteId: 'kellys',
+    };
+    expect(isValidLegendSettings(legacyMinusFlag)).toBe(true);
+  });
+
+  it('isValidLegendSettings accepts a settings object with includeShapes: true', () => {
+    const legacyWithFlag = {
+      maxVisibleValues: 10,
+      includeShapes: true,
+      shapeSize: 5,
+      sortMode: 'size-desc',
+      hiddenValues: [],
+      categories: {},
+      enableDuplicateStackUI: false,
+      selectedPaletteId: 'kellys',
+    };
+    expect(isValidLegendSettings(legacyWithFlag)).toBe(true);
+  });
+
+  it('sanitizeLegendSettingsMap drops includeShapes from the sanitised output', () => {
+    const input = {
+      annotation: {
+        maxVisibleValues: 10,
+        includeShapes: true,
+        shapeSize: 5,
+        sortMode: 'size-desc',
+        hiddenValues: [],
+        categories: {},
+        enableDuplicateStackUI: false,
+        selectedPaletteId: 'kellys',
+      },
+    };
+    const sanitised = sanitizeLegendSettingsMap(input);
+    expect(sanitised).not.toBeNull();
+    expect(sanitised!.annotation).not.toHaveProperty('includeShapes');
   });
 });

@@ -148,7 +148,6 @@ describe('round-trip with real data files', () => {
       legendSettings: {
         length: {
           maxVisibleValues: 5,
-          includeShapes: false,
           shapeSize: 24,
           sortMode: 'alpha-asc' as const,
           hiddenValues: ['10 - <28'],
