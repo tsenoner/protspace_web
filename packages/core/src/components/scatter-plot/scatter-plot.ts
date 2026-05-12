@@ -2203,14 +2203,32 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
-  /** Clear isolation state without reprocessing. Use before loading new data. */
-  clearIsolationState(): void {
+  /**
+   * Clear isolation state without reprocessing. Use before loading new data.
+   * Dispatches `data-isolation-reset` when state actually changed, so listeners
+   * (e.g. the control bar's Reset chip) stay in sync. Pass `{ silent: true }`
+   * when the caller will dispatch its own reset event with a fuller payload.
+   */
+  clearIsolationState(options?: { silent?: boolean }): void {
+    const wasIsolated = this._isolationMode;
     this._isolationHistory = [];
     this._isolationMode = false;
+    if (wasIsolated && !options?.silent) {
+      this.dispatchEvent(
+        new CustomEvent('data-isolation-reset', {
+          detail: {
+            isolationHistory: this._isolationHistory,
+            isolationMode: this._isolationMode,
+          },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+    }
   }
 
   resetIsolation() {
-    this.clearIsolationState();
+    this.clearIsolationState({ silent: true });
     this.selectedProteinIds = [];
 
     // Invalidate data ref so _processData takes the full rebuild path
