@@ -138,7 +138,9 @@ describe('PersistenceController', () => {
       expect(getStorageItem).not.toHaveBeenCalled();
     });
 
-    it('loads settings and calls callback', () => {
+    // Backward-compat: bundles written before the includeShapes removal may still
+    // have this field in localStorage. The controller must accept them.
+    it('loads legacy payload containing includeShapes without rejecting it', () => {
       const savedSettings = {
         maxVisibleValues: 15,
         includeShapes: true,
@@ -694,6 +696,7 @@ describe('PersistenceController', () => {
         const settings = controller.getCurrentSettingsForExport();
 
         expect(settings.maxVisibleValues).toBe(15);
+        // includeShapes must not appear in exported settings even if legacy storage carries it.
         expect(settings.includeShapes).toBeUndefined();
         expect(settings.sortMode).toBe('alpha-asc');
         expect(settings.hiddenValues).toEqual(['hidden1']);
