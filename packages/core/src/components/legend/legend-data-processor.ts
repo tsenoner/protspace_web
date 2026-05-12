@@ -216,7 +216,6 @@ export class LegendDataProcessor {
     topItems: Array<[string, number]>,
     otherCount: number,
     existingLegendItems: LegendItem[],
-    shapesEnabled: boolean,
     sortMode: LegendSortMode = 'size-desc',
     passedZOrders: Map<string, number> = new Map(),
     persistedCategories: Record<string, PersistedCategoryData> = {},
@@ -310,7 +309,7 @@ export class LegendDataProcessor {
       const zOrder = sortMode === 'manual' ? (existingZOrders.get(value) ?? index) : index;
       const slot = ctx.slotTracker.getSlot(displayName);
 
-      let encoding = getVisualEncoding(slot, shapesEnabled, displayName);
+      let encoding = getVisualEncoding(slot, displayName);
 
       // Numeric NA is locked: ignore persisted/existing overrides, force defaults.
       if (isNumericSource && isNAValue(value)) {
@@ -347,20 +346,10 @@ export class LegendDataProcessor {
           // Probe subsequent slots for an unclaimed color (cap at 30 to exceed
           // Kelly's 21-color palette and guarantee termination)
           let altSlot = slot + 1;
-          color = getVisualEncoding(altSlot, false, displayName).color;
+          color = getVisualEncoding(altSlot, displayName).color;
           while (claimedColors.has(color) && altSlot < slot + 30) {
             altSlot++;
-            color = getVisualEncoding(altSlot, false, displayName).color;
-          }
-        }
-        // Resolve shape conflicts (only when shapes are enabled)
-        if (shapesEnabled && claimedShapes.has(shape)) {
-          // Same probing approach for shapes (6 unique shapes, cap at 30 for safety)
-          let altSlot = slot + 1;
-          shape = getVisualEncoding(altSlot, true, displayName).shape;
-          while (claimedShapes.has(shape) && altSlot < slot + 30) {
-            altSlot++;
-            shape = getVisualEncoding(altSlot, true, displayName).shape;
+            color = getVisualEncoding(altSlot, displayName).color;
           }
         }
         encoding = { color, shape };
@@ -380,7 +369,7 @@ export class LegendDataProcessor {
 
     // Add "Other" if there are items beyond the cap
     if (otherCount > 0) {
-      const encoding = getVisualEncoding(-1, shapesEnabled, LEGEND_VALUES.OTHER);
+      const encoding = getVisualEncoding(-1, LEGEND_VALUES.OTHER);
       const otherZOrder =
         sortMode === 'manual' ? (existingOtherZOrder ?? items.length) : items.length;
 
@@ -411,7 +400,6 @@ export class LegendDataProcessor {
     isolationHistory: string[][],
     existingLegendItems: LegendItem[],
     sortMode: LegendSortMode = 'size-desc',
-    shapesEnabled: boolean = false,
     persistedCategories: Record<string, PersistedCategoryData> = {},
     visibleValues: Set<string> = new Set(),
     numericOrderValues: Map<string, number> = new Map(),
@@ -464,7 +452,6 @@ export class LegendDataProcessor {
       topItems,
       otherCount,
       existingLegendItems,
-      shapesEnabled,
       sortMode,
       new Map(existingZOrders),
       persistedCategories,

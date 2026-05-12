@@ -1293,7 +1293,6 @@ export class ProtspaceLegend extends LitElement {
         this.isolationHistory,
         existingLegendItems,
         this._currentSortMode,
-        this._effectiveIncludeShapes,
         persistedCategories,
         visibleValues,
         numericOrderValues,
