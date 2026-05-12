@@ -294,14 +294,12 @@ export class LegendDataProcessor {
       }
     }
 
-    // Pre-scan: collect colors/shapes already claimed by items with persisted or existing values
+    // Pre-scan: collect colors already claimed by items with persisted or existing values
     const claimedColors = new Set<string>();
-    const claimedShapes = new Set<string>();
     for (const [value] of topItems) {
       const persisted = persistedCategories[value];
       const existing = existingColors.get(value);
       claimedColors.add((persisted?.color || existing?.color) ?? '');
-      claimedShapes.add((persisted?.shape || existing?.shape) ?? '');
     }
 
     const items: LegendItem[] = topItems.map(([value, count], index) => {
@@ -354,7 +352,6 @@ export class LegendDataProcessor {
         }
         encoding = { color, shape };
         claimedColors.add(color);
-        claimedShapes.add(shape);
       }
 
       return {
