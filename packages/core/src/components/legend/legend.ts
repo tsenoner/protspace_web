@@ -215,7 +215,6 @@ export class ProtspaceLegend extends LitElement {
     getHiddenValues: () => this._hiddenValues,
     getOtherItems: () => this._otherItems,
     getLegendItems: () => this._legendItems,
-    getEffectiveIncludeShapes: () => this._effectiveIncludeShapes,
     getOtherConcreteValues: () => computeOtherConcreteValues(this._otherItems),
     getNumericAnnotationSettings: () => this._numericSettingsByAnnotation,
     getAnnotationSortModes: () => this._annotationSortModes,
@@ -1333,7 +1332,6 @@ export class ProtspaceLegend extends LitElement {
       this._scatterplotController.dispatchZOrderChange();
       this._scatterplotController.dispatchColorMappingChange();
       this._scatterplotController.syncOtherValues();
-      this._scatterplotController.syncShapes();
       this._scatterplotController.syncHiddenValues();
     } catch (error) {
       this._dispatchError(
@@ -1926,7 +1924,6 @@ export class ProtspaceLegend extends LitElement {
 
     // Update scatterplot and save (shape change, no z-order change)
     this._scatterplotController.dispatchColorMappingChange(true);
-    this._scatterplotController.syncShapes();
     this._persistenceController.saveSettings();
     this.requestUpdate();
   }

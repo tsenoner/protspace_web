@@ -69,7 +69,6 @@ export class ProtspaceScatterplot extends LitElement {
   selectionTool: 'rectangle' | 'lasso' = 'rectangle';
   @property({ type: Array }) hiddenAnnotationValues: string[] = [];
   @property({ type: Array }) otherAnnotationValues: string[] = [];
-  @property({ type: Boolean }) useShapes: boolean = false;
   @property({ type: Object }) numericAnnotationSettings: NumericAnnotationDisplaySettingsMap = {};
   @property({ type: Object }) annotationSortModes: Record<string, LegendSortMode> = {};
   @property({ type: Object }) numericManualOrderIdsByAnnotation: Record<string, string[]> = {};
@@ -525,8 +524,7 @@ export class ProtspaceScatterplot extends LitElement {
       changedProperties.has('otherAnnotationValues') ||
       changedProperties.has('selectedProteinIds') ||
       changedProperties.has('highlightedProteinIds') ||
-      changedProperties.has('config') ||
-      changedProperties.has('useShapes')
+      changedProperties.has('config')
     ) {
       this._styleGettersCache = this._buildStyleGetters();
     }
@@ -1759,7 +1757,6 @@ export class ProtspaceScatterplot extends LitElement {
       selectedAnnotation: this.selectedAnnotation,
       hiddenAnnotationValues: this.hiddenAnnotationValues,
       otherAnnotationValues: this.otherAnnotationValues,
-      useShapes: this.useShapes,
       zOrderMapping: this._zOrderMapping,
       colorMapping: this._colorMapping,
       shapeMapping: this._shapeMapping,
@@ -2116,11 +2113,7 @@ export class ProtspaceScatterplot extends LitElement {
 
   private _updateStyleSignature() {
     const cfg = this._mergedConfig;
-    const parts = [
-      `ps:${cfg.pointSize}`,
-      `annot:${this.selectedAnnotation}`,
-      `sh:${this.useShapes ? 1 : 0}`,
-    ];
+    const parts = [`ps:${cfg.pointSize}`, `annot:${this.selectedAnnotation}`];
     this._styleSig = parts.join('|');
   }
 
