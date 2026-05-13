@@ -111,6 +111,14 @@ export default defineConfig({
       },
       testMatch: /figure-editor\.spec\.ts/,
     },
+    {
+      name: 'multi-annotation-tooltip',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /multi-annotation-tooltip\.spec\.ts/,
+    },
   ],
 
   outputDir: '../test-results/',
