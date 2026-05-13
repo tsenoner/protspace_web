@@ -25,6 +25,7 @@ import { DEFAULT_CONFIG } from './config';
 import { createStyleGetters } from './style-getters';
 import { MAX_POINTS_DIRECT_RENDER, WebGLRenderer } from './webgl';
 import { QuadtreeIndex } from './quadtree-index';
+import { getDuplicateStackKey } from './duplicate-stack-helpers';
 import {
   WebglRenderPerfRunner,
   type PerfDatasetInfo,
@@ -137,11 +138,6 @@ export class ProtspaceScatterplot extends LitElement {
     height: number;
     margin: { top: number; right: number; bottom: number; left: number };
   } | null = null;
-
-  // Cross-projection duplicate groups: maps each protein originalIndex to a stable
-  // group key shared by all proteins that have identical coordinates in ANY projection.
-  // This ensures duplicate badges appear consistently across PCA, UMAP, t-SNE, etc.
-  private _crossProjectionDupGroups = new Map<number, string>();
 
   // Duplicate stacks (exact same coordinates)
   private _duplicateStacks: Array<{
@@ -620,9 +616,6 @@ export class ProtspaceScatterplot extends LitElement {
         this._isolationHistory,
         this.projectionPlane,
       );
-
-      // Recompute cross-projection duplicate groups when data changes.
-      this._computeCrossProjectionDuplicates(dataToUse);
     }
 
     this._lastDataRef = dataToUse;
@@ -632,76 +625,6 @@ export class ProtspaceScatterplot extends LitElement {
     // Invalidate scales cache when plot data changes
     this._invalidateScalesCache();
     this._invalidateVirtualizationCache();
-  }
-
-  /**
-   * Scan every projection for exact-coordinate duplicates and build a unified
-   * group map.  Two proteins belong to the same group if they share exact
-   * coordinates in ANY projection (e.g. identical embeddings → identical PCA
-   * but slightly jittered UMAP).  The groups are keyed by a stable string so
-   * that `_ensureDuplicateStacksForViewport` can cluster them consistently
-   * regardless of which projection is currently displayed.
-   *
-   * Uses union-find so that transitive duplicates across projections are merged
-   * into a single group.
-   */
-  private _computeCrossProjectionDuplicates(data: VisualizationData) {
-    const n = data.protein_ids.length;
-    // Union-find parent array
-    const parent = new Int32Array(n);
-    for (let i = 0; i < n; i++) parent[i] = i;
-
-    function find(a: number): number {
-      while (parent[a] !== a) {
-        parent[a] = parent[parent[a]]; // path compression
-        a = parent[a];
-      }
-      return a;
-    }
-    function union(a: number, b: number) {
-      const ra = find(a);
-      const rb = find(b);
-      if (ra !== rb) parent[ra] = rb;
-    }
-
-    for (const proj of data.projections) {
-      const coordToFirst = new Map<string, number>();
-      for (let i = 0; i < proj.data.length; i++) {
-        const coords = proj.data[i];
-        if (!coords) continue;
-        const key =
-          coords.length === 3
-            ? `${coords[0]}|${coords[1]}|${coords[2]}`
-            : `${coords[0]}|${coords[1]}`;
-        const first = coordToFirst.get(key);
-        if (first !== undefined) {
-          union(i, first);
-        } else {
-          coordToFirst.set(key, i);
-        }
-      }
-    }
-
-    // Build final map — only include indices that belong to a group of size > 1
-    const groups = new Map<number, number[]>();
-    for (let i = 0; i < n; i++) {
-      const root = find(i);
-      let arr = groups.get(root);
-      if (!arr) {
-        arr = [];
-        groups.set(root, arr);
-      }
-      arr.push(i);
-    }
-
-    this._crossProjectionDupGroups = new Map<number, string>();
-    for (const [root, members] of groups) {
-      if (members.length < 2) continue;
-      const groupKey = `dup:${root}`;
-      for (const idx of members) {
-        this._crossProjectionDupGroups.set(idx, groupKey);
-      }
-    }
   }
 
   private _refreshSelectedAnnotationValues(dataToUse: VisualizationData) {
@@ -1469,8 +1392,6 @@ export class ProtspaceScatterplot extends LitElement {
     >();
     const idToKey = new Map<string, string>();
 
-    const hasCrossGroups = this._crossProjectionDupGroups.size > 0;
-
     let idx = 0;
     const step = () => {
       if (jobId !== this._duplicateStacksComputeJobId) return; // cancelled
@@ -1479,13 +1400,9 @@ export class ProtspaceScatterplot extends LitElement {
         const p = candidates[idx];
         if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
 
-        // Use cross-projection duplicate groups when available (catches
-        // duplicates that share exact coords in any projection, e.g. PCA,
-        // even when the current projection — UMAP — jitters them apart).
-        // Fall back to exact-coordinate match for data without multiple projections.
-        const key = hasCrossGroups
-          ? (this._crossProjectionDupGroups.get(p.originalIndex) ?? `solo:${p.originalIndex}`)
-          : `${p.x}|${p.y}`;
+        // Group only points that share coords in the *current* projection
+        // (see duplicate-stack-helpers for the rationale and key contract).
+        const key = getDuplicateStackKey(p);
 
         let stack = stackMap.get(key);
         if (!stack) {
