@@ -12,8 +12,6 @@ import type {
 import { handleDropdownEscape, isAnyDropdownOpen } from '../../utils/dropdown-helpers';
 import {
   EXPORT_DEFAULTS,
-  isProjection3D,
-  getProjectionPlane,
   toggleProteinSelection,
   mergeProteinSelections,
 } from './control-bar-helpers';
@@ -42,8 +40,6 @@ export class ProtspaceControlBar extends LitElement {
   selectedProjection: string = '';
   @property({ type: String, attribute: 'selected-annotation' })
   selectedAnnotation: string = '';
-  @property({ type: String, attribute: 'projection-plane' })
-  projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
   @property({ type: Boolean, attribute: 'selection-mode' })
   selectionMode: boolean = false;
   @property({ type: String, attribute: 'selection-tool' })
@@ -141,13 +137,6 @@ export class ProtspaceControlBar extends LitElement {
       if (projectionIndex !== -1 && 'selectedProjectionIndex' in this._scatterplotElement) {
         (this._scatterplotElement as ScatterplotElementLike).selectedProjectionIndex =
           projectionIndex;
-
-        const is3D = isProjection3D(this.selectedProjection, this.projectionsMeta);
-        const nextPlane = getProjectionPlane(is3D, this.projectionPlane);
-        if ('projectionPlane' in this._scatterplotElement) {
-          (this._scatterplotElement as ScatterplotElementLike).projectionPlane = nextPlane;
-        }
-        this.projectionPlane = nextPlane;
       }
     }
 
@@ -264,25 +253,6 @@ export class ProtspaceControlBar extends LitElement {
         highlighted.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
     });
-  }
-
-  private handlePlaneChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    const plane = target.value as 'xy' | 'xz' | 'yz';
-    if (
-      this.autoSync &&
-      this._scatterplotElement &&
-      'projectionPlane' in this._scatterplotElement
-    ) {
-      (this._scatterplotElement as ScatterplotElementLike).projectionPlane = plane;
-      this.projectionPlane = plane;
-    }
-    const customEvent = new CustomEvent('projection-plane-change', {
-      detail: { plane },
-      bubbles: true,
-      composed: true,
-    });
-    this.dispatchEvent(customEvent);
   }
 
   applyAnnotationSelection(annotation: string) {
@@ -576,25 +546,6 @@ export class ProtspaceControlBar extends LitElement {
                 : ''}
             </div>
           </div>
-
-          ${(() => {
-            return isProjection3D(this.selectedProjection, this.projectionsMeta)
-              ? html`
-                  <div class="control-group">
-                    <label for="plane-select">Plane:</label>
-                    <select
-                      id="plane-select"
-                      .value=${this.projectionPlane}
-                      @change=${this.handlePlaneChange}
-                    >
-                      <option value="xy">XY</option>
-                      <option value="xz">XZ</option>
-                      <option value="yz">YZ</option>
-                    </select>
-                  </div>
-                `
-              : null;
-          })()}
 
           <!-- Annotation selection -->
           <div class="control-group">
