@@ -585,7 +585,7 @@ export class ProtspaceScatterplot extends LitElement {
 
     if (onlyProjectionChanged) {
       // Fast path: update coordinates in-place from the new projection data.
-      // No new object allocation — just overwrite x/y/z on existing PlotDataPoints.
+      // No new object allocation — just overwrite x/y on existing PlotDataPoints.
       this._updatePlotDataCoordinates(dataToUse);
     } else {
       // Release old data references before allocating the new dataset.
