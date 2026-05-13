@@ -374,10 +374,9 @@ export class ProtspaceScatterplot extends LitElement {
     this._styleGettersCache = null;
 
     if (this._plotData.length > 0) {
-      // Z-order changed: need to invalidate positions to force a full re-sort
-      // (the renderer's depth-sampling optimization compares unsorted points against
-      // sorted depths, which can miss swapped z-order between categories)
-      this._webglRenderer?.invalidatePositionCache();
+      // Z-order mapping changed but coordinates didn't — ask the renderer to
+      // re-sort by depth without invalidating the position cache.
+      this._webglRenderer?.invalidateDepthOrder();
       this._webglRenderer?.invalidateStyleCache();
       this._renderPlot();
     }
@@ -397,8 +396,9 @@ export class ProtspaceScatterplot extends LitElement {
       // For color-only changes, we don't need to invalidate positions or re-sort points
       // Only invalidate style cache to update colors
       if (!colorOnly) {
-        // Z-order changed: need to invalidate positions and re-sort
-        this._webglRenderer?.invalidatePositionCache();
+        // Z-order mapping may have changed; ask the renderer to re-sort by depth
+        // without invalidating the position cache.
+        this._webglRenderer?.invalidateDepthOrder();
         this._invalidateVirtualizationCache();
       }
       this._webglRenderer?.invalidateStyleCache();
