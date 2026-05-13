@@ -154,6 +154,10 @@ export class ProtspaceScatterplot extends LitElement {
   >();
   private _pointIdToDuplicateStackKey = new Map<string, string>();
   private _expandedDuplicateStackKey: string | null = null;
+  // Anchor position the user clicked to open the current spider. Stored separately
+  // from the per-viewport stack object so it survives the rebuild that happens on
+  // every pan/zoom (see _applyExpandedSpiderAnchor).
+  private _expandedSpiderAnchor: { stackKey: string; x: number; y: number } | null = null;
   private _isDuplicateStackUIEnabled(): boolean {
     return !!this._mergedConfig.enableDuplicateStackUI;
   }
@@ -1456,7 +1460,13 @@ export class ProtspaceScatterplot extends LitElement {
         !this._duplicateStackByKey.has(this._expandedDuplicateStackKey)
       ) {
         this._expandedDuplicateStackKey = null;
+        this._expandedSpiderAnchor = null;
       }
+
+      // Restore the user's spider anchor on the freshly built stack object so
+      // pan/zoom doesn't snap the spider back to whichever group member was
+      // iterated first.
+      this._applyExpandedSpiderAnchor();
 
       this._duplicateStacksCacheKey = viewKey;
       this._duplicateStacksComputing = false;
@@ -1733,20 +1743,33 @@ export class ProtspaceScatterplot extends LitElement {
     this._expandedDuplicateStackKey =
       this._expandedDuplicateStackKey === stackKey ? null : stackKey;
 
-    // When opening a cross-projection duplicate stack, re-anchor the stack
-    // position to the clicked point so the spiderfy opens on top of it
-    // rather than on whichever group member happened to be iterated first.
     if (this._expandedDuplicateStackKey && anchorPoint) {
-      const stack = this._duplicateStackByKey.get(stackKey);
-      if (stack && this._scales) {
-        stack.x = anchorPoint.x;
-        stack.y = anchorPoint.y;
-        stack.px = this._scales.x(anchorPoint.x);
-        stack.py = this._scales.y(anchorPoint.y);
-      }
+      // Remember where the user clicked so the spider stays anchored to that
+      // point across pan/zoom — _duplicateStackByKey rebuilds with fresh
+      // objects on every viewport recompute and would otherwise drop the anchor.
+      this._expandedSpiderAnchor = {
+        stackKey: this._expandedDuplicateStackKey,
+        x: anchorPoint.x,
+        y: anchorPoint.y,
+      };
+      this._applyExpandedSpiderAnchor();
+    } else {
+      this._expandedSpiderAnchor = null;
     }
 
     this._updateDuplicateOverlays();
+  }
+
+  private _applyExpandedSpiderAnchor(): void {
+    const anchor = this._expandedSpiderAnchor;
+    if (!anchor || !this._scales) return;
+    if (anchor.stackKey !== this._expandedDuplicateStackKey) return;
+    const stack = this._duplicateStackByKey.get(anchor.stackKey);
+    if (!stack) return;
+    stack.x = anchor.x;
+    stack.y = anchor.y;
+    stack.px = this._scales.x(anchor.x);
+    stack.py = this._scales.y(anchor.y);
   }
 
   private _getPointShape(point: PlotDataPoint): string {
