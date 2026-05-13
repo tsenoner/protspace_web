@@ -2264,6 +2264,19 @@ export class ProtspaceScatterplot extends LitElement {
     }
   }
 
+  /** True when a duplicate-badge spider is currently expanded. */
+  hasExpandedDuplicateStack(): boolean {
+    return this._expandedDuplicateStackKey !== null;
+  }
+
+  /** Collapse the currently-open duplicate-badge spider, if any. */
+  closeExpandedDuplicateStack(): void {
+    if (this._expandedDuplicateStackKey === null) return;
+    this._expandedDuplicateStackKey = null;
+    this._expandedSpiderAnchor = null;
+    this._updateDuplicateOverlays();
+  }
+
   /** Clear isolation state without reprocessing. Use before loading new data. */
   clearIsolationState(): void {
     this._isolationHistory = [];
