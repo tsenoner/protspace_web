@@ -60,7 +60,6 @@ export class ProtspaceScatterplot extends LitElement {
   // Properties
   @property({ type: Object }) data: VisualizationData | null = null;
   @property({ type: Number }) selectedProjectionIndex = 0;
-  @property({ type: String }) projectionPlane: 'xy' | 'xz' | 'yz' = 'xy';
   @property({ type: String }) selectedAnnotation = 'family';
   @property({ type: Array }) highlightedProteinIds: string[] = [];
   @property({ type: Array }) selectedProteinIds: string[] = [];
@@ -432,15 +431,13 @@ export class ProtspaceScatterplot extends LitElement {
       !changedProperties.has('data') &&
       !changedProperties.has('filteredProteinIds') &&
       !changedProperties.has('filtersActive') &&
-      !changedProperties.has('selectedProjectionIndex') &&
-      !changedProperties.has('projectionPlane');
+      !changedProperties.has('selectedProjectionIndex');
 
     if (
       changedProperties.has('data') ||
       changedProperties.has('filteredProteinIds') ||
       changedProperties.has('filtersActive') ||
-      changedProperties.has('selectedProjectionIndex') ||
-      changedProperties.has('projectionPlane')
+      changedProperties.has('selectedProjectionIndex')
     ) {
       this._processData();
       this._scheduleQuadtreeRebuild();
@@ -604,7 +601,6 @@ export class ProtspaceScatterplot extends LitElement {
         this.selectedProjectionIndex,
         this._isolationMode,
         this._isolationHistory,
-        this.projectionPlane,
       );
     }
 
@@ -779,18 +775,8 @@ export class ProtspaceScatterplot extends LitElement {
         | [number, number]
         | [number, number, number];
 
-      let xVal = coords[0];
-      let yVal = coords[1];
-
-      if (coords.length === 3) {
-        point.z = coords[2];
-        if (this.projectionPlane === 'xz') {
-          yVal = coords[2];
-        } else if (this.projectionPlane === 'yz') {
-          xVal = coords[1];
-          yVal = coords[2];
-        }
-      }
+      const xVal = coords[0];
+      const yVal = coords[1];
 
       point.x = xVal;
       point.y = yVal;
