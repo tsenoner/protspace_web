@@ -21,9 +21,9 @@
     "packages/core": {
       "entry": ["src/index.ts", "src/components/publish/index.ts"],
       "project": ["src/**/*.ts"],
-      // query-types.ts exports a complete discriminated-union API surface;
-      // createNumericCondition and isNumericCondition are consumed by the
-      // numeric-input component introduced in the next commit.
+      // TRANSITIONAL: query-types.ts exports createNumericCondition, which is
+      // not consumed until the condition-row wiring task. Remove this ignore
+      // once createNumericCondition has a real call site.
       "ignore": ["src/components/control-bar/query-types.ts"],
     },
     "packages/utils": {

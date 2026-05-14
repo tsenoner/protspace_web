@@ -70,7 +70,3 @@ export function createGroup(overrides?: Partial<FilterGroup>): FilterGroup {
 export function isFilterGroup(item: FilterQueryItem): item is FilterGroup {
   return 'conditions' in item;
 }
-
-export function isNumericCondition(condition: FilterCondition): condition is NumericCondition {
-  return condition.kind === 'numeric';
-}
