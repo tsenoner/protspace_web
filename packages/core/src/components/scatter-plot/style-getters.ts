@@ -27,7 +27,7 @@ export interface StyleConfig {
   /**
    * Optional legend-driven shape mapping: annotation value key -> shape name.
    * When provided, shapes are determined by the legend (frequency-sorted).
-   * When null, falls back to annotation.shapes from the data.
+   * When null, all categories render as circles.
    */
   shapeMapping?: Record<string, string> | null;
   sizes: {
