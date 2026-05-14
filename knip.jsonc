@@ -21,15 +21,6 @@
     "packages/core": {
       "entry": ["src/index.ts", "src/components/publish/index.ts"],
       "project": ["src/**/*.ts"],
-      // TRANSITIONAL: query-types.ts exports createNumericCondition, which is
-      // not consumed until the condition-row wiring task. Remove this ignore
-      // once createNumericCondition has a real call site.
-      // TRANSITIONAL: query-numeric-input.ts is not wired into condition-row yet.
-      // Remove this ignore once it has a real import site.
-      "ignore": [
-        "src/components/control-bar/query-types.ts",
-        "src/components/control-bar/query-numeric-input.ts",
-      ],
     },
     "packages/utils": {
       // `src/index.ts` is plugin-discovered; duplicating it trips config-hint errors.
