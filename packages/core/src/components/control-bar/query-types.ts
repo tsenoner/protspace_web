@@ -1,5 +1,17 @@
 export type LogicalOp = 'AND' | 'OR' | 'NOT';
 
+export type NumericOperator = 'gt' | 'lt' | 'between';
+
+export interface NumericCondition {
+  id: string;
+  logicalOp?: LogicalOp;
+  annotation: string;
+  kind: 'numeric';
+  operator: NumericOperator;
+  min: number | null;
+  max: number | null;
+}
+
 export interface FilterCondition {
   id: string;
   logicalOp?: LogicalOp;
