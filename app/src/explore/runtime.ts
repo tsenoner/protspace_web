@@ -6,6 +6,12 @@ import { getElements, waitForElements } from './elements';
 import { createExportHandler } from './export-handler';
 import { createInteractionController } from './interaction-controller';
 import { createLifecycle } from './lifecycle';
+import {
+  countFastaSequences,
+  estimateEmbedSeconds,
+  formatEmbeddingLabel,
+} from './fasta-prep-estimate';
+import { isFastaFile, prepareFastaBundle } from './fasta-prep-client';
 import { createLoadQueue } from './load-queue';
 import { createLoadingOverlayController } from './loading-overlay';
 import { createPersistedLegendController } from './persisted-legend';
@@ -52,18 +58,112 @@ export async function initializeExploreRuntime(): Promise<ExploreController> {
     controlBar.currentDatasetIsDemo = isDemo;
   };
 
+  const overlayController = createLoadingOverlayController();
+  lifecycle.addCleanup(() => overlayController.dispose());
+
   const loadQueue = createLoadQueue({
     isDisposed: lifecycle.isDisposed,
   });
   dataLoader.loadFromFileHandler = (file, options, next) =>
-    loadQueue.enqueueLoadFromFile(file, options, next);
+    loadQueue.enqueueLoadFromFile(file, options, async (queuedFile, queuedOptions) => {
+      if (!isFastaFile(queuedFile)) {
+        return next(queuedFile, queuedOptions);
+      }
+
+      const colabNote = {
+        text: 'Got a larger dataset?',
+        href: 'https://colab.research.google.com/github/tsenoner/protspace/blob/main/notebooks/ProtSpace_Preparation.ipynb',
+        linkText: 'Open in Colab ↗',
+      };
+
+      const seqCount = await countFastaSequences(queuedFile).catch(() => 0);
+      const estimateSeconds = estimateEmbedSeconds(seqCount);
+      const embeddingLabel = formatEmbeddingLabel(seqCount);
+
+      const abortController = new AbortController();
+      overlayController.update(true, 5, 'Preparing FASTA…', 'Uploading…', colabNote);
+      overlayController.setCancelHandler(() => abortController.abort());
+      let lastProgress = 5;
+      let creep = 0;
+
+      const startCreep = () => {
+        if (creep) return;
+        const startedAt = performance.now();
+        // Asymptotic curve toward the 65% cap, scaled to the per-job estimate.
+        // tau = estimate/2 (in ms) puts the bar at ~58% when the estimated
+        // wall-clock elapses, so it always advances but slows as it approaches.
+        const tau = Math.max(15_000, estimateSeconds * 500);
+        const cap = 65;
+        const floor = 12;
+        creep = window.setInterval(() => {
+          const elapsed = performance.now() - startedAt;
+          const target = floor + (cap - floor) * (1 - Math.exp(-elapsed / tau));
+          lastProgress = Math.max(lastProgress, target);
+          overlayController.update(true, lastProgress, 'Preparing FASTA…', embeddingLabel);
+        }, 250);
+      };
+
+      const stopCreep = () => {
+        if (creep) {
+          window.clearInterval(creep);
+          creep = 0;
+        }
+      };
+
+      try {
+        const bundleFile = await prepareFastaBundle(queuedFile, {
+          baseUrl: import.meta.env.VITE_PREP_API_BASE ?? '',
+          signal: abortController.signal,
+          onProgress: (stage, payload) => {
+            if (stage === 'queued') {
+              const queuePos =
+                typeof payload.queue_position === 'number' ? payload.queue_position : 0;
+              if (queuePos > 0) {
+                lastProgress = 5;
+                overlayController.update(
+                  true,
+                  lastProgress,
+                  'Preparing FASTA…',
+                  `Position ${queuePos} in queue…`,
+                );
+              } else {
+                lastProgress = 12;
+                overlayController.update(true, lastProgress, 'Preparing FASTA…', embeddingLabel);
+                startCreep();
+              }
+            } else if (stage === 'embedding' || stage === 'annotating') {
+              lastProgress = Math.max(lastProgress, 12);
+              overlayController.update(
+                true,
+                lastProgress,
+                'Preparing FASTA…',
+                'Embedding sequences (~3 min)…',
+              );
+              startCreep();
+            } else if (stage === 'projecting') {
+              stopCreep();
+              lastProgress = 70;
+              overlayController.update(true, lastProgress, 'Preparing FASTA…', 'Projecting…');
+            } else if (stage === 'bundling') {
+              lastProgress = 90;
+              overlayController.update(true, lastProgress, 'Preparing FASTA…', 'Bundling…');
+            }
+          },
+        });
+        stopCreep();
+        overlayController.setCancelHandler(null);
+        return next(bundleFile, queuedOptions);
+      } catch (error) {
+        stopCreep();
+        overlayController.setCancelHandler(null);
+        overlayController.update(false, 0, '', '');
+        throw error;
+      }
+    });
   lifecycle.addCleanup(() => {
     dataLoader.loadFromFileHandler = undefined;
     loadQueue.dispose();
   });
-
-  const overlayController = createLoadingOverlayController();
-  lifecycle.addCleanup(() => overlayController.dispose());
 
   const viewController = createViewController({
     plotElement,
