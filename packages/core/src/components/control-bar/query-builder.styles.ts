@@ -485,6 +485,56 @@ export const queryBuilderStyles = css`
   }
 
   /* ==========================================
+     NUMERIC INPUT
+     ========================================== */
+
+  .numeric-input {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-wrap: wrap;
+  }
+
+  .numeric-operator-select {
+    padding: var(--input-padding-y) 18px var(--input-padding-y) var(--spacing-xs);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+
+  .numeric-field {
+    width: 90px;
+    padding: var(--input-padding-y) var(--input-padding-x);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: var(--text-base);
+    color: var(--text-primary);
+    box-sizing: border-box;
+  }
+
+  .numeric-field:focus-visible {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow:
+      0 0 0 1px var(--primary),
+      0 0 0 3px var(--focus-ring-bg);
+  }
+
+  .numeric-dash {
+    color: var(--text-secondary);
+  }
+
+  .numeric-match-count {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  /* ==========================================
      RESPONSIVE
      ========================================== */
 
