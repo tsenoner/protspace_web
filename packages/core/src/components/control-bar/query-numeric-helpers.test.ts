@@ -47,6 +47,9 @@ describe('isNumericConditionReady', () => {
     expect(
       isNumericConditionReady(numericCondition({ operator: 'between', min: 1, max: null })),
     ).toBe(false);
+    expect(
+      isNumericConditionReady(numericCondition({ operator: 'between', min: null, max: 9 })),
+    ).toBe(false);
     expect(isNumericConditionReady(numericCondition({ operator: 'between', min: 1, max: 9 }))).toBe(
       true,
     );
