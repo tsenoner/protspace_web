@@ -1,7 +1,7 @@
 import { LitElement, html, nothing } from 'lit';
 import { property, state, query as litQuery } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
-import type { FilterCondition, LogicalOp } from './query-types';
+import type { FilterCondition, LogicalOp, NumericCondition } from './query-types';
 import { createCondition, createNumericCondition } from './query-types';
 import type { ProtspaceData } from './types';
 import { groupAnnotations } from './annotation-categories';
@@ -256,7 +256,7 @@ class ProtspaceQueryConditionRow extends LitElement {
     `;
   }
 
-  private _handleNumericChanged(e: CustomEvent<{ condition: FilterCondition }>) {
+  private _handleNumericChanged(e: CustomEvent<{ condition: NumericCondition }>) {
     this._dispatchChanged(e.detail.condition);
   }
 
