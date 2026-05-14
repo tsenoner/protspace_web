@@ -113,6 +113,7 @@ class ProtspaceQueryConditionRow extends LitElement {
   private _selectAnnotation(annotation: string) {
     this._showAnnotationPicker = false;
     this._annotationSearch = '';
+    this._showValuePicker = false;
     // Replace the whole condition object so its kind matches the annotation.
     const base = {
       id: this.condition.id,

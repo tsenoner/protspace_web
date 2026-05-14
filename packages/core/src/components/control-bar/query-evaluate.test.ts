@@ -393,6 +393,26 @@ describe('evaluateQueryExcluding', () => {
     expect(result).toEqual(new Set([0, 2]));
   });
 
+  it('excludes a numeric condition from a mixed query', () => {
+    const data = createTestData();
+    const query: FilterQuery = [
+      { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+      {
+        id: '2',
+        logicalOp: 'AND',
+        kind: 'numeric',
+        annotation: 'length',
+        operator: 'gt',
+        min: 250,
+        max: null,
+      },
+    ];
+    // Full query: Human {0,2} AND length>250 {2,3} → {2}.
+    // Excluding the numeric condition '2' leaves just the categorical → {0,2}.
+    const result = evaluateQueryExcluding(query, data, '2');
+    expect(result).toEqual(new Set([0, 2]));
+  });
+
   it('returns all indices for empty data', () => {
     const result = evaluateQueryExcluding([], {}, '1');
     expect(result).toEqual(new Set());
