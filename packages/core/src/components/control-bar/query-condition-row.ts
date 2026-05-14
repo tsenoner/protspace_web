@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from 'lit';
 import { property, state, query as litQuery } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
 import type { FilterCondition, LogicalOp } from './query-types';
+import { createCondition } from './query-types';
 import type { ProtspaceData } from './types';
 import { groupAnnotations } from './annotation-categories';
 import { NA_VALUE, NA_DISPLAY } from '@protspace/utils';
@@ -111,8 +112,14 @@ class ProtspaceQueryConditionRow extends LitElement {
   private _selectAnnotation(annotation: string) {
     this._showAnnotationPicker = false;
     this._annotationSearch = '';
-    // Clear values when annotation changes
-    this._dispatchChanged({ ...this.condition, annotation, values: [] });
+    // Replace the whole condition object so its kind stays consistent.
+    this._dispatchChanged(
+      createCondition({
+        id: this.condition.id,
+        logicalOp: this.condition.logicalOp,
+        annotation,
+      }),
+    );
   }
 
   private _handleLogicalOpChange(e: Event) {
@@ -122,11 +129,13 @@ class ProtspaceQueryConditionRow extends LitElement {
   }
 
   private _removeValue(value: string) {
+    if (this.condition.kind !== 'categorical') return;
     const values = this.condition.values.filter((v) => v !== value);
     this._dispatchChanged({ ...this.condition, values });
   }
 
   private _handleValueSelected(e: CustomEvent<{ value: string }>) {
+    if (this.condition.kind !== 'categorical') return;
     const value = e.detail.value;
     if (!this.condition.values.includes(value)) {
       this._dispatchChanged({ ...this.condition, values: [...this.condition.values, value] });
@@ -199,6 +208,7 @@ class ProtspaceQueryConditionRow extends LitElement {
   }
 
   private _renderValues() {
+    if (this.condition.kind !== 'categorical') return nothing;
     return html`
       <div class="value-chips">
         ${this.condition.values.map(

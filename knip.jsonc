@@ -21,6 +21,10 @@
     "packages/core": {
       "entry": ["src/index.ts", "src/components/publish/index.ts"],
       "project": ["src/**/*.ts"],
+      // query-types.ts exports a complete discriminated-union API surface;
+      // createNumericCondition and isNumericCondition are consumed by the
+      // numeric-input component introduced in the next commit.
+      "ignore": ["src/components/control-bar/query-types.ts"],
     },
     "packages/utils": {
       // `src/index.ts` is plugin-discovered; duplicating it trips config-hint errors.
