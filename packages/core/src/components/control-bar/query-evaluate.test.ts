@@ -3,7 +3,7 @@ import type { ProtspaceData } from './types';
 import type { FilterQuery } from './query-types';
 import { evaluateQuery, evaluateQueryExcluding, resolveAnnotationValue } from './query-evaluate';
 
-/** Minimal test data: 5 proteins with organism and reviewed annotations */
+/** Minimal test data: 5 proteins with categorical and numeric annotations */
 function createTestData(): ProtspaceData {
   return {
     protein_ids: ['P1', 'P2', 'P3', 'P4', 'P5'],
@@ -11,6 +11,7 @@ function createTestData(): ProtspaceData {
       organism: { values: ['Human', 'Mouse', 'Zebrafish'] },
       reviewed: { values: ['true', 'false'] },
       pfam: { values: ['PF00069', 'PF00076', null] },
+      length: { kind: 'numeric', values: [] },
     },
     annotation_data: {
       // P1=Human, P2=Mouse, P3=Human, P4=Zebrafish, P5=Mouse
@@ -19,6 +20,10 @@ function createTestData(): ProtspaceData {
       reviewed: [[0], [1], [0], [0], [1]],
       // P1=PF00069, P2=PF00076, P3=null, P4=PF00069, P5=PF00076
       pfam: [[0], [1], [2], [0], [1]],
+    },
+    numeric_annotation_data: {
+      // P1=100, P2=250, P3=400, P4=550, P5=null
+      length: [100, 250, 400, 550, null],
     },
   };
 }
@@ -67,19 +72,25 @@ describe('evaluateQuery', () => {
 
   describe('single condition', () => {
     it('matches proteins with selected value', () => {
-      const query: FilterQuery = [{ id: '1', annotation: 'organism', values: ['Human'] }];
+      const query: FilterQuery = [
+        { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+      ];
       const result = evaluateQuery(query, createTestData());
       expect(result).toEqual(new Set([0, 2]));
     });
 
     it('matches multiple values (implicit OR)', () => {
-      const query: FilterQuery = [{ id: '1', annotation: 'organism', values: ['Human', 'Mouse'] }];
+      const query: FilterQuery = [
+        { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human', 'Mouse'] },
+      ];
       const result = evaluateQuery(query, createTestData());
       expect(result).toEqual(new Set([0, 1, 2, 4]));
     });
 
     it('skips condition with empty values', () => {
-      const query: FilterQuery = [{ id: '1', annotation: 'organism', values: [] }];
+      const query: FilterQuery = [
+        { id: '1', kind: 'categorical', annotation: 'organism', values: [] },
+      ];
       const result = evaluateQuery(query, createTestData());
       expect(result).toEqual(new Set([0, 1, 2, 3, 4]));
     });
@@ -88,8 +99,14 @@ describe('evaluateQuery', () => {
   describe('AND logic', () => {
     it('intersects two conditions', () => {
       const query: FilterQuery = [
-        { id: '1', annotation: 'organism', values: ['Human'] },
-        { id: '2', logicalOp: 'AND', annotation: 'reviewed', values: ['true'] },
+        { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+        {
+          id: '2',
+          logicalOp: 'AND',
+          kind: 'categorical',
+          annotation: 'reviewed',
+          values: ['true'],
+        },
       ];
       const result = evaluateQuery(query, createTestData());
       expect(result).toEqual(new Set([0, 2]));
@@ -99,8 +116,14 @@ describe('evaluateQuery', () => {
   describe('OR logic', () => {
     it('unions two conditions', () => {
       const query: FilterQuery = [
-        { id: '1', annotation: 'organism', values: ['Human'] },
-        { id: '2', logicalOp: 'OR', annotation: 'reviewed', values: ['false'] },
+        { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+        {
+          id: '2',
+          logicalOp: 'OR',
+          kind: 'categorical',
+          annotation: 'reviewed',
+          values: ['false'],
+        },
       ];
       const result = evaluateQuery(query, createTestData());
       expect(result).toEqual(new Set([0, 1, 2, 4]));
@@ -110,7 +133,13 @@ describe('evaluateQuery', () => {
   describe('NOT logic', () => {
     it('negates a single condition', () => {
       const query: FilterQuery = [
-        { id: '1', logicalOp: 'NOT', annotation: 'organism', values: ['Human'] },
+        {
+          id: '1',
+          logicalOp: 'NOT',
+          kind: 'categorical',
+          annotation: 'organism',
+          values: ['Human'],
+        },
       ];
       const result = evaluateQuery(query, createTestData());
       expect(result).toEqual(new Set([1, 3, 4]));
@@ -118,8 +147,14 @@ describe('evaluateQuery', () => {
 
     it('NOT combined with AND', () => {
       const query: FilterQuery = [
-        { id: '1', annotation: 'organism', values: ['Human', 'Mouse'] },
-        { id: '2', logicalOp: 'NOT', annotation: 'reviewed', values: ['false'] },
+        { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human', 'Mouse'] },
+        {
+          id: '2',
+          logicalOp: 'NOT',
+          kind: 'categorical',
+          annotation: 'reviewed',
+          values: ['false'],
+        },
       ];
       const result = evaluateQuery(query, createTestData());
       expect(result).toEqual(new Set([0, 2]));
@@ -129,13 +164,19 @@ describe('evaluateQuery', () => {
   describe('groups', () => {
     it('evaluates a group as a unit', () => {
       const query: FilterQuery = [
-        { id: '1', annotation: 'reviewed', values: ['true'] },
+        { id: '1', kind: 'categorical', annotation: 'reviewed', values: ['true'] },
         {
           id: 'g1',
           logicalOp: 'AND',
           conditions: [
-            { id: '2', annotation: 'organism', values: ['Human'] },
-            { id: '3', logicalOp: 'OR', annotation: 'organism', values: ['Mouse'] },
+            { id: '2', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+            {
+              id: '3',
+              logicalOp: 'OR',
+              kind: 'categorical',
+              annotation: 'organism',
+              values: ['Mouse'],
+            },
           ],
         },
       ];
@@ -149,8 +190,14 @@ describe('evaluateQuery', () => {
           id: 'g1',
           logicalOp: 'NOT',
           conditions: [
-            { id: '1', annotation: 'organism', values: ['Human'] },
-            { id: '2', logicalOp: 'AND', annotation: 'reviewed', values: ['true'] },
+            { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+            {
+              id: '2',
+              logicalOp: 'AND',
+              kind: 'categorical',
+              annotation: 'reviewed',
+              values: ['true'],
+            },
           ],
         },
       ];
@@ -161,27 +208,136 @@ describe('evaluateQuery', () => {
 
   describe('null value handling', () => {
     it('matches null via __NA__ normalized value', () => {
-      const query: FilterQuery = [{ id: '1', annotation: 'pfam', values: ['__NA__'] }];
+      const query: FilterQuery = [
+        { id: '1', kind: 'categorical', annotation: 'pfam', values: ['__NA__'] },
+      ];
       const result = evaluateQuery(query, createTestData());
-      // P3 has pfam=null → normalized to __NA__
       expect(result).toEqual(new Set([2]));
     });
 
     it('NOT excludes null via __NA__ normalized value', () => {
       const query: FilterQuery = [
-        { id: '1', logicalOp: 'NOT', annotation: 'pfam', values: ['__NA__'] },
+        { id: '1', logicalOp: 'NOT', kind: 'categorical', annotation: 'pfam', values: ['__NA__'] },
       ];
       const result = evaluateQuery(query, createTestData());
-      // NOT negates: all except P3 (which has null pfam)
       expect(result).toEqual(new Set([0, 1, 3, 4]));
     });
   });
 
   describe('missing annotation', () => {
     it('treats missing annotation as non-matching', () => {
-      const query: FilterQuery = [{ id: '1', annotation: 'nonexistent', values: ['foo'] }];
+      const query: FilterQuery = [
+        { id: '1', kind: 'categorical', annotation: 'nonexistent', values: ['foo'] },
+      ];
       const result = evaluateQuery(query, createTestData());
       expect(result).toEqual(new Set());
+    });
+  });
+
+  describe('numeric conditions', () => {
+    it('matches proteins greater than a threshold (exclusive)', () => {
+      const query: FilterQuery = [
+        { id: '1', kind: 'numeric', annotation: 'length', operator: 'gt', min: 250, max: null },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      // > 250 → P3(400), P4(550); P2(250) excluded (exclusive)
+      expect(result).toEqual(new Set([2, 3]));
+    });
+
+    it('matches proteins less than a threshold (exclusive)', () => {
+      const query: FilterQuery = [
+        { id: '1', kind: 'numeric', annotation: 'length', operator: 'lt', min: null, max: 400 },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      // < 400 → P1(100), P2(250)
+      expect(result).toEqual(new Set([0, 1]));
+    });
+
+    it('matches proteins within an inclusive interval', () => {
+      const query: FilterQuery = [
+        { id: '1', kind: 'numeric', annotation: 'length', operator: 'between', min: 250, max: 400 },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      // between 250 and 400 inclusive → P2(250), P3(400)
+      expect(result).toEqual(new Set([1, 2]));
+    });
+
+    it('never matches a protein with a null numeric value', () => {
+      const query: FilterQuery = [
+        { id: '1', kind: 'numeric', annotation: 'length', operator: 'gt', min: 0, max: null },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      // P5 has null length → excluded even though 0 is below every real value
+      expect(result).toEqual(new Set([0, 1, 2, 3]));
+    });
+
+    it('matches nothing when a required bound is missing', () => {
+      const query: FilterQuery = [
+        { id: '1', kind: 'numeric', annotation: 'length', operator: 'gt', min: null, max: null },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      expect(result).toEqual(new Set());
+    });
+
+    it('matches nothing for between with min > max', () => {
+      const query: FilterQuery = [
+        { id: '1', kind: 'numeric', annotation: 'length', operator: 'between', min: 500, max: 200 },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      expect(result).toEqual(new Set());
+    });
+
+    it('combines a numeric condition with a categorical one via AND', () => {
+      const query: FilterQuery = [
+        { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+        {
+          id: '2',
+          logicalOp: 'AND',
+          kind: 'numeric',
+          annotation: 'length',
+          operator: 'gt',
+          min: 250,
+          max: null,
+        },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      // Human → P1,P3 ; length>250 → P3,P4 ; AND → P3
+      expect(result).toEqual(new Set([2]));
+    });
+
+    it('combines a numeric condition with a categorical one via OR', () => {
+      const query: FilterQuery = [
+        { id: '1', kind: 'categorical', annotation: 'organism', values: ['Zebrafish'] },
+        {
+          id: '2',
+          logicalOp: 'OR',
+          kind: 'numeric',
+          annotation: 'length',
+          operator: 'lt',
+          min: null,
+          max: 200,
+        },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      // Zebrafish → P4 ; length<200 → P1 ; OR → P1,P4
+      expect(result).toEqual(new Set([0, 3]));
+    });
+
+    it('negates a numeric condition with NOT', () => {
+      const query: FilterQuery = [
+        {
+          id: '1',
+          logicalOp: 'NOT',
+          kind: 'numeric',
+          annotation: 'length',
+          operator: 'gt',
+          min: 250,
+          max: null,
+        },
+      ];
+      const result = evaluateQuery(query, createTestData());
+      // length>250 → P3,P4 ; NOT → P1,P2,P5 (P5 null is "not > 250")
+      expect(result).toEqual(new Set([0, 1, 4]));
     });
   });
 });
@@ -189,7 +345,9 @@ describe('evaluateQuery', () => {
 describe('evaluateQueryExcluding', () => {
   it('returns all indices when excluding single condition from single-condition query', () => {
     const data = createTestData();
-    const query: FilterQuery = [{ id: '1', annotation: 'organism', values: ['Human'] }];
+    const query: FilterQuery = [
+      { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+    ];
     const result = evaluateQueryExcluding(query, data, '1');
     expect(result).toEqual(new Set([0, 1, 2, 3, 4]));
   });
@@ -197,10 +355,9 @@ describe('evaluateQueryExcluding', () => {
   it('returns other condition result when excluding one of two AND conditions', () => {
     const data = createTestData();
     const query: FilterQuery = [
-      { id: '1', annotation: 'organism', values: ['Human'] },
-      { id: '2', logicalOp: 'AND', annotation: 'reviewed', values: ['true'] },
+      { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+      { id: '2', logicalOp: 'AND', kind: 'categorical', annotation: 'reviewed', values: ['true'] },
     ];
-    // Excluding condition 1 → only condition 2 (reviewed=true: P1,P3,P4)
     const result = evaluateQueryExcluding(query, data, '1');
     expect(result).toEqual(new Set([0, 2, 3]));
   });
@@ -212,20 +369,47 @@ describe('evaluateQueryExcluding', () => {
         id: 'g1',
         logicalOp: 'AND',
         conditions: [
-          { id: '1', annotation: 'organism', values: ['Human'] },
-          { id: '2', logicalOp: 'AND', annotation: 'reviewed', values: ['true'] },
+          { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+          {
+            id: '2',
+            logicalOp: 'AND',
+            kind: 'categorical',
+            annotation: 'reviewed',
+            values: ['true'],
+          },
         ],
       },
     ];
-    // Excluding condition 2 inside group → group evaluates just condition 1 (organism=Human: P1,P3)
     const result = evaluateQueryExcluding(query, data, '2');
     expect(result).toEqual(new Set([0, 2]));
   });
 
   it('returns full query result when excluding non-existent ID', () => {
     const data = createTestData();
-    const query: FilterQuery = [{ id: '1', annotation: 'organism', values: ['Human'] }];
+    const query: FilterQuery = [
+      { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+    ];
     const result = evaluateQueryExcluding(query, data, 'nonexistent');
+    expect(result).toEqual(new Set([0, 2]));
+  });
+
+  it('excludes a numeric condition from a mixed query', () => {
+    const data = createTestData();
+    const query: FilterQuery = [
+      { id: '1', kind: 'categorical', annotation: 'organism', values: ['Human'] },
+      {
+        id: '2',
+        logicalOp: 'AND',
+        kind: 'numeric',
+        annotation: 'length',
+        operator: 'gt',
+        min: 250,
+        max: null,
+      },
+    ];
+    // Full query: Human {0,2} AND length>250 {2,3} → {2}.
+    // Excluding the numeric condition '2' leaves just the categorical → {0,2}.
+    const result = evaluateQueryExcluding(query, data, '2');
     expect(result).toEqual(new Set([0, 2]));
   });
 

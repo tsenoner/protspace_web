@@ -1,12 +1,14 @@
 import { LitElement, html, nothing } from 'lit';
 import { property, state, query as litQuery } from 'lit/decorators.js';
 import { customElement } from '../../utils/safe-custom-element';
-import type { FilterCondition, LogicalOp } from './query-types';
+import type { FilterCondition, LogicalOp, NumericCondition } from './query-types';
+import { createCondition, createNumericCondition } from './query-types';
 import type { ProtspaceData } from './types';
 import { groupAnnotations } from './annotation-categories';
 import { NA_VALUE, NA_DISPLAY } from '@protspace/utils';
 import { queryBuilderStyles } from './query-builder.styles';
 import './query-value-picker';
+import './query-numeric-input';
 
 /**
  * Renders a single query condition row.
@@ -111,8 +113,15 @@ class ProtspaceQueryConditionRow extends LitElement {
   private _selectAnnotation(annotation: string) {
     this._showAnnotationPicker = false;
     this._annotationSearch = '';
-    // Clear values when annotation changes
-    this._dispatchChanged({ ...this.condition, annotation, values: [] });
+    this._showValuePicker = false;
+    // Replace the whole condition object so its kind matches the annotation.
+    const base = {
+      id: this.condition.id,
+      logicalOp: this.condition.logicalOp,
+      annotation,
+    };
+    const isNumeric = this.data?.annotations?.[annotation]?.kind === 'numeric';
+    this._dispatchChanged(isNumeric ? createNumericCondition(base) : createCondition(base));
   }
 
   private _handleLogicalOpChange(e: Event) {
@@ -122,11 +131,13 @@ class ProtspaceQueryConditionRow extends LitElement {
   }
 
   private _removeValue(value: string) {
+    if (this.condition.kind !== 'categorical') return;
     const values = this.condition.values.filter((v) => v !== value);
     this._dispatchChanged({ ...this.condition, values });
   }
 
   private _handleValueSelected(e: CustomEvent<{ value: string }>) {
+    if (this.condition.kind !== 'categorical') return;
     const value = e.detail.value;
     if (!this.condition.values.includes(value)) {
       this._dispatchChanged({ ...this.condition, values: [...this.condition.values, value] });
@@ -199,6 +210,7 @@ class ProtspaceQueryConditionRow extends LitElement {
   }
 
   private _renderValues() {
+    if (this.condition.kind !== 'categorical') return nothing;
     return html`
       <div class="value-chips">
         ${this.condition.values.map(
@@ -245,6 +257,21 @@ class ProtspaceQueryConditionRow extends LitElement {
     `;
   }
 
+  private _handleNumericChanged(e: CustomEvent<{ condition: NumericCondition }>) {
+    this._dispatchChanged(e.detail.condition);
+  }
+
+  private _renderNumericInput() {
+    if (this.condition.kind !== 'numeric') return nothing;
+    return html`
+      <protspace-query-numeric-input
+        .condition=${this.condition}
+        .data=${this.data}
+        @numeric-changed=${this._handleNumericChanged}
+      ></protspace-query-numeric-input>
+    `;
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   render() {
@@ -278,7 +305,7 @@ class ProtspaceQueryConditionRow extends LitElement {
         </button>
 
         ${this._showAnnotationPicker ? this._renderAnnotationPicker() : nothing}
-        ${this._renderValues()}
+        ${this.condition.kind === 'numeric' ? this._renderNumericInput() : this._renderValues()}
 
         <button class="condition-remove" @click=${this._handleRemove} title="Remove condition">
           ×

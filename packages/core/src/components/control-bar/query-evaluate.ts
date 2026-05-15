@@ -1,6 +1,12 @@
 import type { ProtspaceData } from './types';
-import type { FilterQuery, FilterQueryItem, FilterCondition } from './query-types';
+import type {
+  FilterQuery,
+  FilterQueryItem,
+  FilterCondition,
+  NumericCondition,
+} from './query-types';
 import { isFilterGroup } from './query-types';
+import { isNumericConditionReady, matchesNumericValue } from './query-numeric-helpers';
 import { toInternalValue } from '../legend/config';
 import { getFirstAnnotationIndex } from '@protspace/utils';
 
@@ -35,15 +41,19 @@ function normalizeValue(value: string | null): string {
 
 /**
  * Evaluate a single condition against all proteins, returning a Set of matching indices.
- * Always uses "is" semantics: a protein matches if its normalized annotation value
- * is among the condition's selected values. Negation is handled at the combining
- * level via the NOT logical operator.
+ * Categorical conditions use "is" semantics (value is among the selected set);
+ * numeric conditions apply a comparison operator. Negation is handled at the
+ * combining level via the NOT logical operator.
  */
 function evaluateCondition(
   condition: FilterCondition,
   data: ProtspaceData,
   numProteins: number,
 ): Set<number> {
+  if (condition.kind === 'numeric') {
+    return evaluateNumericCondition(condition, data, numProteins);
+  }
+
   if (condition.values.length === 0) {
     return allIndices(numProteins);
   }
@@ -64,6 +74,30 @@ function evaluateCondition(
     }
   }
 
+  return matches;
+}
+
+/**
+ * Evaluate a numeric condition: a protein matches when its raw numeric value
+ * satisfies the operator. An unconfigured condition (missing a required bound)
+ * matches nothing, so an in-progress filter never produces misleading results.
+ */
+function evaluateNumericCondition(
+  condition: NumericCondition,
+  data: ProtspaceData,
+  numProteins: number,
+): Set<number> {
+  if (!isNumericConditionReady(condition)) return new Set();
+
+  const values = data.numeric_annotation_data?.[condition.annotation];
+  if (!values) return new Set();
+
+  const matches = new Set<number>();
+  for (let i = 0; i < numProteins; i++) {
+    if (matchesNumericValue(values[i] ?? null, condition)) {
+      matches.add(i);
+    }
+  }
   return matches;
 }
 

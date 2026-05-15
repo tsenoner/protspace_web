@@ -24,7 +24,7 @@ describe('DataProcessor.processVisualizationData', () => {
     expect(result[1]).toEqual({ id: 'p1', x: 3, y: 4, originalIndex: 1 });
   });
 
-  it('preserves z coordinate for 3D projections', () => {
+  it('drops the z coordinate for 3D projections (rendered as 2D)', () => {
     const data: VisualizationData = {
       protein_ids: ['p0'],
       projections: [{ name: 't', data: [[1, 2, 3]] }],
@@ -32,29 +32,8 @@ describe('DataProcessor.processVisualizationData', () => {
       annotation_data: {},
     };
     const result = DataProcessor.processVisualizationData(data, 0);
-    expect(result[0]).toEqual({ id: 'p0', x: 1, y: 2, z: 3, originalIndex: 0 });
-  });
-
-  it('maps coordinates to xz plane when projectionPlane is "xz"', () => {
-    const data: VisualizationData = {
-      protein_ids: ['p0'],
-      projections: [{ name: 't', data: [[10, 20, 30]] }],
-      annotations: {},
-      annotation_data: {},
-    };
-    const result = DataProcessor.processVisualizationData(data, 0, false, undefined, 'xz');
-    expect(result[0]).toEqual({ id: 'p0', x: 10, y: 30, z: 30, originalIndex: 0 });
-  });
-
-  it('maps coordinates to yz plane when projectionPlane is "yz"', () => {
-    const data: VisualizationData = {
-      protein_ids: ['p0'],
-      projections: [{ name: 't', data: [[10, 20, 30]] }],
-      annotations: {},
-      annotation_data: {},
-    };
-    const result = DataProcessor.processVisualizationData(data, 0, false, undefined, 'yz');
-    expect(result[0]).toEqual({ id: 'p0', x: 20, y: 30, z: 30, originalIndex: 0 });
+    expect(result[0]).toEqual({ id: 'p0', x: 1, y: 2, originalIndex: 0 });
+    expect(result[0]).not.toHaveProperty('z');
   });
 
   it('returns empty array when projection index is out of range', () => {

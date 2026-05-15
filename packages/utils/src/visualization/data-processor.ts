@@ -7,7 +7,6 @@ export class DataProcessor {
     projectionIndex: number,
     isolationMode: boolean = false,
     isolationHistory?: string[][],
-    projectionPlane: 'xy' | 'xz' | 'yz' = 'xy',
   ): PlotDataPoint[] {
     if (!data.projections[projectionIndex]) return [];
 
@@ -16,18 +15,7 @@ export class DataProcessor {
         | [number, number]
         | [number, number, number];
 
-      let xVal = coordinates[0];
-      let yVal = coordinates[1];
-      if (coordinates.length === 3) {
-        if (projectionPlane === 'xz') {
-          yVal = coordinates[2];
-        } else if (projectionPlane === 'yz') {
-          xVal = coordinates[1];
-          yVal = coordinates[2];
-        }
-        return { id, x: xVal, y: yVal, z: coordinates[2], originalIndex: index };
-      }
-      return { id, x: xVal, y: yVal, originalIndex: index };
+      return { id, x: coordinates[0], y: coordinates[1], originalIndex: index };
     });
 
     if (isolationMode && isolationHistory && isolationHistory.length > 0) {
