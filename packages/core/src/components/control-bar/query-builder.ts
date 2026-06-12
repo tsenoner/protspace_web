@@ -4,7 +4,7 @@ import { customElement } from '../../utils/safe-custom-element';
 import type { ProtspaceData } from './types';
 import type { FilterQuery, FilterCondition, FilterGroup, LogicalOp } from './query-types';
 import { createCondition, createGroup, isFilterGroup } from './query-types';
-import { evaluateQuery, evaluateQueryExcluding } from './query-evaluate';
+import { evaluateQuery, evaluateQueryExcluding, hasConfiguredCondition } from './query-evaluate';
 import { queryBuilderStyles } from './query-builder.styles';
 import { buttonMixin } from '../../styles/mixins';
 import { renderCloseIcon } from '../legend/legend-other-dialog';
@@ -15,7 +15,7 @@ import './query-condition-row';
  *
  * Events:
  * - `query-changed` — dispatched whenever the query changes, detail: `{ query: FilterQuery }`
- * - `query-apply`   — dispatched when "Apply & Isolate" is clicked, detail: `{ matchedIndices: Set<number> }`
+ * - `query-apply`   — dispatched when "Apply Filter" is clicked, detail: `{ matchedIndices: Set<number> }`
  * - `query-reset`   — dispatched when "Reset All" is clicked
  */
 @customElement('protspace-query-builder')
@@ -199,6 +199,10 @@ class ProtspaceQueryBuilder extends LitElement {
 
   private _handleApply() {
     if (!this.data) return;
+    // An all-no-op query matches everything; applying it would light up the
+    // filter-active badge without filtering anything (mirrors the disabled
+    // Apply button for callers that bypass the click path).
+    if (!hasConfiguredCondition(this.query)) return;
     const result = evaluateQuery(this.query, this.data);
     this.dispatchEvent(
       new CustomEvent('query-apply', {
@@ -319,10 +323,10 @@ class ProtspaceQueryBuilder extends LitElement {
           <button class="btn-secondary" @click=${this._handleClose}>Cancel</button>
           <button
             class="btn-primary"
-            ?disabled=${this._matchedIndices.size === 0 || this.query.length === 0}
+            ?disabled=${this._matchedIndices.size === 0 || !hasConfiguredCondition(this.query)}
             @click=${this._handleApply}
           >
-            Apply &amp; Isolate
+            Apply Filter
           </button>
         </div>
       </div>
