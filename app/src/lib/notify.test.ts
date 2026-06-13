@@ -47,4 +47,27 @@ describe('notify', () => {
 
     expect(mockedToast.error).toHaveBeenCalledTimes(2);
   });
+
+  it('forwards an action to the toast as a label and onClick handler', () => {
+    notify.error({
+      title: 'Service down.',
+      action: { label: 'Open in Colab ↗', href: 'https://colab.example.com/nb' },
+    });
+
+    expect(mockedToast.error).toHaveBeenCalledWith(
+      'Service down.',
+      expect.objectContaining({
+        action: { label: 'Open in Colab ↗', onClick: expect.any(Function) },
+      }),
+    );
+  });
+
+  it('omits the action when none is provided', () => {
+    notify.info({ title: 'Heads up.' });
+
+    expect(mockedToast.info).toHaveBeenCalledWith(
+      'Heads up.',
+      expect.objectContaining({ action: undefined }),
+    );
+  });
 });
