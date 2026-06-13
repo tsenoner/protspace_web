@@ -5,6 +5,7 @@ export interface NotifyOptions {
   description?: string;
   durationMs?: number;
   dedupeKey?: string;
+  action?: { label: string; href: string };
 }
 
 type NotifyLevel = 'success' | 'info' | 'warning' | 'error';
@@ -52,9 +53,22 @@ function emitNotification(level: NotifyLevel, options: NotifyOptions): void {
   const description = options.description?.trim();
   const duration = options.durationMs ?? DEFAULT_DURATIONS_MS[level];
 
+  const action = options.action;
   toast[level](options.title, {
     description,
     duration,
+    action: action
+      ? {
+          label: action.label,
+          onClick: () => {
+            if (action.href.startsWith('mailto:')) {
+              window.location.href = action.href;
+            } else {
+              window.open(action.href, '_blank', 'noopener,noreferrer');
+            }
+          },
+        }
+      : undefined,
   });
 }
 
