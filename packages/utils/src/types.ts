@@ -272,9 +272,10 @@ export interface ScatterplotConfig {
    */
   enableDuplicateStackUI?: boolean;
   /**
-   * GPU density heatmap under the points. `off` renders the points alone, `auto`
-   * cross-fades the layer in as the visible points overplot and out as the user
-   * zooms in, `on` pins it at full strength.
+   * GPU density heatmap composited over the base points and under the selected
+   * ones. `off` renders the points alone, `auto` cross-fades the layer in as the
+   * visible points overplot and out as the user zooms in, `on` pins it at full
+   * strength.
    *
    * Default: 'off'.
    */
@@ -282,6 +283,13 @@ export interface ScatterplotConfig {
 }
 
 export type DensityLayerMode = 'off' | 'auto' | 'on';
+
+/**
+ * The one spelling of the density layer's default mode: `DEFAULT_CONFIG`, the
+ * control bar, the `?density=` URL round trip and the perf harness all read it,
+ * so flipping the default is a one-line change here.
+ */
+export const DENSITY_DEFAULT: DensityLayerMode = 'off';
 
 export type PointShape = 'circle' | 'square' | 'diamond' | 'triangle-up' | 'triangle-down' | 'plus';
 
